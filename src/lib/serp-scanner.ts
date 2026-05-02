@@ -1,0 +1,342 @@
+import { chromium, type Browser, type BrowserContext } from "playwright";
+
+/**
+ * Scrapes a Google SERP for everything an SEO actually wants to see:
+ * AI Overview, People Also Ask, related searches, top organic results,
+ * featured snippet, local pack. Best-effort with multiple selector
+ * fallbacks because Google's HTML changes constantly.
+ */
+
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
+let cachedBrowser: Browser | null = null;
+let browserPromise: Promise<Browser> | null = null;
+
+async function getBrowser(): Promise<Browser> {
+  if (cachedBrowser && cachedBrowser.isConnected()) return cachedBrowser;
+  if (!browserPromise) {
+    browserPromise = chromium.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-blink-features=AutomationControlled",
+        "--disable-dev-shm-usage",
+      ],
+    });
+  }
+  cachedBrowser = await browserPromise;
+  return cachedBrowser;
+}
+
+async function newContext(browser: Browser): Promise<BrowserContext> {
+  return browser.newContext({
+    userAgent: USER_AGENT,
+    viewport: { width: 1280, height: 1800 },
+    locale: "en-US",
+    timezoneId: "UTC",
+    extraHTTPHeaders: { "accept-language": "en-US,en;q=0.9" },
+  });
+}
+
+export type SerpScanInput = {
+  query: string;
+  /** ISO country code for `gl=` param, default "US" */
+  country?: string;
+  /** Domain to flag as the client's own (so we can mark "isClient" rows) */
+  clientDomain?: string;
+};
+
+export type SerpScanOutput = {
+  ok: boolean;
+  error?: string;
+  aiOverviewPresent: boolean;
+  aiOverviewText: string | null;
+  aiOverviewSources: string[];
+  paaQuestions: string[];
+  relatedSearches: string[];
+  topResults: SerpResult[];
+  featuredSnippet: { title: string; url: string; excerpt: string | null } | null;
+  localPackPresent: boolean;
+  totalResults: number | null;
+};
+
+export type SerpResult = {
+  position: number;
+  title: string;
+  url: string;
+  domain: string;
+  snippet: string | null;
+  isClient: boolean;
+};
+
+function normalizeDomain(input: string | null | undefined): string {
+  if (!input) return "";
+  return input
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/.*$/, "")
+    .toLowerCase();
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+const empty = (): SerpScanOutput => ({
+  ok: false,
+  aiOverviewPresent: false,
+  aiOverviewText: null,
+  aiOverviewSources: [],
+  paaQuestions: [],
+  relatedSearches: [],
+  topResults: [],
+  featuredSnippet: null,
+  localPackPresent: false,
+  totalResults: null,
+});
+
+export async function scanSerp(opts: SerpScanInput): Promise<SerpScanOutput> {
+  const country = (opts.country ?? "US").toUpperCase();
+  const clientDomain = normalizeDomain(opts.clientDomain);
+
+  const browser = await getBrowser();
+  const context = await newContext(browser);
+  const page = await context.newPage();
+
+  const out: SerpScanOutput = empty();
+
+  try {
+    const url = `https://www.google.com/search?q=${encodeURIComponent(
+      opts.query,
+    )}&hl=en&gl=${country}&pws=0&num=20`;
+
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    await page.waitForTimeout(900);
+
+    // Block detection
+    const bodyText = (await page.textContent("body")) ?? "";
+    if (
+      /unusual traffic|verify you're not a robot|please enable cookies/i.test(
+        bodyText.slice(0, 2000),
+      )
+    ) {
+      out.error =
+        "Google blocked the scan (captcha / consent). Try again later or rotate IP.";
+      return out;
+    }
+
+    // Total results count — small text near top-right of the SERP
+    const totalRaw = await page
+      .$eval("#result-stats", (el) => el.textContent ?? "")
+      .catch(() => "");
+    const totalMatch = totalRaw.match(/[\d,]+/);
+    out.totalResults = totalMatch
+      ? parseInt(totalMatch[0].replace(/,/g, ""), 10)
+      : null;
+
+    // === AI Overview detection ===
+    // Google's AI Overview block has changed names a few times. Try multiple.
+    const aiData = await page
+      .evaluate(() => {
+        const candidates = [
+          // Most common 2024-2025 selector
+          "[data-attrid*='answer']",
+          "[data-attrid='Generative']",
+          "div[jsname='HxnHBe']",
+          // Fallback: any block with the AI Overview heading text
+        ];
+        for (const sel of candidates) {
+          const el = document.querySelector(sel);
+          if (el) {
+            const text = (el.textContent ?? "").trim();
+            if (text.length > 100) {
+              const links = Array.from(el.querySelectorAll("a[href^='http']"))
+                .map((a) => (a as HTMLAnchorElement).href)
+                .filter((h) => !/google\./.test(h));
+              return { text, sources: links.slice(0, 8) };
+            }
+          }
+        }
+        // Last-resort heuristic: a block beginning with the AI Overview header text
+        const headers = Array.from(document.querySelectorAll("h1, h2, h3"));
+        for (const h of headers) {
+          const t = (h.textContent ?? "").trim();
+          if (/^ai overview$/i.test(t) || /generated by google ai/i.test(t)) {
+            const wrapper = h.closest("div");
+            if (wrapper) {
+              const text = (wrapper.textContent ?? "").trim();
+              if (text.length > 100) {
+                const links = Array.from(
+                  wrapper.querySelectorAll("a[href^='http']"),
+                )
+                  .map((a) => (a as HTMLAnchorElement).href)
+                  .filter((h) => !/google\./.test(h));
+                return { text, sources: links.slice(0, 8) };
+              }
+            }
+          }
+        }
+        return null;
+      })
+      .catch(() => null);
+
+    if (aiData) {
+      out.aiOverviewPresent = true;
+      out.aiOverviewText = aiData.text.slice(0, 2000);
+      out.aiOverviewSources = Array.from(
+        new Set(aiData.sources.map((s: string) => hostOf(s))),
+      ).filter(Boolean);
+    }
+
+    // === People Also Ask ===
+    out.paaQuestions = await page
+      .$$eval("[jsname='Cpkphb'], [data-q]", (els) => {
+        const result: string[] = [];
+        for (const el of els as HTMLElement[]) {
+          const q = el.getAttribute("data-q") ?? el.textContent ?? "";
+          const trimmed = q.trim();
+          if (trimmed && trimmed.length > 5 && trimmed.length < 300) {
+            result.push(trimmed);
+          }
+        }
+        return Array.from(new Set(result)).slice(0, 8);
+      })
+      .catch(() => [] as string[]);
+
+    if (out.paaQuestions.length === 0) {
+      // Fallback selector: questions inside the PAA box have role="heading"
+      out.paaQuestions = await page
+        .$$eval("[role='heading'][aria-level='3']", (els) => {
+          return (els as HTMLElement[])
+            .map((el) => (el.textContent ?? "").trim())
+            .filter(
+              (t) =>
+                t &&
+                t.length > 8 &&
+                t.length < 200 &&
+                /\?$/.test(t),
+            )
+            .slice(0, 8);
+        })
+        .catch(() => [] as string[]);
+    }
+
+    // === Related searches ===
+    out.relatedSearches = await page
+      .$$eval("a[data-rc] span, div[data-hveid] a span", (els) => {
+        const result: string[] = [];
+        for (const el of els as HTMLElement[]) {
+          const t = (el.textContent ?? "").trim();
+          if (t && t.length > 2 && t.length < 100 && /\s/.test(t)) {
+            result.push(t);
+          }
+        }
+        return Array.from(new Set(result)).slice(0, 8);
+      })
+      .catch(() => [] as string[]);
+
+    // === Top organic results ===
+    const rawResults = await page
+      .$$eval(
+        "div.g, div[data-snc], div[data-snf]",
+        (els) => {
+          const out: { title: string; url: string; snippet: string | null }[] =
+            [];
+          for (const el of els as HTMLElement[]) {
+            const a = el.querySelector(
+              "a[href^='http']:not([href*='google.com/search'])",
+            ) as HTMLAnchorElement | null;
+            if (!a) continue;
+            const href = a.href;
+            if (
+              !href ||
+              /^https?:\/\/(www\.)?google\./i.test(href) ||
+              /googleadservices|googleusercontent|accounts\.google/i.test(href) ||
+              /^https?:\/\/webcache\./i.test(href)
+            ) {
+              continue;
+            }
+            const titleEl = el.querySelector("h3");
+            const title = (titleEl?.textContent ?? "").trim();
+            if (!title) continue;
+            const snipEl =
+              el.querySelector("[data-sncf]") ??
+              el.querySelector("div[style*='line-height']") ??
+              el.querySelector("span");
+            const snippet = (snipEl?.textContent ?? "").trim() || null;
+            out.push({ title, url: href, snippet });
+            if (out.length >= 30) break;
+          }
+          return out;
+        },
+      )
+      .catch(() => [] as { title: string; url: string; snippet: string | null }[]);
+
+    // De-dupe by URL while preserving order, take top 10
+    const seenUrls = new Set<string>();
+    let position = 0;
+    for (const r of rawResults) {
+      if (seenUrls.has(r.url)) continue;
+      seenUrls.add(r.url);
+      position += 1;
+      const domain = hostOf(r.url);
+      out.topResults.push({
+        position,
+        title: r.title,
+        url: r.url,
+        domain,
+        snippet: r.snippet,
+        isClient: clientDomain ? domain === clientDomain : false,
+      });
+      if (position >= 10) break;
+    }
+
+    // === Featured snippet ===
+    const fs = await page
+      .evaluate(() => {
+        const el = document.querySelector(
+          "div[data-attrid='wa:/description'], div[data-md='50'], block-component",
+        );
+        if (!el) return null;
+        const a = el.querySelector(
+          "a[href^='http']",
+        ) as HTMLAnchorElement | null;
+        if (!a) return null;
+        const titleEl = el.querySelector("h3");
+        const title = (titleEl?.textContent ?? "").trim();
+        const text = (el.textContent ?? "").trim();
+        return {
+          title: title || (a.textContent ?? "").trim(),
+          url: a.href,
+          excerpt: text.slice(0, 500) || null,
+        };
+      })
+      .catch(() => null);
+    out.featuredSnippet = fs;
+
+    // === Local pack ===
+    out.localPackPresent = await page
+      .evaluate(() => {
+        return Boolean(
+          document.querySelector(
+            "div[data-hveid][data-attrid*='Places'], [aria-label*='map'], div[role='complementary'] [data-attrid*='Local']",
+          ),
+        );
+      })
+      .catch(() => false);
+
+    out.ok = true;
+    return out;
+  } catch (err) {
+    out.error = (err as Error).message;
+    return out;
+  } finally {
+    await page.close().catch(() => {});
+    await context.close().catch(() => {});
+  }
+}

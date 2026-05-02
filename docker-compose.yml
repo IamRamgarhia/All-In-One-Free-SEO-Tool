@@ -1,0 +1,41 @@
+services:
+  seo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: seo-tool:local
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Persistent SQLite path inside the container — mapped to a volume
+      SEO_DB_PATH: /data/data.db
+      # Optional: bake in Google OAuth so users get one-click sign-in.
+      # GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      # GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      # Optional: PageSpeed Insights API key (free, 25k/day)
+      # PAGESPEED_API_KEY: ${PAGESPEED_API_KEY:-}
+      # Optional: pre-set AI provider keys instead of the UI flow
+      # GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # GROQ_API_KEY: ${GROQ_API_KEY:-}
+      # OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      # OLLAMA_URL: http://ollama:11434
+    volumes:
+      - seo-data:/data
+
+  # Optional sidecar — local LLM for fully offline AI features.
+  # Uncomment + run `docker compose up ollama` to use.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+
+volumes:
+  seo-data:
+  # ollama-data:

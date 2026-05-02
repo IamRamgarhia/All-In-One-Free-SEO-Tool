@@ -1,0 +1,21 @@
+CREATE TABLE `cwv_reports` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`client_id` integer NOT NULL,
+	`url` text NOT NULL,
+	`strategy` text DEFAULT 'mobile' NOT NULL,
+	`performance` integer,
+	`accessibility` integer,
+	`best_practices` integer,
+	`seo` integer,
+	`lcp_ms` integer,
+	`inp_ms` integer,
+	`cls_x100` integer,
+	`ttfb_ms` integer,
+	`fcp_ms` integer,
+	`tbt_ms` integer,
+	`opportunities` text,
+	`overall` text,
+	`error` text,
+	`scanned_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade
+);

@@ -1,0 +1,188 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SEO Tool — Quick Capture</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --card: #1a1d2a;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #e8e9ee;
+        --muted: #8b8fa3;
+        --violet: #8b6df0;
+        --violet-bg: rgba(139, 109, 240, 0.15);
+        --emerald: #4ade80;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        font-size: 13px;
+        width: 320px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .brand-mark {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #8b6df0, #c084fc, #6366f1);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 11px;
+        color: #fff;
+      }
+      .brand-name {
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .brand-sub {
+        margin-left: auto;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 8px;
+      }
+      .label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      .url {
+        font-size: 11px;
+        word-break: break-all;
+        color: var(--text);
+        line-height: 1.4;
+      }
+      .title {
+        font-weight: 500;
+        font-size: 12px;
+        line-height: 1.4;
+        margin-bottom: 4px;
+      }
+      .row {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      button {
+        flex: 1;
+        padding: 8px 10px;
+        background: var(--violet-bg);
+        color: var(--violet);
+        border: 1px solid rgba(139, 109, 240, 0.3);
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:hover {
+        background: rgba(139, 109, 240, 0.25);
+      }
+      button.primary {
+        background: linear-gradient(135deg, #8b6df0, #6366f1);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+      .input {
+        width: 100%;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 11px;
+        font-family: inherit;
+        margin-bottom: 4px;
+      }
+      .footer {
+        margin-top: 10px;
+        font-size: 10px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .ok {
+        color: var(--emerald);
+      }
+      .err {
+        color: #f87171;
+      }
+      .config-toggle {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 10px;
+        padding: 4px;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .config {
+        display: none;
+        margin-top: 8px;
+      }
+      .config.open {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-name">SEO Tool</div>
+      <div class="brand-sub">v0.1</div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Current page</div>
+      <div id="title" class="title">—</div>
+      <div id="url" class="url">—</div>
+      <div class="row">
+        <button id="add-as-client">Add as client</button>
+        <button id="add-as-competitor">Add as competitor</button>
+      </div>
+      <div class="row">
+        <button id="track-changes">Watch changes</button>
+        <button id="audit-now" class="primary">Audit now</button>
+      </div>
+    </div>
+
+    <button class="config-toggle" id="config-toggle">⚙ App URL</button>
+    <div class="config" id="config-panel">
+      <input
+        id="app-url"
+        type="url"
+        class="input"
+        value="http://localhost:3000"
+        placeholder="http://localhost:3000"
+      />
+      <div class="footer">
+        Saved automatically. Default works for the standard local install.
+      </div>
+    </div>
+
+    <div id="status" class="footer">Ready</div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

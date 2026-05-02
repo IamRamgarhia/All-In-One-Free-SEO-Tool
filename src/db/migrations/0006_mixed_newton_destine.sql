@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `recurring_interval` text;

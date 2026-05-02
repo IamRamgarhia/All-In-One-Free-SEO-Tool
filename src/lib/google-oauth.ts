@@ -1,0 +1,391 @@
+import { getSetting, setSetting, deleteSetting } from "@/lib/settings-store";
+
+/**
+ * Google OAuth + GSC + GA4 integration.
+ *
+ * Strategy: the user creates their own Google Cloud OAuth client (free, no
+ * verification needed for self-hosted local-first apps using a localhost
+ * redirect), pastes the client ID + secret into our settings, and clicks
+ * "Connect Google". We never embed our own OAuth credentials — that would
+ * require Google verification + a privacy-policy URL we don't have.
+ */
+
+export const GOOGLE_SCOPES = [
+  "https://www.googleapis.com/auth/webmasters.readonly",
+  "https://www.googleapis.com/auth/analytics.readonly",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "openid",
+] as const;
+
+export type GoogleConnectionStatus = {
+  configured: boolean;
+  connected: boolean;
+  email: string | null;
+  /** True if Client ID + Secret are available (from env or pasted in UI) */
+  credentialsSet: boolean;
+  /**
+   * True when credentials come from env vars — UI hides the paste-your-own
+   * flow and shows a single "Sign in with Google" button instead.
+   */
+  credentialsFromEnv: boolean;
+};
+
+export async function getGoogleConnectionStatus(): Promise<GoogleConnectionStatus> {
+  const [refreshToken, email] = await Promise.all([
+    getSetting<string>("google.refresh_token"),
+    getSetting<string>("google.connected_email"),
+  ]);
+  const creds = await getGoogleClientCredentials();
+  const credentialsSet = Boolean(creds);
+  const credentialsFromEnv =
+    Boolean(creds) &&
+    Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID) &&
+    Boolean(process.env.GOOGLE_OAUTH_CLIENT_SECRET);
+  const connected = Boolean(refreshToken);
+  return {
+    configured: credentialsSet && connected,
+    connected,
+    credentialsSet,
+    credentialsFromEnv,
+    email: email ?? null,
+  };
+}
+
+export async function getGoogleClientCredentials(): Promise<{
+  clientId: string;
+  clientSecret: string;
+} | null> {
+  // Env vars take priority — this is the "one-click sign-in" path. The
+  // developer sets these once at deploy time; every user thereafter just hits
+  // Sign in with Google with no Google Cloud Console steps.
+  const envId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const envSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (envId && envSecret) {
+    return { clientId: envId, clientSecret: envSecret };
+  }
+
+  // Fallback: user-pasted credentials (current self-hosted path).
+  const [clientId, clientSecret] = await Promise.all([
+    getSetting<string>("google.client_id"),
+    getSetting<string>("google.client_secret"),
+  ]);
+  if (!clientId || !clientSecret) return null;
+  return { clientId, clientSecret };
+}
+
+/**
+ * Build the Google authorization URL. We always force `consent` so the
+ * refresh_token is returned (Google only sends it on first-consent or with
+ * `prompt=consent`).
+ */
+export function buildAuthUrl(opts: {
+  clientId: string;
+  redirectUri: string;
+  state?: string;
+}): string {
+  const params = new URLSearchParams({
+    client_id: opts.clientId,
+    redirect_uri: opts.redirectUri,
+    response_type: "code",
+    scope: GOOGLE_SCOPES.join(" "),
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: "true",
+  });
+  if (opts.state) params.set("state", opts.state);
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+type TokenResponse = {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  token_type: string;
+  id_token?: string;
+};
+
+export async function exchangeCodeForTokens(opts: {
+  code: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}): Promise<TokenResponse> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code: opts.code,
+      client_id: opts.clientId,
+      client_secret: opts.clientSecret,
+      redirect_uri: opts.redirectUri,
+      grant_type: "authorization_code",
+    }).toString(),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Google token exchange failed: ${res.status} ${body}`);
+  }
+  return (await res.json()) as TokenResponse;
+}
+
+export async function refreshAccessToken(opts: {
+  refreshToken: string;
+  clientId: string;
+  clientSecret: string;
+}): Promise<{ access_token: string; expires_in: number }> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      refresh_token: opts.refreshToken,
+      client_id: opts.clientId,
+      client_secret: opts.clientSecret,
+      grant_type: "refresh_token",
+    }).toString(),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Google token refresh failed: ${res.status} ${body}`);
+  }
+  return (await res.json()) as { access_token: string; expires_in: number };
+}
+
+/**
+ * Returns a usable access_token, refreshing it transparently if expired.
+ * Throws if the integration isn't connected.
+ */
+export async function getAccessToken(): Promise<string> {
+  const [clientId, clientSecret, refreshToken, accessToken, expiresAtRaw] =
+    await Promise.all([
+      getSetting<string>("google.client_id"),
+      getSetting<string>("google.client_secret"),
+      getSetting<string>("google.refresh_token"),
+      getSetting<string>("google.access_token"),
+      getSetting<number>("google.access_token_expires_at"),
+    ]);
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error("Google not connected — connect it in Settings → Google.");
+  }
+
+  const expiresAt = expiresAtRaw ?? 0;
+  // Refresh 60s before actual expiry to avoid edge-case races.
+  if (accessToken && expiresAt - 60_000 > Date.now()) {
+    return accessToken;
+  }
+
+  const refreshed = await refreshAccessToken({
+    refreshToken,
+    clientId,
+    clientSecret,
+  });
+  await Promise.all([
+    setSetting("google.access_token", refreshed.access_token),
+    setSetting(
+      "google.access_token_expires_at",
+      Date.now() + refreshed.expires_in * 1000,
+    ),
+  ]);
+  return refreshed.access_token;
+}
+
+export async function fetchGoogleUserEmail(
+  accessToken: string,
+): Promise<string | null> {
+  const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { email?: string };
+  return data.email ?? null;
+}
+
+export async function disconnectGoogle(): Promise<void> {
+  await Promise.all([
+    deleteSetting("google.refresh_token"),
+    deleteSetting("google.access_token"),
+    deleteSetting("google.access_token_expires_at"),
+    deleteSetting("google.connected_email"),
+  ]);
+}
+
+// =====================
+// GSC (Search Console)
+// =====================
+
+export type GscProperty = {
+  siteUrl: string;
+  permissionLevel: string;
+};
+
+export async function listGscProperties(): Promise<GscProperty[]> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    "https://searchconsole.googleapis.com/webmasters/v3/sites",
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) throw new Error(`GSC list failed: ${res.status}`);
+  const data = (await res.json()) as {
+    siteEntry?: Array<{ siteUrl: string; permissionLevel: string }>;
+  };
+  return (data.siteEntry ?? []).filter(
+    (s) => s.permissionLevel !== "siteUnverifiedUser",
+  );
+}
+
+export type GscQueryRow = {
+  keys: string[];
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+};
+
+export async function fetchGscPerformance(opts: {
+  siteUrl: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  dimensions?: ("query" | "page" | "country" | "device" | "date")[];
+  rowLimit?: number;
+}): Promise<GscQueryRow[]> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
+      opts.siteUrl,
+    )}/searchAnalytics/query`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        startDate: opts.startDate,
+        endDate: opts.endDate,
+        dimensions: opts.dimensions ?? ["query"],
+        rowLimit: opts.rowLimit ?? 1000,
+      }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GSC query failed: ${res.status} ${body}`);
+  }
+  const data = (await res.json()) as { rows?: GscQueryRow[] };
+  return data.rows ?? [];
+}
+
+// =====================
+// GA4 (Analytics Data API)
+// =====================
+
+export type Ga4Property = {
+  /** "properties/123456789" — the API resource name */
+  name: string;
+  /** Numeric ID — what we store on the client record */
+  id: string;
+  displayName: string;
+  /** Friendly account label, e.g. "Acme Inc" */
+  accountName: string;
+};
+
+/**
+ * GA4 doesn't expose a direct "list properties for me" endpoint as part of
+ * the Data API. We use the Admin API, which the user's OAuth scope covers.
+ */
+export async function listGa4Properties(): Promise<Ga4Property[]> {
+  const token = await getAccessToken();
+
+  // 1. List accounts the user can see
+  const accountsRes = await fetch(
+    "https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200",
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!accountsRes.ok) {
+    throw new Error(`GA4 list accounts failed: ${accountsRes.status}`);
+  }
+  const data = (await accountsRes.json()) as {
+    accountSummaries?: Array<{
+      account: string;
+      displayName: string;
+      propertySummaries?: Array<{
+        property: string; // "properties/123"
+        displayName: string;
+      }>;
+    }>;
+  };
+
+  const result: Ga4Property[] = [];
+  for (const acc of data.accountSummaries ?? []) {
+    for (const p of acc.propertySummaries ?? []) {
+      const id = p.property.replace(/^properties\//, "");
+      result.push({
+        name: p.property,
+        id,
+        displayName: p.displayName,
+        accountName: acc.displayName,
+      });
+    }
+  }
+  return result;
+}
+
+export type Ga4OverviewRow = {
+  date: string;
+  sessions: number;
+  users: number;
+  pageviews: number;
+};
+
+/**
+ * Daily organic-search overview. Expand this as we wire up dashboards;
+ * keeping it minimal so it compiles before we touch the dashboard layer.
+ */
+export async function fetchGa4OrganicOverview(opts: {
+  propertyId: string;
+  startDate: string;
+  endDate: string;
+}): Promise<Ga4OverviewRow[]> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${opts.propertyId}:runReport`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateRanges: [{ startDate: opts.startDate, endDate: opts.endDate }],
+        dimensions: [{ name: "date" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "totalUsers" },
+          { name: "screenPageViews" },
+        ],
+        dimensionFilter: {
+          filter: {
+            fieldName: "sessionDefaultChannelGroup",
+            stringFilter: { matchType: "EXACT", value: "Organic Search" },
+          },
+        },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GA4 report failed: ${res.status} ${body}`);
+  }
+  const data = (await res.json()) as {
+    rows?: Array<{
+      dimensionValues: { value: string }[];
+      metricValues: { value: string }[];
+    }>;
+  };
+  return (data.rows ?? []).map((r) => ({
+    date: r.dimensionValues[0]?.value ?? "",
+    sessions: Number(r.metricValues[0]?.value ?? 0),
+    users: Number(r.metricValues[1]?.value ?? 0),
+    pageviews: Number(r.metricValues[2]?.value ?? 0),
+  }));
+}
