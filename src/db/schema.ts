@@ -746,6 +746,21 @@ export const keywordRankings = sqliteTable("keyword_rankings", {
   paaCount: integer("paa_count").default(0),
 });
 
+export const gbpPlaybookCompletions = sqliteTable("gbp_playbook_completions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  /** ID matching items in src/lib/gbp-playbook.ts */
+  itemId: text("item_id").notNull(),
+  /** When the user marked this complete. */
+  completedAt: integer("completed_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  /** For recurring items: which occurrence (e.g. "2026-W18" for week-18 of 2026). */
+  occurrence: text("occurrence"),
+});
+
 export const aiFeedback = sqliteTable("ai_feedback", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   /** What kind of AI output this critiques. */
@@ -863,6 +878,8 @@ export type NewsItem = typeof newsItems.$inferSelect;
 export type NewNewsItem = typeof newsItems.$inferInsert;
 export type BotLogUpload = typeof botLogUploads.$inferSelect;
 export type NewBotLogUpload = typeof botLogUploads.$inferInsert;
+export type GbpPlaybookCompletion = typeof gbpPlaybookCompletions.$inferSelect;
+export type NewGbpPlaybookCompletion = typeof gbpPlaybookCompletions.$inferInsert;
 export type AiFeedback = typeof aiFeedback.$inferSelect;
 export type NewAiFeedback = typeof aiFeedback.$inferInsert;
 export type AiPreference = typeof aiPreferences.$inferSelect;

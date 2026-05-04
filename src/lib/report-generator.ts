@@ -2,10 +2,15 @@ import PDFDocument from "pdfkit";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  aiSuggestions,
   audits,
   auditIssues,
   backlinks,
   clients,
+  keywordRankings,
+  keywords,
+  monitoredPages,
+  pageChanges,
   tasks,
 } from "@/db/schema";
 import { getSetting } from "./settings-store";
@@ -310,6 +315,90 @@ export async function generateReportPdf(
       ),
     )
     .orderBy(desc(backlinks.placedAt));
+
+  // Rank movement: per keyword, compare latest checked rank vs the rank
+  // 30+ days ago. Only surface keywords with meaningful change (≥3 spots).
+  const trackedKeywords = await db
+    .select({
+      id: keywords.id,
+      query: keywords.query,
+    })
+    .from(keywords)
+    .where(eq(keywords.clientId, clientId));
+
+  const rankMovements: {
+    query: string;
+    current: number | null;
+    prior: number | null;
+    delta: number;
+  }[] = [];
+  for (const kw of trackedKeywords) {
+    const recent = await db
+      .select({
+        position: keywordRankings.position,
+        checkedAt: keywordRankings.checkedAt,
+      })
+      .from(keywordRankings)
+      .where(eq(keywordRankings.keywordId, kw.id))
+      .orderBy(desc(keywordRankings.checkedAt))
+      .limit(20);
+    if (recent.length < 2) continue;
+    const current = recent[0]?.position ?? null;
+    const prior =
+      recent.find(
+        (r) =>
+          r.checkedAt.getTime() < periodCutoff.getTime() ||
+          recent.indexOf(r) === recent.length - 1,
+      )?.position ?? recent[recent.length - 1]?.position ?? null;
+    if (current === null || prior === null) continue;
+    const delta = prior - current; // positive = moved up
+    if (Math.abs(delta) < 3) continue;
+    rankMovements.push({ query: kw.query, current, prior, delta });
+  }
+  rankMovements.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  // Page changes detected via the page-monitor scheduler in the period
+  const pageChangeRows = await db
+    .select({
+      field: pageChanges.field,
+      oldValue: pageChanges.oldValue,
+      newValue: pageChanges.newValue,
+      detectedAt: pageChanges.detectedAt,
+      url: monitoredPages.url,
+    })
+    .from(pageChanges)
+    .leftJoin(
+      monitoredPages,
+      eq(pageChanges.monitoredPageId, monitoredPages.id),
+    )
+    .where(gte(pageChanges.detectedAt, periodCutoff))
+    .orderBy(desc(pageChanges.detectedAt))
+    .limit(50);
+
+  const pageChangesForClient = pageChangeRows.filter((r) => {
+    // monitor table is per-client; we only see this client's via the join
+    return Boolean(r.url);
+  });
+
+  // AI suggestions applied this period (status = "applied")
+  const suggestionsApplied = await db
+    .select({
+      id: aiSuggestions.id,
+      type: aiSuggestions.type,
+      targetUrl: aiSuggestions.targetUrl,
+      suggestedValue: aiSuggestions.suggestedValue,
+      updatedAt: aiSuggestions.updatedAt,
+    })
+    .from(aiSuggestions)
+    .where(
+      and(
+        eq(aiSuggestions.clientId, clientId),
+        eq(aiSuggestions.status, "applied"),
+        gte(aiSuggestions.updatedAt, periodCutoff),
+      ),
+    )
+    .orderBy(desc(aiSuggestions.updatedAt))
+    .limit(40);
 
   const topIssue =
     allIssues.find((i) => i.severity === "critical")?.message ??
@@ -735,6 +824,84 @@ export async function generateReportPdf(
             .fillColor(palette.mute)
             .fontSize(9)
             .text(l.notes);
+        }
+        doc.moveDown(0.3);
+        doc.fontSize(10).fillColor(palette.ink);
+      }
+      doc.moveDown(1);
+    }
+
+    // === Rank movement ===
+    if (rankMovements.length > 0) {
+      drawSectionHeading(doc, "Rank movement this period");
+      const ups = rankMovements.filter((r) => r.delta > 0);
+      const downs = rankMovements.filter((r) => r.delta < 0);
+      doc
+        .font("Helvetica")
+        .fillColor(palette.mute)
+        .fontSize(9)
+        .text(
+          `${ups.length} keyword${ups.length === 1 ? "" : "s"} moved up · ${downs.length} dropped`,
+        );
+      doc.moveDown(0.6);
+      doc.fontSize(10).fillColor(palette.ink);
+      for (const m of rankMovements.slice(0, 15)) {
+        ensureSpace(doc, 18);
+        const arrow = m.delta > 0 ? "▲" : "▼";
+        doc
+          .font("Helvetica-Bold")
+          .text(`${arrow} ${m.query}`, { continued: true })
+          .font("Helvetica")
+          .fillColor(palette.mute)
+          .text(
+            `  #${m.prior} → #${m.current} (${m.delta > 0 ? "+" : ""}${m.delta})`,
+          );
+        doc.fillColor(palette.ink);
+      }
+      doc.moveDown(1);
+    }
+
+    // === Page changes (from page monitor) ===
+    if (pageChangesForClient.length > 0) {
+      drawSectionHeading(doc, "Page changes detected");
+      doc.font("Helvetica").fontSize(10).fillColor(palette.ink);
+      for (const c of pageChangesForClient.slice(0, 10)) {
+        ensureSpace(doc, 26);
+        doc
+          .font("Helvetica-Bold")
+          .text(`${c.field} changed`, { continued: true })
+          .font("Helvetica")
+          .fillColor(palette.mute)
+          .fontSize(9)
+          .text(
+            `  on ${c.url ?? "(unknown URL)"} · ${c.detectedAt.toLocaleDateString()}`,
+          );
+        doc.fontSize(10).fillColor(palette.ink);
+      }
+      doc.moveDown(1);
+    }
+
+    // === AI suggestions applied ===
+    if (suggestionsApplied.length > 0) {
+      drawSectionHeading(doc, "AI suggestions applied");
+      doc
+        .font("Helvetica")
+        .fillColor(palette.mute)
+        .fontSize(9)
+        .text(`${suggestionsApplied.length} suggestion${suggestionsApplied.length === 1 ? "" : "s"} applied this period.`);
+      doc.moveDown(0.6);
+      doc.fontSize(10).fillColor(palette.ink);
+      for (const s of suggestionsApplied.slice(0, 12)) {
+        ensureSpace(doc, 24);
+        doc
+          .font("Helvetica-Bold")
+          .text(`✓ ${s.type.replace(/_/g, " ")}`);
+        if (s.suggestedValue) {
+          doc
+            .font("Helvetica")
+            .fillColor(palette.mute)
+            .fontSize(9)
+            .text(s.suggestedValue.slice(0, 200));
         }
         doc.moveDown(0.3);
         doc.fontSize(10).fillColor(palette.ink);

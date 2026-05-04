@@ -184,6 +184,66 @@ export async function postGbpReply(opts: {
   });
 }
 
+// =============== GBP post composer ===============
+
+const POST_SYSTEM = `You write Google Business Profile posts that drive engagement.
+
+Strict rules:
+- Hook in the first 12 words. GBP truncates after that in mobile previews.
+- 100-300 words total.
+- One CTA at the end ("Book now", "Call today", "Order online", "Visit us this week").
+- Plain, conversational. Use "you" not "our customers".
+- No emoji unless the post type explicitly fits one.
+- Local detail when possible — mention the city, neighbourhood, or "your area".
+- Output ONLY the post text. No headers, no preamble, no quotes.`;
+
+export type ComposePostResult =
+  | { ok: true; text: string }
+  | { ok: false; error: string };
+
+export async function composeGbpPost(opts: {
+  clientId: number;
+  clientName: string;
+  niche: string | null;
+  city: string | null;
+  postType: "offer" | "event" | "update" | "product" | "story";
+  topic: string;
+  ctaUrl?: string;
+}): Promise<ComposePostResult> {
+  if (!opts.topic.trim())
+    return { ok: false, error: "Topic / angle is required" };
+
+  const userPrompt = [
+    `Business: ${opts.clientName}`,
+    opts.niche ? `Niche: ${opts.niche}` : "",
+    opts.city ? `City: ${opts.city}` : "",
+    `Post type: ${opts.postType}`,
+    `Angle: ${opts.topic}`,
+    opts.ctaUrl ? `CTA URL: ${opts.ctaUrl}` : "",
+    "",
+    "Write the GBP post now. Post text only.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const raw = await callAI({
+    system: POST_SYSTEM,
+    user: userPrompt,
+    maxTokens: 600,
+    temperature: 0.6,
+    timeoutMs: 30_000,
+    feature: "content_idea",
+    clientId: opts.clientId,
+  });
+  if (!raw) {
+    return {
+      ok: false,
+      error: "AI provider didn't respond. Set up a key in Settings.",
+    };
+  }
+  return { ok: true, text: raw.trim().replace(/^["']|["']$/g, "") };
+}
+
 /** Used by health checks: confirm the location is reachable via the API. */
 export async function pingGbpLocation(opts: {
   clientId: number;

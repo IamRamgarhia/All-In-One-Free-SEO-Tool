@@ -23,6 +23,7 @@ import {
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { getSmtpConfig } from "@/lib/mailer";
+import { SummaryPreview } from "./summary-preview";
 
 type Template = "executive" | "detailed" | "technical";
 
@@ -175,6 +176,8 @@ export default async function PerClientReportsPage({
           hint={latest ? "From the report" : "—"}
         />
       </div>
+
+      <SummaryPreview clientId={client.id} />
 
       {/* Template download cards */}
       <section className="grid gap-4 lg:grid-cols-3">

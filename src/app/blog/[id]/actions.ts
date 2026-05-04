@@ -10,6 +10,7 @@ import {
   type BlogWriteRequest,
 } from "@/lib/blog-writer";
 import { getGscTopQueries } from "@/lib/google-data";
+import { logActivity } from "@/lib/activity";
 
 const inputSchema = z.object({
   clientId: z.coerce.number().int().positive(),
@@ -113,6 +114,15 @@ export async function saveBlogDraft(opts: {
       notes: opts.markdown,
     })
     .returning({ id: contentBriefs.id });
+
+  await logActivity({
+    kind: "task.created",
+    message: `Saved blog draft: ${title}`,
+    level: "success",
+    clientId: opts.clientId,
+    entityType: "content_brief",
+    entityId: row.id,
+  });
 
   revalidatePath(`/blog/${opts.clientId}`);
   revalidatePath(`/clients/${opts.clientId}`);

@@ -3,13 +3,25 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { eq, asc } from "drizzle-orm";
-import { ArrowLeft, Building, ExternalLink } from "lucide-react";
+import {
+  ArrowLeft,
+  Building,
+  CheckCircle2,
+  Circle,
+  ExternalLink,
+} from "lucide-react";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { GbpRunner } from "./gbp-runner";
+import { GbpPostComposer } from "./post-composer";
 import { playbookFor, scoreGbpProfile } from "@/lib/gbp-playbook";
+import { ClientInfoCard } from "@/components/client-info-card";
+import {
+  getCompletionsForClient,
+  togglePlaybookItem,
+} from "./playbook-actions";
 
 export default async function PerClientGbpPage({
   params,
@@ -86,9 +98,32 @@ export default async function PerClientGbpPage({
         accent="cyan"
       />
 
+      <ClientInfoCard
+        info={{
+          name: client.name,
+          url: client.url,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          description: client.description,
+          city: client.city,
+          country: client.country,
+          businessType: client.businessType,
+          shortDescription: client.description?.split(".")[0] ?? null,
+        }}
+      />
+
       <GbpRunner clientId={client.id} clientName={client.name} />
 
+      <GbpPostComposer
+        clientId={client.id}
+        clientName={client.name}
+        niche={client.niche}
+        city={client.city}
+      />
+
       <GbpPlaybookSection
+        clientId={client.id}
         niche={client.niche}
         gbpScore={
           scoreGbpProfile({
@@ -100,17 +135,27 @@ export default async function PerClientGbpPage({
             ratingAverage: null,
           }).score
         }
+        completions={await getCompletionsForClient(client.id)}
       />
     </div>
   );
 }
 
 function GbpPlaybookSection({
+  clientId,
   niche,
   gbpScore,
+  completions,
 }: {
+  clientId: number;
   niche: "local" | "ecommerce" | "saas" | "blog" | "services" | null;
   gbpScore: number;
+  completions: {
+    oncePermanent: Set<string>;
+    weekly: Set<string>;
+    monthly: Set<string>;
+    quarterly: Set<string>;
+  };
 }) {
   const items = playbookFor(niche);
   const cadenceTone: Record<string, string> = {
@@ -119,43 +164,73 @@ function GbpPlaybookSection({
     monthly: "bg-violet-500/15 text-violet-300 ring-violet-500/30",
     quarterly: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
   };
+  function isDone(id: string, cadence: "once" | "weekly" | "monthly" | "quarterly") {
+    if (cadence === "once") return completions.oncePermanent.has(id);
+    if (cadence === "weekly") return completions.weekly.has(id);
+    if (cadence === "monthly") return completions.monthly.has(id);
+    return completions.quarterly.has(id);
+  }
+  const total = items.length;
+  const doneCount = items.filter((i) => isDone(i.id, i.cadence)).length;
+  const completionPct = Math.round((doneCount / total) * 100);
+
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">
       <header className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
         <div>
           <h2 className="text-base font-semibold">
-            GBP optimization playbook ({items.length} items)
+            GBP optimization playbook ({doneCount}/{total} done · {completionPct}%)
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Profile-completeness signal score: {gbpScore}/100. Items below
-            are sorted by impact, marked by cadence so you know what to do
-            once vs every week.
+            Profile signal score: {gbpScore}/100. Tick items as you finish
+            them — once-only items stay ticked, recurring items reset for
+            the next period.
           </p>
         </div>
       </header>
       <ul className="divide-y divide-white/[0.05]">
-        {items.map((p) => (
-          <li key={p.id} className="px-5 py-4">
+        {items.map((p) => {
+          const done = isDone(p.id, p.cadence);
+          const toggleAction = togglePlaybookItem.bind(null, clientId, p.id, p.cadence);
+          return (
+          <li key={p.id} className={`px-5 py-4 ${done ? "opacity-70" : ""}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{p.title}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 ring-inset ${cadenceTone[p.cadence]}`}
+              <div className="flex min-w-0 flex-1 items-start gap-2">
+                <form action={toggleAction}>
+                  <button
+                    type="submit"
+                    aria-label={done ? "Mark not done" : "Mark done"}
+                    className="mt-0.5 grid size-5 place-items-center rounded text-muted-foreground transition-colors hover:text-emerald-300"
                   >
-                    {p.cadence}
-                  </span>
-                  <span className="text-amber-300 text-[10px]">
-                    {"★".repeat(p.weight)}
-                  </span>
+                    {done ? (
+                      <CheckCircle2 className="size-5 text-emerald-300" />
+                    ) : (
+                      <Circle className="size-5" />
+                    )}
+                  </button>
+                </form>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`font-medium ${done ? "line-through text-muted-foreground" : ""}`}>
+                      {p.title}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 ring-inset ${cadenceTone[p.cadence]}`}
+                    >
+                      {p.cadence}
+                    </span>
+                    <span className="text-amber-300 text-[10px]">
+                      {"★".repeat(p.weight)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {p.whyItMatters}
+                  </p>
+                  <p className="mt-1.5 text-xs">
+                    <span className="font-medium text-foreground">Action:</span>{" "}
+                    <span className="text-muted-foreground">{p.action}</span>
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {p.whyItMatters}
-                </p>
-                <p className="mt-1.5 text-xs">
-                  <span className="font-medium text-foreground">Action:</span>{" "}
-                  <span className="text-muted-foreground">{p.action}</span>
-                </p>
               </div>
               {p.toolPath && (
                 <a
@@ -167,7 +242,8 @@ function GbpPlaybookSection({
               )}
             </div>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );

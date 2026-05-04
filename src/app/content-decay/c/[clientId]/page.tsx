@@ -12,6 +12,7 @@ import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { findContentDecay } from "@/lib/google-data";
+import { ClientInfoCard } from "@/components/client-info-card";
 
 export default async function PerClientContentDecayPage({
   params,
@@ -84,6 +85,21 @@ export default async function PerClientContentDecayPage({
         description="Pages that lost clicks vs. the prior 28-day window. Sorted by recovery score (heavier weight on prior traffic — refresh the big losers first)."
         icon={TrendingDown}
         accent="amber"
+      />
+
+      <ClientInfoCard
+        info={{
+          name: client.name,
+          url: client.url,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          description: client.description,
+          city: client.city,
+          country: client.country,
+          businessType: client.businessType,
+          shortDescription: client.description?.split(".")[0] ?? null,
+        }}
       />
 
       {decays.length === 0 ? (

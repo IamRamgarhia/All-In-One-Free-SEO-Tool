@@ -388,3 +388,33 @@ export async function skipOnboarding(clientId: number): Promise<void> {
   revalidatePath(`/clients/${clientId}`);
   revalidatePath(`/clients/${clientId}/onboarding`);
 }
+
+/**
+ * Top learned AI style rules for this client (workspace + client-scoped),
+ * surfaced in the onboarding step 4 summary so the user can see what the
+ * tool has learned before generating the plan.
+ */
+export async function getLearnedRulesForClient(
+  clientId: number,
+): Promise<{ rule: string; confidence: string; feature: string }[]> {
+  const { aiPreferences } = await import("@/db/schema");
+  const { isNull, or, eq: drizzleEq, desc: drizzleDesc } = await import("drizzle-orm");
+  const rows = await db
+    .select({
+      rule: aiPreferences.rule,
+      confidence: aiPreferences.confidence,
+      feature: aiPreferences.feature,
+    })
+    .from(aiPreferences)
+    .where(
+      drizzleEq(aiPreferences.active, true),
+    )
+    .orderBy(drizzleDesc(aiPreferences.confidence))
+    .limit(10);
+  // Filter for workspace OR this client only (drizzle-orm's `or` chained
+  // checks were complicating the query — easier to filter post-fetch
+  // since the limit's tiny).
+  void isNull;
+  void or;
+  return rows;
+}

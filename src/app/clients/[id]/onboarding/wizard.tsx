@@ -505,6 +505,19 @@ function CompletedStep({ client }: { client: WizardClient }) {
     | { ok: false; error: string }
   >(null);
   const [generating, setGenerating] = useState(false);
+  const [learnedRules, setLearnedRules] = useState<
+    { rule: string; confidence: string; feature: string }[] | null
+  >(null);
+
+  // Lazy-load learned rules once
+  if (learnedRules === null && typeof window !== "undefined") {
+    queueMicrotask(() => {
+      import("./actions").then(async ({ getLearnedRulesForClient }) => {
+        const rules = await getLearnedRulesForClient(client.id);
+        setLearnedRules(rules);
+      });
+    });
+  }
 
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl p-6 space-y-4">
@@ -517,6 +530,30 @@ function CompletedStep({ client }: { client: WizardClient }) {
         tech stack, and (when connected) real GSC data. Tasks land directly
         in the Tasks board with due dates spread across the next month.
       </p>
+
+      {learnedRules && learnedRules.length > 0 && (
+        <div className="rounded-md border border-violet-500/20 bg-violet-500/5 p-4 text-xs">
+          <h3 className="font-semibold text-violet-200 flex items-center gap-1.5">
+            <Sparkles className="size-3.5" />
+            What the tool has learned about your style
+          </h3>
+          <ul className="mt-2 space-y-1 text-muted-foreground">
+            {learnedRules.slice(0, 5).map((r, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="mt-0.5 size-1 shrink-0 rounded-full bg-violet-400" />
+                <span>{r.rule}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[10px] text-muted-foreground/70">
+            These rules are auto-applied to AI output for this client. Manage them in{" "}
+            <a href="/settings/ai-learning" className="underline">
+              Settings → AI learning
+            </a>
+            .
+          </p>
+        </div>
+      )}
 
       {planState?.ok ? (
         <div className="rounded-md bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 ring-1 ring-inset ring-emerald-500/30">

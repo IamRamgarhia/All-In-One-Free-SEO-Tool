@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { clients, tasks } from "@/db/schema";
+import { logActivity } from "@/lib/activity";
 
 type Recur = "daily" | "weekly" | "monthly" | "quarterly";
 
@@ -35,6 +36,17 @@ export async function setTaskStatus(
     .update(tasks)
     .set({ status, updatedAt: new Date() })
     .where(eq(tasks.id, taskId));
+
+  if (status === "done" && existing.status !== "done") {
+    await logActivity({
+      kind: "task.completed",
+      message: `Completed task: ${existing.title}`,
+      level: "success",
+      clientId: existing.clientId,
+      entityType: "task",
+      entityId: existing.id,
+    });
+  }
 
   // If a recurring task was just marked done, clone the next instance.
   if (
@@ -137,6 +149,14 @@ export async function createTask(
       recurringInterval: parsed.data.recurringInterval,
     })
     .returning({ id: tasks.id });
+
+  await logActivity({
+    kind: "task.created",
+    message: `New task: ${parsed.data.title}`,
+    clientId: parsed.data.clientId,
+    entityType: "task",
+    entityId: row.id,
+  });
 
   revalidatePath("/tasks");
   revalidatePath("/");

@@ -48,6 +48,7 @@ export async function tickDailyAgent(): Promise<DailyAgentReport | null> {
   await runStep(steps, "audits.refreshStale", refreshStaleAudits);
   await runStep(steps, "rss.refresh", refreshNewsFeeds);
   await runStep(steps, "ai.suggestions", generateAiSuggestionsForAll);
+  await runStep(steps, "ai.distill_preferences", distillRecentFeedback);
   if (startedAt.getUTCDay() === 1) {
     // Mondays only
     await runStep(steps, "rank.weekly_sweep", weeklyRankSweep);
@@ -148,6 +149,16 @@ async function generateAiSuggestionsForAll(): Promise<string> {
     return "agent module unavailable";
   }
   return `ran agent for ${count} clients`;
+}
+
+async function distillRecentFeedback(): Promise<string> {
+  try {
+    const { distillPreferences } = await import("./ai-learn");
+    const r = await distillPreferences();
+    return `${r.ruleCount} rules updated`;
+  } catch {
+    return "no recent feedback";
+  }
 }
 
 async function weeklyRankSweep(): Promise<string> {
