@@ -107,6 +107,9 @@ const groups: { title: string; items: Section[] }[] = [
     items: [
       { href: "/links", label: "Smart links", icon: Link2 },
       { href: "/tools/link-graph", label: "Link graph", icon: Network },
+      { href: "/tools/content-grader", label: "Content grader", icon: Gauge },
+      { href: "/tools/backlink-discovery", label: "Backlink discovery", icon: Link2 },
+      { href: "/tools/search-volume", label: "Search volume", icon: Sparkles },
       { href: "/tools/health-check", label: "Health check", icon: Stethoscope },
       { href: "/tools/reddit-research", label: "Reddit research", icon: Flame },
       { href: "/news", label: "SEO news", icon: Newspaper },

@@ -204,6 +204,30 @@ const tools = [
     accent: "rose",
   },
   {
+    href: "/tools/content-grader",
+    icon: Gauge,
+    title: "Content grader (Surfer / Clearscope replacement)",
+    description:
+      "Pulls top 10 SERP results, builds a TF-IDF corpus, scores your draft on length / term coverage / density. Free, browser-mode.",
+    accent: "emerald",
+  },
+  {
+    href: "/tools/backlink-discovery",
+    icon: LinkIcon,
+    title: "Backlink discovery",
+    description:
+      "DuckDuckGo + Common Crawl + crawl-to-confirm. Finds real verified backlinks with anchor text + rel. Closes the Ahrefs gap as much as is possible without a paid index.",
+    accent: "violet",
+  },
+  {
+    href: "/tools/search-volume",
+    icon: Gauge,
+    title: "Search-volume estimator",
+    description:
+      "Free directional volume bucket. Combines Google Trends, Google + Bing autocomplete, SERP characteristics. No paid keyword DB.",
+    accent: "cyan",
+  },
+  {
     href: "/tools/plagiarism",
     icon: ScanText,
     title: "Plagiarism + AI detector",

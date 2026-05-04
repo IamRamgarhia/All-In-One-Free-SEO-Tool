@@ -13,7 +13,7 @@ const inputSchema = z.object({
     .min(3)
     .transform((v) => (/^https?:\/\//i.test(v) ? v : `https://${v}`))
     .pipe(z.string().url()),
-  maxPages: z.coerce.number().int().min(20).max(200).default(150),
+  maxPages: z.coerce.number().int().min(20).max(500).default(150),
 });
 
 export type LinkGraphState =

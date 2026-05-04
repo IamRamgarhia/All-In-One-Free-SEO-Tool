@@ -42,8 +42,8 @@ export async function crawlSite(opts: CrawlOptions): Promise<{
   pages: CrawlPage[];
   errors: { url: string; reason: string }[];
 }> {
-  const maxPages = opts.maxPages ?? 500;
-  const maxDepth = opts.maxDepth ?? 4;
+  const maxPages = opts.maxPages ?? 1500;
+  const maxDepth = opts.maxDepth ?? 5;
 
   let startUrl: URL;
   try {
@@ -55,8 +55,11 @@ export async function crawlSite(opts: CrawlOptions): Promise<{
   const excludes = [...(opts.excludePatterns ?? []), ...DEFAULT_EXCLUDES];
 
   let robotsDisallow: RegExp[] = [];
+  let crawlDelayMs = 0;
   if (opts.respectRobots !== false) {
-    robotsDisallow = await fetchRobotsDisallow(startUrl.origin);
+    const robots = await fetchRobotsDirectives(startUrl.origin);
+    robotsDisallow = robots.disallow;
+    crawlDelayMs = Math.round(robots.crawlDelaySeconds * 1000);
   }
 
   const pages: CrawlPage[] = [];
@@ -66,8 +69,12 @@ export async function crawlSite(opts: CrawlOptions): Promise<{
     { url: startUrl.toString(), depth: 0 },
   ];
 
+  // Concurrency: 16 unless robots.txt asked for a Crawl-delay, in which
+  // case we drop to 4 to actually respect the host's wishes.
+  const concurrency = crawlDelayMs > 0 ? 4 : 16;
+
   while (queue.length > 0 && pages.length < maxPages) {
-    const batch = queue.splice(0, Math.min(8, queue.length));
+    const batch = queue.splice(0, Math.min(concurrency, queue.length));
 
     const results = await Promise.allSettled(
       batch.map((b) => fetchPage(b.url, b.depth)),
@@ -98,6 +105,10 @@ export async function crawlSite(opts: CrawlOptions): Promise<{
         }
         if (queue.length + pages.length >= maxPages) break;
       }
+    }
+
+    if (crawlDelayMs > 0 && queue.length > 0) {
+      await new Promise((r) => setTimeout(r, crawlDelayMs));
     }
   }
 
@@ -196,19 +207,22 @@ function normalize(url: string): string {
 }
 
 /**
- * Fetch a site's robots.txt and parse Disallow lines for our user agent
- * (or *). Returns empty list on error — we err on the side of crawling.
+ * Fetch a site's robots.txt and extract Disallow + Crawl-delay directives
+ * for our user agent (or *). Returns sensible defaults on any error.
  */
-async function fetchRobotsDisallow(origin: string): Promise<RegExp[]> {
+async function fetchRobotsDirectives(
+  origin: string,
+): Promise<{ disallow: RegExp[]; crawlDelaySeconds: number }> {
   try {
     const res = await fetch(`${origin}/robots.txt`, {
       headers: { "user-agent": USER_AGENT },
     });
-    if (!res.ok) return [];
+    if (!res.ok) return { disallow: [], crawlDelaySeconds: 0 };
     const text = await res.text();
     const lines = text.split(/\r?\n/);
     let activeUA = false;
     const disallows: RegExp[] = [];
+    let crawlDelay = 0;
     for (const lineRaw of lines) {
       const line = lineRaw.split("#")[0].trim();
       if (!line) continue;
@@ -219,11 +233,16 @@ async function fetchRobotsDisallow(origin: string): Promise<RegExp[]> {
         activeUA = v === "*" || v.toLowerCase() === "seotoolbot";
       } else if (activeUA && key === "disallow" && v) {
         disallows.push(robotsPathToRegex(v));
+      } else if (activeUA && key === "crawl-delay") {
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 0 && n <= 30) {
+          crawlDelay = Math.max(crawlDelay, n);
+        }
       }
     }
-    return disallows;
+    return { disallow: disallows, crawlDelaySeconds: crawlDelay };
   } catch {
-    return [];
+    return { disallow: [], crawlDelaySeconds: 0 };
   }
 }
 
