@@ -44,6 +44,23 @@ function extractUa(line: string): string | null {
   return last.slice(1, -1).trim() || null;
 }
 
+/** Extract requested path + status code from a combined-log line. */
+function extractPathAndStatus(
+  line: string,
+): { path: string; status: number } | null {
+  const reqMatch = line.match(/"(?:GET|POST|HEAD|PUT|DELETE)\s+([^\s"]+)/i);
+  if (!reqMatch) return null;
+  // Status code follows the closing quote of the request line + a space
+  const afterReq = line.slice(line.indexOf('"') + 1);
+  const closeQuote = afterReq.indexOf('"');
+  const tail = afterReq.slice(closeQuote + 1).trim();
+  const statusMatch = tail.match(/^(\d{3})\b/);
+  return {
+    path: reqMatch[1].split("?")[0].slice(0, 200),
+    status: statusMatch ? Number(statusMatch[1]) : 0,
+  };
+}
+
 function classify(ua: string): string | null {
   for (const { name, re } of BOT_PATTERNS) {
     if (re.test(ua)) return name;
@@ -57,6 +74,10 @@ export type ParseResult = {
   totalLines: number;
   matchedLines: number;
   botCounts: Record<string, number>;
+  /** Top crawled paths across ALL bots — see what they actually crawl. */
+  topPaths: { path: string; count: number }[];
+  /** Status-code distribution. 4xx/5xx = bots hitting broken pages. */
+  statusBreakdown: Record<string, number>;
 } | {
   ok: false;
   error: string;
@@ -72,6 +93,8 @@ export async function parseAndStoreLog(input: {
   }
   const lines = input.text.split(/\r?\n/);
   const counts = new Map<string, number>();
+  const pathCounts = new Map<string, number>();
+  const statusCounts = new Map<string, number>();
   let matched = 0;
   for (const line of lines) {
     if (!line) continue;
@@ -79,11 +102,37 @@ export async function parseAndStoreLog(input: {
     if (!ua) continue;
     const bot = classify(ua);
     if (!bot) continue;
+
     counts.set(bot, (counts.get(bot) ?? 0) + 1);
     matched++;
+
+    const pathStatus = extractPathAndStatus(line);
+    if (pathStatus) {
+      pathCounts.set(
+        pathStatus.path,
+        (pathCounts.get(pathStatus.path) ?? 0) + 1,
+      );
+      const bucket =
+        pathStatus.status >= 200 && pathStatus.status < 300
+          ? "2xx"
+          : pathStatus.status >= 300 && pathStatus.status < 400
+            ? "3xx"
+            : pathStatus.status >= 400 && pathStatus.status < 500
+              ? "4xx"
+              : pathStatus.status >= 500
+                ? "5xx"
+                : "other";
+      statusCounts.set(bucket, (statusCounts.get(bucket) ?? 0) + 1);
+    }
   }
 
   const botCounts: Record<string, number> = Object.fromEntries(counts);
+  const topPaths = Array.from(pathCounts.entries())
+    .map(([path, count]) => ({ path, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20);
+  const statusBreakdown: Record<string, number> =
+    Object.fromEntries(statusCounts);
 
   const [row] = await db
     .insert(botLogUploads)
@@ -104,6 +153,8 @@ export async function parseAndStoreLog(input: {
     totalLines: lines.length,
     matchedLines: matched,
     botCounts,
+    topPaths,
+    statusBreakdown,
   };
 }
 

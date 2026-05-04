@@ -9,8 +9,10 @@ import {
   Gauge,
   Globe,
   Link as LinkIcon,
+  Link2,
   ListChecks,
   Lock,
+  ScanText,
   ServerCog,
   ShieldCheck,
   Sparkles,
@@ -135,10 +137,26 @@ const tools = [
   {
     href: "/tools/external",
     icon: Globe,
-    title: "External SEO toolkit",
+    title: "External tools launchpad",
     description:
-      "Curated list of free / free-tier external tools for what we can't check ourselves — Moz DA, Ahrefs backlinks, SSL Labs, Wayback Machine, ICANN whois.",
+      "Paste a URL or keyword once → all 28 external tools (Moz DA, Ahrefs, SSL Labs, Wayback, etc.) open with that context pre-filled.",
     accent: "cyan",
+  },
+  {
+    href: "/tools/internal-linking",
+    icon: Link2,
+    title: "Internal linking suggester",
+    description:
+      "Crawl your site, find pages that mention your target keyword without linking to your target URL. The fastest way to compound on-site authority.",
+    accent: "violet",
+  },
+  {
+    href: "/tools/plagiarism",
+    icon: ScanText,
+    title: "Plagiarism + AI detector",
+    description:
+      "AI-likelihood + originality scores on any draft. Flags AI-template phrases. Links to Copyleaks, GPTZero, Originality.ai for definitive web check.",
+    accent: "rose",
   },
   {
     href: "/tools/reddit-research",

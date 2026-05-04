@@ -8,6 +8,7 @@ import { clients, keywords, keywordRankings } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { clusterKeywords } from "@/lib/keyword-cluster";
+import { ClusterMap } from "./cluster-map";
 
 export default async function PerClientTopicClustersPage({
   params,
@@ -102,6 +103,17 @@ export default async function PerClientTopicClustersPage({
         </div>
       ) : (
         <>
+          <ClusterMap
+            clusters={clusters.map((c) => ({
+              topic: c.topic,
+              keywords: c.keywords.map((k) => ({
+                id: k.id,
+                query: k.query,
+                position: latestRankByKw.get(k.id) ?? null,
+              })),
+            }))}
+          />
+
           <div className="grid gap-4 lg:grid-cols-2">
             {clusters.map((c) => (
               <ClusterCard

@@ -35,6 +35,7 @@ import { pickStackTemplates, STACK_LABELS } from "@/lib/tech-stack-templates";
 import { runAuditForClient } from "@/app/audits/actions";
 import { ShareCard } from "./share-card";
 import { ClientGooglePanel } from "./google-panel";
+import { PerClientGoogleConnect } from "./per-client-google";
 import { GscKeywordsPanel } from "./gsc-keywords-panel";
 import { QuickWinsPanel } from "./quick-wins-panel";
 import { OrganicTrafficPanel } from "./organic-traffic-panel";
@@ -420,7 +421,7 @@ export default async function ClientDetailPage({
             </p>
           </div>
         </header>
-        <div className="relative p-5">
+        <div className="relative p-5 space-y-4">
           <ClientGooglePanel
             clientId={client.id}
             initialGsc={client.gscProperty}
@@ -429,6 +430,13 @@ export default async function ClientDetailPage({
             redirectUri={googleRedirectUri}
             initialClientId={googleClientId}
             hasSecret={Boolean(googleClientSecret)}
+          />
+          <PerClientGoogleConnect
+            clientId={client.id}
+            connectedEmail={client.googleConnectedEmail}
+            hasWorkspaceCreds={
+              !!googleClientId && !!googleClientSecret
+            }
           />
         </div>
       </section>

@@ -154,11 +154,77 @@ export function BotLogsClient({
         </div>
 
         {result && result.ok && (
-          <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
-            <CheckCircle2 className="mr-1 inline size-3.5" />
-            Parsed {result.totalLines.toLocaleString()} lines —{" "}
-            {result.matchedLines.toLocaleString()} bot hits across{" "}
-            {Object.keys(result.botCounts).length} unique user-agents.
+          <div className="mt-4 space-y-3">
+            <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
+              <CheckCircle2 className="mr-1 inline size-3.5" />
+              Parsed {result.totalLines.toLocaleString()} lines —{" "}
+              {result.matchedLines.toLocaleString()} bot hits across{" "}
+              {Object.keys(result.botCounts).length} unique user-agents.
+            </div>
+
+            {Object.keys(result.statusBreakdown).length > 0 && (
+              <div className="rounded-lg bg-white/[0.02] p-3 ring-1 ring-inset ring-white/[0.04]">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Bot status codes
+                </div>
+                <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                  {Object.entries(result.statusBreakdown).map(
+                    ([bucket, count]) => {
+                      const tone =
+                        bucket === "2xx"
+                          ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                          : bucket === "3xx"
+                            ? "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30"
+                            : bucket === "4xx"
+                              ? "bg-amber-500/15 text-amber-300 ring-amber-500/30"
+                              : bucket === "5xx"
+                                ? "bg-rose-500/15 text-rose-300 ring-rose-500/30"
+                                : "bg-white/5 text-muted-foreground ring-white/10";
+                      return (
+                        <span
+                          key={bucket}
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 ring-1 ring-inset ${tone}`}
+                        >
+                          {bucket}{" "}
+                          <span className="font-bold">
+                            {count.toLocaleString()}
+                          </span>
+                        </span>
+                      );
+                    },
+                  )}
+                </div>
+                {(result.statusBreakdown["4xx"] ?? 0) +
+                  (result.statusBreakdown["5xx"] ?? 0) >
+                  0 && (
+                  <p className="mt-1.5 text-[11px] text-amber-300/80">
+                    Bots hitting 4xx / 5xx = wasted crawl budget. Fix or
+                    redirect those paths.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {result.topPaths.length > 0 && (
+              <div className="rounded-lg bg-white/[0.02] p-3 ring-1 ring-inset ring-white/[0.04]">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Top {Math.min(20, result.topPaths.length)} bot-crawled paths
+                </div>
+                <ul className="mt-1.5 space-y-0.5 text-xs">
+                  {result.topPaths.map((p) => (
+                    <li
+                      key={p.path}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span className="truncate font-mono">{p.path}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {p.count.toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
         {result && !result.ok && (

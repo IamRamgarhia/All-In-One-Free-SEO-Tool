@@ -34,6 +34,13 @@ export const clients = sqliteTable("clients", {
   // ga4PropertyId: numeric e.g. "123456789"
   gscProperty: text("gsc_property"),
   ga4PropertyId: text("ga4_property_id"),
+  // Per-client Google OAuth tokens — overrides workspace-wide credentials
+  // when set. Lets agencies connect each client's OWN Google account
+  // separately (when the client doesn't share access with the agency).
+  googleRefreshToken: text("google_refresh_token"),
+  googleAccessToken: text("google_access_token"),
+  googleAccessTokenExpiresAt: integer("google_access_token_expires_at"),
+  googleConnectedEmail: text("google_connected_email"),
   ...timestamps,
 });
 

@@ -50,6 +50,7 @@ export default async function TasksPage({
       status: tasks.status,
       dueDate: tasks.dueDate,
       recurringInterval: tasks.recurringInterval,
+      actualMinutes: tasks.actualMinutes,
       createdAt: tasks.createdAt,
       clientId: clients.id,
       clientName: clients.name,

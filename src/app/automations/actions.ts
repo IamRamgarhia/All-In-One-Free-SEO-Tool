@@ -111,6 +111,40 @@ export async function deleteAutomation(id: number) {
   revalidatePath("/automations");
 }
 
+export async function testWebhook(url: string): Promise<
+  | { ok: true; status: number }
+  | { ok: false; error: string }
+> {
+  if (!/^https?:\/\//i.test(url)) {
+    return { ok: false, error: "Webhook URL must start with http(s)://" };
+  }
+  const payload = {
+    text: "🔔 Test alert from your SEO tool — webhook is wired correctly.",
+    event: "test",
+    triggeredAt: new Date().toISOString(),
+  };
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 8_000);
+    const res = await fetch(url, {
+      method: "POST",
+      signal: c.signal,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    clearTimeout(t);
+    if (!res.ok) {
+      return { ok: false, error: `Webhook returned ${res.status}.` };
+    }
+    return { ok: true, status: res.status };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Network failure",
+    };
+  }
+}
+
 import { workflowTemplates } from "@/lib/workflow-templates";
 
 export async function installWorkflowTemplate(input: {

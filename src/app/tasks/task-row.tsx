@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat } from "lucide-react";
 import { setTaskStatus, deleteTask } from "./actions";
+import { TimeTracker } from "./time-tracker";
 
 const statusConfig: Record<
   string,
@@ -37,6 +38,7 @@ export type TaskRowData = {
   recurringInterval: string | null;
   clientId: number | null;
   clientName: string | null;
+  actualMinutes?: number | null;
 };
 
 export function TaskRow({
@@ -111,6 +113,10 @@ export function TaskRow({
                 {task.recurringInterval}
               </span>
             )}
+            <TimeTracker
+              taskId={task.id}
+              initialMinutes={task.actualMinutes ?? null}
+            />
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">

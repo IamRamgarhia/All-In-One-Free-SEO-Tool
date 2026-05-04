@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import {
   exchangeCodeForTokens,
   fetchGoogleUserEmail,
@@ -6,13 +7,18 @@ import {
 } from "@/lib/google-oauth";
 import { setSetting } from "@/lib/settings-store";
 import { logActivity } from "@/lib/activity";
+import { db } from "@/db/client";
+import { clients } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
-  const isPopup = req.nextUrl.searchParams.get("state") === "popup";
+  const state = req.nextUrl.searchParams.get("state") ?? "";
+  const isPopup = state.includes("popup");
+  const clientIdMatch = state.match(/clientId:(\d+)/);
+  const targetClientId = clientIdMatch ? Number(clientIdMatch[1]) : null;
 
   const settingsUrl = new URL("/settings/google", req.nextUrl.origin);
 
@@ -81,24 +87,48 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(settingsUrl);
   }
 
-  // Persist tokens
-  await Promise.all([
-    setSetting("google.refresh_token", tokens.refresh_token),
-    setSetting("google.access_token", tokens.access_token),
-    setSetting(
-      "google.access_token_expires_at",
-      Date.now() + tokens.expires_in * 1000,
-    ),
-  ]);
+  const expiresAt = Date.now() + tokens.expires_in * 1000;
 
   // Best-effort email lookup so we can show "Connected as foo@gmail.com"
   let email: string | null = null;
   try {
     email = await fetchGoogleUserEmail(tokens.access_token);
-    if (email) await setSetting("google.connected_email", email);
   } catch {
     // ignore
   }
+
+  if (targetClientId) {
+    // Persist tokens against this specific client (per-client OAuth)
+    await db
+      .update(clients)
+      .set({
+        googleRefreshToken: tokens.refresh_token,
+        googleAccessToken: tokens.access_token,
+        googleAccessTokenExpiresAt: expiresAt,
+        googleConnectedEmail: email,
+      })
+      .where(eq(clients.id, targetClientId));
+
+    await logActivity({
+      kind: "google.connected",
+      message: `Connected per-client Google account${email ? ` (${email})` : ""} for client #${targetClientId}.`,
+      level: "success",
+      clientId: targetClientId,
+    });
+
+    if (isPopup) return popupResponse({ ok: true, email });
+    return NextResponse.redirect(
+      new URL(`/clients/${targetClientId}?google-connected=1`, req.nextUrl.origin),
+    );
+  }
+
+  // Workspace-wide tokens
+  await Promise.all([
+    setSetting("google.refresh_token", tokens.refresh_token),
+    setSetting("google.access_token", tokens.access_token),
+    setSetting("google.access_token_expires_at", expiresAt),
+  ]);
+  if (email) await setSetting("google.connected_email", email);
 
   await logActivity({
     kind: "google.connected",

@@ -63,6 +63,7 @@ const groups: { title: string; items: Section[] }[] = [
       { href: "/clients", label: "Clients", icon: Users },
       { href: "/capacity", label: "Capacity", icon: Gauge },
       { href: "/agent", label: "AI agent", icon: Bot },
+      { href: "/ask", label: "Ask the tool", icon: Bot },
       { href: "/tasks", label: "Tasks", icon: ListChecks },
     ],
   },

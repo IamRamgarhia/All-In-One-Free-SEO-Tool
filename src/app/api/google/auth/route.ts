@@ -22,10 +22,18 @@ export async function GET(req: NextRequest) {
   ).toString();
 
   const popup = req.nextUrl.searchParams.get("popup") === "1";
+  const clientId = req.nextUrl.searchParams.get("clientId");
+  // State encodes both popup mode and target clientId so the callback
+  // knows where to store the resulting tokens. Format: "popup|clientId:123"
+  const stateParts: string[] = [];
+  if (popup) stateParts.push("popup");
+  if (clientId && /^\d+$/.test(clientId)) {
+    stateParts.push(`clientId:${clientId}`);
+  }
   const url = buildAuthUrl({
     clientId: creds.clientId,
     redirectUri,
-    state: popup ? "popup" : undefined,
+    state: stateParts.length > 0 ? stateParts.join("|") : undefined,
   });
   return NextResponse.redirect(url);
 }

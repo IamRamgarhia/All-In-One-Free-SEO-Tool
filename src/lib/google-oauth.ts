@@ -1,4 +1,7 @@
 import { getSetting, setSetting, deleteSetting } from "@/lib/settings-store";
+import { db } from "@/db/client";
+import { clients } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Google OAuth + GSC + GA4 integration.
@@ -153,8 +156,61 @@ export async function refreshAccessToken(opts: {
 /**
  * Returns a usable access_token, refreshing it transparently if expired.
  * Throws if the integration isn't connected.
+ *
+ * If `clientId` (numeric) is provided AND that client has its OWN Google
+ * tokens stored, prefers those. Otherwise falls back to the workspace-wide
+ * tokens. This lets agencies connect each client's own Google account when
+ * the client won't share access with the agency-level Google identity.
  */
-export async function getAccessToken(): Promise<string> {
+export async function getAccessToken(
+  clientIdScope?: number,
+): Promise<string> {
+  // Per-client tokens take priority if a clientId scope is provided
+  if (clientIdScope && Number.isFinite(clientIdScope)) {
+    const [c] = await db
+      .select({
+        googleRefreshToken: clients.googleRefreshToken,
+        googleAccessToken: clients.googleAccessToken,
+        googleAccessTokenExpiresAt: clients.googleAccessTokenExpiresAt,
+      })
+      .from(clients)
+      .where(eq(clients.id, clientIdScope))
+      .limit(1);
+
+    if (c?.googleRefreshToken) {
+      const expiresAt = c.googleAccessTokenExpiresAt ?? 0;
+      if (
+        c.googleAccessToken &&
+        expiresAt - 60_000 > Date.now()
+      ) {
+        return c.googleAccessToken;
+      }
+      // Refresh per-client token using workspace OAuth client credentials
+      const wsClientId = await getSetting<string>("google.client_id");
+      const wsClientSecret = await getSetting<string>("google.client_secret");
+      if (!wsClientId || !wsClientSecret) {
+        throw new Error(
+          "Workspace OAuth client not configured — set Google client_id / client_secret first.",
+        );
+      }
+      const refreshed = await refreshAccessToken({
+        refreshToken: c.googleRefreshToken,
+        clientId: wsClientId,
+        clientSecret: wsClientSecret,
+      });
+      const newExpiresAt = Date.now() + refreshed.expires_in * 1000;
+      await db
+        .update(clients)
+        .set({
+          googleAccessToken: refreshed.access_token,
+          googleAccessTokenExpiresAt: newExpiresAt,
+        })
+        .where(eq(clients.id, clientIdScope));
+      return refreshed.access_token;
+    }
+    // Fall through to workspace tokens
+  }
+
   const [clientId, clientSecret, refreshToken, accessToken, expiresAtRaw] =
     await Promise.all([
       getSetting<string>("google.client_id"),
@@ -247,8 +303,10 @@ export async function fetchGscPerformance(opts: {
   endDate: string; // YYYY-MM-DD
   dimensions?: ("query" | "page" | "country" | "device" | "date")[];
   rowLimit?: number;
+  /** If set, prefer per-client OAuth tokens for this scoped client. */
+  clientIdScope?: number;
 }): Promise<GscQueryRow[]> {
-  const token = await getAccessToken();
+  const token = await getAccessToken(opts.clientIdScope);
   const res = await fetch(
     `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
       opts.siteUrl,
@@ -345,8 +403,10 @@ export async function fetchGa4OrganicOverview(opts: {
   propertyId: string;
   startDate: string;
   endDate: string;
+  /** If set, prefer per-client OAuth tokens. */
+  clientIdScope?: number;
 }): Promise<Ga4OverviewRow[]> {
-  const token = await getAccessToken();
+  const token = await getAccessToken(opts.clientIdScope);
   const res = await fetch(
     `https://analyticsdata.googleapis.com/v1beta/properties/${opts.propertyId}:runReport`,
     {

@@ -164,12 +164,74 @@ function aiExecutiveSummary(opts: {
   return parts.join(" ");
 }
 
-export type ReportTemplate = "executive" | "detailed" | "technical";
+export type ReportTemplate =
+  | "executive"
+  | "detailed"
+  | "technical"
+  | "ceo"
+  | "cmo"
+  | "cto"
+  | "junior";
 
 export const TEMPLATE_LABELS: Record<ReportTemplate, string> = {
   executive: "Executive",
   detailed: "Detailed",
   technical: "Technical",
+  ceo: "CEO — revenue + ROI",
+  cmo: "CMO — traffic + pipeline",
+  cto: "CTO — technical health",
+  junior: "Junior marketer — what's been done",
+};
+
+/**
+ * Stakeholder report variants. Each one rewrites the same data with a
+ * different framing — what to lead with, what to cut, what tone to take.
+ */
+export const TEMPLATE_FRAMING: Record<
+  ReportTemplate,
+  {
+    intro: string;
+    leadingMetric: "score" | "traffic" | "issues" | "tasks_done";
+    /** Which sections to keep. Empty = all. */
+    sections?: ("score" | "traffic" | "issues" | "tasks_done" | "keywords")[];
+  }
+> = {
+  executive: {
+    intro: "Headline progress and the next month's priorities.",
+    leadingMetric: "score",
+  },
+  detailed: {
+    intro: "Full report — every metric, every section.",
+    leadingMetric: "score",
+  },
+  technical: {
+    intro: "Audit-first view. Focus on issues found and fixed.",
+    leadingMetric: "issues",
+  },
+  ceo: {
+    intro:
+      "Revenue and ROI summary. Lead with traffic value, not vanity metrics.",
+    leadingMetric: "traffic",
+    sections: ["traffic", "score", "tasks_done"],
+  },
+  cmo: {
+    intro:
+      "Traffic and pipeline view. What's converting, where to invest content next.",
+    leadingMetric: "traffic",
+    sections: ["traffic", "keywords", "tasks_done"],
+  },
+  cto: {
+    intro:
+      "Technical health view. Audit issues, what shipped, what's pending engineering.",
+    leadingMetric: "issues",
+    sections: ["issues", "score", "tasks_done"],
+  },
+  junior: {
+    intro:
+      "What's been done this period — work log + accomplishments for hand-off / standup.",
+    leadingMetric: "tasks_done",
+    sections: ["tasks_done", "score"],
+  },
 };
 
 export async function generateReportPdf(
