@@ -77,6 +77,7 @@ const groups: { title: string; items: Section[] }[] = [
       { href: "/cannibalization", label: "Cannibalization", icon: GitMerge },
       { href: "/content", label: "Content", icon: FileText },
       { href: "/blog", label: "AI blog writer", icon: Wand2 },
+      { href: "/title-tests", label: "Title A/B tests", icon: Wand2 },
       { href: "/backlinks", label: "Backlinks", icon: Link2 },
       { href: "/link-building", label: "Link building", icon: Link2 },
       { href: "/citations", label: "Citations / local", icon: MapPin },
@@ -88,6 +89,8 @@ const groups: { title: string; items: Section[] }[] = [
       { href: "/topic-clusters", label: "Topic clusters", icon: Layers },
       { href: "/content-decay", label: "Content decay", icon: TrendingDown },
       { href: "/outreach", label: "Outreach", icon: Send },
+      { href: "/outreach/templates", label: "Outreach templates", icon: Send },
+      { href: "/link-building/prospects", label: "Link prospecting", icon: Link2 },
       { href: "/competitors", label: "Competitors", icon: Network },
       { href: "/competitors/playbook", label: "Competitor playbook", icon: Network },
       { href: "/brand-monitor", label: "Brand monitor", icon: Network },
@@ -124,6 +127,7 @@ const groups: { title: string; items: Section[] }[] = [
     items: [
       { href: "/learn", label: "Learn", icon: GraduationCap },
       { href: "/settings", label: "Settings", icon: Settings },
+      { href: "/settings/ai-learning", label: "AI learning", icon: Sparkles },
     ],
   },
 ];

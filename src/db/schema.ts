@@ -820,6 +820,48 @@ export const brandMentions = sqliteTable("brand_mentions", {
     .default(sql`(unixepoch())`),
 });
 
+export const titleTests = sqliteTable("title_tests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  /** The page being tested. */
+  pageUrl: text("page_url").notNull(),
+  /** Optional WordPress post ID — needed if we're rotating via the bridge. */
+  wpPostId: integer("wp_post_id"),
+  /** All candidate titles, including the original. */
+  variants: text("variants", { mode: "json" })
+    .$type<{ title: string; appliedAt: string | null }[]>()
+    .notNull(),
+  /** Index of the currently-applied variant. */
+  currentVariantIdx: integer("current_variant_idx").notNull().default(0),
+  /** Days each variant gets before rotation. */
+  variantDurationDays: integer("variant_duration_days").notNull().default(14),
+  /** Per-variant performance, captured at the end of each rotation period. */
+  measurements: text("measurements", { mode: "json" }).$type<
+    {
+      variantIdx: number;
+      title: string;
+      startedAt: string;
+      endedAt: string;
+      clicks: number;
+      impressions: number;
+      ctr: number;
+      avgPosition: number;
+    }[]
+  >(),
+  status: text("status", {
+    enum: ["running", "completed", "paused"],
+  })
+    .notNull()
+    .default("running"),
+  /** Index of the winning variant once a winner is picked. */
+  winnerVariantIdx: integer("winner_variant_idx"),
+  /** When the most recent rotation happened. */
+  lastRotatedAt: integer("last_rotated_at", { mode: "timestamp" }),
+  ...timestamps,
+});
+
 export const localGridSchedules = sqliteTable("local_grid_schedules", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: integer("client_id")
@@ -1039,6 +1081,8 @@ export type LocalGridCheck = typeof localGridChecks.$inferSelect;
 export type NewLocalGridCheck = typeof localGridChecks.$inferInsert;
 export type LocalGridSchedule = typeof localGridSchedules.$inferSelect;
 export type NewLocalGridSchedule = typeof localGridSchedules.$inferInsert;
+export type TitleTest = typeof titleTests.$inferSelect;
+export type NewTitleTest = typeof titleTests.$inferInsert;
 export type ClientMetricSnapshot = typeof clientMetricSnapshots.$inferSelect;
 export type NewClientMetricSnapshot = typeof clientMetricSnapshots.$inferInsert;
 export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;

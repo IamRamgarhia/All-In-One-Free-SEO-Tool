@@ -89,10 +89,39 @@ export async function captureClientSnapshot(opts: {
       .select({ value: count() })
       .from(backlinks)
       .where(eq(backlinks.clientId, opts.clientId)),
-    db
-      .select({ value: count() })
-      .from(gbpPlaybookCompletions)
-      .where(eq(gbpPlaybookCompletions.clientId, opts.clientId)),
+    // GBP playbook completions: count once-permanent items + this-period
+    // recurring items (same dedupe logic the UI uses). The naive count
+    // would over-count recurring items completed in past weeks.
+    (async () => {
+      const rows = await db
+        .select({
+          itemId: gbpPlaybookCompletions.itemId,
+          occurrence: gbpPlaybookCompletions.occurrence,
+        })
+        .from(gbpPlaybookCompletions)
+        .where(eq(gbpPlaybookCompletions.clientId, opts.clientId));
+      const now = new Date();
+      const onejan = new Date(now.getUTCFullYear(), 0, 1);
+      const week = Math.ceil(
+        ((now.getTime() - onejan.getTime()) / 86_400_000 + onejan.getDay() + 1) /
+          7,
+      );
+      const weekKey = `${now.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+      const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+      const qKey = `${now.getUTCFullYear()}-Q${Math.floor(now.getUTCMonth() / 3) + 1}`;
+      const counted = new Set<string>();
+      for (const r of rows) {
+        if (
+          r.occurrence === null ||
+          r.occurrence === weekKey ||
+          r.occurrence === monthKey ||
+          r.occurrence === qKey
+        ) {
+          counted.add(r.itemId);
+        }
+      }
+      return [{ value: counted.size }];
+    })(),
     db
       .select({ value: count() })
       .from(brandMentions)

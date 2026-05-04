@@ -56,6 +56,9 @@ export async function tickDailyAgent(): Promise<DailyAgentReport | null> {
   await runStep(steps, "competitors.monitor", monitorCompetitorsStep);
   await runStep(steps, "links.lost_check", lostLinkCheckStep);
   await runStep(steps, "local_grid.scheduled", runScheduledLocalGridsStep);
+  await runStep(steps, "outreach.reply_poll", outreachReplyPollStep);
+  await runStep(steps, "metrics.anomaly", runAnomalyDetectionStep);
+  await runStep(steps, "title_tests.rotate", runDueTitleTestsStep);
   if (startedAt.getUTCDay() === 1) {
     // Mondays only
     await runStep(steps, "rank.weekly_sweep", weeklyRankSweep);
@@ -175,6 +178,36 @@ async function monitorCompetitorsStep(): Promise<string> {
     return `${r.checked} competitors checked, ${r.changes} changes`;
   } catch (err) {
     throw new Error((err as Error).message ?? "monitor failed");
+  }
+}
+
+async function outreachReplyPollStep(): Promise<string> {
+  try {
+    const { pollOutreachReplies } = await import("./outreach-reply-poll");
+    const r = await pollOutreachReplies();
+    return `${r.scanned} scanned, ${r.matched} matched${r.reason ? ` (${r.reason})` : ""}`;
+  } catch (err) {
+    throw new Error((err as Error).message ?? "reply poll failed");
+  }
+}
+
+async function runDueTitleTestsStep(): Promise<string> {
+  try {
+    const { runDueTitleTests } = await import("./title-test-runner");
+    const r = await runDueTitleTests();
+    return `${r.rotated} rotated, ${r.completed} completed`;
+  } catch (err) {
+    throw new Error((err as Error).message ?? "title tests failed");
+  }
+}
+
+async function runAnomalyDetectionStep(): Promise<string> {
+  try {
+    const { runAnomalyDetection } = await import("./snapshot-anomalies");
+    const r = await runAnomalyDetection();
+    return `${r.flagged}/${r.checked} clients flagged`;
+  } catch (err) {
+    throw new Error((err as Error).message ?? "anomaly check failed");
   }
 }
 

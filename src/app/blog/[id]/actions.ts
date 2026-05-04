@@ -128,3 +128,44 @@ export async function saveBlogDraft(opts: {
   revalidatePath(`/clients/${opts.clientId}`);
   return { ok: true, id: row.id };
 }
+
+/**
+ * Run plagiarism + AI-detection on a draft and return the verdict so the
+ * editor can show it before the user hits "publish." Reuses the existing
+ * /tools/plagiarism action — same prompt, same scoring, just exposed as
+ * a publish-time gate instead of a separate tool surface.
+ */
+export async function checkBlogPlagiarism(opts: {
+  clientId: number;
+  markdown: string;
+}): Promise<
+  | {
+      ok: true;
+      aiLikelihood: number;
+      originalityScore: number;
+      verdict: string;
+      flags: { snippet: string; reason: string }[];
+    }
+  | { ok: false; error: string }
+> {
+  if (!opts.markdown.trim()) return { ok: false, error: "Empty content" };
+  // Strip markdown to plain text for cleaner detection
+  const plain = opts.markdown
+    .replace(/^#+\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\n{2,}/g, "\n");
+
+  const { checkPlagiarism } = await import("@/app/tools/plagiarism/actions");
+  const r = await checkPlagiarism({ content: plain });
+  if (!r.ok) return r;
+  return {
+    ok: true,
+    aiLikelihood: r.aiLikelihood,
+    originalityScore: r.originalityScore,
+    verdict: r.verdict,
+    flags: r.flags,
+  };
+}

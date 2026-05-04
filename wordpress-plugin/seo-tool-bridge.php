@@ -184,6 +184,15 @@ add_action('rest_api_init', function () {
         'permission_callback' => 'stb_check_key',
     ]);
 
+    // Resolve a public URL to a post ID. Used by the SEO Tool's
+    // one-click fix flow so users only need a URL, not the post ID.
+    register_rest_route(STB_REST_NAMESPACE, '/find', [
+        'methods'  => 'GET',
+        'callback' => 'stb_rest_find_by_url',
+        'permission_callback' => 'stb_check_key',
+        'args' => ['url' => ['validate_callback' => fn($v) => is_string($v) && strlen($v) > 3]],
+    ]);
+
     register_rest_route(STB_REST_NAMESPACE, '/revisions', [
         'methods'  => 'GET',
         'callback' => 'stb_rest_revisions',
@@ -442,4 +451,48 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
 
     stb_record_revision($field, $found['object'], $found['new'], $previous);
     return new WP_REST_Response(['ok' => true, 'undone_rev_id' => $rev_id]);
+}
+
+/**
+ * Resolve a public URL on this WP site to its post / page / CPT id.
+ * Falls back through url_to_postid (core), the WP shortlink query, then
+ * a manual home-relative path lookup. Returns 404 if nothing matches.
+ */
+function stb_rest_find_by_url(WP_REST_Request $req): WP_REST_Response
+{
+    $url = (string)$req->get_param('url');
+    if (!$url) {
+        return new WP_REST_Response(['error' => 'url required'], 400);
+    }
+
+    // Core resolver — handles permalinks, dates, taxonomies.
+    $id = url_to_postid($url);
+    if ($id > 0) {
+        return new WP_REST_Response(['id' => $id]);
+    }
+
+    // Try the path relative to home_url (handles language-tagged etc.)
+    $home = home_url('/');
+    if (str_starts_with($url, $home)) {
+        $path = substr($url, strlen($home));
+        $maybe = url_to_postid(home_url('/' . ltrim($path, '/')));
+        if ($maybe > 0) {
+            return new WP_REST_Response(['id' => $maybe]);
+        }
+    }
+
+    // Last resort: try matching by post_name (slug) of the trailing segment.
+    $parts = parse_url($url);
+    if (!empty($parts['path'])) {
+        $segments = array_filter(explode('/', trim($parts['path'], '/')));
+        $slug = end($segments);
+        if ($slug) {
+            $page = get_page_by_path($slug, OBJECT, ['post', 'page']);
+            if ($page) {
+                return new WP_REST_Response(['id' => $page->ID]);
+            }
+        }
+    }
+
+    return new WP_REST_Response(['error' => 'not found'], 404);
 }

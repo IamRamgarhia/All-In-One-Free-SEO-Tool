@@ -51,6 +51,9 @@ export type SettingKey =
   | "mention_digest_runner.last_run"
   | "playbook_monitor_runner.last_run"
   | "lost_link_runner.last_run"
+  | "outreach_reply_poll.last_run"
+  | "anomaly_runner.last_run"
+  | "title_test_runner.last_run"
   | "api.pagespeed"
   // Credit-saver mode: cap maxTokens, force terse system prompt, lower temp.
   // ON keeps token use under ~500/answer for cheap providers like Gemini /

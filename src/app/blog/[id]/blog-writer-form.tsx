@@ -14,7 +14,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { generateBlogPost, saveBlogDraft } from "./actions";
+import {
+  checkBlogPlagiarism,
+  generateBlogPost,
+  saveBlogDraft,
+} from "./actions";
 import { AiFeedback } from "@/components/ai-feedback";
 
 type Suggestion = {
@@ -43,6 +47,7 @@ export function BlogWriterForm({
 
   const [pending, startTransition] = useTransition();
   const [savePending, startSave] = useTransition();
+  const [plagiarismPending, startPlagiarism] = useTransition();
   const [result, setResult] = useState<{
     tone: "success" | "error";
     text: string;
@@ -50,6 +55,18 @@ export function BlogWriterForm({
   const [markdown, setMarkdown] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
+  const [plagiarism, setPlagiarism] = useState<
+    | null
+    | { status: "running" }
+    | {
+        status: "ok";
+        aiLikelihood: number;
+        originalityScore: number;
+        verdict: string;
+        flags: { snippet: string; reason: string }[];
+      }
+    | { status: "error"; error: string }
+  >(null);
 
   function pick(s: Suggestion) {
     setTargetKeyword(s.targetKeyword);
@@ -128,6 +145,25 @@ export function BlogWriterForm({
           tone: "error",
           text: r.error ?? "Save failed.",
         });
+      }
+    });
+  }
+
+  function runPlagiarismCheck() {
+    if (!markdown.trim()) return;
+    setPlagiarism({ status: "running" });
+    startPlagiarism(async () => {
+      const r = await checkBlogPlagiarism({ clientId, markdown });
+      if (r.ok) {
+        setPlagiarism({
+          status: "ok",
+          aiLikelihood: r.aiLikelihood,
+          originalityScore: r.originalityScore,
+          verdict: r.verdict,
+          flags: r.flags,
+        });
+      } else {
+        setPlagiarism({ status: "error", error: r.error });
       }
     });
   }
@@ -346,6 +382,26 @@ export function BlogWriterForm({
               </Button>
               <Button
                 type="button"
+                onClick={runPlagiarismCheck}
+                size="sm"
+                variant="outline"
+                disabled={plagiarismPending || !markdown.trim()}
+                title="Check AI-likelihood + originality before publishing"
+              >
+                {plagiarismPending ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Checking…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5" />
+                    Plagiarism check
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
                 onClick={saveDraft}
                 size="sm"
                 disabled={savePending || !markdown.trim()}
@@ -364,6 +420,59 @@ export function BlogWriterForm({
               </Button>
             </div>
           </header>
+
+          {plagiarism && plagiarism.status === "ok" && (
+            <div className="border-b border-white/[0.06] px-5 py-3">
+              <div className="flex flex-wrap gap-3 text-xs">
+                <span className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-inset ring-white/10">
+                  AI-likelihood:{" "}
+                  <strong
+                    className={
+                      plagiarism.aiLikelihood >= 70
+                        ? "text-rose-300"
+                        : plagiarism.aiLikelihood >= 40
+                          ? "text-amber-300"
+                          : "text-emerald-300"
+                    }
+                  >
+                    {plagiarism.aiLikelihood}/100
+                  </strong>
+                </span>
+                <span className="rounded-md bg-white/5 px-2 py-1 ring-1 ring-inset ring-white/10">
+                  Originality:{" "}
+                  <strong
+                    className={
+                      plagiarism.originalityScore >= 70
+                        ? "text-emerald-300"
+                        : plagiarism.originalityScore >= 40
+                          ? "text-amber-300"
+                          : "text-rose-300"
+                    }
+                  >
+                    {plagiarism.originalityScore}/100
+                  </strong>
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {plagiarism.verdict}
+              </p>
+              {plagiarism.flags.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-[11px] text-muted-foreground">
+                  {plagiarism.flags.slice(0, 5).map((f, i) => (
+                    <li key={i}>
+                      <span className="text-amber-300">⚑</span> &quot;
+                      {f.snippet.slice(0, 100)}&quot; — {f.reason}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {plagiarism && plagiarism.status === "error" && (
+            <div className="border-b border-white/[0.06] px-5 py-2 text-xs text-rose-300">
+              {plagiarism.error}
+            </div>
+          )}
           <div className="p-5">
             {savedId && (
               <div className="mb-3 inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 ring-1 ring-emerald-500/30">

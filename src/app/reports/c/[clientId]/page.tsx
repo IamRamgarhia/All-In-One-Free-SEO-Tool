@@ -191,6 +191,28 @@ export default async function PerClientReportsPage({
         ))}
       </section>
 
+      {/* Quarterly strategy doc — strategic, not operational */}
+      <section className="glass-apple relative overflow-hidden rounded-2xl p-5">
+        <h2 className="text-base font-semibold flex items-center gap-2">
+          <FileText className="size-4 text-violet-300" />
+          Quarterly strategy doc
+        </h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Different shape from the monthly report — 90-day rank trend,
+          velocity vs prior quarter, top wins, what didn&apos;t work, where to
+          invest next quarter. Anchored in your snapshot history + AI synthesis.
+        </p>
+        <div className="mt-4">
+          <a
+            href={`/reports/${client.id}/quarterly`}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-violet-500/15 px-4 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25"
+          >
+            <Download className="size-3.5" />
+            Download quarterly PDF
+          </a>
+        </div>
+      </section>
+
       {/* Schedule + email */}
       <section className="glass-apple relative overflow-hidden rounded-2xl">
         <header className="border-b border-white/[0.06] px-5 py-4">
