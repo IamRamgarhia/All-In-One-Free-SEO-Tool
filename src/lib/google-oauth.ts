@@ -389,6 +389,55 @@ export async function listGa4Properties(): Promise<Ga4Property[]> {
   return result;
 }
 
+/**
+ * Pull total GA4 conversions + revenue attributed to organic search over
+ * a date range. Returns zeros if the GA4 property exists but has no
+ * conversion events configured. Throws if GA4 isn't connected.
+ */
+export async function fetchGa4OrganicConversions(opts: {
+  propertyId: string;
+  startDate: string;
+  endDate: string;
+  clientIdScope?: number;
+}): Promise<{ conversions: number; revenue: number }> {
+  const token = await getAccessToken(opts.clientIdScope);
+  const res = await fetch(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${opts.propertyId}:runReport`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        dateRanges: [{ startDate: opts.startDate, endDate: opts.endDate }],
+        metrics: [
+          { name: "conversions" },
+          { name: "totalRevenue" },
+        ],
+        dimensionFilter: {
+          filter: {
+            fieldName: "sessionDefaultChannelGroup",
+            stringFilter: { matchType: "EXACT", value: "Organic Search" },
+          },
+        },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GA4 conversions report failed: ${res.status} ${body}`);
+  }
+  const data = (await res.json()) as {
+    rows?: Array<{ metricValues: { value: string }[] }>;
+  };
+  const row = data.rows?.[0];
+  return {
+    conversions: Number(row?.metricValues[0]?.value ?? 0),
+    revenue: Number(row?.metricValues[1]?.value ?? 0),
+  };
+}
+
 export type Ga4OverviewRow = {
   date: string;
   sessions: number;

@@ -38,6 +38,7 @@ import { ClientGooglePanel } from "./google-panel";
 import { PerClientGoogleConnect } from "./per-client-google";
 import { GscKeywordsPanel } from "./gsc-keywords-panel";
 import { QuickWinsPanel } from "./quick-wins-panel";
+import { SnapshotSparklines } from "@/components/snapshot-sparklines";
 import { OrganicTrafficPanel } from "./organic-traffic-panel";
 import { ReportScheduleCard } from "./report-schedule-card";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
@@ -488,6 +489,11 @@ export default async function ClientDetailPage({
           </Suspense>
         </div>
       )}
+
+      {/* SNAPSHOT TRENDS — sparklines over time */}
+      <Suspense fallback={null}>
+        <SnapshotSparklines clientId={client.id} />
+      </Suspense>
 
       {/* SCHEDULED REPORTS */}
       <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">

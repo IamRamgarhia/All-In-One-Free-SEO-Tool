@@ -205,6 +205,15 @@ export async function runAuditForClient(clientId: number) {
     });
   }
 
+  // Refresh quick-wins from the new audit so the "Fix today" list stays
+  // current. Best-effort — never block the redirect.
+  try {
+    const { applyQuickWins } = await import("@/lib/quick-wins");
+    await applyQuickWins({ clientId });
+  } catch {
+    // ignore
+  }
+
   revalidatePath(`/clients/${clientId}`);
   revalidatePath("/");
   redirect(`/audits/${auditRow.id}`);

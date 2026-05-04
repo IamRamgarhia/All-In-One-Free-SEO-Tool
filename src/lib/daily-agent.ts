@@ -51,6 +51,10 @@ export async function tickDailyAgent(): Promise<DailyAgentReport | null> {
   await runStep(steps, "ai.distill_preferences", distillRecentFeedback);
   await runStep(steps, "brand.monitor", runBrandMonitorForAll);
   await runStep(steps, "metrics.snapshot", snapshotStaleClientsStep);
+  await runStep(steps, "metrics.alerts", runWatchlistAlertsStep);
+  await runStep(steps, "mentions.digest", sendMentionDigestStep);
+  await runStep(steps, "competitors.monitor", monitorCompetitorsStep);
+  await runStep(steps, "links.lost_check", lostLinkCheckStep);
   if (startedAt.getUTCDay() === 1) {
     // Mondays only
     await runStep(steps, "rank.weekly_sweep", weeklyRankSweep);
@@ -151,6 +155,46 @@ async function generateAiSuggestionsForAll(): Promise<string> {
     return "agent module unavailable";
   }
   return `ran agent for ${count} clients`;
+}
+
+async function sendMentionDigestStep(): Promise<string> {
+  try {
+    const { sendWeeklyMentionDigests } = await import("./mention-digest");
+    const r = await sendWeeklyMentionDigests();
+    return `${r.sent} digest${r.sent === 1 ? "" : "s"} sent${r.reason ? ` (${r.reason})` : ""}`;
+  } catch (err) {
+    throw new Error((err as Error).message ?? "digest failed");
+  }
+}
+
+async function monitorCompetitorsStep(): Promise<string> {
+  try {
+    const { runCompetitorMonitor } = await import("./competitor-monitor");
+    const r = await runCompetitorMonitor();
+    return `${r.checked} competitors checked, ${r.changes} changes`;
+  } catch (err) {
+    throw new Error((err as Error).message ?? "monitor failed");
+  }
+}
+
+async function lostLinkCheckStep(): Promise<string> {
+  try {
+    const { runLostLinkCheck } = await import("./lost-link-check");
+    const r = await runLostLinkCheck();
+    return `${r.checked} backlinks checked, ${r.lost} flagged lost`;
+  } catch (err) {
+    throw new Error((err as Error).message ?? "lost link check failed");
+  }
+}
+
+async function runWatchlistAlertsStep(): Promise<string> {
+  try {
+    const { runSnapshotAlerts } = await import("./snapshot-alerts");
+    const r = await runSnapshotAlerts();
+    return `${r.alerts} alert${r.alerts === 1 ? "" : "s"} across ${r.scanned} clients`;
+  } catch (err) {
+    throw new Error((err as Error).message ?? "alerts failed");
+  }
 }
 
 async function snapshotStaleClientsStep(): Promise<string> {

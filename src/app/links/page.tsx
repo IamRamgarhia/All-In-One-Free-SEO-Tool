@@ -13,6 +13,7 @@ import { clients, shortLinks } from "@/db/schema";
 import { asc, desc } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/page-header";
 import { CreateLinkForm } from "./create-form";
+import { CsvImportForm } from "./csv-import-form";
 import { CopyButton } from "./copy-button";
 import { deleteShortLink } from "./actions";
 
@@ -44,6 +45,8 @@ export default async function ShortLinksPage() {
       />
 
       <CreateLinkForm clients={allClients} />
+
+      <CsvImportForm clients={allClients} />
 
       <section className="glass-apple relative overflow-hidden rounded-2xl">
         <header className="border-b border-white/[0.06] px-5 py-4">

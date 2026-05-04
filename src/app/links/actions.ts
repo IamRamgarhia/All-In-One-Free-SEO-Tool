@@ -143,3 +143,137 @@ export async function deleteShortLink(id: number): Promise<void> {
   await db.delete(shortLinks).where(eq(shortLinks.id, id));
   revalidatePath("/links");
 }
+
+const csvImportSchema = z.object({
+  clientId: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  csv: z.string().min(2),
+});
+
+export type ImportShortLinksResult =
+  | { ok: true; created: number; skipped: number; errors: string[] }
+  | { ok: false; error: string };
+
+/**
+ * CSV format: destination[,label[,custom_slug[,utm_source[,utm_medium[,utm_campaign]]]]]
+ * Lines starting with # are ignored. Rows whose first cell isn't a valid
+ * URL are skipped. Custom slugs that collide get auto-replaced.
+ */
+export async function importShortLinksCsv(
+  _prev: ImportShortLinksResult | null,
+  formData: FormData,
+): Promise<ImportShortLinksResult> {
+  const parsed = csvImportSchema.safeParse({
+    clientId: formData.get("clientId") || undefined,
+    csv: formData.get("csv"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  const lines = parsed.data.csv
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith("#"));
+
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const line of lines) {
+    const cells = parseCsvRow(line);
+    const dest = cells[0]?.trim();
+    if (!dest || !/^https?:\/\//i.test(dest)) {
+      skipped++;
+      continue;
+    }
+    try {
+      new URL(dest);
+    } catch {
+      skipped++;
+      continue;
+    }
+
+    const label = cells[1]?.trim() || null;
+    let customSlug = cells[2]?.trim() || null;
+    if (customSlug && !/^[A-Za-z0-9_-]+$/.test(customSlug)) {
+      customSlug = null;
+    }
+    const utmSource = cells[3]?.trim() || null;
+    const utmMedium = cells[4]?.trim() || null;
+    const utmCampaign = cells[5]?.trim() || null;
+
+    let slug = customSlug;
+    if (slug) {
+      const [existing] = await db
+        .select({ id: shortLinks.id })
+        .from(shortLinks)
+        .where(eq(shortLinks.slug, slug))
+        .limit(1);
+      if (existing) {
+        errors.push(`Slug "${slug}" already exists — generated a new one`);
+        slug = await findUniqueSlug();
+      }
+    } else {
+      slug = await findUniqueSlug();
+    }
+
+    try {
+      await db.insert(shortLinks).values({
+        clientId: parsed.data.clientId ?? null,
+        slug,
+        destination: dest,
+        label,
+        utmSource,
+        utmMedium,
+        utmCampaign,
+      });
+      created++;
+    } catch {
+      skipped++;
+    }
+  }
+
+  if (parsed.data.clientId) {
+    await logActivity({
+      kind: "task.created",
+      message: `CSV imported ${created} short links${skipped ? ` (${skipped} skipped)` : ""}`,
+      clientId: parsed.data.clientId,
+      entityType: "short_link",
+    });
+  }
+
+  revalidatePath("/links");
+  return { ok: true, created, skipped, errors };
+}
+
+function parseCsvRow(row: string): string[] {
+  const out: string[] = [];
+  let buf = "";
+  let inQuote = false;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (inQuote) {
+      if (ch === '"' && row[i + 1] === '"') {
+        buf += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuote = false;
+      } else {
+        buf += ch;
+      }
+    } else {
+      if (ch === '"') inQuote = true;
+      else if (ch === ",") {
+        out.push(buf);
+        buf = "";
+      } else buf += ch;
+    }
+  }
+  out.push(buf);
+  return out;
+}

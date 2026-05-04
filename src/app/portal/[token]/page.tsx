@@ -15,6 +15,7 @@ import { db } from "@/db/client";
 import { audits, clients, tasks } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
 import { getSetting } from "@/lib/settings-store";
+import { SnapshotSparklines } from "@/components/snapshot-sparklines";
 
 export default async function PortalPage({
   params,
@@ -270,6 +271,9 @@ export default async function PortalPage({
             </ul>
           </section>
         )}
+
+        {/* Snapshot timeline — public-facing trends */}
+        <SnapshotSparklines clientId={client.id} />
 
         {/* Audit history */}
         {recentAudits.length > 0 && (

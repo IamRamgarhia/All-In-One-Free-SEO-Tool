@@ -627,6 +627,18 @@ export async function generateReportPdf(
       drawDeltaRow(doc, "Organic clicks (28d)", base.organicClicks, cur.organicClicks);
       drawDeltaRow(doc, "Organic impressions (28d)", base.organicImpressions, cur.organicImpressions);
       drawDeltaRow(doc, "GA4 sessions (28d)", base.ga4Sessions, cur.ga4Sessions);
+      drawDeltaRow(doc, "GA4 conversions (28d)", base.ga4Conversions, cur.ga4Conversions);
+      if (
+        typeof base.ga4RevenueX100 === "number" &&
+        typeof cur.ga4RevenueX100 === "number"
+      ) {
+        drawDeltaRow(
+          doc,
+          "Organic revenue (28d, $)",
+          Math.round(base.ga4RevenueX100 / 100),
+          Math.round(cur.ga4RevenueX100 / 100),
+        );
+      }
       drawDeltaRow(doc, "Top-10 keywords", base.top10Count, cur.top10Count);
       drawDeltaRow(doc, "Backlinks (logged)", base.backlinkCount, cur.backlinkCount);
       drawDeltaRow(doc, "GBP playbook %", base.gbpScore, cur.gbpScore);

@@ -65,7 +65,7 @@ export default async function RootLayout({
           <div className="flex h-full">
             <Sidebar unreadByHref={unreadByHref} />
             <div className="flex h-full min-w-0 flex-1 flex-col">
-              <TopBar />
+              <TopBar unreadByHref={unreadByHref} />
               <main className="flex-1 overflow-y-auto px-8 py-8">
                 {children}
               </main>

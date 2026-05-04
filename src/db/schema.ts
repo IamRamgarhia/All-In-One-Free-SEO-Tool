@@ -835,6 +835,25 @@ export const localGridChecks = sqliteTable("local_grid_checks", {
     .default(sql`(unixepoch())`),
 });
 
+export const competitorSnapshots = sqliteTable("competitor_snapshots", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "cascade",
+  }),
+  competitorUrl: text("competitor_url").notNull(),
+  pageCount: integer("page_count").notNull().default(0),
+  silos: text("silos", { mode: "json" }).$type<
+    { silo: string; count: number }[]
+  >(),
+  schemaTypes: text("schema_types", { mode: "json" }).$type<string[]>(),
+  backlinkDomains: text("backlink_domains", { mode: "json" }).$type<
+    string[]
+  >(),
+  capturedAt: integer("captured_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export const clientMetricSnapshots = sqliteTable("client_metric_snapshots", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: integer("client_id")
@@ -851,6 +870,8 @@ export const clientMetricSnapshots = sqliteTable("client_metric_snapshots", {
   organicAvgPositionX100: integer("organic_avg_position_x100"),
   ga4Sessions: integer("ga4_sessions"),
   ga4Users: integer("ga4_users"),
+  ga4Conversions: integer("ga4_conversions"),
+  ga4RevenueX100: integer("ga4_revenue_x100"),
   keywordCount: integer("keyword_count"),
   avgRankX100: integer("avg_rank_x100"),
   top10Count: integer("top10_count"),
@@ -993,6 +1014,8 @@ export type LocalGridCheck = typeof localGridChecks.$inferSelect;
 export type NewLocalGridCheck = typeof localGridChecks.$inferInsert;
 export type ClientMetricSnapshot = typeof clientMetricSnapshots.$inferSelect;
 export type NewClientMetricSnapshot = typeof clientMetricSnapshots.$inferInsert;
+export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;
+export type NewCompetitorSnapshot = typeof competitorSnapshots.$inferInsert;
 export type AiFeedback = typeof aiFeedback.$inferSelect;
 export type NewAiFeedback = typeof aiFeedback.$inferInsert;
 export type AiPreference = typeof aiPreferences.$inferSelect;

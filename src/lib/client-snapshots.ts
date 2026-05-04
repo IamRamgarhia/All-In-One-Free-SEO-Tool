@@ -26,7 +26,11 @@ import {
   tasks,
   type ClientMetricSnapshot,
 } from "@/db/schema";
-import { getGscTopQueries, getGa4OrganicTraffic } from "./google-data";
+import {
+  getGscTopQueries,
+  getGa4OrganicTraffic,
+  getGa4OrganicConversions,
+} from "./google-data";
 import { playbookFor } from "./gbp-playbook";
 
 export type SnapshotKind = "baseline" | "weekly" | "monthly" | "manual";
@@ -46,6 +50,7 @@ export async function captureClientSnapshot(opts: {
     healthScore,
     gscRows,
     ga4Rows,
+    ga4Conv,
     kwCount,
     rankStats,
     issues,
@@ -68,6 +73,12 @@ export async function captureClientSnapshot(opts: {
           days: 28,
         }).catch(() => [])
       : Promise.resolve([]),
+    client.ga4PropertyId
+      ? getGa4OrganicConversions({
+          propertyId: client.ga4PropertyId,
+          days: 28,
+        }).catch(() => null)
+      : Promise.resolve(null),
     db
       .select({ value: count() })
       .from(keywords)
@@ -124,6 +135,8 @@ export async function captureClientSnapshot(opts: {
         avgGscPosition !== null ? Math.round(avgGscPosition * 100) : null,
       ga4Sessions: ga4Rows.length > 0 ? ga4Sessions : null,
       ga4Users: ga4Rows.length > 0 ? ga4Users : null,
+      ga4Conversions: ga4Conv ? Math.round(ga4Conv.conversions) : null,
+      ga4RevenueX100: ga4Conv ? Math.round(ga4Conv.revenue * 100) : null,
       keywordCount: kwCount[0]?.value ?? 0,
       avgRankX100: rankStats.avgRankX100,
       top10Count: rankStats.top10Count,

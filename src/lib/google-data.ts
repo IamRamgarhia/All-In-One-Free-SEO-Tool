@@ -326,6 +326,32 @@ export async function findContentDecay(opts: {
   return decays.slice(0, limit);
 }
 
+export type Ga4Conversions = {
+  conversions: number;
+  revenue: number;
+};
+
+/**
+ * GA4 conversion + revenue totals attributed to organic search over
+ * the last N days. Returns null on any error / unconfigured property.
+ */
+export async function getGa4OrganicConversions(opts: {
+  propertyId: string;
+  days?: number;
+}): Promise<Ga4Conversions | null> {
+  const days = opts.days ?? 28;
+  try {
+    const { fetchGa4OrganicConversions } = await import("./google-oauth");
+    return await fetchGa4OrganicConversions({
+      propertyId: opts.propertyId,
+      startDate: daysAgo(days),
+      endDate: daysAgo(0),
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function getGa4OrganicTraffic(opts: {
   propertyId: string;
   days?: number;

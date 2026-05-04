@@ -357,6 +357,28 @@ export async function generateMonthlyCalendar(
     await db.insert(tasks).values(rows);
   }
 
+  // Quick-wins: scan the latest audit, drop the easy high-impact issues
+  // straight onto the board so the user opens the tasks page and sees a
+  // "Fix today" punch list.
+  try {
+    const { applyQuickWins } = await import("@/lib/quick-wins");
+    await applyQuickWins({ clientId: c.id });
+  } catch {
+    // ignore
+  }
+
+  // Auto-suggest competitors via SERP overlap: take the top 5 chosen
+  // keywords + run a search, collect the most-recurring non-client
+  // domains as competitor candidates and persist them.
+  try {
+    const { suggestCompetitorsFromKeywords } = await import(
+      "@/lib/competitor-suggest"
+    );
+    await suggestCompetitorsFromKeywords({ clientId: c.id });
+  } catch {
+    // ignore
+  }
+
   // Capture the baseline snapshot now so the next monthly report can show
   // "since you started" delta. Best-effort — failure shouldn't block plan
   // generation.
