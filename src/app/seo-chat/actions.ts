@@ -3,6 +3,12 @@
 import { callAIVision, type VisionMessage } from "@/lib/ai-vision";
 import { findSkill, type SeoSkillId } from "@/lib/seo-skills";
 import { scanSerp } from "@/lib/serp-scanner";
+import {
+  retrieveKnowledge,
+  renderKnowledgeContext,
+} from "@/lib/seo-knowledge-base";
+
+export type AnswerLength = "short" | "detailed";
 
 const SEO_SYSTEM_PROMPT = `You are an expert SEO consultant integrated into a self-hosted SEO toolkit. The user can ask anything SEO-related, including uploading images for image-SEO analysis (alt text suggestions, file-name advice, compression, EXIF, schema). Stay strictly on SEO and adjacent topics (content marketing, technical web performance, analytics, accessibility-as-it-affects-SEO). If asked about something off-topic, politely redirect.
 
@@ -82,6 +88,7 @@ export async function seoChat(
   imageDataUrl?: string,
   skillId?: SeoSkillId,
   research?: boolean,
+  length: AnswerLength = "short",
 ): Promise<SeoChatResearchResult> {
   if (history.length === 0 || history[history.length - 1].role !== "user") {
     return { ok: false, error: "No question to answer." };
@@ -122,6 +129,33 @@ export async function seoChat(
     ? `${SEO_SYSTEM_PROMPT}\n\n[Active focus: ${skill.name}]\n${skill.systemAddendum}`
     : SEO_SYSTEM_PROMPT;
 
+  // === Length mode ===
+  // Short = terse answer + smaller token cap (saves credits dramatically)
+  // Detailed = full answer
+  if (length === "short") {
+    fullSystem = `${fullSystem}\n\n[Answer mode: SHORT. Reply in 2-4 sentences max — no preamble, no closing summary, no headers. Lead with the answer. Skip caveats unless they meaningfully change the recommendation.]`;
+  } else {
+    fullSystem = `${fullSystem}\n\n[Answer mode: DETAILED. Fully explain. Use headers + bullets where they aid scannability. Cap at ~600 words.]`;
+  }
+
+  // === Smart knowledge retrieval ===
+  // Match the user's most recent message against our SEO knowledge corpus.
+  // Inject only the matched chunks — token-efficient RAG.
+  const lastUserText = trimmed[trimmed.length - 1]?.content ?? "";
+  if (lastUserText.length > 5) {
+    const matched = retrieveKnowledge(
+      `${skill.name} ${lastUserText}`,
+      length === "short" ? 1 : 3,
+    );
+    const ctx = renderKnowledgeContext(
+      matched,
+      length === "short" ? 1500 : 4000,
+    );
+    if (ctx) {
+      fullSystem = `${fullSystem}\n\n[Internal knowledge base (use these facts when answering — don't repeat them verbatim, weave into your reply):\n${ctx}\n]`;
+    }
+  }
+
   let researchSnippet: string | undefined;
   if (research) {
     const lastUserMsg = trimmed[trimmed.length - 1]?.content ?? "";
@@ -161,8 +195,10 @@ export async function seoChat(
   const reply = await callAIVision({
     system: fullSystem,
     messages,
-    maxTokens: 1500,
-    temperature: 0.4,
+    // Short: ~250 tok cap. Detailed: ~1500. Saves credits dramatically when
+    // user just wants a quick answer.
+    maxTokens: length === "short" ? 250 : 1500,
+    temperature: length === "short" ? 0.2 : 0.4,
     timeoutMs: 60_000,
     feature: "general",
   });

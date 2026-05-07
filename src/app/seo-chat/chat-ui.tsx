@@ -2,18 +2,43 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
+  AlignJustify,
   Bot,
   Globe,
   ImagePlus,
   Loader2,
   Send,
   Sparkles,
+  Wind,
   X,
+  Zap,
 } from "lucide-react";
-import { seoChat, type SeoChatMessage } from "./actions";
+import { seoChat, type SeoChatMessage, type AnswerLength } from "./actions";
 import { SEO_SKILLS, type SeoSkillId } from "@/lib/seo-skills";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Estimate total tokens that will be billed for the next call. ~4 chars/token.
+ * Includes a baseline for system prompt + skill addendum + retrieved knowledge,
+ * plus the user input + expected output cap.
+ */
+function estimateTokens(
+  userInput: string,
+  length: AnswerLength,
+  research: boolean,
+): number {
+  const inputTokens = Math.ceil(userInput.length / 4);
+  // Baseline system prompt — measured empirically
+  const systemBaseline = 600;
+  // Knowledge corpus chunk(s) injected
+  const knowledgeBaseline = length === "short" ? 250 : 600;
+  // Live research SERP injection
+  const researchBaseline = research ? 800 : 0;
+  // Expected output cap
+  const outputCap = length === "short" ? 250 : 1500;
+  return inputTokens + systemBaseline + knowledgeBaseline + researchBaseline + outputCap;
+}
 
 export function SeoChatUi() {
   const [messages, setMessages] = useState<SeoChatMessage[]>([]);
@@ -21,6 +46,7 @@ export function SeoChatUi() {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [skill, setSkill] = useState<SeoSkillId>("general");
   const [research, setResearch] = useState(false);
+  const [length, setLength] = useState<AnswerLength>("short");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,7 +77,13 @@ export function SeoChatUi() {
     if (fileRef.current) fileRef.current.value = "";
 
     startTransition(async () => {
-      const r = await seoChat(next, imageToSend ?? undefined, skill, research);
+      const r = await seoChat(
+        next,
+        imageToSend ?? undefined,
+        skill,
+        research,
+        length,
+      );
       if (r.ok) {
         setMessages([...next, { role: "assistant", content: r.reply }]);
       } else {
@@ -275,6 +307,32 @@ export function SeoChatUi() {
             <Globe className="mr-1 size-3" />
             {research ? "Research: ON" : "Research"}
           </button>
+          <button
+            type="button"
+            onClick={() => setLength(length === "short" ? "detailed" : "short")}
+            title={
+              length === "short"
+                ? "Short answers (~250 tokens — saves credits). Click to switch to Detailed."
+                : "Detailed answers (~1500 tokens). Click to switch back to Short."
+            }
+            className={`inline-flex h-9 items-center rounded-md px-3 text-xs font-medium ring-1 ring-inset transition-colors ${
+              length === "short"
+                ? "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30"
+                : "bg-amber-500/15 text-amber-300 ring-amber-500/30"
+            }`}
+          >
+            {length === "short" ? (
+              <>
+                <Wind className="mr-1 size-3" />
+                Short
+              </>
+            ) : (
+              <>
+                <AlignJustify className="mr-1 size-3" />
+                Detailed
+              </>
+            )}
+          </button>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -294,6 +352,20 @@ export function SeoChatUi() {
             )}
           </button>
         </form>
+
+        <div className="border-t border-white/[0.04] bg-white/[0.01] px-3 py-1.5 text-[10px] text-muted-foreground flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Zap className="size-3" />
+            ~{estimateTokens(input, length, research)} tok est.
+          </span>
+          <span>
+            {length === "short" ? "≈ $0.0001-$0.001 / answer" : "≈ $0.001-$0.01 / answer"}
+            {" · "}
+            <a href="/settings/ai-usage" className="hover:text-foreground hover:underline">
+              usage
+            </a>
+          </span>
+        </div>
       </div>
     </div>
   );
