@@ -134,6 +134,8 @@ const groups: { title: string; items: Section[] }[] = [
       { href: "/tools/pagerank", label: "PageRank simulator", icon: Network },
       { href: "/tools/intent-classifier", label: "Intent classifier", icon: Sparkles },
       { href: "/tools/disavow", label: "Disavow generator", icon: Sparkles },
+      { href: "/tools/brief", label: "Content brief composite", icon: FileText },
+      { href: "/tools/cluster", label: "Topic cluster builder", icon: Layers },
       { href: "/tools/programmatic-seo", label: "Programmatic SEO", icon: Layers },
       { href: "/tools/og-image", label: "OG image generator", icon: ImageIcon },
       { href: "/tools/serp-features", label: "SERP feature tracker", icon: Sparkles },

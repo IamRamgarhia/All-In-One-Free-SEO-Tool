@@ -90,6 +90,22 @@ const tools = [
     accent: "rose",
   },
   {
+    href: "/tools/brief",
+    icon: FileText,
+    title: "Content brief — one-click composite",
+    description:
+      "Type a query → top-10 SERP corpus + PAA → AI writes a writer-ready markdown brief: intent, length, H2 outline, semantic terms, FAQ block, internal-link anchors, snippet shape, CTA.",
+    accent: "emerald",
+  },
+  {
+    href: "/tools/cluster",
+    icon: Layers,
+    title: "Topic cluster builder",
+    description:
+      "Head topic → mine PAA + autocomplete + Reddit → AI assembles 1 pillar + 15-20 spokes with slugs, intent, format, and an interlinking map. The 1-day strategy plan, in 60 seconds.",
+    accent: "cyan",
+  },
+  {
     href: "/tools/programmatic-seo",
     icon: Layers,
     title: "Programmatic SEO toolkit",

@@ -28,6 +28,23 @@ export default function KnowledgeHubPage() {
 
       <Toc />
 
+      <section className="glass-apple rounded-2xl p-5 space-y-2">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <span>📖</span> Reverse-engineered playbooks
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          How the top-ranking SEO sites (Backlinko, RankMath, Search Engine Journal) actually win.
+        </p>
+        <div className="flex flex-wrap gap-2 text-sm">
+          <a
+            href="/knowledge/top-sites"
+            className="rounded-md bg-violet-500/15 px-3 py-1.5 text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25"
+          >
+            Why Backlinko / RankMath / SEJ rank #1 — checklist
+          </a>
+        </div>
+      </section>
+
       <RankingSignals />
       <TopicalAuthority />
       <WhyBlog />
