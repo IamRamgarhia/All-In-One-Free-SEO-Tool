@@ -212,7 +212,26 @@ EOM
 
   [ -f ".env.local" ] || cp .env.example .env.local 2>/dev/null || true
 
+  # Kill any prior server we started (idempotent re-run)
+  if [ -f "$DIR/.dev-server.pid" ]; then
+    OLD_PID="$(cat "$DIR/.dev-server.pid" 2>/dev/null || true)"
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+      kill "$OLD_PID" 2>/dev/null || true
+      sleep 1
+    fi
+  fi
+  # Free the port if anyone else is sitting on it
+  if command -v lsof >/dev/null 2>&1; then
+    PORT_PID="$(lsof -ti :$PORT -sTCP:LISTEN 2>/dev/null || true)"
+    if [ -n "$PORT_PID" ]; then
+      warn "Port $PORT was held by PID $PORT_PID — stopping it"
+      kill "$PORT_PID" 2>/dev/null || true
+      sleep 1
+    fi
+  fi
+
   say "Starting server on port $PORT (background)"
+  : >"$DIR/dev-server.log"   # truncate previous log so we don't read stale lines
   PORT="$PORT" nohup $PM run dev >"$DIR/dev-server.log" 2>&1 &
   echo "$!" >"$DIR/.dev-server.pid"
 
@@ -227,7 +246,16 @@ EOM
   done
   echo
   if [ "$UP" != "1" ]; then
-    warn "App didn't respond yet. Check $DIR/dev-server.log for details."
+    warn "App didn't respond on health check."
+    if [ -s "$DIR/dev-server.log" ]; then
+      echo
+      printf "${YELLOW}Last 30 lines of dev-server.log:${NC}\n"
+      tail -n 30 "$DIR/dev-server.log" | sed 's/^/  /'
+      echo
+    else
+      warn "Log is empty — server didn't even start. Run manually:"
+      warn "  cd $DIR && $PM run dev"
+    fi
   else
     say "App is up at http://localhost:$PORT"
   fi

@@ -208,14 +208,43 @@ Or, if you have winget (Windows 10+):
     Say "Starting server on port $port (background)"
     $logFile = Join-Path $dir "dev-server.log"
     $errFile = Join-Path $dir "dev-server.err.log"
-    $env:PORT = "$port"
-    $proc = Start-Process -FilePath $pm `
-        -ArgumentList @("run", "dev") `
+    $pidFile = Join-Path $dir ".dev-server.pid"
+    $batFile = Join-Path $dir ".dev-server.cmd"
+
+    # Kill any prior server we started (from a previous install run)
+    if (Test-Path $pidFile) {
+        $oldPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+        if ($oldPid) {
+            Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue
+        }
+    }
+    # Also clear anything still bound to the port (e.g. lingering pnpm child)
+    try {
+        $bound = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+        if ($bound) {
+            foreach ($c in $bound) {
+                Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
+            }
+            Start-Sleep -Seconds 1
+        }
+    } catch {}
+
+    # Write a small .cmd file and launch THAT. pnpm/npm on Windows are .cmd
+    # shims, so Start-Process -FilePath "pnpm" hits "%1 is not a valid Win32
+    # application". A real .cmd file works around it cleanly and avoids all
+    # the quote-escaping problems of `cmd /c "long command"`.
+    @"
+@echo off
+set PORT=$port
+$pm run dev
+"@ | Out-File -FilePath $batFile -Encoding ASCII
+
+    $proc = Start-Process -FilePath $batFile `
         -WorkingDirectory $dir `
         -RedirectStandardOutput $logFile `
         -RedirectStandardError $errFile `
-        -PassThru -WindowStyle Hidden
-    $proc.Id | Out-File -FilePath (Join-Path $dir ".dev-server.pid") -Encoding ascii
+        -PassThru -WindowStyle Hidden -ErrorAction Stop
+    $proc.Id | Out-File -FilePath $pidFile -Encoding ascii
 
     Say "Waiting for the app to come up... (30-90s for first build)"
     for ($i = 0; $i -lt 90; $i++) {
@@ -228,7 +257,23 @@ Or, if you have winget (Windows 10+):
     }
     Write-Host ""
     if (-not $up) {
-        Warn "App didn't respond yet. Check '$logFile' for details."
+        Warn "App didn't respond on health check."
+        $shown = $false
+        foreach ($f in @($logFile, $errFile)) {
+            if ((Test-Path $f) -and ((Get-Item $f).Length -gt 0)) {
+                Write-Host ""
+                Write-Host "Last lines of $f`:" -ForegroundColor Yellow
+                Get-Content $f -Tail 30 | ForEach-Object { Write-Host "  $_" }
+                Write-Host ""
+                $shown = $true
+            }
+        }
+        if (-not $shown) {
+            Warn "Log files are empty — the server process didn't even start."
+            Warn "Run manually to see what's happening:"
+            Warn "  cd '$dir'"
+            Warn "  $pm run dev"
+        }
     } else {
         Say "App is up at http://localhost:$port"
     }
