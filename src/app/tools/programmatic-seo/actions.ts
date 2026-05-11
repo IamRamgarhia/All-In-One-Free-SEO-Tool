@@ -5,6 +5,7 @@ import {
   parseCsv,
   type ProgramResult,
 } from "@/lib/programmatic-seo";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type ProgState =
   | { ok: true; result: ProgramResult }
@@ -49,5 +50,11 @@ export async function runProgram(
     primaryColumn,
     secondaryColumn,
   });
+  await saveToolRun({
+    toolId: "programmatic-seo",
+    label: `${rows.length} rows · ${result.pages.length} pages`,
+    input: { rowCount: rows.length, baseUrl },
+    result: { ok: true, result },
+  }).catch(() => undefined);
   return { ok: true, result };
 }

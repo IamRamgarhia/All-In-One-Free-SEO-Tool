@@ -11,6 +11,7 @@ import {
   bingSubmitUrlBatch,
   listBingSites,
 } from "@/lib/bing-webmaster";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export async function saveBingKey(formData: FormData): Promise<void> {
   const key = String(formData.get("key") ?? "").trim();
@@ -72,7 +73,7 @@ export async function fetchBingInsights(
       getBingUrlSubmissionQuota({ siteUrl: parsed.data.siteUrl }),
     ]);
 
-    return {
+    const out: BingInsightsState = {
       ok: true,
       siteUrl: parsed.data.siteUrl,
       queries: queries.slice(0, 20).map((r) => ({
@@ -96,6 +97,13 @@ export async function fetchBingInsights(
         ? { daily: quota.DailyQuota, monthly: quota.MonthlyQuota }
         : null,
     };
+    await saveToolRun({
+      toolId: "bing",
+      label: `Bing insights · ${parsed.data.siteUrl}`,
+      input: { siteUrl: parsed.data.siteUrl },
+      result: out,
+    }).catch(() => undefined);
+    return out;
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

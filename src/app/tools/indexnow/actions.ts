@@ -6,6 +6,7 @@ import {
   submitToIndexNow,
   verifyKeyFile,
 } from "@/lib/indexnow";
+import { saveToolRun } from "@/lib/tool-runs";
 
 const submitSchema = z.object({
   host: z.string().trim().min(3).max(255),
@@ -63,6 +64,18 @@ export async function submitIndexNow(
       keyUrl,
     };
   }
+  await saveToolRun({
+    toolId: "indexnow",
+    label: `${host} · ${result.submitted} URLs · ${result.status}`,
+    input: { host, urlCount: urls.length },
+    result: {
+      ok: true,
+      submitted: result.submitted,
+      status: result.status,
+      key,
+      keyUrl,
+    },
+  }).catch(() => undefined);
   return {
     ok: true,
     submitted: result.submitted,

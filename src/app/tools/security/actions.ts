@@ -1,5 +1,7 @@
 "use server";
 
+import { saveToolRun } from "@/lib/tool-runs";
+
 export type SecurityResult =
   | {
       ok: true;
@@ -201,5 +203,12 @@ export async function checkSecurity(
     checkHeaders(rawUrl),
   ]);
 
-  return { ok: true, hostname: host, observatory, ssl, headers };
+  const out: SecurityResult = { ok: true, hostname: host, observatory, ssl, headers };
+  await saveToolRun({
+    toolId: "security",
+    label: `${host} · obs ${observatory?.grade ?? "—"} · ssl ${ssl?.grade ?? "—"}`,
+    input: { url: rawUrl },
+    result: out,
+  }).catch(() => undefined);
+  return out;
 }

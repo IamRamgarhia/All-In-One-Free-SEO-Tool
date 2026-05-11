@@ -1,6 +1,7 @@
 "use server";
 
 import { inspectGscUrl, type UrlInspection } from "@/lib/google-oauth";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type CoverageState =
   | { ok: true; site: string; rows: UrlInspection[]; summary: Record<string, number> }
@@ -69,5 +70,11 @@ export async function runCoverage(
     summary[k] = (summary[k] ?? 0) + 1;
   }
 
+  await saveToolRun({
+    toolId: "gsc-coverage",
+    label: `${site} · ${rows.length} URLs`,
+    input: { site, urlCount: urls.length },
+    result: { ok: true, site, rows, summary },
+  }).catch(() => undefined);
   return { ok: true, site, rows, summary };
 }

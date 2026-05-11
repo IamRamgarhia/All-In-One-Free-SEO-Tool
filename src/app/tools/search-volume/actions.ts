@@ -5,6 +5,7 @@ import {
   estimateBulk,
   type VolumeEstimate,
 } from "@/lib/search-volume";
+import { saveToolRun } from "@/lib/tool-runs";
 
 const inputSchema = z.object({
   queries: z.string().trim().min(1).max(20_000),
@@ -39,5 +40,11 @@ export async function estimateVolumes(
     queries,
     country: parsed.data.country,
   });
+  await saveToolRun({
+    toolId: "search-volume",
+    label: `${queries.length} queries · ${parsed.data.country}`,
+    input: { country: parsed.data.country, count: queries.length },
+    result: { ok: true, estimates },
+  }).catch(() => undefined);
   return { ok: true, estimates };
 }

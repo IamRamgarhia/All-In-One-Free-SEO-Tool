@@ -8,6 +8,7 @@ import {
   renderRedirectMap,
   type MigrationMap,
 } from "@/lib/migration-mapper";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type MigrationState =
   | {
@@ -94,6 +95,12 @@ export async function runMapping(
   try {
     const map = buildMigrationMap({ oldUrls: olds, newUrls: news });
     const output = renderRedirectMap(map);
+    await saveToolRun({
+      toolId: "migration-map",
+      label: `${olds.length} → ${news.length} URLs · ${map.rows.length} matched`,
+      input: { oldCount: olds.length, newCount: news.length },
+      result: { ok: true, map, output },
+    }).catch(() => undefined);
     return { ok: true, map, output };
   } catch (err) {
     return { ok: false, error: (err as Error).message ?? "Mapping failed" };

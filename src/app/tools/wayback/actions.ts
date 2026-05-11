@@ -1,5 +1,7 @@
 "use server";
 
+import { saveToolRun } from "@/lib/tool-runs";
+
 export type WaybackSnap = {
   ts: string;
   url: string;
@@ -52,6 +54,12 @@ export async function runWayback(
       })
       .filter((s) => s.ts && /^\d{14}$/.test(s.ts))
       .sort((a, b) => b.ts.localeCompare(a.ts));
+    await saveToolRun({
+      toolId: "wayback",
+      label: `${url} · ${snaps.length} snapshots`,
+      input: { url },
+      result: { ok: true, url, snaps },
+    }).catch(() => undefined);
     return { ok: true, url, snaps };
   } catch (err) {
     return { ok: false, error: (err as Error).message ?? "Wayback fetch failed" };

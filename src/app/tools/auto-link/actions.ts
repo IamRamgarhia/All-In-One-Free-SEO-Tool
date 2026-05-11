@@ -4,6 +4,7 @@ import {
   suggestAutoLinks,
   type AutoLinkSuggestion,
 } from "@/lib/content-ai-helpers";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type AutoLinkState =
   | { ok: true; suggestions: AutoLinkSuggestion[] }
@@ -42,5 +43,11 @@ export async function runAutoLink(
   if (pages.length === 0) return { ok: false, error: "No valid pages parsed." };
   const r = await suggestAutoLinks({ content, internalPages: pages });
   if (!r.ok) return { ok: false, error: r.error };
+  await saveToolRun({
+    toolId: "auto-link",
+    label: `${r.suggestions.length} link suggestions · ${pages.length} pages`,
+    input: { contentLen: content.length, pageCount: pages.length },
+    result: { ok: true, suggestions: r.suggestions },
+  }).catch(() => undefined);
   return { ok: true, suggestions: r.suggestions };
 }

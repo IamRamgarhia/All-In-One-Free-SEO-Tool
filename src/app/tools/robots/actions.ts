@@ -1,5 +1,7 @@
 "use server";
 
+import { saveToolRun } from "@/lib/tool-runs";
+
 export type RobotsResult =
   | {
       ok: true;
@@ -150,5 +152,12 @@ export async function checkRobots(
     issues.push("No sitemap files found at any declared or default location.");
   }
 
-  return { ok: true, robotsUrl, robotsContent, sitemaps, issues };
+  const out: RobotsResult = { ok: true, robotsUrl, robotsContent, sitemaps, issues };
+  await saveToolRun({
+    toolId: "robots",
+    label: `${origin} · ${sitemaps.length} sitemaps · ${issues.length} issues`,
+    input: { url: rawUrl },
+    result: out,
+  }).catch(() => undefined);
+  return out;
 }

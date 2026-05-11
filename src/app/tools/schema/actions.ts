@@ -2,6 +2,7 @@
 
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { callAI } from "@/lib/ai-call";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type SchemaType =
   | "Article"
@@ -86,7 +87,14 @@ export async function generateSchema(opts: {
 
   try {
     const parsed = JSON.parse(cleaned);
-    return { ok: true, jsonld: JSON.stringify(parsed, null, 2) };
+    const jsonld = JSON.stringify(parsed, null, 2);
+    await saveToolRun({
+      toolId: "schema",
+      label: `${opts.type}${opts.url ? ` · ${opts.url}` : ""}`,
+      input: { type: opts.type, url: opts.url ?? null },
+      result: { ok: true, jsonld },
+    }).catch(() => undefined);
+    return { ok: true, jsonld };
   } catch {
     return { ok: false, error: "Model output wasn't valid JSON." };
   }

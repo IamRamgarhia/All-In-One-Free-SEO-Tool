@@ -7,6 +7,7 @@ import {
   buildSitemapXml,
   crawlSite,
 } from "@/lib/sitemap-generator";
+import { saveToolRun } from "@/lib/tool-runs";
 
 const schema = z.object({
   url: z
@@ -60,7 +61,7 @@ export async function generateSitemap(
     respectRobots: parsed.data.respectRobots,
   });
 
-  return {
+  const out: SitemapResult = {
     ok: true,
     pageCount: pages.length,
     errorCount: errors.length,
@@ -70,4 +71,11 @@ export async function generateSitemap(
     html: buildSitemapHtml(pages, host),
     sample: pages.slice(0, 25).map((p) => p.url),
   };
+  await saveToolRun({
+    toolId: "sitemap",
+    label: `${host} · ${pages.length} pages · ${errors.length} errors`,
+    input: { url: parsed.data.url, maxPages: parsed.data.maxPages },
+    result: out,
+  }).catch(() => undefined);
+  return out;
 }

@@ -8,6 +8,7 @@ import { scanCwv } from "@/lib/pagespeed";
 import { auditImages } from "@/lib/image-audit";
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { saveSnapshot } from "@/lib/snapshots";
+import { saveToolRun } from "@/lib/tool-runs";
 import { inspectHeaders } from "@/app/tools/headers/actions";
 
 /**
@@ -262,8 +263,8 @@ export async function runHealthCheck(rawUrl: string): Promise<HealthResult> {
     bySeverity,
   };
 
-  return {
-    ok: true,
+  const out = {
+    ok: true as const,
     url,
     finalUrl: meta.url,
     summary,
@@ -275,6 +276,13 @@ export async function runHealthCheck(rawUrl: string): Promise<HealthResult> {
     },
     raw: { cwv, robots, hreflang, security, image, headers },
   };
+  await saveToolRun({
+    toolId: "health-check",
+    label: `${url} · ${score}/100 · ${findings.length} findings`,
+    input: { url },
+    result: out,
+  }).catch(() => undefined);
+  return out;
 }
 
 export async function saveHealthSnapshot(opts: {

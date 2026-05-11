@@ -1,6 +1,7 @@
 "use server";
 
 import { saveSnapshot } from "@/lib/snapshots";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type HeaderHop = {
   url: string;
@@ -55,12 +56,19 @@ export async function inspectHeaders(
         redirectedTo: next,
       });
       if (!next) {
-        return {
+        const result: HeadersResult = {
           ok: true,
           chain,
           finalUrl: current,
           totalHops: chain.length,
         };
+        await saveToolRun({
+          toolId: "headers",
+          label: `${url} · ${chain.length} hops · ${chain[chain.length - 1]?.status ?? "?"}`,
+          input: { url },
+          result,
+        }).catch(() => undefined);
+        return result;
       }
       current = next;
     } catch (err) {

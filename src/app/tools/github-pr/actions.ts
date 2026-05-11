@@ -4,6 +4,7 @@ import {
   openSeoFixesPr,
   type SeoFixSuggestion,
 } from "@/lib/github-pr-generator";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type PrState =
   | { ok: true; prNumber: number; prUrl: string; branch: string; manifestPath: string }
@@ -39,5 +40,14 @@ export async function runOpenPr(
     domain,
     baseBranch: baseBranch || undefined,
   });
+  if (r && (r as { ok: boolean }).ok) {
+    const ok = r as Extract<PrState, { ok: true }>;
+    await saveToolRun({
+      toolId: "github-pr",
+      label: `PR #${ok.prNumber} · ${owner}/${repo} · ${fixes.length} fixes`,
+      input: { owner, repo, domain, fixCount: fixes.length },
+      result: ok,
+    }).catch(() => undefined);
+  }
   return r as PrState;
 }

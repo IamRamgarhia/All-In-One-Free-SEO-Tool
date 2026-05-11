@@ -6,13 +6,23 @@ import {
   type CategoryResult,
   type ImagePromptResult,
 } from "@/lib/content-helpers";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export async function getCoverImagePrompts(formData: FormData): Promise<ImagePromptResult> {
   const title = String(formData.get("title") ?? "").trim();
   const brief = String(formData.get("brief") ?? "").trim();
   const niche = String(formData.get("niche") ?? "").trim() || null;
   if (!title) return { ok: false, error: "Post title required." };
-  return await generateCoverImagePrompts({ title, brief, niche });
+  const r = await generateCoverImagePrompts({ title, brief, niche });
+  if (r.ok) {
+    await saveToolRun({
+      toolId: "content-helpers",
+      label: `Cover prompts · ${title.slice(0, 60)}`,
+      input: { title, niche },
+      result: r,
+    }).catch(() => undefined);
+  }
+  return r;
 }
 
 export async function getCategorySuggestions(
@@ -28,5 +38,14 @@ export async function getCategorySuggestions(
         .filter(Boolean)
     : [];
   if (!title) return { ok: false, error: "Title required." };
-  return await suggestCategoriesAndTags({ title, excerpt, existingCategories });
+  const r = await suggestCategoriesAndTags({ title, excerpt, existingCategories });
+  if (r.ok) {
+    await saveToolRun({
+      toolId: "content-helpers",
+      label: `Categories · ${title.slice(0, 60)}`,
+      input: { title },
+      result: r,
+    }).catch(() => undefined);
+  }
+  return r;
 }

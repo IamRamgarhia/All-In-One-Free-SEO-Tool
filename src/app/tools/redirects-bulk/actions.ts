@@ -1,6 +1,7 @@
 "use server";
 
 import { traceMany, type RedirectChain } from "@/lib/redirect-tracer";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export type BulkState =
   | { ok: true; chains: RedirectChain[] }
@@ -26,6 +27,12 @@ export async function runBulk(
 
   try {
     const chains = await traceMany(urls);
+    await saveToolRun({
+      toolId: "redirects-bulk",
+      label: `${urls.length} URLs traced`,
+      input: { urlCount: urls.length },
+      result: { ok: true, chains },
+    }).catch(() => undefined);
     return { ok: true, chains };
   } catch (err) {
     return { ok: false, error: (err as Error).message ?? "Trace failed" };

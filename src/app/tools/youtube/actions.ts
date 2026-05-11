@@ -9,6 +9,7 @@ import {
   setYouTubeApiKey,
   type YouTubeVideo,
 } from "@/lib/youtube-research";
+import { saveToolRun } from "@/lib/tool-runs";
 
 export async function saveYouTubeKey(formData: FormData): Promise<void> {
   const key = String(formData.get("key") ?? "").trim();
@@ -59,10 +60,17 @@ export async function researchOnYouTube(
   if (!result.ok) return result;
 
   const keywords = aggregateKeywords(result.videos);
-  return {
+  const out: YouTubeResearchState = {
     ok: true,
     query: parsed.data.query,
     videos: result.videos,
     keywords,
   };
+  await saveToolRun({
+    toolId: "youtube",
+    label: `${parsed.data.query} · ${result.videos.length} videos`,
+    input: { query: parsed.data.query, order: parsed.data.order },
+    result: out,
+  }).catch(() => undefined);
+  return out;
 }

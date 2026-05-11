@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { runBrowserAgent, type AgentResult } from "@/lib/browser-agent";
+import { saveToolRun } from "@/lib/tool-runs";
 
 const inputSchema = z.object({
   startUrl: z
@@ -36,6 +37,16 @@ export async function runAgent(
       goal: parsed.data.goal,
       maxSteps: parsed.data.maxSteps,
     });
+    await saveToolRun({
+      toolId: "browser-agent",
+      label: `${parsed.data.startUrl} · "${parsed.data.goal.slice(0, 60)}"`,
+      input: {
+        startUrl: parsed.data.startUrl,
+        goal: parsed.data.goal,
+        maxSteps: parsed.data.maxSteps,
+      },
+      result: { ok: true, result: r },
+    }).catch(() => undefined);
     return { ok: true, result: r };
   } catch (err) {
     return { ok: false, error: (err as Error).message ?? "Agent run failed" };

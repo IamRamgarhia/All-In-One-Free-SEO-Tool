@@ -1,5 +1,7 @@
 "use server";
 
+import { saveToolRun } from "@/lib/tool-runs";
+
 const UA =
   "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost) InternalLinker";
 
@@ -195,11 +197,18 @@ export async function suggestInternalLinks(input: {
     return a.fromUrl.length - b.fromUrl.length;
   });
 
-  return {
-    ok: true,
+  const out = {
+    ok: true as const,
     targetUrl: parsedTarget.toString(),
     targetKeyword: keyword,
     pagesScanned: combined.length,
     suggestions,
   };
+  await saveToolRun({
+    toolId: "internal-linking",
+    label: `${keyword} · ${suggestions.length} link ops · ${combined.length} pages scanned`,
+    input: { targetUrl: parsedTarget.toString(), keyword },
+    result: out,
+  }).catch(() => undefined);
+  return out;
 }
