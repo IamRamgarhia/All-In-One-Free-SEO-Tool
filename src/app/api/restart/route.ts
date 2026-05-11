@@ -14,12 +14,16 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { detectPortFromRequest, rememberPort } from "@/lib/port-memory";
+import { guardAdminRequest } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 // Required: uses node:child_process + node:fs — Edge runtime can't load these.
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const denied = guardAdminRequest(req);
+  if (denied) return denied;
+
   if (process.env.RUNNING_IN_DOCKER === "1") {
     return Response.json(
       {

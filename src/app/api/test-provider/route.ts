@@ -15,6 +15,7 @@ import { getApiKey, getOllamaUrl } from "@/lib/api-keys";
 import type { ActiveProvider } from "@/lib/api-keys";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const VALID: ReadonlySet<ActiveProvider> = new Set([
   "openai",

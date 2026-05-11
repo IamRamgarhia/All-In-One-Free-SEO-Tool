@@ -79,20 +79,22 @@ export async function logError(input: LogErrorInput): Promise<void> {
         userAgent: input.userAgent ?? null,
         occurrences: 1,
       });
-      // Trim oldest if we've grown past MAX_ROWS
+      // Trim oldest if we've grown past MAX_ROWS. Single delete with a
+      // subquery instead of N round-trips (used to fire one DELETE per
+      // row — fine at 10 rows, sluggish at hundreds).
       const [{ value: total }] = await db
         .select({ value: sql<number>`count(*)` })
         .from(systemErrors);
       if (total > MAX_ROWS) {
         const toDelete = total - MAX_ROWS;
-        const oldest = await db
-          .select({ id: systemErrors.id })
-          .from(systemErrors)
-          .orderBy(systemErrors.lastSeenAt)
-          .limit(toDelete);
-        for (const r of oldest) {
-          await db.delete(systemErrors).where(eq(systemErrors.id, r.id));
-        }
+        await db.run(sql`
+          DELETE FROM system_errors
+          WHERE id IN (
+            SELECT id FROM system_errors
+            ORDER BY last_seen_at ASC
+            LIMIT ${toDelete}
+          )
+        `);
       }
     }
   } catch {

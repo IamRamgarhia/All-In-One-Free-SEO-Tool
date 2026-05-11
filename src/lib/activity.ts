@@ -39,6 +39,16 @@ export async function logActivity(opts: {
   dedupe?: boolean;
   dedupeWindowMinutes?: number;
 }): Promise<void> {
+  // Known tradeoff: this is a SELECT-then-INSERT pattern with no real
+  // atomicity. Under concurrent renders (e.g. two pages loading the
+  // sidebar at once) both can pass the existence check before either
+  // inserts, producing duplicate rows. better-sqlite3 is single-process
+  // but the async drizzle wrapper allows event-loop interleave.
+  //
+  // Worst case: a couple of duplicate notifications per concurrent
+  // burst, then the 24h dedup window prevents further duplicates. The
+  // user dismisses them and moves on. Not worth a new migration + unique
+  // partial index for the rare event.
   try {
     if (opts.dedupe !== false) {
       const windowMs = (opts.dedupeWindowMinutes ?? 60 * 24) * 60 * 1000;

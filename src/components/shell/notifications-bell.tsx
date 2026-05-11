@@ -46,21 +46,39 @@ export function NotificationsBell() {
     }
   }, []);
 
-  // Plain async loader — no startTransition. The previous version called
-  // startTransition during render in some paths (Next 16 strict mode flags
-  // this) which produced the "Cannot call startTransition while rendering"
-  // error and a setState loop. Plain useState + ref guard is enough here.
+  // Track whether the component is still mounted so async work that
+  // finishes after unmount doesn't call setState on a dead component.
+  // Server actions can't be aborted mid-flight, but we can ignore the
+  // result if we know we no longer need it.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Tracks the in-flight load token so an older response can't overwrite
+  // a newer one. Each invocation gets a monotonically increasing id; we
+  // only accept the result if it's still the latest.
+  const loadIdRef = useRef(0);
+
   const load = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setLoading(true);
+    const myId = ++loadIdRef.current;
     try {
       const r = await recentNotifications();
+      // Drop stale responses + post-unmount results
+      if (!mountedRef.current || myId !== loadIdRef.current) return;
       setItems(r);
     } catch {
       // Leave whatever items we had — never crash the bell.
     } finally {
-      setLoading(false);
+      if (mountedRef.current && myId === loadIdRef.current) {
+        setLoading(false);
+      }
       inFlightRef.current = false;
     }
   }, []);

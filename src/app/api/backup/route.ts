@@ -11,6 +11,7 @@
 import { createReadStream, statSync, existsSync } from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
+import { guardAdminRequest } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,11 +20,14 @@ function dbPath(): string {
   return process.env.SEO_DB_PATH ?? path.join(process.cwd(), "data.db");
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = guardAdminRequest(req);
+  if (denied) return denied;
+
   const p = dbPath();
   if (!existsSync(p)) {
     return Response.json(
-      { ok: false, error: "data.db not found at " + p },
+      { ok: false, error: "data.db not found" },
       { status: 404 },
     );
   }

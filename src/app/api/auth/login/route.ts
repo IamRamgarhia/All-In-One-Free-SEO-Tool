@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "@/lib/secure-compare";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +17,9 @@ export async function POST(req: NextRequest) {
     | null;
   const submitted = body?.password ?? "";
 
-  if (submitted !== required) {
-    // Constant-time-ish: small jitter so attackers can't time-attack the
-    // string comparison. Self-hosted single-user gate, this is enough.
+  if (!timingSafeEqual(submitted, required)) {
+    // Small jitter on top of the constant-time compare — defense in depth
+    // against any timing inference at the network layer.
     await new Promise((r) => setTimeout(r, 250));
     return NextResponse.json({ error: "Wrong password" }, { status: 401 });
   }

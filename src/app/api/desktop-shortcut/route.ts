@@ -16,6 +16,7 @@ import path from "node:path";
 import os from "node:os";
 import { existsSync } from "node:fs";
 import { detectPortFromRequest, rememberPort } from "@/lib/port-memory";
+import { guardAdminRequest } from "@/lib/admin-auth";
 
 const exec = promisify(execFile);
 
@@ -46,7 +47,10 @@ function getPaths() {
   return { desktop, startMenu, target, icon, cwd };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = guardAdminRequest(req);
+  if (denied) return denied;
+
   if (process.platform !== "win32") {
     return Response.json({
       ok: false,
@@ -64,6 +68,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = guardAdminRequest(req);
+  if (denied) return denied;
+
   if (process.platform !== "win32") {
     return Response.json(
       { ok: false, error: "Shortcuts are Windows-only." },
@@ -133,7 +140,10 @@ Write-Output 'ok'
   });
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const denied = guardAdminRequest(req);
+  if (denied) return denied;
+
   if (process.platform !== "win32") {
     return Response.json(
       { ok: false, error: "Shortcuts are Windows-only." },

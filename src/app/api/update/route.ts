@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import path from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import { logActivity } from "@/lib/activity";
+import { guardAdminRequest } from "@/lib/admin-auth";
 
 const exec = promisify(execFile);
 
@@ -65,7 +66,10 @@ async function getRemoteSha(): Promise<string | null> {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const denied = guardAdminRequest(req);
+  if (denied) return denied;
+
   const [local, remote] = await Promise.all([getLocalSha(), getRemoteSha()]);
   const updateAvailable =
     local !== null && remote !== null && local !== remote;
@@ -119,7 +123,10 @@ async function detectPm(): Promise<"pnpm" | "npm"> {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const denied = guardAdminRequest(req);
+  if (denied) return denied;
+
   if (process.env.RUNNING_IN_DOCKER === "1") {
     return Response.json(
       {

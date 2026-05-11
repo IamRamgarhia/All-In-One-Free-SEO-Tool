@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "@/lib/secure-compare";
 
 /**
  * Optional password gate. Activates ONLY when APP_PASSWORD env var is set.
@@ -41,7 +42,7 @@ export function middleware(req: NextRequest) {
   if (isPublicPath(pathname)) return NextResponse.next();
 
   const cookie = req.cookies.get(COOKIE_NAME);
-  if (cookie?.value && cookie.value === expectedToken(required)) {
+  if (cookie?.value && timingSafeEqual(cookie.value, expectedToken(required))) {
     return NextResponse.next();
   }
 
