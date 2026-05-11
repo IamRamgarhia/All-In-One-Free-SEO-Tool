@@ -108,6 +108,22 @@ async function getUpdateAvailable(): Promise<boolean> {
     local !== null && remote !== null && local !== remote;
 
   updateCache = { available, checkedAt: now };
+
+  // Also surface this in the notification bell. logActivity dedupes by
+  // (kind, message) within a 24h window, so this is safe to call on
+  // every refresh — the same SHA will only show up once per day.
+  if (available && remote) {
+    const { logActivity } = await import("./activity");
+    void logActivity({
+      kind: "system.update_available",
+      message: `New version on GitHub (${remote.slice(0, 7)}). Click to update.`,
+      level: "info",
+      entityType: "update",
+      dedupe: true,
+      dedupeWindowMinutes: 60 * 24,
+    }).catch(() => undefined);
+  }
+
   return available;
 }
 

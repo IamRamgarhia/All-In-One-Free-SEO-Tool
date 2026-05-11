@@ -1,8 +1,9 @@
 "use server";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  activityLog,
   audits,
   clients,
   monitoredPages,
@@ -11,7 +12,13 @@ import {
 
 export type Notification = {
   id: string; // composite to support multiple sources
-  kind: "audit_complete" | "audit_failed" | "page_change" | "score_drop";
+  kind:
+    | "audit_complete"
+    | "audit_failed"
+    | "page_change"
+    | "score_drop"
+    | "update_available"
+    | "update_applied";
   level: "success" | "warning" | "error" | "info";
   title: string;
   body: string;
@@ -114,6 +121,43 @@ export async function recentNotifications(): Promise<Notification[]> {
       body: `${c.pageLabel ?? c.pageUrl?.replace(/^https?:\/\//, "") ?? ""} · "${(c.oldValue ?? "—").slice(0, 60)}" → "${(c.newValue ?? "—").slice(0, 60)}"`,
       href: "/monitor",
       at: c.detectedAt,
+    });
+  }
+
+  // System events from activity log — currently surfaces:
+  //   - "update available" notifications when GitHub has a newer commit
+  //   - "update applied" when the user (or auto-updater) pulled changes
+  // Pulls the most recent 5; dedup happens at the logActivity layer.
+  const systemEvents = await db
+    .select({
+      id: activityLog.id,
+      kind: activityLog.kind,
+      message: activityLog.message,
+      level: activityLog.level,
+      at: activityLog.createdAt,
+    })
+    .from(activityLog)
+    .where(
+      inArray(activityLog.kind, [
+        "system.update_available",
+        "system.updated",
+      ]),
+    )
+    .orderBy(desc(activityLog.createdAt))
+    .limit(5);
+
+  for (const ev of systemEvents) {
+    const isAvail = ev.kind === "system.update_available";
+    out.push({
+      id: `sys:${ev.id}`,
+      kind: isAvail ? "update_available" : "update_applied",
+      level: isAvail
+        ? "info"
+        : ((ev.level ?? "success") as Notification["level"]),
+      title: isAvail ? "Update available" : "App updated",
+      body: ev.message,
+      href: "/settings#update",
+      at: ev.at,
     });
   }
 
