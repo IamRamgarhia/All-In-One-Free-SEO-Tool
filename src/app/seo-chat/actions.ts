@@ -227,7 +227,7 @@ export async function seoChat(
     return {
       ok: false,
       error:
-        "AI provider didn't respond. Configure a vision-capable provider (OpenAI, Anthropic, Gemini, or OpenRouter) in Settings → AI provider.",
+        "AI provider didn't respond. Open Settings → AI provider → click Test next to your provider to see the exact error.",
     };
   }
 

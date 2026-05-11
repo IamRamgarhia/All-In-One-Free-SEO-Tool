@@ -73,9 +73,10 @@ export async function callAIVision(opts: VisionCallOpts): Promise<string | null>
     if (provider === "gemini") {
       const k = await getApiKey("gemini");
       if (!k) return null;
-      model = opts.modelOverride || "gemini-1.5-flash-latest";
+      model = opts.modelOverride || "gemini-2.5-flash";
       text = await callGemini({
         apiKey: k,
+        model,
         system: opts.system,
         messages: opts.messages,
         max,
@@ -303,56 +304,101 @@ async function callAnthropic(args: Args): Promise<string | null> {
 }
 
 async function callGemini(args: Args): Promise<string | null> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(args.apiKey)}`;
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), args.timeoutMs);
-  try {
-    const contents: unknown[] = [];
-    let prepended = false;
-    for (const m of args.messages) {
-      const parts: unknown[] = [];
-      if (!prepended && m.role === "user") {
-        parts.push({ text: `${args.system}\n\n${m.content}` });
-        prepended = true;
-      } else {
-        parts.push({ text: m.content });
-      }
-      if ("image" in m && m.image) {
-        parts.push({
-          inlineData: {
-            mimeType: m.image.mimeType,
-            data: m.image.base64,
-          },
-        });
-      }
-      contents.push({
-        role: m.role === "assistant" ? "model" : "user",
-        parts,
+  // Build the contents payload once — reused across all fallback model
+  // attempts so a single image upload isn't re-encoded per try.
+  const contents: unknown[] = [];
+  let prepended = false;
+  for (const m of args.messages) {
+    const parts: unknown[] = [];
+    if (!prepended && m.role === "user") {
+      parts.push({ text: `${args.system}\n\n${m.content}` });
+      prepended = true;
+    } else {
+      parts.push({ text: m.content });
+    }
+    if ("image" in m && m.image) {
+      parts.push({
+        inlineData: {
+          mimeType: m.image.mimeType,
+          data: m.image.base64,
+        },
       });
     }
-    const res = await fetch(url, {
-      method: "POST",
-      signal: c.signal,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          maxOutputTokens: args.max,
-          temperature: args.temperature,
-        },
-      }),
+    contents.push({
+      role: m.role === "assistant" ? "model" : "user",
+      parts,
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    return (
-      data.candidates?.[0]?.content?.parts
-        ?.map((p) => p.text ?? "")
-        .join("")
-        .trim() || null
-    );
-  } finally {
-    clearTimeout(t);
   }
+  const body = JSON.stringify({
+    contents,
+    generationConfig: {
+      maxOutputTokens: args.max,
+      temperature: args.temperature,
+    },
+  });
+
+  // Same fallback strategy as ai-call.ts: try the picked model first,
+  // then walk through known-good free-tier names. Per-request abort
+  // controllers so one 404 doesn't poison the others.
+  const fallback = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+  ];
+  const tryList = args.model
+    ? [args.model, ...fallback.filter((m) => m !== args.model)]
+    : fallback;
+  const deadline = Date.now() + args.timeoutMs;
+  let lastError = "";
+
+  for (const model of tryList) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), Math.min(remaining, 30_000));
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(args.apiKey)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        signal: ctl.signal,
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          candidates?: {
+            content?: { parts?: { text?: string }[] };
+            finishReason?: string;
+          }[];
+          promptFeedback?: { blockReason?: string };
+        };
+        const reply =
+          data.candidates?.[0]?.content?.parts
+            ?.map((p) => p.text ?? "")
+            .join("")
+            .trim() || null;
+        if (reply) return reply;
+        // 200 OK but empty (safety filter / maxTokens=0) — try next
+        lastError = `Gemini [${model}] empty (${data.promptFeedback?.blockReason ?? data.candidates?.[0]?.finishReason ?? "no candidates"})`;
+        continue;
+      }
+      const errBody = (await res.text().catch(() => "")).slice(0, 240);
+      lastError = `Gemini ${res.status} [${model}]: ${errBody || res.statusText}`;
+      // Key-level failures — don't waste more attempts
+      if (res.status === 401 || res.status === 403) break;
+      if (
+        res.status === 400 &&
+        /API_KEY_INVALID|API key not valid/i.test(errBody)
+      )
+        break;
+    } catch (err) {
+      lastError = `Gemini [${model}]: ${(err as Error).message}`;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  console.error("[ai-vision] Gemini failed:", lastError);
+  return null;
 }

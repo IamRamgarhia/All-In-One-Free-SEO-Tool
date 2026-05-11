@@ -335,7 +335,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={openSearch}
-            className="flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-[14px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Search className="size-3.5 shrink-0" />
             <span className="flex-1 truncate">Search…</span>
@@ -413,8 +413,8 @@ export function Sidebar({
                                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                                 }`
                               : active
-                                ? "relative flex items-center gap-2 rounded px-2 py-1.5 text-[13px] font-medium text-foreground bg-accent"
-                                : "relative flex items-center gap-2 rounded px-2 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                ? "relative flex items-center gap-2 rounded px-2 py-1.5 text-[14px] font-medium text-foreground bg-accent"
+                                : "relative flex items-center gap-2 rounded px-2 py-1.5 text-[14px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           }
                         >
                           <Icon
