@@ -13,6 +13,7 @@ import { Readable } from "node:stream";
 import path from "node:path";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function dbPath(): string {
   return process.env.SEO_DB_PATH ?? path.join(process.cwd(), "data.db");

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ArrowLeft,
-  AlertTriangle,
   CheckCircle2,
   Bug,
   Server,
@@ -12,6 +11,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { listErrors } from "@/lib/error-log";
 import { resolveErrorAction, clearResolvedAction } from "./actions";
 import { ErrorRowControls } from "./row-controls";
+import { ErrorRow } from "./error-row";
 
 export const dynamic = "force-dynamic";
 
@@ -108,26 +108,7 @@ export default async function ErrorsPage() {
                   </div>
                 </header>
                 <div className="space-y-2 p-5">
-                  <p className="flex items-start gap-2 text-sm font-medium">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-300" />
-                    <span className="break-words">{e.message}</span>
-                  </p>
-                  {e.url && (
-                    <p className="text-[11px] text-muted-foreground">
-                      <span className="text-muted-foreground/80">URL:</span>{" "}
-                      <code className="font-mono">{e.url}</code>
-                    </p>
-                  )}
-                  {e.stack && (
-                    <details className="text-[11px]">
-                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                        Stack trace ({e.stack.split("\n").length} lines)
-                      </summary>
-                      <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-black/30 p-3 font-mono text-[10px] leading-relaxed">
-                        {e.stack}
-                      </pre>
-                    </details>
-                  )}
+                  <ErrorRow error={e} />
                   <ErrorRowControls error={e} resolveAction={resolveErrorAction} />
                 </div>
               </section>

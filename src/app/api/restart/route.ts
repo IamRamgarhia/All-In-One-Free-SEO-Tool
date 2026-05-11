@@ -16,6 +16,8 @@ import { existsSync } from "node:fs";
 import { detectPortFromRequest, rememberPort } from "@/lib/port-memory";
 
 export const dynamic = "force-dynamic";
+// Required: uses node:child_process + node:fs — Edge runtime can't load these.
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   if (process.env.RUNNING_IN_DOCKER === "1") {

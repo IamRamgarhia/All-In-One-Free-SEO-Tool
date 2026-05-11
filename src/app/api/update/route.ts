@@ -21,6 +21,8 @@ import { logActivity } from "@/lib/activity";
 const exec = promisify(execFile);
 
 export const dynamic = "force-dynamic";
+// Required: spawns git + pnpm + reads package.json. Edge can't.
+export const runtime = "nodejs";
 
 const REPO = "IamRamgarhia/seo";
 const BRANCH = "main";

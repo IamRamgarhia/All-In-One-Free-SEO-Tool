@@ -4,6 +4,7 @@
  */
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function POST() {
   if (process.env.RUNNING_IN_DOCKER === "1") {

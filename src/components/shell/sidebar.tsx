@@ -374,18 +374,18 @@ export function Sidebar({
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
-                  className="flex w-full items-center justify-between rounded px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                  className="flex w-full items-center justify-between rounded px-2 py-1 text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <span>{group.title}</span>
                   {isOpen ? (
-                    <ChevronDown className="size-3 opacity-60" />
+                    <ChevronDown className="size-3.5 opacity-60" />
                   ) : (
-                    <ChevronRight className="size-3 opacity-60" />
+                    <ChevronRight className="size-3.5 opacity-60" />
                   )}
                 </button>
               )}
               {!collapsed && group.pinned && (
-                <div className="px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                <div className="px-2 py-1 text-[14px] font-medium text-muted-foreground">
                   {group.title}
                 </div>
               )}

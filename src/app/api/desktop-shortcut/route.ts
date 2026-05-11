@@ -20,6 +20,8 @@ import { detectPortFromRequest, rememberPort } from "@/lib/port-memory";
 const exec = promisify(execFile);
 
 export const dynamic = "force-dynamic";
+// Required: spawns PowerShell + reads/writes filesystem. Edge can't.
+export const runtime = "nodejs";
 
 function getPaths() {
   const home = os.homedir();
