@@ -3,6 +3,8 @@
 import { desc, eq, ne, count } from "drizzle-orm";
 import { db } from "@/db/client";
 import { callGemini as sharedCallGemini } from "@/lib/providers/gemini";
+import { callAnthropic as sharedCallAnthropic } from "@/lib/providers/anthropic";
+import { callOpenAICompat as sharedCallOpenAICompat } from "@/lib/providers/openai-compat";
 import {
   audits,
   auditIssues,
@@ -191,45 +193,27 @@ async function loadContext(): Promise<string> {
 
 const MAX_CONTEXT_CHARS = 8_000;
 
+// All four OpenAI-compat providers + Anthropic share one helper each.
+// SYSTEM_PROMPT + context is built once and passed as the `system` field.
+
+function buildSystem(context: string): string {
+  return `${SYSTEM_PROMPT}\n\n<context>\n${context.slice(0, MAX_CONTEXT_CHARS)}\n</context>`;
+}
+
 async function callAnthropic(
   apiKey: string,
   context: string,
   history: ChatMessage[],
 ): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), 30_000);
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: c.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 800,
-        system: `${SYSTEM_PROMPT}\n\n<context>\n${context.slice(0, MAX_CONTEXT_CHARS)}\n</context>`,
-        messages: history.map((m) => ({ role: m.role, content: m.content })),
-      }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      content?: { type: string; text?: string }[];
-    };
-    return (
-      data.content
-        ?.filter((c) => c.type === "text")
-        .map((c) => c.text ?? "")
-        .join("\n")
-        .trim() || null
-    );
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallAnthropic({
+    apiKey,
+    system: buildSystem(context),
+    messages: history,
+    maxTokens: 800,
+    temperature: 0.3,
+    timeoutMs: 30_000,
+    caller: "assistant",
+  });
 }
 
 async function callOpenAI(
@@ -237,39 +221,17 @@ async function callOpenAI(
   context: string,
   history: ChatMessage[],
 ): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), 30_000);
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      signal: c.signal,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        max_tokens: 800,
-        temperature: 0.3,
-        messages: [
-          {
-            role: "system",
-            content: `${SYSTEM_PROMPT}\n\n<context>\n${context.slice(0, MAX_CONTEXT_CHARS)}\n</context>`,
-          },
-          ...history.map((m) => ({ role: m.role, content: m.content })),
-        ],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallOpenAICompat({
+    endpoint: "https://api.openai.com/v1/chat/completions",
+    apiKey,
+    model: "gpt-4o-mini",
+    system: buildSystem(context),
+    messages: history,
+    maxTokens: 800,
+    temperature: 0.3,
+    timeoutMs: 30_000,
+    caller: "assistant",
+  });
 }
 
 async function callOllama(
@@ -407,40 +369,17 @@ async function callGroq(
   context: string,
   history: ChatMessage[],
 ): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), 30_000);
-  try {
-    const res = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        signal: c.signal,
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          max_tokens: 800,
-          temperature: 0.3,
-          messages: [
-            {
-              role: "system",
-              content: `${SYSTEM_PROMPT}\n\n<context>\n${context.slice(0, MAX_CONTEXT_CHARS)}\n</context>`,
-            },
-            ...history.map((m) => ({ role: m.role, content: m.content })),
-          ],
-        }),
-      },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallOpenAICompat({
+    endpoint: "https://api.groq.com/openai/v1/chat/completions",
+    apiKey,
+    model: "llama-3.3-70b-versatile",
+    system: buildSystem(context),
+    messages: history,
+    maxTokens: 800,
+    temperature: 0.3,
+    timeoutMs: 30_000,
+    caller: "assistant",
+  });
 }
 
 async function callOpenRouter(
@@ -448,38 +387,16 @@ async function callOpenRouter(
   context: string,
   history: ChatMessage[],
 ): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), 30_000);
-  try {
-    const res = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        signal: c.signal,
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${apiKey}`,
-          "x-title": "SEO Tool",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3.3-70b-instruct:free",
-          max_tokens: 800,
-          messages: [
-            {
-              role: "system",
-              content: `${SYSTEM_PROMPT}\n\n<context>\n${context.slice(0, MAX_CONTEXT_CHARS)}\n</context>`,
-            },
-            ...history.map((m) => ({ role: m.role, content: m.content })),
-          ],
-        }),
-      },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallOpenAICompat({
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    apiKey,
+    model: "meta-llama/llama-3.3-70b-instruct:free",
+    system: buildSystem(context),
+    messages: history,
+    maxTokens: 800,
+    temperature: 0.3,
+    timeoutMs: 30_000,
+    extraHeaders: { "x-title": "SEO Tool" },
+    caller: "assistant",
+  });
 }

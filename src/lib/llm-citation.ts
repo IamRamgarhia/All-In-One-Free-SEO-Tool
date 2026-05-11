@@ -7,6 +7,8 @@
  */
 import { getApiKey, getOllamaUrl, type Provider } from "./api-keys";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
+import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
+import { callOpenAICompat as sharedCallOpenAICompat } from "./providers/openai-compat";
 
 export type LlmProvider = Provider | "ollama";
 
@@ -72,68 +74,32 @@ async function callAnthropic(
   apiKey: string,
   prompt: string,
 ): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), 30_000);
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: c.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1500,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      content?: { type: string; text?: string }[];
-    };
-    return (
-      data.content
-        ?.filter((c) => c.type === "text")
-        .map((c) => c.text ?? "")
-        .join("\n")
-        .trim() || null
-    );
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallAnthropic({
+    apiKey,
+    system: "",
+    messages: [{ role: "user", content: prompt }],
+    maxTokens: 1500,
+    temperature: 0.2,
+    timeoutMs: 30_000,
+    caller: "llm-citation",
+  });
 }
 
 async function callOpenAI(
   apiKey: string,
   prompt: string,
 ): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), 30_000);
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      signal: c.signal,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        max_tokens: 1500,
-        temperature: 0.2,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallOpenAICompat({
+    endpoint: "https://api.openai.com/v1/chat/completions",
+    apiKey,
+    model: "gpt-4o-mini",
+    system: "",
+    messages: [{ role: "user", content: prompt }],
+    maxTokens: 1500,
+    temperature: 0.2,
+    timeoutMs: 30_000,
+    caller: "llm-citation",
+  });
 }
 
 async function callGemini(

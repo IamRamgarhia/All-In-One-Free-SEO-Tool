@@ -2,6 +2,8 @@
 
 import { createWorker } from "tesseract.js";
 import { callGemini as sharedCallGemini } from "@/lib/providers/gemini";
+import { callAnthropic as sharedCallAnthropic } from "@/lib/providers/anthropic";
+import { callOpenAICompat as sharedCallOpenAICompat } from "@/lib/providers/openai-compat";
 
 export type OcrResult =
   | {
@@ -119,90 +121,43 @@ Reply with just the JSON object, no preamble.`;
     }
 
     if (!raw && groq) {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 25_000);
-      const res = await fetch(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          signal: c.signal,
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${groq}`,
-          },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            max_tokens: 1500,
-            temperature: 0.1,
-            response_format: { type: "json_object" },
-            messages: [{ role: "user", content: prompt }],
-          }),
-        },
-      );
-      clearTimeout(t);
-      if (res.ok) {
-        const data = (await res.json()) as {
-          choices?: { message?: { content?: string } }[];
-        };
-        raw = data.choices?.[0]?.message?.content ?? null;
-      }
+      raw = await sharedCallOpenAICompat({
+        endpoint: "https://api.groq.com/openai/v1/chat/completions",
+        apiKey: groq,
+        model: "llama-3.3-70b-versatile",
+        system: "",
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 1500,
+        temperature: 0.1,
+        timeoutMs: 25_000,
+        caller: "import-actions",
+      });
     }
 
     if (!raw && anthropic) {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 25_000);
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        signal: c.signal,
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": anthropic,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1500,
-          messages: [{ role: "user", content: prompt }],
-        }),
+      raw = await sharedCallAnthropic({
+        apiKey: anthropic,
+        system: "",
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 1500,
+        temperature: 0.1,
+        timeoutMs: 25_000,
+        caller: "import-actions",
       });
-      clearTimeout(t);
-      if (res.ok) {
-        const data = (await res.json()) as {
-          content?: { type: string; text?: string }[];
-        };
-        raw =
-          data.content
-            ?.filter((c) => c.type === "text")
-            .map((c) => c.text ?? "")
-            .join("\n") ?? null;
-      }
     }
 
     if (!raw && openai) {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 25_000);
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        signal: c.signal,
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${openai}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          max_tokens: 1500,
-          temperature: 0.1,
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: prompt }],
-        }),
+      raw = await sharedCallOpenAICompat({
+        endpoint: "https://api.openai.com/v1/chat/completions",
+        apiKey: openai,
+        model: "gpt-4o-mini",
+        system: "",
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 1500,
+        temperature: 0.1,
+        timeoutMs: 25_000,
+        caller: "import-actions",
       });
-      clearTimeout(t);
-      if (res.ok) {
-        const data = (await res.json()) as {
-          choices?: { message?: { content?: string } }[];
-        };
-        raw = data.choices?.[0]?.message?.content ?? null;
-      }
     }
 
     if (!raw) return null;

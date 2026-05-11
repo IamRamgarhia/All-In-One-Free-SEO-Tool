@@ -11,6 +11,8 @@
 import { getActiveProvider, getApiKey, getOllamaUrl } from "./api-keys";
 import { logAiCall, checkMonthlyCap } from "./ai-usage";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
+import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
+import { callOpenAICompat as sharedCallOpenAICompat } from "./providers/openai-compat";
 
 export type VisionMessage =
   | { role: "user" | "assistant"; content: string }
@@ -187,121 +189,31 @@ type Args = {
 };
 
 async function callOpenAI(args: Args): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), args.timeoutMs);
-  try {
-    const messages: unknown[] = [{ role: "system", content: args.system }];
-    for (const m of args.messages) {
-      if ("image" in m && m.image) {
-        messages.push({
-          role: m.role,
-          content: [
-            { type: "text", text: m.content },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${m.image.mimeType};base64,${m.image.base64}`,
-              },
-            },
-          ],
-        });
-      } else {
-        messages.push({ role: m.role, content: m.content });
-      }
-    }
-
-    const res = await fetch(
-      args.endpoint ?? "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        signal: c.signal,
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${args.apiKey}`,
-          ...(args.extraHeaders ?? {}),
-        },
-        body: JSON.stringify({
-          model: args.model ?? "gpt-4o-mini",
-          max_tokens: args.max,
-          temperature: args.temperature,
-          messages,
-        }),
-      },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallOpenAICompat({
+    endpoint: args.endpoint ?? "https://api.openai.com/v1/chat/completions",
+    apiKey: args.apiKey,
+    model: args.model ?? "gpt-4o-mini",
+    system: args.system,
+    messages: args.messages,
+    maxTokens: args.max,
+    temperature: args.temperature,
+    timeoutMs: args.timeoutMs,
+    extraHeaders: args.extraHeaders,
+    caller: "ai-vision",
+  });
 }
 
 async function callAnthropic(args: Args): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), args.timeoutMs);
-  try {
-    const messages = args.messages.map((m) => {
-      if ("image" in m && m.image) {
-        return {
-          role: m.role,
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: m.image.mimeType,
-                data: m.image.base64,
-              },
-            },
-            { type: "text", text: m.content },
-          ],
-        };
-      }
-      return { role: m.role, content: m.content };
-    });
-    // Cache the system prompt when large enough for it to matter (≥1024 tok)
-    const useCache = (args.system ?? "").length > 4000;
-    const systemPayload = useCache
-      ? [
-          {
-            type: "text",
-            text: args.system,
-            cache_control: { type: "ephemeral" },
-          },
-        ]
-      : args.system;
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: c.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": args.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: args.max,
-        temperature: args.temperature,
-        system: systemPayload,
-        messages,
-      }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      content?: { type: string; text?: string }[];
-    };
-    return (
-      data.content
-        ?.filter((b) => b.type === "text")
-        .map((b) => b.text ?? "")
-        .join("\n")
-        .trim() || null
-    );
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallAnthropic({
+    apiKey: args.apiKey,
+    model: args.model,
+    system: args.system,
+    messages: args.messages,
+    maxTokens: args.max,
+    temperature: args.temperature,
+    timeoutMs: args.timeoutMs,
+    caller: "ai-vision",
+  });
 }
 
 async function callGemini(args: Args): Promise<string | null> {

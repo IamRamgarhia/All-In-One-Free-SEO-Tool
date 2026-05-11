@@ -2,6 +2,8 @@ import { getActiveProvider, getApiKey, getOllamaUrl } from "./api-keys";
 import { getSetting } from "./settings-store";
 import { checkMonthlyCap, logAiCall } from "./ai-usage";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
+import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
+import { callOpenAICompat as sharedCallOpenAICompat } from "./providers/openai-compat";
 
 export type AiFeatureName =
   | "exec_summary"
@@ -351,91 +353,37 @@ async function callGemini(args: CallArgs): Promise<string | null> {
 }
 
 async function callAnthropic(args: CallArgs): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), args.timeoutMs);
-  try {
-    // Anthropic prompt caching: when the system prompt is ≥1024 tokens
-    // (~4000 chars), mark it as ephemeral cache. Subsequent calls within
-    // 5 minutes that share the same system block are billed at ~10% of
-    // input cost. Big win for repeat audits / chats with the same skill.
-    const systemStr = args.system ?? "";
-    const useCache = systemStr.length > 4000;
-    const systemPayload = useCache
-      ? [
-          {
-            type: "text",
-            text: systemStr,
-            cache_control: { type: "ephemeral" },
-          },
-        ]
-      : systemStr;
-
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: c.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": args.apiKey ?? "",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: args.model || "claude-haiku-4-5-20251001",
-        max_tokens: args.max,
-        temperature: args.temperature,
-        system: systemPayload,
-        messages: [{ role: "user", content: args.user }],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      content?: { type: string; text?: string }[];
-    };
-    return (
-      data.content
-        ?.filter((b) => b.type === "text")
-        .map((b) => b.text ?? "")
-        .join("")
-        .trim() || null
-    );
-  } finally {
-    clearTimeout(t);
-  }
+  return sharedCallAnthropic({
+    apiKey: args.apiKey ?? "",
+    model: args.model,
+    system: args.system,
+    messages: [{ role: "user", content: args.user }],
+    maxTokens: args.max,
+    temperature: args.temperature,
+    timeoutMs: args.timeoutMs,
+    caller: "ai-call",
+  });
 }
 
-async function callOpenAICompat(args: CallArgs & {
-  endpoint: string;
-  model: string;
-  extraHeaders?: Record<string, string>;
-}): Promise<string | null> {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), args.timeoutMs);
-  try {
-    const res = await fetch(args.endpoint, {
-      method: "POST",
-      signal: c.signal,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${args.apiKey ?? ""}`,
-        ...(args.extraHeaders ?? {}),
-      },
-      body: JSON.stringify({
-        model: args.model,
-        max_tokens: args.max,
-        temperature: args.temperature,
-        messages: [
-          { role: "system", content: args.system },
-          { role: "user", content: args.user },
-        ],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } finally {
-    clearTimeout(t);
-  }
+async function callOpenAICompat(
+  args: CallArgs & {
+    endpoint: string;
+    model: string;
+    extraHeaders?: Record<string, string>;
+  },
+): Promise<string | null> {
+  return sharedCallOpenAICompat({
+    endpoint: args.endpoint,
+    apiKey: args.apiKey ?? "",
+    model: args.model,
+    system: args.system,
+    messages: [{ role: "user", content: args.user }],
+    maxTokens: args.max,
+    temperature: args.temperature,
+    timeoutMs: args.timeoutMs,
+    extraHeaders: args.extraHeaders,
+    caller: "ai-call",
+  });
 }
 
 async function callOllama(args: CallArgs & { url: string }): Promise<string | null> {
