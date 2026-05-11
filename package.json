@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/migrate.cjs",
     "dev": "next dev",
+    "prebuild": "node scripts/migrate.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "setup": "node scripts/migrate.cjs && playwright install chromium",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts",
+    "db:migrate": "node scripts/migrate.cjs",
     "db:studio": "drizzle-kit studio",
     "package": "tsx scripts/package.ts"
   },
