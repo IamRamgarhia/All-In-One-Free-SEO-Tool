@@ -380,7 +380,7 @@ export function Sidebar({
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
-                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-medium text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground"
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm font-semibold text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground"
                 >
                   <span>{group.title}</span>
                   {isOpen ? (
@@ -391,7 +391,7 @@ export function Sidebar({
                 </button>
               )}
               {!collapsed && group.pinned && (
-                <div className="px-2 py-1.5 text-xs font-medium text-sidebar-foreground/60">
+                <div className="px-2 py-1.5 text-sm font-semibold text-sidebar-foreground/60">
                   {group.title}
                 </div>
               )}

@@ -142,80 +142,75 @@ export default async function DashboardPage() {
     .reverse();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
-      {/* HERO — Linear-style: flat, tight, one accent line */}
-      <section className="border-b border-border pb-6">
-        <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="size-1.5 rounded-full bg-emerald-400" />
-              Local · single-user
-            </div>
-            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-foreground md:text-3xl">
-              {isFresh
-                ? "Welcome. Let's set up your first 5 minutes."
-                : `${greeting}. Here's what needs attention today.`}
-            </h1>
-            <p className="max-w-2xl text-[13px] text-muted-foreground">
-              {isFresh
-                ? "100+ SEO tools, daily-agent automation, audits, rank tracking, content writer, code generator — fully self-hosted. Pick an AI provider (free Ollama or any API key) and add your first client to unlock everything."
-                : "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills."}
-            </p>
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              {isFresh ? (
-                <>
-                  <Link
-                    href="/settings#ai"
-                    className={buttonVariants()}
-                  >
-                    Connect an AI provider
-                  </Link>
-                  <Link
-                    href="/clients/new"
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-                  >
-                    Or add a client first
-                    <ArrowUpRight className="size-3.5" />
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/clients/new"
-                    className={buttonVariants()}
-                  >
-                    Add a client
-                  </Link>
-                  <Link
-                    href="/clients"
-                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-                  >
-                    View clients
-                    <ArrowUpRight className="size-3.5" />
-                  </Link>
-                </>
-              )}
-            </div>
+    <div className="mx-auto max-w-7xl space-y-6">
+      {/* HERO — wrapped in a card for visual containment. Shows fresh
+          welcome or returning-user greeting. Returning users also see
+          a latest-audit summary card on the right. */}
+      <section className="grid gap-6 rounded-xl border border-border bg-card p-6 shadow lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="space-y-3">
+          <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+            Local · single-user · everything on this machine
           </div>
+          <h1 className="text-3xl font-bold leading-tight tracking-tight text-foreground">
+            {isFresh
+              ? "Welcome. Let's set up your first 5 minutes."
+              : `${greeting}, here's what needs attention today.`}
+          </h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            {isFresh
+              ? "100+ SEO tools, daily-agent automation, audits, rank tracking, content writer, code generator — fully self-hosted, no monthly bill. Connect any AI provider and add your first client to unlock everything."
+              : "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills."}
+          </p>
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            {isFresh ? (
+              <>
+                <Link href="/settings#ai" className={buttonVariants()}>
+                  Connect an AI provider
+                </Link>
+                <Link
+                  href="/clients/new"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  Or add a client first
+                  <ArrowUpRight className="size-3.5" />
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/clients/new" className={buttonVariants()}>
+                  Add a client
+                </Link>
+                <Link
+                  href="/clients"
+                  className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  View clients
+                  <ArrowUpRight className="size-3.5" />
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
 
-          {!isFresh && (
-            <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-4">
-              <ScoreGauge score={latestScore} />
-              <div className="space-y-1">
-                <div className="text-[11px] font-medium text-muted-foreground">
-                  Latest audit
-                </div>
-                <div className="text-[13px] font-medium text-foreground">
-                  {recentAudits[0]?.clientName ?? "—"}
-                </div>
-                {scoreDelta !== null ? (
-                  <div
-                    className={`inline-flex items-center gap-1 text-[11px] font-medium tabular-nums ${
-                      scoreDelta > 0
-                        ? "text-emerald-300"
-                        : scoreDelta < 0
-                          ? "text-rose-300"
-                          : "text-muted-foreground"
+        {!isFresh && (
+          <div className="flex items-center gap-4 rounded-lg border border-border bg-muted/30 p-4">
+            <ScoreGauge score={latestScore} />
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">
+                Latest audit
+              </div>
+              <div className="text-sm font-medium text-foreground">
+                {recentAudits[0]?.clientName ?? "—"}
+              </div>
+              {scoreDelta !== null ? (
+                <div
+                  className={`inline-flex items-center gap-1 text-xs font-medium tabular-nums ${
+                    scoreDelta > 0
+                      ? "text-emerald-300"
+                      : scoreDelta < 0
+                        ? "text-rose-300"
+                        : "text-muted-foreground"
                     }`}
                   >
                     {scoreDelta > 0 ? "+" : ""}
@@ -229,47 +224,65 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
-        </div>
       </section>
 
-      {/* STATS — intentional asymmetry: open tasks is the "do today" anchor */}
-      <div className="grid gap-4 lg:grid-cols-4">
-        <StatCard
-          className="animate-page-enter stagger-1 lg:col-span-2"
-          size="hero"
-          label="Open tasks"
-          value={openTaskCount}
-          accent="violet"
-          icon={ListChecks}
-          hint={openTaskCount > 0 ? "Sorted by priority below" : "All caught up"}
-          spark={issueTimeline.length > 1 ? issueTimeline : undefined}
-        />
-        <StatCard
-          className="animate-page-enter stagger-2"
-          size="compact"
-          label="Clients"
-          value={clientCount}
-          accent="violet"
-          icon={Users}
-          hint={isFresh ? "Add your first" : "Active"}
-        />
-        <StatCard
-          className="animate-page-enter stagger-3"
-          size="compact"
-          label="Audits run"
-          value={auditCount}
-          accent="violet"
-          icon={ClipboardList}
-          hint={
-            scoreDelta !== null
-              ? `Score ${latestScore} (${scoreDelta > 0 ? "+" : ""}${scoreDelta})`
-              : completedAudits.length > 0
-                ? `Latest ${latestScore}`
-                : "Run your first"
-          }
-          spark={scoreTimeline.length > 1 ? scoreTimeline : undefined}
-        />
-      </div>
+      {/* STATS — hidden on fresh state (all-zero cards look bad).
+          Returning users see a clean 4-column row of 4 cards. */}
+      {!isFresh && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            className="animate-page-enter stagger-1"
+            label="Open tasks"
+            value={openTaskCount}
+            accent="violet"
+            icon={ListChecks}
+            hint={
+              openTaskCount > 0 ? "Sorted by priority below" : "All caught up"
+            }
+            spark={issueTimeline.length > 1 ? issueTimeline : undefined}
+          />
+          <StatCard
+            className="animate-page-enter stagger-2"
+            label="Clients"
+            value={clientCount}
+            accent="cyan"
+            icon={Users}
+            hint="Active"
+          />
+          <StatCard
+            className="animate-page-enter stagger-3"
+            label="Audits run"
+            value={auditCount}
+            accent="amber"
+            icon={ClipboardList}
+            hint={
+              scoreDelta !== null
+                ? `Score ${latestScore} (${scoreDelta > 0 ? "+" : ""}${scoreDelta})`
+                : completedAudits.length > 0
+                  ? `Latest ${latestScore}`
+                  : "Run your first"
+            }
+            spark={scoreTimeline.length > 1 ? scoreTimeline : undefined}
+          />
+          <StatCard
+            className="animate-page-enter stagger-4"
+            label="Latest score"
+            value={latestScore ?? "—"}
+            accent="emerald"
+            icon={Sparkles}
+            hint={
+              completedAudits.length > 0
+                ? `${completedAudits.length} completed`
+                : "Run an audit first"
+            }
+            delta={
+              scoreDelta !== null
+                ? { value: scoreDelta, label: "vs previous" }
+                : undefined
+            }
+          />
+        </div>
+      )}
 
       {/* ONBOARDING CHECKLIST — persistent progress; auto-hides when done */}
       <Suspense fallback={null}>
