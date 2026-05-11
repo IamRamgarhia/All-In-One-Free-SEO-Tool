@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RefreshCw,
   CheckCircle2,
@@ -170,27 +170,7 @@ export function UpdateCard() {
             </p>
           )}
 
-          {updating && (
-            <div className="space-y-1.5 rounded-md bg-white/[0.03] p-3 text-xs ring-1 ring-inset ring-white/5">
-              <p className="text-[11px] text-muted-foreground">
-                Working… (this can take a minute if new dependencies were added)
-              </p>
-              <ul className="space-y-1 text-[11px]">
-                <li className="flex items-center gap-2">
-                  <Loader2 className="size-3 animate-spin text-amber-300" />
-                  Fetching + pulling from GitHub
-                </li>
-                <li className="flex items-center gap-2 text-muted-foreground">
-                  <Circle className="size-3" />
-                  Installing dependencies if package.json changed
-                </li>
-                <li className="flex items-center gap-2 text-muted-foreground">
-                  <Circle className="size-3" />
-                  Applying database migrations
-                </li>
-              </ul>
-            </div>
-          )}
+          {updating && <UpdateProgress />}
 
           {response && response.ok && response.steps && (
             <div className="space-y-2 rounded-md bg-emerald-500/5 p-3 ring-1 ring-inset ring-emerald-500/20">
@@ -259,5 +239,116 @@ export function UpdateCard() {
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Animated progress bar shown while /api/update is in flight. The
+ * endpoint runs synchronously (no streaming), so we display an
+ * "approximate" progress that:
+ *   - Grows quickly to 30% in the first 5s   (git fetch + pull)
+ *   - Reaches 70% by 15s                     (pnpm install, often skipped)
+ *   - Caps at 95% from 30s onwards           (still working, just slower)
+ *   - The parent component sets `updating=false` once the response
+ *     arrives — when this component unmounts it lands at 100% visually.
+ *
+ * Also shows elapsed time and which phase we're estimated to be in,
+ * so the user knows it's still working — not frozen.
+ */
+function UpdateProgress() {
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const startRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    startRef.current = Date.now();
+    const t = setInterval(() => {
+      setElapsedMs(Date.now() - startRef.current);
+    }, 100);
+    return () => clearInterval(t);
+  }, []);
+
+  // Easing curve: fast at first, slow at the end. Caps at 95.
+  const seconds = elapsedMs / 1000;
+  const percent =
+    seconds < 5
+      ? (seconds / 5) * 30
+      : seconds < 15
+        ? 30 + ((seconds - 5) / 10) * 40
+        : seconds < 30
+          ? 70 + ((seconds - 15) / 15) * 25
+          : 95;
+
+  // Pick the phase label by elapsed time
+  const phase =
+    seconds < 5
+      ? "Fetching latest commits from GitHub…"
+      : seconds < 15
+        ? "Installing dependencies (if any changed)…"
+        : seconds < 30
+          ? "Applying database migrations…"
+          : "Wrapping up — almost done…";
+
+  const allPhases = [
+    { label: "Fetch from GitHub", threshold: 5 },
+    { label: "Install new dependencies", threshold: 15 },
+    { label: "Apply database migrations", threshold: 25 },
+    { label: "Finalize", threshold: 30 },
+  ];
+
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-muted/30 p-4">
+      {/* Top: label + elapsed */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Loader2 className="size-3.5 animate-spin text-violet-400" />
+          {phase}
+        </p>
+        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+          {Math.floor(seconds)}s elapsed
+        </span>
+      </div>
+
+      {/* Growing progress bar */}
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-[width] duration-200 ease-out"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+
+      {/* Per-phase status list */}
+      <ul className="space-y-1 text-[11px]">
+        {allPhases.map(({ label, threshold }) => {
+          const done = seconds >= threshold;
+          const active = !done && seconds >= threshold - 5;
+          return (
+            <li
+              key={label}
+              className={`flex items-center gap-2 ${
+                done
+                  ? "text-foreground"
+                  : active
+                    ? "text-foreground"
+                    : "text-muted-foreground/60"
+              }`}
+            >
+              {done ? (
+                <CheckCircle2 className="size-3 shrink-0 text-emerald-400" />
+              ) : active ? (
+                <Loader2 className="size-3 shrink-0 animate-spin text-violet-400" />
+              ) : (
+                <Circle className="size-3 shrink-0" />
+              )}
+              {label}
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="text-[11px] text-muted-foreground">
+        Usually 15–30 seconds. Up to a minute if new dependencies were added.
+        Page will refresh on its own when done.
+      </p>
+    </div>
   );
 }
