@@ -147,6 +147,42 @@ export const MODEL_PRESETS: Record<ActiveProvider, ModelPreset[]> = {
       hint: "Local · tiny + fast",
     },
   ],
+  mistral: [
+    { id: "mistral-large-latest", label: "Mistral Large", hint: "Frontier" },
+    { id: "mistral-small-latest", label: "Mistral Small", hint: "Fast" },
+    { id: "codestral-latest", label: "Codestral", hint: "Code-focused" },
+  ],
+  deepseek: [
+    { id: "deepseek-chat", label: "DeepSeek V3", hint: "Default · cheap" },
+    { id: "deepseek-reasoner", label: "DeepSeek R1", hint: "Reasoning" },
+  ],
+  cerebras: [
+    { id: "llama-3.3-70b", label: "Llama 3.3 70B", hint: "2000+ tok/s" },
+    { id: "llama3.1-8b", label: "Llama 3.1 8B", hint: "Faster · cheaper" },
+  ],
+  together: [
+    {
+      id: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      label: "Llama 3.3 70B Turbo",
+      hint: "Default",
+    },
+    {
+      id: "Qwen/Qwen2.5-72B-Instruct-Turbo",
+      label: "Qwen 2.5 72B",
+      hint: "Strong reasoning",
+    },
+    {
+      id: "deepseek-ai/DeepSeek-V3",
+      label: "DeepSeek V3",
+      hint: "Cheap + capable",
+    },
+  ],
+  github: [
+    { id: "gpt-4o", label: "GPT-4o", hint: "Default" },
+    { id: "gpt-4o-mini", label: "GPT-4o mini", hint: "Faster" },
+    { id: "Phi-3.5-mini-instruct", label: "Phi-3.5 mini", hint: "Tiny" },
+    { id: "Meta-Llama-3.1-70B-Instruct", label: "Llama 3.1 70B", hint: "Open-source" },
+  ],
 };
 
 export function defaultModelFor(provider: ActiveProvider): string {
@@ -161,4 +197,9 @@ export const PROVIDER_LABEL: Record<ActiveProvider, string> = {
   openrouter: "OpenRouter",
   perplexity: "Perplexity",
   ollama: "Ollama (local)",
+  mistral: "Mistral AI",
+  deepseek: "DeepSeek",
+  cerebras: "Cerebras",
+  together: "Together AI",
+  github: "GitHub Models",
 };

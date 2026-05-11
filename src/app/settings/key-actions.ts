@@ -15,6 +15,11 @@ const ALLOWED_KEYS: Record<Provider, SettingKey> = {
   perplexity: "api.perplexity",
   openrouter: "api.openrouter",
   groq: "api.groq",
+  mistral: "api.mistral",
+  deepseek: "api.deepseek",
+  cerebras: "api.cerebras",
+  together: "api.together",
+  github: "api.github",
 };
 
 export async function saveApiKey(

@@ -17,6 +17,11 @@ export type SettingKey =
   | "api.perplexity"
   | "api.openrouter"
   | "api.groq"
+  | "api.mistral"
+  | "api.deepseek"
+  | "api.cerebras"
+  | "api.together"
+  | "api.github"
   | "api.ollama_url"
   | "ai.active_provider"
   // Google OAuth — user supplies their own Cloud OAuth client (free, ~5 min).

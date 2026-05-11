@@ -11,6 +11,11 @@ const ENV_VAR: Record<Provider, string> = {
   perplexity: "PERPLEXITY_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
   groq: "GROQ_API_KEY",
+  mistral: "MISTRAL_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+  cerebras: "CEREBRAS_API_KEY",
+  together: "TOGETHER_API_KEY",
+  github: "GITHUB_TOKEN",
 };
 
 const SETTING_KEY: Record<Provider, `api.${Provider}`> = {
@@ -20,6 +25,11 @@ const SETTING_KEY: Record<Provider, `api.${Provider}`> = {
   perplexity: "api.perplexity",
   openrouter: "api.openrouter",
   groq: "api.groq",
+  mistral: "api.mistral",
+  deepseek: "api.deepseek",
+  cerebras: "api.cerebras",
+  together: "api.together",
+  github: "api.github",
 };
 
 export async function getApiKey(provider: Provider): Promise<string | null> {

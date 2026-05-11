@@ -18,7 +18,25 @@ import {
  */
 export function ProfileMenu() {
   const [open, setOpen] = useState(false);
+  const [authEnabled, setAuthEnabled] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Check on mount whether APP_PASSWORD is set on the server — if not,
+  // there's no point showing a Sign-out button.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!cancelled) setAuthEnabled(Boolean(j?.enabled));
+      })
+      .catch(() => {
+        if (!cancelled) setAuthEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -106,14 +124,16 @@ export function ProfileMenu() {
               <ExternalLink className="size-3.5 text-muted-foreground" />
               GitHub repo
             </a>
-            <button
-              type="button"
-              onClick={signOut}
-              className="flex items-center gap-2 px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/10"
-            >
-              <LogOut className="size-3.5" />
-              Sign out (clears password cookie)
-            </button>
+            {authEnabled && (
+              <button
+                type="button"
+                onClick={signOut}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-rose-300 hover:bg-rose-500/10"
+              >
+                <LogOut className="size-3.5" />
+                Sign out (clears password cookie)
+              </button>
+            )}
           </div>
         </div>
       )}

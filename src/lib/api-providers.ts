@@ -9,7 +9,12 @@ export type Provider =
   | "gemini"
   | "perplexity"
   | "openrouter"
-  | "groq";
+  | "groq"
+  | "mistral"
+  | "deepseek"
+  | "cerebras"
+  | "together"
+  | "github";
 
 export const PROVIDER_CATALOG: {
   id: Provider | "ollama";
@@ -146,6 +151,93 @@ export const PROVIDER_CATALOG: {
       "Add a payment method ($5 minimum required).",
       "Click 'Create new secret key'.",
       "Copy (starts with sk-) immediately. Paste below and save.",
+    ],
+  },
+  {
+    id: "mistral",
+    label: "Mistral AI",
+    tier: "free-tier",
+    description:
+      "Mistral Large + Codestral. Free tier on La Plateforme. Strong European alternative — GDPR-friendly.",
+    keyUrl: "https://console.mistral.ai/api-keys/",
+    keyUrlLabel: "Mistral Console",
+    envVar: "MISTRAL_API_KEY",
+    notes: "Free tier: 500k tokens/month. EU-hosted models.",
+    steps: [
+      "Click 'Open Mistral Console' → sign up.",
+      "Verify your email + phone.",
+      "Click 'Create new key'.",
+      "Copy the key, paste below, click Save.",
+    ],
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    tier: "free-tier",
+    description:
+      "DeepSeek-V3 + DeepSeek-R1 reasoning. Extremely cheap ($0.14/M input), generous free tier.",
+    keyUrl: "https://platform.deepseek.com/api_keys",
+    keyUrlLabel: "DeepSeek Platform",
+    envVar: "DEEPSEEK_API_KEY",
+    notes: "Best price-to-performance ratio of any current model.",
+    keyPrefix: "sk-",
+    steps: [
+      "Click 'Open DeepSeek Platform' → sign up (email or GitHub).",
+      "Free $5 credit for new accounts.",
+      "Go to API keys → Create new key.",
+      "Copy + paste below + Save.",
+    ],
+  },
+  {
+    id: "cerebras",
+    label: "Cerebras",
+    tier: "free",
+    description:
+      "World's fastest inference (2000+ tokens/sec) — Llama 3.3 / 70B. Free tier with no credit card.",
+    keyUrl: "https://cloud.cerebras.ai/platform/",
+    keyUrlLabel: "Cerebras Cloud",
+    envVar: "CEREBRAS_API_KEY",
+    notes: "Insanely fast — use when you need streaming responses to feel instant.",
+    steps: [
+      "Click 'Open Cerebras Cloud' → sign up.",
+      "Verify email.",
+      "Go to API keys → Generate key.",
+      "Copy + paste below + Save.",
+    ],
+  },
+  {
+    id: "together",
+    label: "Together AI",
+    tier: "free-tier",
+    description:
+      "100+ open-source models — Llama, Qwen, Mixtral. Free tier $1 credit on signup.",
+    keyUrl: "https://api.together.xyz/settings/api-keys",
+    keyUrlLabel: "Together AI",
+    envVar: "TOGETHER_API_KEY",
+    notes: "Great if you want to A/B test open-source models cheaply.",
+    steps: [
+      "Click 'Open Together AI' → sign up.",
+      "Get $1 free credit on signup.",
+      "Settings → API keys → Generate.",
+      "Copy + paste below + Save.",
+    ],
+  },
+  {
+    id: "github",
+    label: "GitHub Models",
+    tier: "free",
+    description:
+      "Free GPT-4o + Llama + Phi via GitHub. Free for any GitHub user — uses a Personal Access Token.",
+    keyUrl: "https://github.com/settings/tokens",
+    keyUrlLabel: "GitHub Settings",
+    envVar: "GITHUB_TOKEN",
+    notes: "True free tier; rate-limited but generous for non-commercial use.",
+    keyPrefix: "ghp_",
+    steps: [
+      "Click 'Open GitHub Settings' → Developer settings → Personal access tokens.",
+      "Generate new token (classic). No scopes needed — just hit Generate.",
+      "Copy (starts with ghp_).",
+      "Paste below + Save.",
     ],
   },
 ];

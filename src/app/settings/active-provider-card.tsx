@@ -61,22 +61,46 @@ export function ActiveProviderCard({
             <button
               key={p.id}
               type="button"
-              disabled={!isOn || pending}
-              onClick={() =>
-                startTransition(() =>
-                  setActiveProvider(p.id as Provider | "ollama"),
-                )
-              }
+              disabled={pending}
+              onClick={() => {
+                if (isOn) {
+                  // Configured → switch active provider.
+                  startTransition(() =>
+                    setActiveProvider(p.id as Provider | "ollama"),
+                  );
+                } else {
+                  // Not configured → scroll to its key input + focus it
+                  // so the user lands directly on the field to fill.
+                  const target = document.getElementById(`provider-${p.id}`);
+                  if (target) {
+                    target.scrollIntoView({
+                      behavior: "smooth",
+                      block: "center",
+                    });
+                    // Briefly highlight, then focus the input
+                    target.classList.add("ring-2", "ring-violet-500/60");
+                    setTimeout(() => {
+                      target.classList.remove("ring-2", "ring-violet-500/60");
+                    }, 1800);
+                    const input = target.querySelector<HTMLInputElement>(
+                      'input[type="password"], input[type="text"], input[type="url"]',
+                    );
+                    if (input) {
+                      setTimeout(() => input.focus(), 400);
+                    }
+                  }
+                }
+              }}
               className={
                 isActive
                   ? "flex items-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/15 px-3 py-2.5 text-left text-sm ring-1 ring-inset ring-violet-500/30"
                   : isOn
                     ? "flex items-center gap-2 rounded-xl border border-white/5 bg-black/30 px-3 py-2.5 text-left text-sm transition-colors hover:border-violet-500/30 hover:bg-white/[0.04]"
-                    : "flex items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2.5 text-left text-sm opacity-40"
+                    : "flex items-center gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[0.03] px-3 py-2.5 text-left text-sm transition-colors hover:border-violet-500/40 hover:bg-violet-500/[0.08] cursor-pointer"
               }
               title={
                 !isOn
-                  ? "Configure this provider's key first (below)"
+                  ? `Click to set up ${p.label} (jumps to the key field below)`
                   : isActive
                     ? "Currently the active provider"
                     : `Switch to ${p.label}`

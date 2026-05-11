@@ -28,7 +28,6 @@ import { ScoreGauge } from "@/components/ui/score-gauge";
 import {
   applyNicheTemplates,
   applyStackTemplates,
-  deleteClient,
   redetectTechStack,
   refreshClientMetadataForm,
 } from "../actions";
@@ -46,8 +45,17 @@ import { ReportScheduleCard } from "./report-schedule-card";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { getSetting } from "@/lib/settings-store";
 import { getSmtpConfig } from "@/lib/mailer";
-import { reportSchedules } from "@/db/schema";
+import {
+  reportSchedules,
+  auditIssues,
+  keywordRankings,
+  backlinks,
+  reportArchives,
+  clientMetricSnapshots,
+} from "@/db/schema";
 import { ClientToolsLauncher } from "./client-tools-launcher";
+import { DeleteClientButton } from "./delete-client-button";
+import { inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { Mail, Plug } from "lucide-react";
@@ -148,7 +156,64 @@ export default async function ClientDetailPage({
     .from(keywords)
     .where(eq(keywords.clientId, clientId));
 
-  const removeAction = deleteClient.bind(null, client.id);
+  // Counts shown in the delete-confirmation dialog so the user sees
+  // exactly what they're about to wipe.
+  const clientAuditIds = (
+    await db
+      .select({ id: audits.id })
+      .from(audits)
+      .where(eq(audits.clientId, clientId))
+  ).map((a) => a.id);
+  const clientKeywordIds = (
+    await db
+      .select({ id: keywords.id })
+      .from(keywords)
+      .where(eq(keywords.clientId, clientId))
+  ).map((k) => k.id);
+
+  const [
+    [{ value: deleteAuditCount }],
+    [{ value: deleteAuditIssueCount }],
+    [{ value: deleteTaskCount }],
+    [{ value: deleteRankingCount }],
+    [{ value: deleteBacklinkCount }],
+    [{ value: deleteReportCount }],
+    [{ value: deleteSnapshotCount }],
+  ] = await Promise.all([
+    db
+      .select({ value: count() })
+      .from(audits)
+      .where(eq(audits.clientId, clientId)),
+    clientAuditIds.length > 0
+      ? db
+          .select({ value: count() })
+          .from(auditIssues)
+          .where(inArray(auditIssues.auditId, clientAuditIds))
+      : Promise.resolve([{ value: 0 }]),
+    db
+      .select({ value: count() })
+      .from(tasks)
+      .where(eq(tasks.clientId, clientId)),
+    clientKeywordIds.length > 0
+      ? db
+          .select({ value: count() })
+          .from(keywordRankings)
+          .where(inArray(keywordRankings.keywordId, clientKeywordIds))
+      : Promise.resolve([{ value: 0 }]),
+    db
+      .select({ value: count() })
+      .from(backlinks)
+      .where(eq(backlinks.clientId, clientId)),
+    db
+      .select({ value: count() })
+      .from(reportArchives)
+      .where(eq(reportArchives.clientId, clientId)),
+    db
+      .select({ value: count() })
+      .from(clientMetricSnapshots)
+      .where(eq(clientMetricSnapshots.clientId, clientId)),
+  ]);
+
   const redetectAction = redetectTechStack.bind(null, client.id);
   const refreshMetadataAction = refreshClientMetadataForm.bind(null, client.id);
   const runAction = runAuditForClient.bind(null, client.id);
@@ -786,15 +851,20 @@ export default async function ClientDetailPage({
           </h2>
         </header>
         <div className="p-5">
-          <form action={removeAction}>
-            <Button type="submit" variant="destructive">
-              Delete client
-            </Button>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Removes the client and all related audits, tasks, and rankings.
-              Cannot be undone.
-            </p>
-          </form>
+          <DeleteClientButton
+            clientId={client.id}
+            clientName={client.name}
+            counts={{
+              audits: deleteAuditCount,
+              auditIssues: deleteAuditIssueCount,
+              tasks: deleteTaskCount,
+              keywords: clientKeywordIds.length,
+              rankings: deleteRankingCount,
+              backlinks: deleteBacklinkCount,
+              reports: deleteReportCount,
+              snapshots: deleteSnapshotCount,
+            }}
+          />
         </div>
       </section>
     </div>

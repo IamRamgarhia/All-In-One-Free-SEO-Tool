@@ -158,6 +158,11 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
     openrouter: "meta-llama/llama-3.3-70b-instruct:free",
     perplexity: "sonar",
     ollama: "llama3",
+    mistral: "mistral-large-latest",
+    deepseek: "deepseek-chat",
+    cerebras: "llama-3.3-70b",
+    together: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    github: "gpt-4o",
   };
   const pickedModel = opts.modelOverride?.trim() || defaultModel[active];
 
@@ -229,6 +234,71 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
       const url = await getOllamaUrl();
       model = pickedModel;
       text = await callOllama({ url, model, ...packed, max, temperature, timeoutMs });
+    } else if (active === "mistral") {
+      const k = await getApiKey("mistral");
+      if (!k) return null;
+      model = pickedModel;
+      text = await callOpenAICompat({
+        endpoint: "https://api.mistral.ai/v1/chat/completions",
+        apiKey: k,
+        model,
+        ...opts,
+        max,
+        temperature,
+        timeoutMs,
+      });
+    } else if (active === "deepseek") {
+      const k = await getApiKey("deepseek");
+      if (!k) return null;
+      model = pickedModel;
+      text = await callOpenAICompat({
+        endpoint: "https://api.deepseek.com/v1/chat/completions",
+        apiKey: k,
+        model,
+        ...opts,
+        max,
+        temperature,
+        timeoutMs,
+      });
+    } else if (active === "cerebras") {
+      const k = await getApiKey("cerebras");
+      if (!k) return null;
+      model = pickedModel;
+      text = await callOpenAICompat({
+        endpoint: "https://api.cerebras.ai/v1/chat/completions",
+        apiKey: k,
+        model,
+        ...opts,
+        max,
+        temperature,
+        timeoutMs,
+      });
+    } else if (active === "together") {
+      const k = await getApiKey("together");
+      if (!k) return null;
+      model = pickedModel;
+      text = await callOpenAICompat({
+        endpoint: "https://api.together.xyz/v1/chat/completions",
+        apiKey: k,
+        model,
+        ...opts,
+        max,
+        temperature,
+        timeoutMs,
+      });
+    } else if (active === "github") {
+      const k = await getApiKey("github");
+      if (!k) return null;
+      model = pickedModel;
+      text = await callOpenAICompat({
+        endpoint: "https://models.inference.ai.azure.com/chat/completions",
+        apiKey: k,
+        model,
+        ...opts,
+        max,
+        temperature,
+        timeoutMs,
+      });
     }
   } catch (err) {
     errorMsg = (err as Error).message;
