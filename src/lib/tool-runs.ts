@@ -171,4 +171,7 @@ export const TOOL_LABELS: Record<string, string> = {
   "og-image": "OG image generator",
   render: "Browser render check",
   pagerank: "Internal PageRank",
+  "ai-slop": "AI slop detector (24 patterns)",
+  "expert-panel": "Expert panel content scorer",
+  "content-attack-brief": "Content attack brief",
 };

@@ -1,0 +1,198 @@
+"use server";
+
+import { callAI } from "@/lib/ai-call";
+import { scoreContent, type SlopReport } from "@/lib/ai-slop-patterns";
+import { saveToolRun } from "@/lib/tool-runs";
+
+type ContentType = "blog" | "linkedin" | "landing" | "x" | "email" | "strategy";
+type Industry = "saas" | "ecommerce" | "local" | "agency" | "creator" | "general";
+
+const PANEL_BY_TYPE: Record<ContentType, string[]> = {
+  blog: ["Blog Editor", "SEO Strategist", "Subject Matter Expert", "Reader Advocate"],
+  linkedin: ["LinkedIn Ghostwriter", "B2B Content Strategist", "Comment Bait Optimizer"],
+  landing: ["Conversion Copywriter", "UX Writer", "Brand Voice Match"],
+  x: ["X/Twitter Veteran", "Engagement Optimizer", "Hook Specialist"],
+  email: ["Email Copywriter", "Subject Line Specialist", "Deliverability Coach"],
+  strategy: ["Senior Strategist", "Market Analyst", "Pragmatic Operator"],
+};
+
+const INDUSTRY_EXPERT: Record<Industry, string> = {
+  saas: "SaaS Growth Expert",
+  ecommerce: "E-commerce Conversion Expert",
+  local: "Local SEO + GBP Expert",
+  agency: "Agency Account Director",
+  creator: "Creator Economy Expert",
+  general: "Industry Generalist",
+};
+
+// Non-negotiable roles per source repo
+const ALWAYS_ON = ["AI Writing Detector", "Brand Voice Match"];
+
+const SYSTEM = `You are running a content quality gate. Score the supplied content from the perspective of a panel of named experts.
+
+Output STRICT JSON (no preamble, no markdown fences):
+{
+  "experts": [
+    {
+      "name": "<expert name>",
+      "score": <0-100>,
+      "topThreeWeaknesses": ["<specific>", ...],
+      "specificRevisions": ["<concrete edit>", ...]
+    }
+  ],
+  "aggregateScore": <0-100, weighted avg with AI Writing Detector counted 1.5x>,
+  "topThreeFixes": ["<priority fix>", ...]
+}
+
+Rules:
+- Be ruthless. Default to 70 unless content is truly excellent.
+- Each expert critiques only their specialty.
+- "specificRevisions" must quote the exact phrase to change.
+- AI Writing Detector flags banned vocab, negative parallelism, em-dash overuse, sycophancy.
+- Brand Voice Match flags promotional puffery and AI-tells.`;
+
+function buildPanel(type: ContentType, industry: Industry): string[] {
+  const base = PANEL_BY_TYPE[type];
+  const ind = INDUSTRY_EXPERT[industry];
+  return [...base, ind, ...ALWAYS_ON];
+}
+
+type ExpertScore = {
+  name: string;
+  score: number;
+  topThreeWeaknesses: string[];
+  specificRevisions: string[];
+};
+
+type PanelRound = {
+  round: number;
+  aggregateScore: number;
+  experts: ExpertScore[];
+  topThreeFixes: string[];
+  slop: SlopReport;
+};
+
+export type ExpertPanelState =
+  | null
+  | {
+      ok: true;
+      rounds: PanelRound[];
+      finalScore: number;
+      shipped: boolean;
+      contentType: ContentType;
+      industry: Industry;
+      panel: string[];
+    }
+  | { ok: false; error: string };
+
+function safeJson<T>(s: string | null): T | null {
+  if (!s) return null;
+  const cleaned = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const m = cleaned.match(/\{[\s\S]+\}/);
+    if (m) {
+      try {
+        return JSON.parse(m[0]) as T;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+export async function runExpertPanel(
+  _prev: ExpertPanelState,
+  formData: FormData,
+): Promise<ExpertPanelState> {
+  const text = String(formData.get("text") ?? "").trim();
+  const contentType = (formData.get("contentType") ?? "blog") as ContentType;
+  const industry = (formData.get("industry") ?? "general") as Industry;
+  if (!text) return { ok: false, error: "Paste some content to evaluate." };
+  if (text.length > 20_000) {
+    return {
+      ok: false,
+      error: "Content too long — keep panel runs under 20,000 characters.",
+    };
+  }
+
+  const panel = buildPanel(contentType, industry);
+  const rounds: PanelRound[] = [];
+  const TARGET = 90;
+  const MAX_ROUNDS = 3;
+
+  let working = text;
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    const slop = scoreContent(working);
+    const userPrompt = `Content type: ${contentType}\nIndustry: ${industry}\nExpert panel: ${panel.join(", ")}\n\nLocal slop score (pre-computed, deterministic): ${slop.score}/100 — ${slop.violations.length} violations.\n\nContent:\n"""\n${working}\n"""\n\nScore the content from each expert's perspective. Output the JSON specified.`;
+
+    const raw = await callAI({
+      system: SYSTEM,
+      user: userPrompt,
+      maxTokens: 2000,
+      temperature: 0.3,
+      feature: "content_idea",
+      ignoreCreditSaver: true,
+    });
+
+    const parsed = safeJson<{
+      experts: ExpertScore[];
+      aggregateScore: number;
+      topThreeFixes: string[];
+    }>(raw);
+
+    if (!parsed) {
+      if (rounds.length === 0) {
+        return {
+          ok: false,
+          error:
+            "AI panel scoring failed. Check that an AI provider is configured in Settings → AI.",
+        };
+      }
+      break;
+    }
+
+    rounds.push({
+      round,
+      aggregateScore: parsed.aggregateScore,
+      experts: parsed.experts,
+      topThreeFixes: parsed.topThreeFixes,
+      slop,
+    });
+
+    if (parsed.aggregateScore >= TARGET) break;
+    // Only 1 round on this tool — content rewriting happens in the writer
+    // tools. The user is responsible for iteration here.
+    break;
+  }
+
+  const finalScore = rounds[rounds.length - 1]?.aggregateScore ?? 0;
+  const shipped = finalScore >= TARGET;
+
+  await saveToolRun({
+    toolId: "expert-panel",
+    label: `${finalScore}/100 · ${panel.length} experts (${contentType}/${industry})`,
+    input: { contentType, industry, sourceLen: text.length },
+    result: {
+      ok: true,
+      rounds,
+      finalScore,
+      shipped,
+      contentType,
+      industry,
+      panel,
+    },
+  }).catch(() => undefined);
+
+  return {
+    ok: true,
+    rounds,
+    finalScore,
+    shipped,
+    contentType,
+    industry,
+    panel,
+  };
+}

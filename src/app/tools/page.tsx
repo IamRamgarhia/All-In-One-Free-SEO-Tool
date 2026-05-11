@@ -32,7 +32,9 @@ import {
   Smartphone,
   Sparkles,
   Stethoscope,
+  Target,
   TrendingDown,
+  Users,
   Video,
   Wand2,
   Wrench,
@@ -600,6 +602,30 @@ const tools = [
     description:
       "AI-likelihood + originality scores on any draft. Flags AI-template phrases. Links to Copyleaks, GPTZero, Originality.ai for definitive web check.",
     accent: "rose",
+  },
+  {
+    href: "/tools/ai-slop",
+    icon: Sparkles,
+    title: "AI slop detector (24 patterns)",
+    description:
+      "24 telltale AI writing patterns — significance inflation, negative parallelism, em-dash overuse, sycophancy. 90+ ships. Local, free, no AI call.",
+    accent: "amber",
+  },
+  {
+    href: "/tools/expert-panel",
+    icon: Users,
+    title: "Expert panel content scorer",
+    description:
+      "Auto-assembles 6-9 domain experts (incl. AI Detector + Brand Voice) and scores your draft. Target 90/100. Outputs each expert's specific revisions.",
+    accent: "violet",
+  },
+  {
+    href: "/tools/content-attack-brief",
+    icon: Target,
+    title: "Content attack brief",
+    description:
+      "Pulls GSC striking-distance queries, scores each by Impact × Confidence, AI-writes the attack angle for the top 10. Ranked by what moves the needle.",
+    accent: "emerald",
   },
   {
     href: "/tools/reddit-research",
