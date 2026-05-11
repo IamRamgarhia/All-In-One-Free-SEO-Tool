@@ -235,7 +235,7 @@ export default async function SettingsPage() {
       </section>
 
       {/* Email / SMTP — for scheduled report delivery */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
+      <section id="smtp" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
         <div className="pointer-events-none absolute -left-12 -top-12 size-40 rounded-full bg-cyan-500/15 blur-3xl" />
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
@@ -380,7 +380,7 @@ export default async function SettingsPage() {
       </section>
 
       {/* API Keys */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
+      <section id="ai" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
         <div className="pointer-events-none absolute -left-12 -top-12 size-40 rounded-full bg-amber-500/15 blur-3xl" />
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">

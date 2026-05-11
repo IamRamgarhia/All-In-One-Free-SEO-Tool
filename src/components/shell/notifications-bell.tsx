@@ -134,10 +134,25 @@ export function NotificationsBell() {
                 Loading…
               </div>
             ) : items.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
-                <Inbox className="size-5" />
-                Nothing yet. Run an audit or enable page monitoring to see
-                activity here.
+              <div className="flex flex-col items-center gap-3 px-5 py-10 text-center">
+                <div className="grid size-10 place-items-center rounded-xl bg-violet-500/10 ring-1 ring-inset ring-violet-500/30">
+                  <Inbox className="size-5 text-violet-300" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">All caught up</p>
+                  <p className="text-xs text-muted-foreground">
+                    Alerts appear here when audits surface critical issues,
+                    pages change, ranks drop, or the daily agent finishes
+                    a run.
+                  </p>
+                </div>
+                <Link
+                  href="/clients/new"
+                  onClick={() => setOpen(false)}
+                  className="mt-1 inline-flex h-7 items-center gap-1 rounded-md bg-violet-500/15 px-3 text-[11px] font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25"
+                >
+                  Add a client to start tracking →
+                </Link>
               </div>
             ) : (
               <ul className="divide-y divide-white/5">

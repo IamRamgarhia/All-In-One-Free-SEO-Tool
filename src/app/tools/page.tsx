@@ -20,7 +20,7 @@ import {
   Link2,
   ListChecks,
   Lock,
-  Map,
+  Map as MapIcon,
   Network,
   Newspaper,
   RefreshCw,
@@ -41,6 +41,11 @@ import {
   Zap,
 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
+import {
+  CATEGORY_LABELS,
+  categoryOf,
+  type ToolCategoryId,
+} from "@/lib/tool-categories";
 
 const tools = [
   {
@@ -525,7 +530,7 @@ const tools = [
   },
   {
     href: "/tools/sitemap",
-    icon: Map,
+    icon: MapIcon,
     title: "Sitemap generator",
     description:
       "Crawl any site, generate sitemap.xml + plain-text URL list + human-readable HTML index. Respects robots.txt by default.",
@@ -792,35 +797,109 @@ const accentMap: Record<string, string> = {
   rose: "bg-rose-500/15 text-rose-300 ring-rose-400/30",
 };
 
+// Render categories in this specific order — most-used first.
+const CATEGORY_ORDER: ToolCategoryId[] = [
+  "everyday",
+  "audit",
+  "ai-geo",
+  "content",
+  "keywords",
+  "backlinks",
+  "technical",
+  "generators",
+  "migration",
+  "local",
+  "specialty",
+];
+
+type Tool = (typeof tools)[number];
+
 export default function ToolsHubPage() {
+  // Bucket every tool into its category. Tools without a category fall
+  // through to "specialty" via categoryOf().
+  const byCategory = new Map<ToolCategoryId, Tool[]>();
+  for (const t of tools) {
+    const cat = categoryOf(t.href);
+    const arr = byCategory.get(cat) ?? [];
+    arr.push(t);
+    byCategory.set(cat, arr);
+  }
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-8">
       <PageHeader
-        title="Quick tools"
-        description="Single-URL utilities that don't require a client. Free, instant, no signup. Use them on any site, including yours during pitches."
+        title="Tools"
+        description="100+ SEO utilities, grouped by what you'll use them for. Tip: ⌘K (Ctrl+K) opens the global search — type any tool name and jump straight there."
         icon={Wrench}
         accent="violet"
       />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {tools.map((t) => (
-          <Link
-            key={t.href}
-            href={t.href}
-            className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl p-5"
+
+      {/* Quick category jump-links */}
+      <nav className="flex flex-wrap gap-1.5">
+        {CATEGORY_ORDER.map((cat) => {
+          const list = byCategory.get(cat);
+          if (!list || list.length === 0) return null;
+          return (
+            <a
+              key={cat}
+              href={`#cat-${cat}`}
+              className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted-foreground ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/10 hover:text-foreground"
+            >
+              {CATEGORY_LABELS[cat].label}
+              <span className="rounded-full bg-white/10 px-1.5 text-[10px]">
+                {list.length}
+              </span>
+            </a>
+          );
+        })}
+      </nav>
+
+      {CATEGORY_ORDER.map((cat) => {
+        const list = byCategory.get(cat);
+        if (!list || list.length === 0) return null;
+        const meta = CATEGORY_LABELS[cat];
+        return (
+          <section
+            key={cat}
+            id={`cat-${cat}`}
+            className="scroll-mt-20 space-y-3"
           >
-            <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-violet-500/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
-            <div className="relative space-y-3">
-              <div
-                className={`inline-flex size-10 items-center justify-center rounded-xl ring-1 ring-inset ${accentMap[t.accent]}`}
-              >
-                <t.icon className="size-5" />
-              </div>
-              <h3 className="text-base font-semibold">{t.title}</h3>
-              <p className="text-sm text-muted-foreground">{t.description}</p>
+            <header className="space-y-0.5">
+              <h2 className="text-lg font-semibold tracking-tight">
+                {meta.label}
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  ({list.length})
+                </span>
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {meta.description}
+              </p>
+            </header>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {list.map((t) => (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl p-5"
+                >
+                  <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-violet-500/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
+                  <div className="relative space-y-3">
+                    <div
+                      className={`inline-flex size-10 items-center justify-center rounded-xl ring-1 ring-inset ${accentMap[t.accent]}`}
+                    >
+                      <t.icon className="size-5" />
+                    </div>
+                    <h3 className="text-base font-semibold">{t.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {t.description}
+                    </p>
+                  </div>
+                </Link>
+              ))}
             </div>
-          </Link>
-        ))}
-      </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

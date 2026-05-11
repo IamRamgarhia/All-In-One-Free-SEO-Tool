@@ -139,33 +139,66 @@ export default async function DashboardPage() {
               Local · single-user · everything runs on this machine
             </div>
             <h1 className="text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
-              <span className="text-foreground">{greeting}.</span>{" "}
-              <span className="text-gradient-brand">
-                Here&apos;s what needs attention today.
-              </span>
+              {isFresh ? (
+                <>
+                  <span className="text-foreground">Welcome.</span>{" "}
+                  <span className="text-gradient-brand">
+                    Let&apos;s set up your first 5 minutes.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-foreground">{greeting}.</span>{" "}
+                  <span className="text-gradient-brand">
+                    Here&apos;s what needs attention today.
+                  </span>
+                </>
+              )}
             </h1>
             <p className="max-w-xl text-base text-muted-foreground">
-              Free, modern, beginner-friendly SEO for freelancers and small
-              agencies — without the $140/mo SaaS bills.
+              {isFresh
+                ? "100+ SEO tools, daily-agent automation, audits, rank tracking, content writer, code generator — fully self-hosted, fully yours. Pick an AI provider (free Ollama or any API key) and add your first client to unlock everything."
+                : "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills."}
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Link
-                href="/clients/new"
-                className={buttonVariants({
-                  className:
-                    "shadow-lg shadow-violet-500/25 ring-1 ring-inset ring-white/15",
-                })}
-              >
-                Add a client
-              </Link>
-              {!isFresh && (
-                <Link
-                  href="/clients"
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-                >
-                  View clients
-                  <ArrowUpRight className="size-3.5" />
-                </Link>
+              {isFresh ? (
+                <>
+                  <Link
+                    href="/settings#ai"
+                    className={buttonVariants({
+                      className:
+                        "shadow-lg shadow-violet-500/25 ring-1 ring-inset ring-white/15",
+                    })}
+                  >
+                    Connect an AI provider
+                  </Link>
+                  <Link
+                    href="/clients/new"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    Or add a client first
+                    <ArrowUpRight className="size-3.5" />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/clients/new"
+                    className={buttonVariants({
+                      className:
+                        "shadow-lg shadow-violet-500/25 ring-1 ring-inset ring-white/15",
+                    })}
+                  >
+                    Add a client
+                  </Link>
+                  <Link
+                    href="/clients"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    View clients
+                    <ArrowUpRight className="size-3.5" />
+                  </Link>
+                </>
               )}
             </div>
           </div>
