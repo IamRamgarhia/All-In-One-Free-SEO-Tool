@@ -1096,6 +1096,312 @@ Red flags:
 When two sources contradict, pick the more recent + the more primary. Google's own docs always win.`,
     tools: ["/knowledge", "/news", "/algorithm-updates"],
   },
+
+  // ============== Open-source SEO-skill repo inspired additions ==============
+  // Sourced from github.com/zubair-trabzada/geo-seo-claude (GEO methodology),
+  // github.com/AgriciDaniel/claude-seo (SXO + content attacks),
+  // github.com/coreyhaines31/marketingskills (competitor-alternatives play).
+
+  {
+    id: "geo-composite-score",
+    title: "GEO (Generative Engine Optimization) composite score",
+    tags: [
+      "geo",
+      "score",
+      "generative",
+      "aio",
+      "ai citation",
+      "scorecard",
+      "composite",
+    ],
+    body: `A defensible health score for AI search visibility, weighted across six dimensions. Use this when a client asks "how am I doing in AI Search?" instead of one-dimensional thinking.
+
+Weights (sum to 100):
+- 25% Citability — does content read as cite-ready 134-167 word self-contained passages with definitions, numbers, sources? Score via /tools/aio-passage.
+- 20% Brand authority — branded search volume, Knowledge Panel completeness, sameAs density, Wikipedia presence. Score via /brand-serp + /knowledge-panel.
+- 20% Content quality / E-E-A-T — author bio + Person schema + first-hand experience markers + cited sources. Score via /tools/eeat-audit.
+- 15% Technical foundation — SSR (not CSR), Core Web Vitals pass, indexability, schema correctness. Score via /tools/health-check + /tools/crux-origin.
+- 10% Schema / structured data — Article + Organization + Person + correct LocalBusiness/Product as applicable. Score via /tools/schema-validate.
+- 10% Platform-specific tactics — Reddit presence for Perplexity, Wikipedia for ChatGPT, official docs for Claude, schema for Gemini. Score via /tools/ai-citation-tactics.
+
+A site scoring 70+ is highly likely to be cited in AI Overviews / ChatGPT / Perplexity. <40 = invisible. The composite hides nothing — it forces you to address the weakest leg first.
+
+When to use this framing: client-facing reports, monthly check-ins, prioritization meetings. When NOT to use: tactical fixes (use the individual tool scores).`,
+    tools: [
+      "/tools/aio-passage",
+      "/tools/eeat-audit",
+      "/tools/ai-citation-tactics",
+      "/brand-serp",
+      "/knowledge-panel",
+    ],
+  },
+
+  {
+    id: "sxo-search-experience-optimization",
+    title: "SXO — Search Experience Optimization (persona-driven)",
+    tags: [
+      "sxo",
+      "search experience",
+      "ux",
+      "personas",
+      "user journey",
+      "engagement",
+      "pogo stick",
+    ],
+    body: `SXO blends SEO with UX: "rank for the query AND satisfy the user once they land." Google's helpful-content systems now weight engagement signals heavily (return visits, dwell time, brand-name navigational queries, low pogo-sticking).
+
+The SXO loop:
+1. Persona — for each top-traffic URL, define the 1-2 personas typing those queries. What's their actual job? What did they try before searching?
+2. Intent depth — map their query to the deepest underlying need (informational / navigational / commercial / transactional / "I'm stuck and frustrated").
+3. Page promise — does the H1 + first paragraph deliver on the snippet they clicked? If not, they bounce.
+4. Time-to-answer — can the user find the answer in <30 seconds? If not, hoist the TL;DR above all else.
+5. Next step — every page must offer a clear next action. Dead ends pogo-stick.
+6. Friction audit — pop-ups, cookie banners, intrusive interstitials, slow LCP, layout shift. Every friction point hurts engagement.
+
+What to measure:
+- GA4 engagement rate per landing page
+- Scroll depth (>75% = high engagement)
+- Return visitors from organic
+- "Brand + topic" navigational queries growing month-over-month
+- Pogo-stick rate (rare metric — proxy via average position vs CTR vs engagement)
+
+This is where SEO and conversion-rate-optimization converge. In 2026, the highest-ranking page is no longer "the page with the most backlinks" — it's the one users actually engage with.`,
+    tools: ["/tools/content-grader", "/keywords", "/monitor"],
+  },
+
+  {
+    id: "content-attack-briefs",
+    title: "Content Attack Briefs — competitor keyword-gap warfare",
+    tags: [
+      "content attack",
+      "content gap",
+      "competitor gap",
+      "keyword gap",
+      "briefs",
+      "competitive",
+    ],
+    body: `A Content Attack Brief is a focused content brief targeting a SPECIFIC competitor weakness — not a topic you "should" cover. The framing forces sharper prioritization.
+
+How to find attack opportunities:
+1. Pull a competitor's top 100 ranking keywords (use /content-gap if you have GSC for both sides).
+2. Filter to keywords where: competitor ranks 4-15 (vulnerable, not entrenched at #1), search volume ≥50/mo, and the SERP doesn't have an immovable Wikipedia/Reddit result.
+3. For each, check if YOUR site has any related page. If yes → add to a content-refresh queue. If no → attack candidate.
+4. Sort by: (estimated traffic value × competitor weakness) ÷ (content production cost).
+
+What goes in an Attack Brief:
+- Target keyword + 3-5 supporting keywords
+- Competitor URL ranking now + why it's beatable (thin content, outdated date, no author, no schema, missing PAA coverage)
+- Search intent classification
+- Target word count (match SERP median + 10%)
+- Required E-E-A-T signals (named author, citations, first-hand example)
+- Required schema (Article + Person + FAQ if intent calls for it)
+- Internal-link targets to/from the new page
+- AIO passage candidates (the 134-167 word chunks designed to be cited)
+- Definition of done: ranks top-10 within 60 days OR retire
+
+Anti-pattern: writing 100 attack briefs and finishing none. Cap WIP at 5.`,
+    tools: ["/content-gap", "/tools/aio-passage", "/blog"],
+  },
+
+  {
+    id: "ai-crawler-policy-detailed",
+    title: "AI crawler robots.txt policy — the 14 bots to address",
+    tags: [
+      "ai crawler",
+      "gptbot",
+      "claudebot",
+      "perplexitybot",
+      "robots.txt",
+      "ccbot",
+      "google-extended",
+      "ai bot policy",
+    ],
+    body: `In 2026, robots.txt needs to explicitly address AI training crawlers AND AI search crawlers. Silence = inconsistent defaults across vendors (some default-allow, some default-disallow).
+
+The 14 bots every robots.txt should address:
+- GPTBot (OpenAI training)
+- ChatGPT-User (OpenAI live retrieval for ChatGPT Search)
+- OAI-SearchBot (OpenAI search index)
+- ClaudeBot (Anthropic — combined training + retrieval)
+- anthropic-ai (legacy Anthropic identifier — block both for safety)
+- PerplexityBot (Perplexity retrieval)
+- Perplexity-User (Perplexity user-agent for one-off retrieval)
+- Google-Extended (Google generative AI training, separate from Googlebot)
+- Googlebot — DO NOT block; that's classic Search
+- CCBot (Common Crawl — feeds most LLM training sets)
+- Amazonbot (Alexa + Q)
+- Applebot (Siri + Spotlight — DO NOT block)
+- Applebot-Extended (Apple generative AI training)
+- Bytespider (TikTok / ByteDance)
+
+The two-policy pattern most brands now adopt:
+- Allow AI retrieval crawlers (Perplexity-User, ChatGPT-User, ClaudeBot for retrieval) — you want to be cited
+- Block AI training crawlers (GPTBot, Google-Extended, Anthropic, CCBot) — you don't want to train competitors' models on your content for free
+
+Example:
+\`\`\`
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+\`\`\`
+
+Cite: most policies recommend reviewing every 90 days as new bots emerge.`,
+    tools: ["/tools/llms-txt", "/tools/robots", "/tools/bot-logs"],
+  },
+
+  {
+    id: "geo-platform-playbook-sharpened",
+    title: "Per-platform AI citation playbook (sharpened)",
+    tags: [
+      "platform",
+      "chatgpt",
+      "perplexity",
+      "claude",
+      "gemini",
+      "ai overviews",
+      "playbook",
+      "11%",
+    ],
+    body: `Hard data from 2026 citation studies: only ~11% of cited domains overlap between ChatGPT and Perplexity. Brand mentions correlate ~3x more strongly with AI citation than backlinks do. Tailor effort per platform — don't optimize once for "AI search" generically.
+
+ChatGPT (largest LLM by user count, conservative citation graph):
+- #1: Wikipedia mention. A single notable-mention link compounds for years.
+- #2: Major-publication mention (Forbes, BBC, NYT, TechCrunch). One per quarter moves the needle.
+- #3: Inclusion in "best of" evergreen listicles ranking on Google page 1.
+- Reddit matters but less than for Perplexity.
+
+Perplexity (fastest-growing search-style LLM):
+- Reddit is 46.7% of top citations. Multi-month presence in 2-3 niche subreddits with genuinely helpful comments.
+- YouTube is ~14%. A single well-ranked tutorial drives citations for months.
+- Auto-generated captions weight lower than human-written.
+- Comparison pages ("X vs Y") with honest tables rank well.
+
+Claude (smaller but high-influence audience):
+- Official documentation cited heavily — clean /docs with semantic HTML.
+- GitHub repos. Even a small open-source artifact compounds.
+- Wikipedia (same play as ChatGPT).
+- Primary research / surveys / benchmarks (cite-able primary sources).
+
+Gemini / Google AI Mode:
+- Just rank in classic Google — Gemini pulls overwhelmingly from top 10.
+- Article + Person schema (entity verification).
+- Visible dateModified (freshness).
+- Structured answer formats (tables, definition lists, numbered steps).
+
+Google AI Overviews (47% of commercial queries trigger AIO):
+- 134-167 word self-contained passages.
+- Open each H2 with a direct definition.
+- Specific number or proper noun per ~250 words.
+- Person schema embedded in Article schema.
+- AIO citation earns 35% more clicks than the typical top-3 result.
+
+The takeaway: AI search visibility is N parallel campaigns, not one. Pick the 2-3 platforms your ICP actually uses and over-invest there.`,
+    tools: [
+      "/tools/ai-citation-tactics",
+      "/tools/aio-passage",
+      "/tools/person-schema",
+      "/brand-monitor",
+      "/ai-visibility",
+    ],
+  },
+
+  {
+    id: "competitor-alternative-pages",
+    title: "Competitor-alternative pages — high-intent SEO play",
+    tags: [
+      "alternatives",
+      "competitor",
+      "vs",
+      "comparison",
+      "high intent",
+      "transactional",
+      "saas",
+    ],
+    body: `Pages targeting "[Competitor] alternatives" or "X vs Y" intercept users who already decided against the competitor and are shopping. Highest commercial intent SEO traffic short of branded search.
+
+When this play works:
+- SaaS / B2B services with active competitive market
+- E-commerce with clear competitor sets
+- Tools with obvious head-to-head categories
+
+When it doesn't:
+- Single-vendor categories (you're the only option)
+- Highly fragmented markets (no dominant competitor to attack)
+- Markets where comparison is a legal/compliance minefield
+
+How to write the page:
+1. Be ruthlessly honest — no straw-man competitor. Users have used both; they smell BS.
+2. Lead with a 1-line summary: "[Your brand] is X-for-Y; [Competitor] is Z-for-W. If you need X, pick us. If you need Z, pick them."
+3. Comparison table with rows the BUYER actually cares about (price, integrations, support, specific features). Not your marketing wish-list.
+4. Include scenarios where the competitor is genuinely better. This earns trust + builds defensibility — you're not afraid of the comparison.
+5. Strong CTAs to free trial / demo. High-intent traffic deserves a fast next step.
+6. Schema: Product schema for your offering, mentioning competitor by name is fine — Google doesn't penalize naming.
+7. SEO: target "[competitor] alternatives", "[competitor] vs [you]", "best [category]" with appropriate variations.
+
+What to AVOID:
+- Trademark/trade-dress violation in copy
+- Negative campaigning that reads as smear
+- Out-of-date competitor info — keep these pages fresh quarterly
+- Targeting "[competitor] login" or "[competitor] coupon" — that's misappropriation`,
+    tools: ["/blog", "/tools/content-grader", "/tools/keyword-difficulty"],
+  },
+
+  {
+    id: "drift-baseline-monitoring",
+    title: "Drift / baseline monitoring — catch regressions before they hit",
+    tags: [
+      "drift",
+      "baseline",
+      "monitoring",
+      "change detection",
+      "regression",
+      "alerts",
+    ],
+    body: `Drift monitoring = capture a baseline of every important signal for a page/site, then re-check periodically and alert on meaningful changes. Catches regressions (a dev push that broke meta tags, an editor that unpublished schema) BEFORE they tank traffic.
+
+Signals to baseline (per page):
+- Title + meta description (exact strings)
+- H1 + H2/H3 outline
+- Word count (±15% triggers alert)
+- Schema types + key fields (Article author, Product price, etc.)
+- Canonical URL
+- robots / X-Robots-Tag
+- HTTP status + redirect chain
+- Image alt-text coverage %
+- Internal link count to/from this page
+
+Signals to baseline (per site):
+- robots.txt content (we already do this)
+- sitemap.xml content + lastmod entries
+- Total indexable page count (from GSC)
+- Average rank for top 20 keywords (we have keyword tracking)
+- Core Web Vitals origin-level p75 (we have CrUX)
+
+Alert thresholds (start conservative, tune):
+- Title changed → alert always
+- Meta description changed → alert
+- H1 changed → alert
+- Canonical points away when it didn't before → critical alert
+- noindex appeared on a previously-indexed page → critical alert
+- Word count dropped >20% → alert
+- Schema validation went from ok → error → alert
+
+Frequency: weekly for content; daily for technical (canonical, noindex, robots, sitemap). The cost is tiny; the value is catching a broken deploy before it costs you a month of rankings.
+
+We have /monitor (page change monitoring) and /tools/robots-history for parts of this. Setting up alerts is the leverage point.`,
+    tools: ["/monitor", "/tools/robots-history", "/automations"],
+  },
 ];
 
 // =================== Retrieval ===================
