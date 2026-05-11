@@ -37,12 +37,20 @@ function parseUrls(input: string): string[] {
     .slice(0, MAX_URLS);
 }
 
+const MAX_BULK_URLS = 25;
+
 export async function runBulkScan(opts: {
   urls: string;
   saveSnapshots?: boolean;
 }): Promise<BulkScanResult> {
   const startedAt = new Date();
   const urls = parseUrls(opts.urls);
+  // Server-side enforcement: the UI says "max 25" but a determined caller
+  // could POST any number. Truncate hard so a thousand-URL submission
+  // can't pin the server for an hour or burn through real provider quotas.
+  if (urls.length > MAX_BULK_URLS) {
+    urls.length = MAX_BULK_URLS;
+  }
   const rows: BulkRow[] = [];
 
   // Concurrency-limited worker pool

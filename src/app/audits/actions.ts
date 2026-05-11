@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, auditIssues, clients, tasks } from "@/db/schema";
 import { runAudit } from "@/lib/audit";
@@ -21,6 +21,24 @@ export async function runAuditForClient(clientId: number) {
     .limit(1);
 
   if (!client) return;
+
+  // Concurrency guard: if a "running" audit already exists for this
+  // client AND it was started in the last hour, skip — the user double-
+  // clicked or two tabs are racing. Older "running" rows are treated
+  // as orphans (the daily-agent sweeper marks them failed).
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+  const [inFlight] = await db
+    .select({ id: audits.id, startedAt: audits.startedAt })
+    .from(audits)
+    .where(and(eq(audits.clientId, clientId), eq(audits.status, "running")))
+    .orderBy(desc(audits.startedAt))
+    .limit(1);
+  if (
+    inFlight?.startedAt &&
+    Date.now() - inFlight.startedAt.getTime() < ONE_HOUR_MS
+  ) {
+    return; // an audit is already in progress
+  }
 
   // Look up previous completed audit BEFORE running the new one,
   // so we can compute score delta on completion.
@@ -85,14 +103,41 @@ export async function runAuditForClient(clientId: number) {
   }
 
   if (result.findings.length > 0) {
+    // Carry forward issue status (ignored / resolved / false_positive)
+    // from prior audits — same (type, url) on the same client. Without
+    // this, every re-run resurrects issues the user previously dismissed.
+    const priorIssues = await db
+      .select({
+        type: auditIssues.type,
+        url: auditIssues.url,
+        status: auditIssues.status,
+      })
+      .from(auditIssues)
+      .innerJoin(audits, eq(audits.id, auditIssues.auditId))
+      .where(
+        and(
+          eq(audits.clientId, clientId),
+          ne(auditIssues.status, "new"),
+        ),
+      );
+    const statusByKey = new Map<string, string>();
+    for (const p of priorIssues) {
+      if (p.type && p.url) statusByKey.set(`${p.type}::${p.url}`, p.status);
+    }
     await db.insert(auditIssues).values(
-      result.findings.map((f) => ({
-        auditId: auditRow.id,
-        type: f.type,
-        severity: f.severity,
-        url: f.url,
-        message: f.message,
-      })),
+      result.findings.map((f) => {
+        const inheritedStatus = statusByKey.get(`${f.type}::${f.url}`);
+        return {
+          auditId: auditRow.id,
+          type: f.type,
+          severity: f.severity,
+          url: f.url,
+          message: f.message,
+          ...(inheritedStatus
+            ? { status: inheritedStatus as "ignored" | "resolved" | "false_positive" }
+            : {}),
+        };
+      }),
     );
 
     const generatedTasks = findingsToTasks(result.findings);

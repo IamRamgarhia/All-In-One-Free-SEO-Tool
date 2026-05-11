@@ -78,6 +78,11 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
 
   if (!res.ok) return empty;
 
+  // Guard against pathological responses (huge SPAs, accidental binary
+  // downloads). Cap at 2 MB before reading the body fully.
+  const cl = parseInt(res.headers.get("content-length") ?? "0", 10);
+  if (cl > 2 * 1024 * 1024) return empty;
+
   const finalUrl = res.url || url;
   const html = (await res.text()).slice(0, 600_000);
   const headOnly = html.slice(0, 120_000);

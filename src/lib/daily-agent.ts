@@ -15,7 +15,7 @@
  * Each step is wrapped so a failure in one doesn't block the next.
  */
 
-import { eq, lte, and, isNotNull } from "drizzle-orm";
+import { eq, lt, lte, and, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, clients, keywords, keywordRankings } from "@/db/schema";
 import { getSetting, setSetting } from "./settings-store";
@@ -63,6 +63,7 @@ async function runDailyAgentBody(): Promise<DailyAgentReport> {
   const startedAt = new Date();
   const steps: DailyAgentReport["steps"] = [];
 
+  await runStep(steps, "audits.sweepOrphans", sweepOrphanedAudits);
   await runStep(steps, "audits.refreshStale", refreshStaleAudits);
   await runStep(steps, "rss.refresh", refreshNewsFeeds);
   await runStep(steps, "ai.suggestions", generateAiSuggestionsForAll);
@@ -122,6 +123,31 @@ async function runStep(
 }
 
 // ============== Steps ==============
+
+/**
+ * Mark "running" audits that started >1h ago as failed. These are
+ * orphans from server crashes / process restarts mid-audit. Without
+ * this sweep the client detail page shows "in progress" forever and
+ * the concurrency guard in runAuditForClient blocks new runs.
+ */
+async function sweepOrphanedAudits(): Promise<string> {
+  const cutoff = new Date(Date.now() - 60 * 60 * 1000); // 1h ago
+  const orphans = await db
+    .select({ id: audits.id })
+    .from(audits)
+    .where(and(eq(audits.status, "running"), lt(audits.startedAt, cutoff)));
+  if (orphans.length === 0) return "no orphans";
+  for (const o of orphans) {
+    await db
+      .update(audits)
+      .set({
+        status: "failed",
+        completedAt: new Date(),
+      })
+      .where(eq(audits.id, o.id));
+  }
+  return `marked ${orphans.length} orphaned audit(s) as failed`;
+}
 
 async function refreshStaleAudits(): Promise<string> {
   const cutoff = new Date(Date.now() - STALE_AUDIT_MS);
