@@ -163,6 +163,13 @@ export async function POST() {
     return Response.json({ ok: false, error: "git fetch failed", steps }, { status: 500 });
   }
 
+  // 2. Try fast-forward pull first. If it fails because of dirty / untracked
+  //    files (very common when the user installed via the ZIP installer —
+  //    files end up locally but git doesn't track them), automatically
+  //    fall back to a force-sync: clean workspace + hard-reset to origin.
+  //    data.db, .env.local, and other gitignored files are NEVER touched
+  //    by either path because they're in .gitignore.
+  let pulledStrategy: "ff" | "force-sync" = "ff";
   try {
     const { stdout } = await exec("git", ["pull", "--ff-only"], {
       cwd: process.cwd(),
@@ -179,16 +186,59 @@ export async function POST() {
     }
     const lastLine = stdout.split("\n").filter(Boolean).slice(-1)[0] ?? "Pulled";
     steps.push({ name: "Pull latest commit", status: "ok", detail: lastLine.slice(0, 80) });
-  } catch (err) {
+  } catch (ffErr) {
+    // Fast-forward failed (dirty tree / untracked file conflicts / diverged
+    // branch). Do a force-sync: clean tracked + untracked overrides, hard
+    // reset to remote. Gitignored files (data.db, .env.local, node_modules,
+    // .next, dev-server.log) are PRESERVED.
     steps.push({
       name: "Pull latest commit",
-      status: "error",
-      detail: (err as Error).message,
+      status: "skip",
+      detail: "Fast-forward blocked — switching to force-sync",
     });
-    return Response.json(
-      { ok: false, error: "git pull failed", steps },
-      { status: 500 },
-    );
+
+    try {
+      // First, clean any untracked files that would block the reset.
+      // -f = force, -d = include dirs, -x DOES exist but we use plain -fd
+      // because we want gitignored files (data.db!) preserved.
+      await exec("git", ["clean", "-fd"], {
+        cwd: process.cwd(),
+        timeout: 30_000,
+      });
+      steps.push({
+        name: "Clear conflicting untracked files",
+        status: "ok",
+        detail: "data.db / .env.local are gitignored and were preserved",
+      });
+
+      // Reset tracked files to match origin/main exactly.
+      const { stdout: resetOut } = await exec(
+        "git",
+        ["reset", "--hard", `origin/${BRANCH}`],
+        { cwd: process.cwd(), timeout: 60_000 },
+      );
+      const head = resetOut.match(/HEAD is now at ([0-9a-f]+)/)?.[1] ?? "";
+      steps.push({
+        name: "Force-sync to latest",
+        status: "ok",
+        detail: head ? `HEAD ${head}` : resetOut.slice(0, 80),
+      });
+      pulledStrategy = "force-sync";
+    } catch (syncErr) {
+      steps.push({
+        name: "Force-sync to latest",
+        status: "error",
+        detail: (syncErr as Error).message,
+      });
+      return Response.json(
+        {
+          ok: false,
+          error: `Fast-forward pull failed (${(ffErr as Error).message.slice(0, 120)}) and force-sync also failed (${(syncErr as Error).message.slice(0, 120)}). Re-run the installer command from your README — it handles this case cleanly.`,
+          steps,
+        },
+        { status: 500 },
+      );
+    }
   }
 
   // 2. detect package.json change → run install
@@ -258,12 +308,19 @@ export async function POST() {
     level: "success",
   }).catch(() => undefined);
 
+  const baseMessage = restartRecommended
+    ? "Update applied. Restart the server to load the new dependencies."
+    : "Update applied. Next.js will hot-reload the changes — refresh the page in a few seconds.";
+  const forceSyncNote =
+    pulledStrategy === "force-sync"
+      ? " (Force-synced to match GitHub. data.db + .env.local preserved.)"
+      : "";
+
   return Response.json({
     ok: true,
-    message: restartRecommended
-      ? "Update applied. Restart the server to load the new dependencies."
-      : "Update applied. Next.js will hot-reload the changes — refresh the page in a few seconds.",
+    message: baseMessage + forceSyncNote,
     steps,
     restartRecommended,
+    forceSynced: pulledStrategy === "force-sync",
   });
 }
