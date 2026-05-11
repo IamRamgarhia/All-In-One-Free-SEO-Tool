@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { AIAssistant } from "@/components/shell/ai-assistant";
 import { PowerWidget } from "@/components/shell/power-widget";
+import { Toaster } from "@/components/shell/toaster";
 import { ServiceWorkerRegister } from "@/components/shell/sw-register";
 import { ClientErrorCapture } from "@/components/shell/client-error-capture";
 import { QuickAddClientProvider } from "@/components/shell/quick-add-client-dialog";
@@ -84,6 +85,7 @@ export default async function RootLayout({
           </div>
           <AIAssistant />
           <PowerWidget />
+          <Toaster />
           <ServiceWorkerRegister />
           <ClientErrorCapture />
         </QuickAddClientProvider>

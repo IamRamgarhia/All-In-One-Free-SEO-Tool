@@ -5,6 +5,7 @@ import { AddClientButton } from "./add-client-button";
 import { MobileNav } from "./mobile-nav";
 import { AiUsagePill } from "./ai-usage-pill";
 import { ProfileMenu } from "./profile-menu";
+import { NextStep } from "./next-step";
 import { getUiMode } from "@/app/settings/ui-actions";
 
 export async function TopBar({
@@ -17,6 +18,7 @@ export async function TopBar({
     <header className="sticky top-0 z-30 flex h-11 shrink-0 items-center gap-3 border-b border-border bg-background px-3 md:px-4">
       <MobileNav unreadByHref={unreadByHref} />
       <SearchPalette />
+      <NextStep />
       <div className="ml-auto flex items-center gap-1">
         <AiUsagePill />
         <AddClientButton />

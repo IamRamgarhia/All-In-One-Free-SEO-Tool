@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowRight, ArrowUp, type LucideIcon } from "lucide-react";
+import { CountUp } from "./count-up";
 
 type Accent = "violet" | "cyan" | "amber" | "rose" | "emerald";
 
@@ -16,57 +17,20 @@ type StatCardProps = {
   size?: "default" | "hero" | "compact";
 };
 
-const accentMap: Record<
-  Accent,
-  {
-    glow: string;
-    text: string;
-    iconBg: string;
-    iconText: string;
-    spark: string;
-    border: string;
-  }
-> = {
-  violet: {
-    glow: "from-violet-500/30 via-violet-500/5 to-transparent",
-    text: "text-gradient-violet",
-    iconBg: "bg-violet-500/15 ring-violet-400/30",
-    iconText: "text-violet-300",
-    spark: "stroke-violet-400 fill-violet-500/20",
-    border: "before:[background:linear-gradient(135deg,oklch(0.69_0.18_268_/_0.5),oklch(1_0_0_/_0.05)_50%,oklch(0.69_0.18_268_/_0.2))]",
-  },
-  cyan: {
-    glow: "from-cyan-500/30 via-cyan-500/5 to-transparent",
-    text: "text-gradient-cyan",
-    iconBg: "bg-cyan-500/15 ring-cyan-400/30",
-    iconText: "text-cyan-300",
-    spark: "stroke-cyan-400 fill-cyan-500/20",
-    border: "before:[background:linear-gradient(135deg,oklch(0.74_0.18_200_/_0.5),oklch(1_0_0_/_0.05)_50%,oklch(0.74_0.18_200_/_0.2))]",
-  },
-  amber: {
-    glow: "from-amber-500/30 via-amber-500/5 to-transparent",
-    text: "text-gradient-amber",
-    iconBg: "bg-amber-500/15 ring-amber-400/30",
-    iconText: "text-amber-300",
-    spark: "stroke-amber-400 fill-amber-500/20",
-    border: "before:[background:linear-gradient(135deg,oklch(0.78_0.18_75_/_0.5),oklch(1_0_0_/_0.05)_50%,oklch(0.78_0.18_75_/_0.2))]",
-  },
-  rose: {
-    glow: "from-rose-500/30 via-rose-500/5 to-transparent",
-    text: "text-gradient-rose",
-    iconBg: "bg-rose-500/15 ring-rose-400/30",
-    iconText: "text-rose-300",
-    spark: "stroke-rose-400 fill-rose-500/20",
-    border: "before:[background:linear-gradient(135deg,oklch(0.7_0.21_25_/_0.5),oklch(1_0_0_/_0.05)_50%,oklch(0.7_0.21_25_/_0.2))]",
-  },
-  emerald: {
-    glow: "from-emerald-500/30 via-emerald-500/5 to-transparent",
-    text: "text-gradient-emerald",
-    iconBg: "bg-emerald-500/15 ring-emerald-400/30",
-    iconText: "text-emerald-300",
-    spark: "stroke-emerald-400 fill-emerald-500/20",
-    border: "before:[background:linear-gradient(135deg,oklch(0.7_0.2_155_/_0.5),oklch(1_0_0_/_0.05)_50%,oklch(0.7_0.2_155_/_0.2))]",
-  },
+const accentIcon: Record<Accent, string> = {
+  violet: "text-violet-300",
+  cyan: "text-cyan-300",
+  amber: "text-amber-300",
+  rose: "text-rose-300",
+  emerald: "text-emerald-300",
+};
+
+const accentSpark: Record<Accent, string> = {
+  violet: "stroke-violet-400 fill-violet-500/10",
+  cyan: "stroke-cyan-400 fill-cyan-500/10",
+  amber: "stroke-amber-400 fill-amber-500/10",
+  rose: "stroke-rose-400 fill-rose-500/10",
+  emerald: "stroke-emerald-400 fill-emerald-500/10",
 };
 
 function Sparkline({
@@ -78,7 +42,7 @@ function Sparkline({
 }) {
   if (values.length < 2) return null;
   const w = 100;
-  const h = 28;
+  const h = 24;
   const max = Math.max(...values);
   const min = Math.min(...values);
   const range = max - min || 1;
@@ -91,7 +55,7 @@ function Sparkline({
     <svg
       viewBox={`0 0 ${w} ${h}`}
       preserveAspectRatio="none"
-      className={cn("h-7 w-full", className)}
+      className={cn("h-6 w-full", className)}
     >
       <polyline
         points={points}
@@ -121,60 +85,45 @@ export function StatCard({
   className,
   size = "default",
 }: StatCardProps) {
-  const a = accentMap[accent];
-  const padding = size === "hero" ? "p-6" : size === "compact" ? "p-4" : "p-5";
+  const padding = size === "hero" ? "p-5" : size === "compact" ? "p-3" : "p-4";
   const valueSize =
     size === "hero"
-      ? "text-6xl"
+      ? "text-3xl"
       : size === "compact"
-        ? "text-3xl"
-        : "text-5xl";
-  const iconBox = size === "compact" ? "size-8" : "size-9";
+        ? "text-xl"
+        : "text-2xl";
   const deltaIcon =
-    delta === undefined ? null : delta.value > 0 ? ArrowUp : delta.value < 0 ? ArrowDown : ArrowRight;
+    delta === undefined
+      ? null
+      : delta.value > 0
+        ? ArrowUp
+        : delta.value < 0
+          ? ArrowDown
+          : ArrowRight;
   const deltaTone =
     delta === undefined
       ? ""
       : delta.value > 0
-        ? "text-emerald-400 bg-emerald-500/10 ring-emerald-500/20"
+        ? "text-emerald-300"
         : delta.value < 0
-          ? "text-rose-400 bg-rose-500/10 ring-rose-500/20"
-          : "text-muted-foreground bg-muted ring-border";
+          ? "text-rose-300"
+          : "text-muted-foreground";
 
   return (
     <div
       className={cn(
-        "glass-apple lift-on-hover group relative isolate overflow-hidden rounded-2xl",
+        "rounded-lg border border-border bg-card transition-colors hover:border-border/80",
         padding,
         className,
       )}
     >
-      {/* glow blob */}
-      <div
-        className={cn(
-          "pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-gradient-to-br opacity-80 blur-3xl transition-opacity group-hover:opacity-100",
-          a.glow,
-        )}
-      />
-      {/* Top inner highlight */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        {Icon && (
-          <div
-            className={cn(
-              "flex items-center justify-center rounded-xl ring-1",
-              iconBox,
-              a.iconBg,
-            )}
-          >
-            <Icon className={cn("size-4", a.iconText)} />
-          </div>
-        )}
+      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+        {Icon && <Icon className={cn("size-3.5", accentIcon[accent])} />}
+        <span className="truncate">{label}</span>
         {delta !== undefined && deltaIcon && (
-          <div
+          <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
+              "ml-auto inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums",
               deltaTone,
             )}
           >
@@ -185,31 +134,25 @@ export function StatCard({
             {delta.value > 0 ? "+" : ""}
             {delta.value}
             {delta.label ? ` ${delta.label}` : ""}
-          </div>
+          </span>
         )}
       </div>
 
-      <div className="relative z-10 mt-4">
-        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {label}
-        </div>
-        <div
-          className={cn(
-            "mt-1 font-semibold leading-none tracking-tight",
-            valueSize,
-            a.text,
-          )}
-        >
-          {value}
-        </div>
-        {hint && (
-          <div className="mt-2 text-xs text-muted-foreground">{hint}</div>
+      <div
+        className={cn(
+          "mt-1.5 font-semibold leading-tight tracking-tight tabular-nums text-foreground",
+          valueSize,
         )}
+      >
+        {typeof value === "number" ? <CountUp value={value} /> : value}
       </div>
+      {hint && (
+        <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>
+      )}
 
       {spark && spark.length > 1 && (
-        <div className="relative z-10 mt-4">
-          <Sparkline values={spark} className={a.spark} />
+        <div className="mt-3">
+          <Sparkline values={spark} className={accentSpark[accent]} />
         </div>
       )}
     </div>

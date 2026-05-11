@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Power, RefreshCw, Square, Settings as Cog, X } from "lucide-react";
 
 export function PowerWidget() {
@@ -49,10 +50,14 @@ export function PowerWidget() {
       const res = await fetch("/api/restart", { method: "POST" });
       const j = (await res.json()) as { ok: boolean; message?: string; error?: string };
       if (!j.ok) {
+        toast.error("Restart failed", { description: j.error ?? "Unknown error" });
         setMsg(j.error ?? "Restart failed.");
         setBusy(null);
         return;
       }
+      toast.success("Restarting server", {
+        description: "Page will reload itself once the server is back",
+      });
       // Poll for the server to come back, then hard-reload.
       setMsg("Waiting for server to come back…");
       const start = Date.now();

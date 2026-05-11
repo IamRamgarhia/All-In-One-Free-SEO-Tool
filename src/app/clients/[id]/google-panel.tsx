@@ -139,6 +139,12 @@ export function ClientGooglePanel({
 
   return (
     <div className="space-y-4">
+      <div className="rounded-md border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-[12px] text-muted-foreground">
+        <span className="font-medium text-violet-200">Per-client properties:</span>{" "}
+        Pick this client&apos;s own Search Console site and Analytics property
+        below. Each client you add can point to its own GSC + GA4 — results,
+        charts, and reports use the property selected here.
+      </div>
       <div className="grid gap-3 md:grid-cols-2">
         <PropertyPicker
           label="Search Console property"

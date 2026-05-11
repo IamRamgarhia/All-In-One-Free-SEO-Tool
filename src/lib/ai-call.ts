@@ -332,45 +332,61 @@ type CallArgs = AiCallOptions & {
 };
 
 async function callGemini(args: CallArgs): Promise<string | null> {
-  const model = args.model || "gemini-2.0-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(args.apiKey ?? "")}`;
+  // If the user picked an explicit model, honor it. Otherwise try a list
+  // of known-good free-tier names and use whichever the key can access —
+  // Google renames flash models often enough that hardcoding a single
+  // one bites people whose keys are stuck on an older project.
+  const fallback = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+  ];
+  const tryList = args.model ? [args.model, ...fallback.filter((m) => m !== args.model)] : fallback;
+
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), args.timeoutMs);
+  let lastError = "";
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      signal: c.signal,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `${args.system}\n\n${args.user}` }],
+    for (let i = 0; i < tryList.length; i++) {
+      const model = tryList[i];
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(args.apiKey ?? "")}`;
+      const res = await fetch(url, {
+        method: "POST",
+        signal: c.signal,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `${args.system}\n\n${args.user}` }],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: args.max,
+            temperature: args.temperature,
           },
-        ],
-        generationConfig: {
-          maxOutputTokens: args.max,
-          temperature: args.temperature,
-        },
-      }),
-    });
-    if (!res.ok) {
-      // Surface the API's error message rather than silently failing —
-      // Gemini's 400 / 404 bodies contain the actionable error
-      // (invalid model, key missing scopes, etc).
-      const errBody = await res.text().catch(() => "");
-      const snippet = errBody.slice(0, 200);
-      throw new Error(`Gemini ${res.status}: ${snippet || res.statusText}`);
+        }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          candidates?: { content?: { parts?: { text?: string }[] } }[];
+        };
+        return (
+          data.candidates?.[0]?.content?.parts
+            ?.map((p) => p.text ?? "")
+            .join("")
+            .trim() || null
+        );
+      }
+      const errBody = (await res.text().catch(() => "")).slice(0, 200);
+      lastError = `Gemini ${res.status} [${model}]: ${errBody || res.statusText}`;
+      // 401/403/invalid-key → don't try other models, the issue is the key
+      if (res.status === 401 || res.status === 403) break;
+      if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(errBody)) break;
+      // 404/400-not-found → try next model. Anything else, also try next.
     }
-    const data = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    return (
-      data.candidates?.[0]?.content?.parts
-        ?.map((p) => p.text ?? "")
-        .join("")
-        .trim() || null
-    );
+    throw new Error(lastError || "All Gemini models failed");
   } finally {
     clearTimeout(t);
   }

@@ -6,10 +6,16 @@ export const dynamic = "force-dynamic";
 import { count, desc, eq, ne } from "drizzle-orm";
 import {
   ArrowUpRight,
+  Bot,
   ClipboardList,
+  FileDown,
+  Link2,
   ListChecks,
+  Search,
   Sparkles,
   Users,
+  Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -123,42 +129,22 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      {/* HERO */}
-      <section className="glass-apple-strong animate-page-enter relative overflow-hidden rounded-3xl p-8">
-        {/* decorative orbs — restrained, brand-led */}
-        <div className="pointer-events-none absolute -left-24 -top-24 size-80 rounded-full bg-violet-500/40 blur-[100px]" />
-        <div className="pointer-events-none absolute -right-32 -bottom-32 size-72 rounded-full bg-violet-600/20 blur-[100px] animate-float" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
-        <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground backdrop-blur">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
-              </span>
-              Local · single-user · everything runs on this machine
+      {/* HERO — Linear-style: flat, tight, one accent line */}
+      <section className="border-b border-border pb-6">
+        <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-emerald-400" />
+              Local · single-user
             </div>
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
-              {isFresh ? (
-                <>
-                  <span className="text-foreground">Welcome.</span>{" "}
-                  <span className="text-gradient-brand">
-                    Let&apos;s set up your first 5 minutes.
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="text-foreground">{greeting}.</span>{" "}
-                  <span className="text-gradient-brand">
-                    Here&apos;s what needs attention today.
-                  </span>
-                </>
-              )}
-            </h1>
-            <p className="max-w-xl text-base text-muted-foreground">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-foreground md:text-3xl">
               {isFresh
-                ? "100+ SEO tools, daily-agent automation, audits, rank tracking, content writer, code generator — fully self-hosted, fully yours. Pick an AI provider (free Ollama or any API key) and add your first client to unlock everything."
+                ? "Welcome. Let's set up your first 5 minutes."
+                : `${greeting}. Here's what needs attention today.`}
+            </h1>
+            <p className="max-w-2xl text-[13px] text-muted-foreground">
+              {isFresh
+                ? "100+ SEO tools, daily-agent automation, audits, rank tracking, content writer, code generator — fully self-hosted. Pick an AI provider (free Ollama or any API key) and add your first client to unlock everything."
                 : "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills."}
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -166,10 +152,7 @@ export default async function DashboardPage() {
                 <>
                   <Link
                     href="/settings#ai"
-                    className={buttonVariants({
-                      className:
-                        "shadow-lg shadow-violet-500/25 ring-1 ring-inset ring-white/15",
-                    })}
+                    className={buttonVariants()}
                   >
                     Connect an AI provider
                   </Link>
@@ -185,10 +168,7 @@ export default async function DashboardPage() {
                 <>
                   <Link
                     href="/clients/new"
-                    className={buttonVariants({
-                      className:
-                        "shadow-lg shadow-violet-500/25 ring-1 ring-inset ring-white/15",
-                    })}
+                    className={buttonVariants()}
                   >
                     Add a client
                   </Link>
@@ -205,30 +185,30 @@ export default async function DashboardPage() {
           </div>
 
           {!isFresh && (
-            <div className="glass-apple relative flex items-center gap-6 rounded-2xl p-6">
+            <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-4">
               <ScoreGauge score={latestScore} />
-              <div className="space-y-2">
-                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   Latest audit
                 </div>
-                <div className="text-base font-medium">
+                <div className="text-[13px] font-medium text-foreground">
                   {recentAudits[0]?.clientName ?? "—"}
                 </div>
                 {scoreDelta !== null ? (
                   <div
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                    className={`inline-flex items-center gap-1 text-[11px] font-medium tabular-nums ${
                       scoreDelta > 0
-                        ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                        ? "text-emerald-300"
                         : scoreDelta < 0
-                          ? "bg-rose-500/10 text-rose-400 ring-rose-500/20"
-                          : "bg-muted text-muted-foreground ring-border"
+                          ? "text-rose-300"
+                          : "text-muted-foreground"
                     }`}
                   >
                     {scoreDelta > 0 ? "+" : ""}
                     {scoreDelta} vs previous
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-[11px] text-muted-foreground">
                     First measurement
                   </div>
                 )}
@@ -309,69 +289,62 @@ export default async function DashboardPage() {
 
       {/* GETTING STARTED OR DETAIL PANELS */}
       {isFresh ? (
-        <section className="glass-apple animate-page-enter stagger-4 relative overflow-hidden rounded-2xl p-8">
-          <div className="pointer-events-none absolute right-10 top-1/2 size-48 -translate-y-1/2 rounded-full bg-gradient-to-br from-violet-500/20 to-cyan-500/10 blur-2xl" />
-          <div className="relative max-w-xl space-y-3">
-            <div className="text-xs font-medium uppercase tracking-wider text-primary">
+        <section className="rounded-lg border border-border bg-card p-6">
+          <div className="max-w-xl space-y-2">
+            <div className="text-[11px] font-medium text-primary">
               First steps
             </div>
-            <h2 className="text-2xl font-semibold tracking-tight">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
               Add your first client to get started
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               We&apos;ll detect the tech stack, generate an actionable task list
               based on the niche you pick, and run a first audit on demand. No
               API keys needed.
             </p>
             <div className="pt-2">
-              <Link
-                href="/clients/new"
-                className={buttonVariants({
-                  className: "shadow-md shadow-violet-500/25",
-                })}
-              >
+              <Link href="/clients/new" className={buttonVariants()}>
                 Add a client
               </Link>
             </div>
           </div>
         </section>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid gap-4 lg:grid-cols-5">
           {priorityTasks.length > 0 && (
-            <section className="glass-apple animate-page-enter stagger-4 relative overflow-hidden rounded-2xl lg:col-span-3">
-              <div className="pointer-events-none absolute -left-16 -top-16 size-48 rounded-full bg-violet-500/12 blur-3xl" />
-              <header className="relative flex items-center justify-between border-b border-white/5 px-5 py-4">
+            <section className="rounded-lg border border-border bg-card lg:col-span-3">
+              <header className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div>
-                  <h2 className="flex items-center gap-2 text-base font-semibold">
-                    <Sparkles className="size-4 text-violet-300" />
+                  <h2 className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                    <Sparkles className="size-3.5 text-violet-300" />
                     Priority tasks
                   </h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
                     Auto-generated from audits and niche templates
                   </p>
                 </div>
                 <Link
                   href="/tasks"
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   View all
                   <ArrowUpRight className="size-3" />
                 </Link>
               </header>
-              <ul className="relative divide-y divide-white/5">
+              <ul className="divide-y divide-border">
                 {priorityTasks.map((t) => (
                   <li
                     key={t.id}
-                    className="group flex items-start justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.03]"
+                    className="group flex items-start justify-between gap-4 px-4 py-2.5 transition-colors hover:bg-accent"
                   >
                     <div className="space-y-0.5">
-                      <div className="text-sm font-medium leading-snug">
+                      <div className="text-[13px] font-medium leading-snug text-foreground">
                         {t.title}
                       </div>
                       {t.clientName && t.clientId && (
                         <Link
                           href={`/clients/${t.clientId}`}
-                          className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
                         >
                           {t.clientName}
                         </Link>
@@ -390,40 +363,39 @@ export default async function DashboardPage() {
           )}
 
           {recentAudits.length > 0 && (
-            <section className="glass-apple animate-page-enter stagger-5 relative overflow-hidden rounded-2xl lg:col-span-2">
-              <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-violet-500/10 blur-3xl" />
-              <header className="relative flex items-center justify-between border-b border-white/5 px-5 py-4">
+            <section className="rounded-lg border border-border bg-card lg:col-span-2">
+              <header className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div>
-                  <h2 className="flex items-center gap-2 text-base font-semibold">
-                    <ClipboardList className="size-4 text-violet-300" />
+                  <h2 className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                    <ClipboardList className="size-3.5 text-violet-300" />
                     Recent audits
                   </h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
                     Last 5 across all clients
                   </p>
                 </div>
                 <Link
                   href="/clients"
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   Clients
                   <ArrowUpRight className="size-3" />
                 </Link>
               </header>
-              <ul className="relative divide-y divide-white/5">
+              <ul className="divide-y divide-border">
                 {recentAudits.map((a) => (
                   <li
                     key={a.id}
-                    className="flex items-center justify-between gap-3 px-5 py-3.5 text-sm transition-colors hover:bg-white/[0.03]"
+                    className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13px] transition-colors hover:bg-accent"
                   >
                     <div className="min-w-0 space-y-0.5">
                       <Link
                         href={`/audits/${a.id}`}
-                        className="block truncate font-medium hover:underline"
+                        className="block truncate font-medium text-foreground hover:underline"
                       >
                         {a.clientName ?? `Client ${a.clientId}`}
                       </Link>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground">
                         {(a.completedAt ?? a.createdAt).toLocaleDateString()} ·{" "}
                         {a.issuesCount} issues
                       </div>
@@ -436,30 +408,115 @@ export default async function DashboardPage() {
           )}
         </div>
       )}
+
+      {/* Bento quick-actions — Linear-style flat tiles, one per workflow */}
+      <BentoQuickActions />
     </div>
   );
 }
 
 function ScoreBadge({ score }: { score: number | null }) {
-  let tone = "bg-muted/40 text-muted-foreground ring-border";
-  let textTone = "";
+  let cls = "border-border bg-muted text-muted-foreground";
   if (score !== null) {
-    if (score >= 80) {
-      tone = "bg-emerald-500/10 ring-emerald-500/30";
-      textTone = "text-gradient-emerald";
-    } else if (score >= 50) {
-      tone = "bg-amber-500/10 ring-amber-500/30";
-      textTone = "text-gradient-amber";
-    } else {
-      tone = "bg-rose-500/10 ring-rose-500/30";
-      textTone = "text-gradient-rose";
-    }
+    if (score >= 80) cls = "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+    else if (score >= 50) cls = "border-amber-500/30 bg-amber-500/10 text-amber-300";
+    else cls = "border-rose-500/30 bg-rose-500/10 text-rose-300";
   }
   return (
     <span
-      className={`inline-flex h-10 w-12 items-center justify-center rounded-xl text-base font-bold ring-1 ring-inset ${tone} ${textTone}`}
+      className={`inline-flex h-8 w-10 items-center justify-center rounded-md border text-[13px] font-semibold tabular-nums ${cls}`}
     >
       {score ?? "—"}
     </span>
+  );
+}
+
+type BentoTile = {
+  href: string;
+  title: string;
+  desc: string;
+  icon: LucideIcon;
+  iconColor: string;
+  /** Optional col / row span for the asymmetric Bento layout */
+  className?: string;
+};
+
+const BENTO_TILES: BentoTile[] = [
+  {
+    href: "/audits",
+    title: "Run an audit",
+    desc: "30 SEO checks, severity-classified, AI-summarized.",
+    icon: ClipboardList,
+    iconColor: "text-violet-300",
+    className: "md:col-span-2 md:row-span-2",
+  },
+  {
+    href: "/keywords",
+    title: "Track keywords",
+    desc: "Daily ranks, free browser mode.",
+    icon: Search,
+    iconColor: "text-cyan-300",
+  },
+  {
+    href: "/reports",
+    title: "Generate report",
+    desc: "PDF, white-label, AI summary.",
+    icon: FileDown,
+    iconColor: "text-amber-300",
+  },
+  {
+    href: "/agent",
+    title: "AI agent",
+    desc: "Auto-detects issues + applies fixes via WP bridge.",
+    icon: Bot,
+    iconColor: "text-fuchsia-300",
+    className: "md:col-span-2",
+  },
+  {
+    href: "/backlinks",
+    title: "Backlinks",
+    desc: "GSC + Common Crawl, lost-link recovery.",
+    icon: Link2,
+    iconColor: "text-emerald-300",
+  },
+  {
+    href: "/tools",
+    title: "All tools",
+    desc: "100+ tools in one searchable grid.",
+    icon: Wrench,
+    iconColor: "text-rose-300",
+  },
+];
+
+function BentoQuickActions() {
+  return (
+    <section>
+      <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Quick actions
+      </h2>
+      <div className="grid auto-rows-[110px] grid-cols-2 gap-3 md:grid-cols-4">
+        {BENTO_TILES.map((tile) => {
+          const Icon = tile.icon;
+          return (
+            <Link
+              key={tile.href}
+              href={tile.href}
+              className={`group relative flex flex-col justify-between rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/80 hover:bg-accent ${tile.className ?? ""}`}
+            >
+              <Icon className={`size-4 ${tile.iconColor}`} />
+              <div>
+                <div className="text-[13px] font-semibold text-foreground">
+                  {tile.title}
+                </div>
+                <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                  {tile.desc}
+                </div>
+              </div>
+              <ArrowUpRight className="absolute right-3 top-3 size-3 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }

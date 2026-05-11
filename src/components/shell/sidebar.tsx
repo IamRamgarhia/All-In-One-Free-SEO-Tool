@@ -68,6 +68,7 @@ const groups: NavGroup[] = [
     pinned: true,
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/welcome", label: "Get started", icon: Sparkles },
       { href: "/clients", label: "Clients", icon: Users },
       { href: "/seo-chat", label: "SEO chat", icon: Bot },
       { href: "/audits", label: "Audits", icon: ClipboardList },

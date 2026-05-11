@@ -36,10 +36,18 @@ type ProbeResult =
   | { ok: false; status?: number; error: string };
 
 async function probeGemini(apiKey: string): Promise<ProbeResult> {
-  // Try a couple of model names — Google has renamed flash models more
-  // than once. Whichever returns 200 wins.
-  const candidates = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-pro"];
-  let lastErr = "";
+  // Current free-tier model names, newest first. We try in order and
+  // return on the first 200. gemini-pro is intentionally NOT here — it
+  // was removed from the v1beta endpoint and only causes confusion.
+  const candidates = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+  ];
+  const attempts: string[] = [];
+  let authError: { status: number; body: string } | null = null;
+
   for (const model of candidates) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
     try {
@@ -61,19 +69,39 @@ async function probeGemini(apiKey: string): Promise<ProbeResult> {
             ?.map((p) => p.text ?? "")
             .join("")
             .trim() ?? "";
-        return { ok: true, reply: reply || "(empty reply but key works)" };
+        return {
+          ok: true,
+          reply: `[${model}] ${reply || "(empty reply but key works)"}`,
+        };
       }
-      const body = (await res.text()).slice(0, 300);
-      lastErr = `${model} → ${res.status}: ${body}`;
-      // Auth-level failure → no point trying other models, same error
-      if (res.status === 400 || res.status === 401 || res.status === 403) {
-        return { ok: false, status: res.status, error: body };
+      const body = (await res.text()).slice(0, 200);
+      attempts.push(`${model}=${res.status}`);
+      // Auth-level errors mean the KEY is bad — stop trying other models.
+      if (res.status === 401 || res.status === 403) {
+        authError = { status: res.status, body };
+        break;
+      }
+      // 400 from v1beta with API_KEY_INVALID is also key-level, not model
+      if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(body)) {
+        authError = { status: 400, body };
+        break;
       }
     } catch (err) {
-      lastErr = `${model}: ${(err as Error).message}`;
+      attempts.push(`${model}=${(err as Error).message.slice(0, 40)}`);
     }
   }
-  return { ok: false, error: lastErr || "All Gemini models failed" };
+
+  if (authError) {
+    return {
+      ok: false,
+      status: authError.status,
+      error: `Key rejected (${authError.status}). ${authError.body.replace(/\s+/g, " ").slice(0, 180)}. Generate a fresh key at https://aistudio.google.com/apikey`,
+    };
+  }
+  return {
+    ok: false,
+    error: `None of the current Gemini models work with this key. Tried: ${attempts.join(", ")}. The key looks valid (no auth error) but lacks access. Most likely fix: open https://aistudio.google.com/apikey → delete the key → create a new one.`,
+  };
 }
 
 async function probeOpenAICompat(opts: {
