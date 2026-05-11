@@ -14,7 +14,11 @@ import { markSectionSeen } from "@/lib/unread-counts";
 
 export default async function AgentIndexPage() {
   await markSectionSeen("suggestions").catch(() => {});
-  const all = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  const all = await db
+    .select()
+    .from(clients)
+    .orderBy(desc(clients.createdAt))
+    .limit(500);
   const active = await getActiveProvider();
   const { byId } = await configuredProviders();
   const aiReady = Boolean(active && byId[active]);

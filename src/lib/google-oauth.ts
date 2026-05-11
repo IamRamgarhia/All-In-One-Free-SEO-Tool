@@ -2,6 +2,7 @@ import { getSetting, setSetting, deleteSetting } from "@/lib/settings-store";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { decrypt, encrypt } from "@/lib/crypto";
 
 /**
  * Google OAuth + GSC + GA4 integration.
@@ -180,12 +181,13 @@ export async function getAccessToken(
       .limit(1);
 
     if (c?.googleRefreshToken) {
+      const refreshTokenPlain = decrypt(c.googleRefreshToken);
+      const accessTokenPlain = c.googleAccessToken
+        ? decrypt(c.googleAccessToken)
+        : null;
       const expiresAt = c.googleAccessTokenExpiresAt ?? 0;
-      if (
-        c.googleAccessToken &&
-        expiresAt - 60_000 > Date.now()
-      ) {
-        return c.googleAccessToken;
+      if (accessTokenPlain && expiresAt - 60_000 > Date.now()) {
+        return accessTokenPlain;
       }
       // Refresh per-client token using workspace OAuth client credentials
       const wsClientId = await getSetting<string>("google.client_id");
@@ -196,7 +198,7 @@ export async function getAccessToken(
         );
       }
       const refreshed = await refreshAccessToken({
-        refreshToken: c.googleRefreshToken,
+        refreshToken: refreshTokenPlain,
         clientId: wsClientId,
         clientSecret: wsClientSecret,
       });
@@ -204,7 +206,7 @@ export async function getAccessToken(
       await db
         .update(clients)
         .set({
-          googleAccessToken: refreshed.access_token,
+          googleAccessToken: encrypt(refreshed.access_token),
           googleAccessTokenExpiresAt: newExpiresAt,
         })
         .where(eq(clients.id, clientIdScope));
@@ -213,7 +215,7 @@ export async function getAccessToken(
     // Fall through to workspace tokens
   }
 
-  const [clientId, clientSecret, refreshToken, accessToken, expiresAtRaw] =
+  const [clientId, clientSecret, refreshTokenRaw, accessTokenRaw, expiresAtRaw] =
     await Promise.all([
       getSetting<string>("google.client_id"),
       getSetting<string>("google.client_secret"),
@@ -221,6 +223,10 @@ export async function getAccessToken(
       getSetting<string>("google.access_token"),
       getSetting<number>("google.access_token_expires_at"),
     ]);
+
+  // Decrypt at-rest values (no-op for legacy plaintext rows)
+  const refreshToken = refreshTokenRaw ? decrypt(refreshTokenRaw) : null;
+  const accessToken = accessTokenRaw ? decrypt(accessTokenRaw) : null;
 
   if (!clientId || !clientSecret || !refreshToken) {
     throw new Error("Google not connected — connect it in Settings → Google.");
@@ -238,7 +244,7 @@ export async function getAccessToken(
     clientSecret,
   });
   await Promise.all([
-    setSetting("google.access_token", refreshed.access_token),
+    setSetting("google.access_token", encrypt(refreshed.access_token)),
     setSetting(
       "google.access_token_expires_at",
       Date.now() + refreshed.expires_in * 1000,

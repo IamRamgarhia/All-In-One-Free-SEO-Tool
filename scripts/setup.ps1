@@ -84,6 +84,18 @@ if (Test-Path "scripts/gen-icons.mjs") {
     }
 }
 
+# ---- 4c. encryption key -----------------------------------------------------
+# Generate a 256-bit AES key for encrypting AI/Google/WP credentials at rest.
+# Stored alongside data.db; back BOTH up together. See src/lib/crypto.ts.
+if (-not (Test-Path ".seo-encryption-key")) {
+    Say "Generating encryption key for at-rest credential storage"
+    node -e "const c=require('node:crypto'); const fs=require('node:fs'); fs.writeFileSync('.seo-encryption-key', c.randomBytes(32).toString('base64'), { mode: 0o600 });"
+    if ($LASTEXITCODE -ne 0) { Warn "Could not generate encryption key — credentials will be stored unencrypted until this is fixed" }
+}
+else {
+    Say "Encryption key already exists (skipping)"
+}
+
 # ---- 5. .env.local ---------------------------------------------------------
 if (-not (Test-Path ".env.local")) {
     if (Test-Path ".env.example") {

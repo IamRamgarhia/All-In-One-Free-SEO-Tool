@@ -13,6 +13,7 @@
 
 import { getApiKey, getOllamaUrl } from "@/lib/api-keys";
 import type { ActiveProvider } from "@/lib/api-keys";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -196,6 +197,24 @@ async function probeOllama(url: string): Promise<ProbeResult> {
 }
 
 export async function POST(req: Request) {
+  // Rate limit: every probe hits a real upstream provider API and may
+  // count toward the user's quota. 12 tests per minute per IP is plenty
+  // for legitimate use (clicking Test once per provider you're trying)
+  // and prevents accidental thrashing.
+  const limit = checkRateLimit(`test-provider:${clientKey(req)}`, {
+    max: 12,
+    windowMs: 60_000,
+  });
+  if (!limit.allowed) {
+    return Response.json(
+      {
+        ok: false,
+        error: `Rate limit hit (12 tests / minute). Wait ${Math.ceil((limit.resetAt - Date.now()) / 1000)}s and try again.`,
+      },
+      { status: 429, headers: { "retry-after": "30" } },
+    );
+  }
+
   const body = (await req.json().catch(() => null)) as {
     provider?: string;
   } | null;

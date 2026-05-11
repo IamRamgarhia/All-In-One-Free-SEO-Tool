@@ -6,6 +6,7 @@ import {
   getGoogleClientCredentials,
 } from "@/lib/google-oauth";
 import { setSetting } from "@/lib/settings-store";
+import { encrypt } from "@/lib/crypto";
 import { logActivity } from "@/lib/activity";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
@@ -98,12 +99,13 @@ export async function GET(req: NextRequest) {
   }
 
   if (targetClientId) {
-    // Persist tokens against this specific client (per-client OAuth)
+    // Persist tokens against this specific client (per-client OAuth).
+    // Tokens encrypted at rest — see lib/crypto.ts.
     await db
       .update(clients)
       .set({
-        googleRefreshToken: tokens.refresh_token,
-        googleAccessToken: tokens.access_token,
+        googleRefreshToken: encrypt(tokens.refresh_token),
+        googleAccessToken: encrypt(tokens.access_token),
         googleAccessTokenExpiresAt: expiresAt,
         googleConnectedEmail: email,
       })
@@ -122,10 +124,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Workspace-wide tokens
+  // Workspace-wide tokens — encrypted at rest. See lib/crypto.ts.
   await Promise.all([
-    setSetting("google.refresh_token", tokens.refresh_token),
-    setSetting("google.access_token", tokens.access_token),
+    setSetting("google.refresh_token", encrypt(tokens.refresh_token)),
+    setSetting("google.access_token", encrypt(tokens.access_token)),
     setSetting("google.access_token_expires_at", expiresAt),
   ]);
   if (email) await setSetting("google.connected_email", email);

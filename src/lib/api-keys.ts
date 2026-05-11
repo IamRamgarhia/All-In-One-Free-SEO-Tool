@@ -1,4 +1,5 @@
-import { getSetting } from "./settings-store";
+import { getSetting, setSetting } from "./settings-store";
+import { decrypt, ensureEncrypted, isEncrypted } from "./crypto";
 
 export type { Provider } from "./api-providers";
 export { PROVIDER_CATALOG } from "./api-providers";
@@ -35,7 +36,17 @@ const SETTING_KEY: Record<Provider, `api.${Provider}`> = {
 export async function getApiKey(provider: Provider): Promise<string | null> {
   // Settings DB takes precedence — that's what the user pasted in the UI.
   const fromDb = await getSetting<string>(SETTING_KEY[provider]);
-  if (fromDb && fromDb.length > 0) return fromDb;
+  if (fromDb && fromDb.length > 0) {
+    const plain = decrypt(fromDb);
+    // Lazy migration: if the row was stored plaintext, re-write encrypted
+    // on first read so subsequent reads/backups carry the protected form.
+    if (!isEncrypted(fromDb) && plain) {
+      void setSetting(SETTING_KEY[provider], ensureEncrypted(plain)).catch(
+        () => undefined,
+      );
+    }
+    return plain;
+  }
 
   const fromEnv = process.env[ENV_VAR[provider]];
   if (fromEnv && fromEnv.length > 0) return fromEnv;

@@ -7,6 +7,7 @@ import {
   type SettingKey,
 } from "@/lib/settings-store";
 import { type Provider } from "@/lib/api-providers";
+import { encrypt } from "@/lib/crypto";
 
 const ALLOWED_KEYS: Record<Provider, SettingKey> = {
   openai: "api.openai",
@@ -32,7 +33,8 @@ export async function saveApiKey(
   if (raw === "") {
     await deleteSetting(key);
   } else {
-    await setSetting(key, raw);
+    // Encrypt before persisting — see lib/crypto.ts
+    await setSetting(key, encrypt(raw));
   }
   revalidatePath("/settings");
   revalidatePath("/ai-visibility");

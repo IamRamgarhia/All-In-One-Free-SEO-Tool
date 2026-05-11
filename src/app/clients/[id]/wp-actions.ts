@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { logActivity } from "@/lib/activity";
+import { encrypt } from "@/lib/crypto";
 import {
   findPostIdByUrl,
   getClientWpCreds,
@@ -66,7 +67,8 @@ export async function saveWpCreds(
     .update(clients)
     .set({
       wpEndpoint: endpoint,
-      wpKey: parsed.data.key,
+      // WP application password — encrypted at rest. See lib/crypto.ts.
+      wpKey: encrypt(parsed.data.key),
       updatedAt: new Date(),
     })
     .where(eq(clients.id, parsed.data.clientId));

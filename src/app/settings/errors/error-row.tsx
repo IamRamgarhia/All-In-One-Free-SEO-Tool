@@ -125,6 +125,7 @@ export function ErrorRow({ error: e }: { error: ErrorRow }) {
           <button
             type="button"
             onClick={copyForIssue}
+            aria-label="Copy error details to clipboard"
             className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-2.5 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <Copy className="size-3.5" />

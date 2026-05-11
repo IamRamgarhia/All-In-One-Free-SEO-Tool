@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { inboundWebhooks, inboundWebhookEvents } from "@/db/schema";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,6 +13,27 @@ async function handle(req: Request, params: { token: string }) {
       status: 401,
       headers: { "content-type": "application/json" },
     });
+  }
+
+  // Per-token rate limit — caps abuse if a token leaks. 600 req/min
+  // (10/sec) is far above legitimate webhook traffic.
+  const limit = checkRateLimit(`webhook:${token}`, {
+    max: 600,
+    windowMs: 60_000,
+  });
+  if (!limit.allowed) {
+    return new Response(
+      JSON.stringify({ error: "Rate limit exceeded for this token." }),
+      {
+        status: 429,
+        headers: {
+          "content-type": "application/json",
+          "retry-after": String(
+            Math.max(1, Math.ceil((limit.resetAt - Date.now()) / 1000)),
+          ),
+        },
+      },
+    );
   }
 
   const [hook] = await db

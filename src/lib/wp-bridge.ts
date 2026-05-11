@@ -17,6 +17,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
+import { decrypt } from "@/lib/crypto";
 
 export type WpCreds = { endpoint: string; key: string };
 
@@ -29,7 +30,8 @@ export async function getClientWpCreds(
     .where(eq(clients.id, clientId))
     .limit(1);
   if (!c?.endpoint || !c?.key) return null;
-  return { endpoint: c.endpoint.replace(/\/+$/, ""), key: c.key };
+  // Decrypt at-rest WP application password (no-op for legacy plaintext rows)
+  return { endpoint: c.endpoint.replace(/\/+$/, ""), key: decrypt(c.key) };
 }
 
 async function wpFetch<T>(

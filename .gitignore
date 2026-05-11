@@ -34,6 +34,7 @@ dev-server.err.log
 .dev-server.pid
 .dev-server.cmd
 .seo-port
+.seo-encryption-key
 
 # desktop guides regenerated per install
 *-Welcome.txt

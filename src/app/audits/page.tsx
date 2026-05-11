@@ -11,7 +11,15 @@ import {
 } from "@/components/shell/client-tool-grid";
 
 export default async function AuditsIndexPage() {
-  const all = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  // Hard-cap at 500 clients to keep this page responsive. Realistic max
+  // for a freelance/small agency is ~20-50 clients; the cap exists to
+  // prevent a pathological case (accidental bulk-import) from blocking
+  // the page indefinitely.
+  const all = await db
+    .select()
+    .from(clients)
+    .orderBy(desc(clients.createdAt))
+    .limit(500);
 
   const cards: ClientToolCard[] = await Promise.all(
     all.map(async (c) => {
