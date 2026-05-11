@@ -134,10 +134,7 @@
   html {
     @apply font-sans;
     color-scheme: dark;
-    /* Base 16.5px — bigger than Linear's 13-14 but readable for a daily
-       work tool. Components still feel compact because we use tight
-       line-heights, not because text is small. */
-    font-size: 16.5px;
+    font-size: 15px;
   }
   body {
     @apply bg-background text-foreground;
