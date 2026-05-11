@@ -1,6 +1,6 @@
 "use server";
 
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   activityLog,
@@ -124,40 +124,66 @@ export async function recentNotifications(): Promise<Notification[]> {
     });
   }
 
-  // System events from activity log — currently surfaces:
-  //   - "update available" notifications when GitHub has a newer commit
-  //   - "update applied" when the user (or auto-updater) pulled changes
-  // Pulls the most recent 5; dedup happens at the logActivity layer.
-  const systemEvents = await db
+  // System events from activity log. Surfaces:
+  //   - the SINGLE most-recent "update available" notification, but
+  //     ONLY if it's newer than the most-recent "updated" — otherwise
+  //     it's stale (user already applied that update or one past it).
+  //   - the SINGLE most-recent "updated" event (success toast).
+  // logActivity dedupes by (kind, message) within 24h, so the same
+  // commit SHA only ever creates one row of each kind.
+  const [lastAvail] = await db
     .select({
       id: activityLog.id,
-      kind: activityLog.kind,
+      message: activityLog.message,
+      at: activityLog.createdAt,
+    })
+    .from(activityLog)
+    .where(eq(activityLog.kind, "system.update_available"))
+    .orderBy(desc(activityLog.createdAt))
+    .limit(1);
+
+  const [lastUpdated] = await db
+    .select({
+      id: activityLog.id,
       message: activityLog.message,
       level: activityLog.level,
       at: activityLog.createdAt,
     })
     .from(activityLog)
-    .where(
-      inArray(activityLog.kind, [
-        "system.update_available",
-        "system.updated",
-      ]),
-    )
+    .where(eq(activityLog.kind, "system.updated"))
     .orderBy(desc(activityLog.createdAt))
-    .limit(5);
+    .limit(1);
 
-  for (const ev of systemEvents) {
-    const isAvail = ev.kind === "system.update_available";
+  // Hide "update available" if the user already applied something newer.
+  if (
+    lastAvail &&
+    (!lastUpdated || lastAvail.at.getTime() > lastUpdated.at.getTime())
+  ) {
     out.push({
-      id: `sys:${ev.id}`,
-      kind: isAvail ? "update_available" : "update_applied",
-      level: isAvail
-        ? "info"
-        : ((ev.level ?? "success") as Notification["level"]),
-      title: isAvail ? "Update available" : "App updated",
-      body: ev.message,
+      id: `sys:avail:${lastAvail.id}`,
+      kind: "update_available",
+      level: "info",
+      title: "Update available",
+      body: lastAvail.message,
       href: "/settings#update",
-      at: ev.at,
+      at: lastAvail.at,
+    });
+  }
+
+  // Show "App updated" only when it's recent (last 24h) so it doesn't
+  // linger forever after a successful update.
+  if (
+    lastUpdated &&
+    Date.now() - lastUpdated.at.getTime() < 24 * 60 * 60 * 1000
+  ) {
+    out.push({
+      id: `sys:upd:${lastUpdated.id}`,
+      kind: "update_applied",
+      level: (lastUpdated.level ?? "success") as Notification["level"],
+      title: "App updated",
+      body: lastUpdated.message,
+      href: "/settings#update",
+      at: lastUpdated.at,
     });
   }
 

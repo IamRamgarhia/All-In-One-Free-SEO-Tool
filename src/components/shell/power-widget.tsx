@@ -21,6 +21,20 @@ export function PowerWidget() {
   const [busy, setBusy] = useState<null | "restart" | "stop">(null);
   const [msg, setMsg] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  // Tracks the restart-poll setTimeout so we can clear it on unmount —
+  // otherwise the 60-second poll keeps running after the user navigates
+  // away, firing fetches + setState on an unmounted component.
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any pending restart-poll when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current !== null) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Close on outside click + Esc
   useEffect(() => {
@@ -63,6 +77,7 @@ export function PowerWidget() {
     setMsg("Waiting for server to come back…");
     const start = Date.now();
     const poll = async () => {
+      pollTimerRef.current = null;
       try {
         const res = await fetch("/api/health-ping", { cache: "no-store" });
         if (res.ok) {
@@ -73,7 +88,7 @@ export function PowerWidget() {
         // expected during downtime
       }
       if (Date.now() - start < 60_000) {
-        setTimeout(poll, 1_500);
+        pollTimerRef.current = setTimeout(poll, 1_500);
       } else {
         setMsg(
           "Server didn't come back in 60s. Open seo.cmd or your desktop shortcut.",
@@ -81,7 +96,7 @@ export function PowerWidget() {
         setBusy(null);
       }
     };
-    setTimeout(poll, 4_000);
+    pollTimerRef.current = setTimeout(poll, 4_000);
   }
 
   async function stop() {
