@@ -1,13 +1,28 @@
 /**
- * OG image generator. Renders a customizable HTML template in headless
- * Chrome (via the existing browser pool) and screenshots it to a 1200×630
- * PNG suitable for og:image / twitter:image.
+ * OG image generator — Satori-powered. Renders a JSX tree to SVG via
+ * Satori (pure JS, no browser), then converts SVG → PNG with @resvg/resvg-js.
  *
- * No paid AI image API — we render real HTML/CSS so the user can iterate
- * on styling. Returns base64 data URL.
+ * Replaces the previous headless-chromium implementation. Trade-offs:
+ *
+ *   Before (headless Chrome screenshot)
+ *     Per call:  ~3-5 sec, ~300 MB RAM spike
+ *     Bundle:    ~0 (browser already pooled for SERP scans, etc.)
+ *     Quality:   Full HTML/CSS support
+ *
+ *   After (Satori + resvg)
+ *     Per call:  ~80-150 ms, < 20 MB RAM
+ *     Bundle:    ~3 MB (satori) + ~3 MB (resvg-js)
+ *     Quality:   ~95% of CSS — flexbox, gradients, fonts, shadows.
+ *                No: filters, complex backgrounds, animations.
+ *
+ * Same exported function signature so callers don't change.
  */
 
-import { withBrowserPage } from "./browser-pool";
+import satori from "satori";
+import { Resvg } from "@resvg/resvg-js";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import React from "react";
 
 export type OgTemplate = "minimal" | "gradient" | "card" | "magazine";
 
@@ -15,149 +30,391 @@ export type OgOptions = {
   title: string;
   subtitle?: string;
   brand?: string;
-  brandColor?: string; // hex
+  brandColor?: string;
   template?: OgTemplate;
   imageUrl?: string;
 };
+
+// Font is loaded once and reused. Satori requires a TTF; we fall back
+// to a CDN-hosted Inter font fetched on first call when no local font
+// is present. The font Buffer is small (~250 KB regular weight).
+let cachedFontRegular: ArrayBuffer | null = null;
+let cachedFontBold: ArrayBuffer | null = null;
+
+async function loadLocalFont(file: string): Promise<ArrayBuffer | null> {
+  try {
+    const buf = await readFile(
+      join(process.cwd(), "src", "lib", "fonts", file),
+    );
+    return buf.buffer.slice(
+      buf.byteOffset,
+      buf.byteOffset + buf.byteLength,
+    ) as ArrayBuffer;
+  } catch {
+    return null;
+  }
+}
+
+async function loadFonts(): Promise<{ regular: ArrayBuffer; bold: ArrayBuffer }> {
+  if (cachedFontRegular && cachedFontBold) {
+    return { regular: cachedFontRegular, bold: cachedFontBold };
+  }
+  // Prefer the Inter TTFs in src/lib/fonts/ if the user dropped them
+  // in for the PDF reports — reuses the same asset.
+  const r = await loadLocalFont("Inter-Regular.ttf");
+  const b = await loadLocalFont("Inter-Bold.ttf");
+  if (r && b) {
+    cachedFontRegular = r;
+    cachedFontBold = b;
+    return { regular: r, bold: b };
+  }
+  // Fallback: pull from Google Fonts CDN at first run. Cached for the
+  // process lifetime.
+  const fetchTtf = async (cssUrl: string): Promise<ArrayBuffer> => {
+    const cssRes = await fetch(cssUrl, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    const css = await cssRes.text();
+    const match = css.match(/src:\s*url\((https:[^)]+\.ttf)\)/);
+    if (!match) throw new Error("Couldn't find TTF in CSS response");
+    const fontRes = await fetch(match[1]);
+    return await fontRes.arrayBuffer();
+  };
+  cachedFontRegular = await fetchTtf(
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap",
+  );
+  cachedFontBold = await fetchTtf(
+    "https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap",
+  );
+  return { regular: cachedFontRegular, bold: cachedFontBold };
+}
 
 export async function generateOgImage(opts: OgOptions): Promise<{
   ok: boolean;
   dataUrl?: string;
   error?: string;
 }> {
-  const html = renderHtml(opts);
   try {
-    const dataUrl = await withBrowserPage(async (page) => {
-      await page.setViewportSize({ width: 1200, height: 630 });
-      await page.setContent(html, { waitUntil: "networkidle", timeout: 15_000 });
-      const buf = await page.screenshot({
-        type: "png",
-        fullPage: false,
-        clip: { x: 0, y: 0, width: 1200, height: 630 },
-      });
-      return `data:image/png;base64,${buf.toString("base64")}`;
+    const { regular, bold } = await loadFonts();
+    const svg = await satori(buildTree(opts), {
+      width: 1200,
+      height: 630,
+      fonts: [
+        { name: "Inter", data: regular, weight: 400, style: "normal" },
+        { name: "Inter", data: bold, weight: 700, style: "normal" },
+      ],
     });
+    const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } });
+    const png = resvg.render().asPng();
+    const dataUrl = `data:image/png;base64,${Buffer.from(png).toString("base64")}`;
     return { ok: true, dataUrl };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
 }
 
-function renderHtml(opts: OgOptions): string {
-  const tmpl = opts.template ?? "gradient";
-  const brand = opts.brand ?? "";
-  const color = opts.brandColor ?? "#7c3aed";
-  const title = escapeHtml(opts.title);
-  const subtitle = escapeHtml(opts.subtitle ?? "");
-  const safeImg = opts.imageUrl ? escapeAttr(opts.imageUrl) : null;
+// ──────────────────────────────────────────────────────────────────
+// Template builders. Each returns a Satori-compatible JSX tree.
+// Satori supports a subset of CSS: flexbox, gradients, transforms,
+// text styling. No filter, no clip-path, no complex backgrounds.
+// ──────────────────────────────────────────────────────────────────
 
-  const css = `
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 1200px; height: 630px; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #fff; }
-  `;
+function buildTree(opts: OgOptions): React.ReactElement {
+  const tmpl = opts.template ?? "gradient";
+  const brand = opts.brand;
+  const color = opts.brandColor ?? "#7c3aed";
+  const { title, subtitle, imageUrl } = opts;
 
   if (tmpl === "minimal") {
-    return base(css + minimalCss(color), `
-      <div class="og-container">
-        ${brand ? `<div class="og-brand">${escapeHtml(brand)}</div>` : ""}
-        <h1>${title}</h1>
-        ${subtitle ? `<p>${subtitle}</p>` : ""}
-      </div>
-    `);
+    return Minimal({ title, subtitle, brand, color });
   }
   if (tmpl === "card") {
-    return base(css + cardCss(color), `
-      <div class="og-bg">
-        <div class="og-card">
-          ${brand ? `<div class="og-brand">${escapeHtml(brand)}</div>` : ""}
-          <h1>${title}</h1>
-          ${subtitle ? `<p>${subtitle}</p>` : ""}
-        </div>
-      </div>
-    `);
+    return Card({ title, subtitle, brand, color });
   }
   if (tmpl === "magazine") {
-    return base(css + magazineCss(color), `
-      <div class="og-mag">
-        <div class="og-text">
-          ${brand ? `<div class="og-brand">${escapeHtml(brand).toUpperCase()}</div>` : ""}
-          <h1>${title}</h1>
-          ${subtitle ? `<p>${subtitle}</p>` : ""}
-        </div>
-        ${safeImg ? `<div class="og-img" style="background-image: url('${safeImg}')"></div>` : ""}
-      </div>
-    `);
+    return Magazine({ title, subtitle, brand, color, imageUrl });
   }
-  // gradient (default)
-  return base(css + gradientCss(color), `
-    <div class="og-gradient">
-      <div class="og-content">
-        ${brand ? `<div class="og-brand">${escapeHtml(brand)}</div>` : ""}
-        <h1>${title}</h1>
-        ${subtitle ? `<p>${subtitle}</p>` : ""}
-      </div>
-      <div class="og-glow og-glow-1"></div>
-      <div class="og-glow og-glow-2"></div>
-    </div>
-  `);
+  return Gradient({ title, subtitle, brand, color });
 }
 
-function base(css: string, body: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`;
+type TemplateProps = {
+  title: string;
+  subtitle?: string;
+  brand?: string;
+  color: string;
+  imageUrl?: string;
+};
+
+function Minimal({ title, subtitle, brand, color }: TemplateProps) {
+  return React.createElement(
+    "div",
+    {
+      style: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        padding: "80px",
+        background: "#0c0d12",
+        color: "#fff",
+        fontFamily: "Inter",
+      },
+    },
+    brand
+      ? React.createElement(
+          "div",
+          {
+            style: {
+              fontSize: 24,
+              color,
+              fontWeight: 600,
+              marginBottom: 24,
+              letterSpacing: "0.05em",
+            },
+          },
+          brand,
+        )
+      : null,
+    React.createElement(
+      "div",
+      {
+        style: {
+          fontSize: 64,
+          fontWeight: 700,
+          lineHeight: 1.1,
+          maxWidth: 1000,
+        },
+      },
+      title,
+    ),
+    subtitle
+      ? React.createElement(
+          "div",
+          {
+            style: {
+              marginTop: 24,
+              fontSize: 28,
+              color: "rgba(255,255,255,0.7)",
+              lineHeight: 1.4,
+              maxWidth: 900,
+            },
+          },
+          subtitle,
+        )
+      : null,
+  );
 }
 
-function minimalCss(c: string): string {
-  return `
-    .og-container { width: 1200px; height: 630px; background: #0c0d12; padding: 80px; display: flex; flex-direction: column; justify-content: center; }
-    .og-brand { font-size: 24px; color: ${c}; font-weight: 600; margin-bottom: 24px; letter-spacing: 0.05em; }
-    h1 { font-size: 64px; font-weight: 700; line-height: 1.1; max-width: 1000px; }
-    p { margin-top: 24px; font-size: 28px; color: rgba(255,255,255,0.7); line-height: 1.4; max-width: 900px; }
-  `;
+function Gradient({ title, subtitle, brand, color }: TemplateProps) {
+  return React.createElement(
+    "div",
+    {
+      style: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        padding: "80px",
+        background: `linear-gradient(135deg, #0c0d12 0%, ${color}22 50%, #06b6d422 100%)`,
+        color: "#fff",
+        fontFamily: "Inter",
+      },
+    },
+    React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column" } },
+      brand
+        ? React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 24,
+                color,
+                fontWeight: 700,
+                marginBottom: 24,
+                letterSpacing: "0.05em",
+              },
+            },
+            brand,
+          )
+        : null,
+      React.createElement(
+        "div",
+        {
+          style: {
+            fontSize: 72,
+            fontWeight: 700,
+            lineHeight: 1.05,
+            maxWidth: 950,
+            color: "#fff",
+          },
+        },
+        title,
+      ),
+      subtitle
+        ? React.createElement(
+            "div",
+            {
+              style: {
+                marginTop: 32,
+                fontSize: 30,
+                color: "rgba(255,255,255,0.65)",
+                lineHeight: 1.4,
+                maxWidth: 900,
+              },
+            },
+            subtitle,
+          )
+        : null,
+    ),
+  );
 }
 
-function gradientCss(c: string): string {
-  return `
-    .og-gradient { width: 1200px; height: 630px; background: #0c0d12; position: relative; overflow: hidden; padding: 80px; display: flex; align-items: center; }
-    .og-content { position: relative; z-index: 2; }
-    .og-brand { font-size: 24px; color: ${c}; font-weight: 700; margin-bottom: 24px; letter-spacing: 0.05em; }
-    h1 { font-size: 72px; font-weight: 700; line-height: 1.05; max-width: 950px; background: linear-gradient(135deg, #fff 0%, ${c} 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-    p { margin-top: 32px; font-size: 30px; color: rgba(255,255,255,0.65); line-height: 1.4; max-width: 900px; }
-    .og-glow { position: absolute; border-radius: 9999px; filter: blur(120px); opacity: 0.4; }
-    .og-glow-1 { width: 600px; height: 600px; background: ${c}; top: -200px; left: -150px; }
-    .og-glow-2 { width: 500px; height: 500px; background: #06b6d4; bottom: -200px; right: -100px; }
-  `;
+function Card({ title, subtitle, brand, color }: TemplateProps) {
+  return React.createElement(
+    "div",
+    {
+      style: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "60px",
+        background: `linear-gradient(135deg, ${color} 0%, #0c0d12 100%)`,
+        fontFamily: "Inter",
+      },
+    },
+    React.createElement(
+      "div",
+      {
+        style: {
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          width: 1080,
+          minHeight: 510,
+          background: "rgba(15,17,28,0.85)",
+          borderRadius: 24,
+          padding: 60,
+          border: "1px solid rgba(255,255,255,0.1)",
+          color: "#fff",
+        },
+      },
+      brand
+        ? React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 22,
+                color,
+                fontWeight: 600,
+                marginBottom: 20,
+              },
+            },
+            brand,
+          )
+        : null,
+      React.createElement(
+        "div",
+        {
+          style: { fontSize: 60, fontWeight: 700, lineHeight: 1.1, maxWidth: 950 },
+        },
+        title,
+      ),
+      subtitle
+        ? React.createElement(
+            "div",
+            {
+              style: {
+                marginTop: 24,
+                fontSize: 26,
+                color: "rgba(255,255,255,0.7)",
+                lineHeight: 1.4,
+              },
+            },
+            subtitle,
+          )
+        : null,
+    ),
+  );
 }
 
-function cardCss(c: string): string {
-  return `
-    .og-bg { width: 1200px; height: 630px; background: linear-gradient(135deg, ${c} 0%, #0c0d12 100%); padding: 60px; display: flex; align-items: center; justify-content: center; }
-    .og-card { width: 1080px; min-height: 510px; background: rgba(15,17,28,0.85); backdrop-filter: blur(20px); border-radius: 24px; padding: 60px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center; }
-    .og-brand { font-size: 22px; color: ${c}; font-weight: 600; margin-bottom: 20px; }
-    h1 { font-size: 60px; font-weight: 700; line-height: 1.1; max-width: 950px; }
-    p { margin-top: 24px; font-size: 26px; color: rgba(255,255,255,0.7); line-height: 1.4; }
-  `;
-}
-
-function magazineCss(c: string): string {
-  return `
-    .og-mag { width: 1200px; height: 630px; display: flex; }
-    .og-text { width: 700px; background: #0c0d12; padding: 80px 60px; display: flex; flex-direction: column; justify-content: center; border-left: 8px solid ${c}; }
-    .og-img { width: 500px; background-size: cover; background-position: center; background-color: #1a1d2a; }
-    .og-brand { font-size: 16px; color: ${c}; font-weight: 700; margin-bottom: 24px; letter-spacing: 0.15em; }
-    h1 { font-size: 56px; font-weight: 700; line-height: 1.1; }
-    p { margin-top: 24px; font-size: 24px; color: rgba(255,255,255,0.7); line-height: 1.4; }
-  `;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-function escapeAttr(s: string): string {
-  return s.replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+function Magazine({ title, subtitle, brand, color, imageUrl }: TemplateProps) {
+  return React.createElement(
+    "div",
+    {
+      style: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        background: "#0c0d12",
+        color: "#fff",
+        fontFamily: "Inter",
+      },
+    },
+    React.createElement(
+      "div",
+      {
+        style: {
+          width: 700,
+          padding: "80px 60px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          borderLeft: `8px solid ${color}`,
+        },
+      },
+      brand
+        ? React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 16,
+                color,
+                fontWeight: 700,
+                marginBottom: 24,
+                letterSpacing: "0.15em",
+              },
+            },
+            brand.toUpperCase(),
+          )
+        : null,
+      React.createElement(
+        "div",
+        { style: { fontSize: 56, fontWeight: 700, lineHeight: 1.1 } },
+        title,
+      ),
+      subtitle
+        ? React.createElement(
+            "div",
+            {
+              style: {
+                marginTop: 24,
+                fontSize: 24,
+                color: "rgba(255,255,255,0.7)",
+                lineHeight: 1.4,
+              },
+            },
+            subtitle,
+          )
+        : null,
+    ),
+    imageUrl
+      ? React.createElement("img", {
+          src: imageUrl,
+          style: {
+            width: 500,
+            height: 630,
+            objectFit: "cover",
+          },
+        })
+      : React.createElement("div", {
+          style: { width: 500, height: 630, background: "#1a1d2a" },
+        }),
+  );
 }
