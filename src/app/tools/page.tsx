@@ -1,5 +1,6 @@
-export const dynamic = "force-dynamic";
+"use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -37,8 +38,12 @@ import {
   TrendingDown,
   Users,
   Video,
+  Pin,
+  PinOff,
+  Search as SearchIcon,
   Wand2,
   Wrench,
+  X,
   Zap,
 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -839,45 +844,165 @@ const CATEGORY_ORDER: ToolCategoryId[] = [
 
 type Tool = (typeof tools)[number];
 
+const PINNED_KEY = "seo:tools-pinned";
+
+function readPinned(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(PINNED_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? new Set(arr.map(String)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function writePinned(set: Set<string>) {
+  try {
+    window.localStorage.setItem(PINNED_KEY, JSON.stringify(Array.from(set)));
+  } catch {
+    // ignore quota / private-mode errors
+  }
+}
+
 export default function ToolsHubPage() {
-  // Bucket every tool into its category. Tools without a category fall
-  // through to "specialty" via categoryOf().
+  const [query, setQuery] = useState("");
+  const [pinned, setPinned] = useState<Set<string>>(new Set());
+  // Hydrate pinned from localStorage on mount — keeps SSR + client in
+  // sync (server renders empty pinned, client fills in after mount)
+  useEffect(() => {
+    setPinned(readPinned());
+  }, []);
+
+  function togglePin(href: string) {
+    setPinned((prev) => {
+      const next = new Set(prev);
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
+      writePinned(next);
+      return next;
+    });
+  }
+
+  const q = query.trim().toLowerCase();
+  const filteredTools = useMemo(() => {
+    if (!q) return tools;
+    return tools.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q),
+    );
+  }, [q]);
+
+  const pinnedTools = useMemo(
+    () => tools.filter((t) => pinned.has(t.href)),
+    [pinned],
+  );
+
+  // Bucket every (filtered) tool into its category.
   const byCategory = new Map<ToolCategoryId, Tool[]>();
-  for (const t of tools) {
+  for (const t of filteredTools) {
     const cat = categoryOf(t.href);
     const arr = byCategory.get(cat) ?? [];
     arr.push(t);
     byCategory.set(cat, arr);
   }
 
+  const totalMatches = filteredTools.length;
+
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         title="Tools"
-        description="100+ SEO utilities, grouped by what you'll use them for. Tip: ⌘K (Ctrl+K) opens the global search — type any tool name and jump straight there."
+        description="100+ SEO utilities. Pin the ones you use daily and they'll stick to the top."
         icon={Wrench}
         accent="violet"
       />
 
-      {/* Quick category jump-links */}
-      <nav className="flex flex-wrap gap-1.5">
-        {CATEGORY_ORDER.map((cat) => {
-          const list = byCategory.get(cat);
-          if (!list || list.length === 0) return null;
-          return (
-            <a
-              key={cat}
-              href={`#cat-${cat}`}
-              className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted-foreground ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/10 hover:text-foreground"
+      {/* Filter row */}
+      <div className="sticky top-2 z-20 -mx-2 rounded-2xl border border-white/[0.06] bg-card/70 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/50">
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter tools… (Cmd / Ctrl + K opens global search)"
+            className="h-10 w-full rounded-md border border-white/10 bg-background/60 pl-10 pr-10 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded text-muted-foreground hover:bg-white/10 hover:text-foreground"
+              aria-label="Clear filter"
             >
-              {CATEGORY_LABELS[cat].label}
-              <span className="rounded-full bg-white/10 px-1.5 text-[10px]">
-                {list.length}
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+        {q && (
+          <p className="mt-1.5 px-1 text-[11px] text-muted-foreground">
+            {totalMatches} {totalMatches === 1 ? "match" : "matches"}
+          </p>
+        )}
+      </div>
+
+      {/* Pinned — only render when the user actually has favorites
+          AND we're not filtering (filter takes over the viewport) */}
+      {!q && pinnedTools.length > 0 && (
+        <section className="space-y-3">
+          <header>
+            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+              <Pin className="size-4 text-amber-300" />
+              Pinned
+              <span className="text-xs font-normal text-muted-foreground">
+                ({pinnedTools.length})
               </span>
-            </a>
-          );
-        })}
-      </nav>
+            </h2>
+          </header>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pinnedTools.map((t) => (
+              <ToolCard
+                key={t.href}
+                tool={t}
+                pinned
+                onTogglePin={() => togglePin(t.href)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Category jump-links — hidden while filtering since the
+          filtered view shows everything in one flat-ish list */}
+      {!q && (
+        <nav className="flex flex-wrap gap-1.5">
+          {CATEGORY_ORDER.map((cat) => {
+            const list = byCategory.get(cat);
+            if (!list || list.length === 0) return null;
+            return (
+              <a
+                key={cat}
+                href={`#cat-${cat}`}
+                className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted-foreground ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/10 hover:text-foreground"
+              >
+                {CATEGORY_LABELS[cat].label}
+                <span className="rounded-full bg-white/10 px-1.5 text-[10px]">
+                  {list.length}
+                </span>
+              </a>
+            );
+          })}
+        </nav>
+      )}
+
+      {totalMatches === 0 && q && (
+        <div className="rounded-2xl border border-white/5 bg-card/40 p-10 text-center text-sm text-muted-foreground">
+          No tools match &ldquo;{query}&rdquo;. Try a different keyword.
+        </div>
+      )}
 
       {CATEGORY_ORDER.map((cat) => {
         const list = byCategory.get(cat);
@@ -902,29 +1027,63 @@ export default function ToolsHubPage() {
             </header>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {list.map((t) => (
-                <Link
+                <ToolCard
                   key={t.href}
-                  href={t.href}
-                  className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl p-5"
-                >
-                  <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-violet-500/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
-                  <div className="relative space-y-3">
-                    <div
-                      className={`inline-flex size-10 items-center justify-center rounded-xl ring-1 ring-inset ${accentMap[t.accent]}`}
-                    >
-                      <t.icon className="size-5" />
-                    </div>
-                    <h3 className="text-base font-semibold">{t.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {t.description}
-                    </p>
-                  </div>
-                </Link>
+                  tool={t}
+                  pinned={pinned.has(t.href)}
+                  onTogglePin={() => togglePin(t.href)}
+                />
               ))}
             </div>
           </section>
         );
       })}
+    </div>
+  );
+}
+
+function ToolCard({
+  tool,
+  pinned,
+  onTogglePin,
+}: {
+  tool: Tool;
+  pinned: boolean;
+  onTogglePin: () => void;
+}) {
+  return (
+    <div className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl">
+      <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-violet-500/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
+      <Link href={tool.href} className="relative block p-5">
+        <div className="space-y-3">
+          <div
+            className={`inline-flex size-10 items-center justify-center rounded-xl ring-1 ring-inset ${accentMap[tool.accent]}`}
+          >
+            <tool.icon className="size-5" />
+          </div>
+          <h3 className="pr-7 text-base font-semibold">{tool.title}</h3>
+          <p className="text-sm text-muted-foreground">{tool.description}</p>
+        </div>
+      </Link>
+      {/* Pin button is a sibling of the Link so clicks on it don't
+          navigate to the tool. Visible on hover or when already pinned. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onTogglePin();
+        }}
+        title={pinned ? "Unpin from top" : "Pin to top"}
+        aria-label={pinned ? "Unpin tool" : "Pin tool"}
+        className={`absolute right-3 top-3 grid size-7 place-items-center rounded-md transition-all ${
+          pinned
+            ? "bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30 opacity-100"
+            : "text-muted-foreground opacity-0 ring-1 ring-inset ring-white/10 hover:bg-white/10 hover:text-foreground group-hover:opacity-100"
+        }`}
+      >
+        {pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
+      </button>
     </div>
   );
 }
