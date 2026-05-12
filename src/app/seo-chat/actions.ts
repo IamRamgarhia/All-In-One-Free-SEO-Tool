@@ -1,7 +1,11 @@
 "use server";
 
 import { callAIVision, type VisionMessage } from "@/lib/ai-vision";
-import { findSkill, type SeoSkillId } from "@/lib/seo-skills";
+import {
+  findSkill,
+  inferSkillFromQuery,
+  type SeoSkillId,
+} from "@/lib/seo-skills";
 import { scanSerp } from "@/lib/serp-scanner";
 import {
   retrieveKnowledge,
@@ -95,6 +99,9 @@ export type SeoChatResearchResult =
       researchSnippet?: string;
       /** ID of the conversation this turn was appended to (for the next turn). */
       conversationId: number;
+      /** The skill the server inferred from the query, surfaced for UI badges. */
+      inferredSkillId: SeoSkillId;
+      inferredSkillName: string;
     }
   | { ok: false; error: string };
 
@@ -141,7 +148,14 @@ export async function seoChat(
     return { role: m.role, content: m.content };
   });
 
-  const skill = findSkill(skillId ?? "general");
+  // Auto-detect the focus skill from the last user message unless the
+  // caller pinned one explicitly. Keeps the UI free of a 25-skill picker
+  // while still narrowing the system prompt to the right specialty.
+  const lastUserMessageForInfer = trimmed[trimmed.length - 1]?.content ?? "";
+  const skill =
+    skillId && skillId !== "general"
+      ? findSkill(skillId)
+      : inferSkillFromQuery(lastUserMessageForInfer);
   let fullSystem = skill.systemAddendum
     ? `${SEO_SYSTEM_PROMPT}\n\n[Active focus: ${skill.name}]\n${skill.systemAddendum}`
     : SEO_SYSTEM_PROMPT;
@@ -256,5 +270,7 @@ export async function seoChat(
     reply,
     researchSnippet,
     conversationId: savedConversationId ?? -1,
+    inferredSkillId: skill.id,
+    inferredSkillName: skill.name,
   };
 }

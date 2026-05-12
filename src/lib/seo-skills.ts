@@ -558,3 +558,329 @@ export const SEO_SKILLS: SeoSkill[] = [
 export function findSkill(id: string): SeoSkill {
   return SEO_SKILLS.find((s) => s.id === id) ?? SEO_SKILLS[0];
 }
+
+/**
+ * Per-skill keyword bag used by `inferSkillFromQuery`. Hand-curated so the
+ * matcher catches phrasing the user is most likely to use ("hreflang" →
+ * international, "GBP" → local, "INP" → page-experience). Keys are skill
+ * ids; values are lowercase tokens matched as substrings against the
+ * query (substring matching keeps phrases like "core web vitals" working).
+ *
+ * Keep this list focused — one or two strong signals per skill beats a
+ * long list of weak signals. The matcher already de-weights very short
+ * tokens.
+ */
+const SKILL_KEYWORDS: Record<Exclude<SeoSkillId, "general">, string[]> = {
+  technical: [
+    "crawl",
+    "crawlability",
+    "indexation",
+    "indexing",
+    "robots.txt",
+    "sitemap",
+    "canonical",
+    "render",
+    "googlebot",
+    "ttfb",
+    "redirect chain",
+    "log file",
+    "discovered — currently not indexed",
+    "javascript rendering",
+  ],
+  "on-page": [
+    "title tag",
+    "meta description",
+    "h1",
+    "h2",
+    "heading",
+    "internal link",
+    "anchor text",
+    "on-page",
+    "on page",
+    "title and meta",
+    "content depth",
+  ],
+  "off-page": [
+    "link build",
+    "link building",
+    "backlink",
+    "digital pr",
+    "haro",
+    "broken link",
+    "outreach",
+    "guest post",
+    "niche edit",
+    "qwoted",
+  ],
+  content: [
+    "content brief",
+    "content score",
+    "content gap",
+    "content decay",
+    "topical authority",
+    "topic cluster",
+    "refresh",
+    "evergreen",
+    "pillar page",
+  ],
+  local: [
+    "gbp",
+    "google business profile",
+    "local pack",
+    "citation",
+    "nap consistency",
+    "local seo",
+    "service area",
+    "local schema",
+    "google maps",
+  ],
+  ecommerce: [
+    "e-commerce",
+    "ecommerce",
+    "product schema",
+    "faceted nav",
+    "category page",
+    "shopify",
+    "woocommerce",
+    "product page",
+    "out of stock",
+    "variant",
+  ],
+  international: [
+    "hreflang",
+    "x-default",
+    "international seo",
+    "multi-region",
+    "cctld",
+    "geo-target",
+    "language target",
+    "country target",
+    "subdomain vs subdirectory",
+  ],
+  news: [
+    "newsarticle",
+    "news seo",
+    "top stories",
+    "google news",
+    "live blog",
+    "liveblogposting",
+    "headline",
+    "breaking news",
+  ],
+  image: [
+    "alt text",
+    "image seo",
+    "image filename",
+    "image compression",
+    "webp",
+    "avif",
+    "image sitemap",
+    "imageobject",
+    "image alt",
+  ],
+  video: [
+    "video seo",
+    "videoobject",
+    "youtube",
+    "video schema",
+    "video transcript",
+    "video sitemap",
+    "watch time",
+  ],
+  "ai-visibility": [
+    "ai overview",
+    "aio",
+    "perplexity",
+    "chatgpt search",
+    "llms.txt",
+    "gptbot",
+    "claudebot",
+    "perplexitybot",
+    "google-extended",
+    "ai citation",
+    "ai search",
+    "ai mode",
+    "cited in",
+  ],
+  schema: [
+    "schema",
+    "json-ld",
+    "json ld",
+    "structured data",
+    "rich result",
+    "rich snippet",
+    "mainentityofpage",
+    "sameas",
+    "schema.org",
+  ],
+  migration: [
+    "site migration",
+    "redirect map",
+    "url parity",
+    "domain migration",
+    "migration playbook",
+    "post-launch",
+    "replatform",
+    "redirect strategy",
+  ],
+  analytics: [
+    "gsc",
+    "search console",
+    "ga4",
+    "analytics",
+    "branded vs",
+    "non-branded",
+    "click attribution",
+    "kpi",
+    "report to cmo",
+    "dashboard",
+  ],
+  penalty: [
+    "penalty",
+    "manual action",
+    "disavow",
+    "helpful content",
+    "algorithmic hit",
+    "traffic drop",
+    "recovery",
+    "core update",
+  ],
+  audit: [
+    "audit",
+    "seo audit",
+    "audit finding",
+    "severity",
+    "false positive",
+    "prioritize issues",
+    "technical audit",
+  ],
+  "keyword-research": [
+    "keyword research",
+    "seed keyword",
+    "search volume",
+    "keyword difficulty",
+    "intent classif",
+    "autocomplete",
+    "people also ask",
+    "paa",
+    "keyword cluster",
+    "long tail",
+  ],
+  "serp-analysis": [
+    "serp",
+    "featured snippet",
+    "paa",
+    "share of voice",
+    "serp feature",
+    "top 10 analysis",
+    "snippet",
+  ],
+  competitor: [
+    "competitor",
+    "content gap",
+    "keyword overlap",
+    "backlink delta",
+    "competitor teardown",
+    "share of voice",
+  ],
+  outreach: [
+    "outreach email",
+    "cold email",
+    "link outreach",
+    "broken-link outreach",
+    "reply rate",
+    "follow-up sequence",
+    "prospect",
+  ],
+  programmatic: [
+    "programmatic seo",
+    "csv",
+    "landing pages at scale",
+    "template page",
+    "1000 pages",
+    "thin page",
+  ],
+  mobile: [
+    "mobile seo",
+    "mobile first",
+    "mobile-first indexing",
+    "viewport",
+    "touch target",
+    "responsive",
+    "intrusive interstitial",
+  ],
+  "page-experience": [
+    "core web vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "fid",
+    "cls",
+    "ttfb",
+    "page experience",
+    "pagespeed",
+    "lighthouse",
+  ],
+  accessibility: [
+    "accessibility",
+    "a11y",
+    "wcag",
+    "screen reader",
+    "color contrast",
+    "keyboard nav",
+    "aria",
+  ],
+  editorial: [
+    "editorial calendar",
+    "content calendar",
+    "author profile",
+    "byline",
+    "e-e-a-t",
+    "eeat",
+    "credentials",
+    "refresh cadence",
+  ],
+  reputation: [
+    "brand serp",
+    "knowledge panel",
+    "wikidata",
+    "trustpilot",
+    "negative review",
+    "brand mention",
+    "reputation",
+  ],
+};
+
+/**
+ * Pick the SEO skill that best matches the user's query. Returns the
+ * general skill if no strong signal — the system prompt covers all
+ * specialties, so general is always a safe fallback. Substring matching
+ * keeps multi-word phrases working ("core web vitals" → page-experience).
+ */
+export function inferSkillFromQuery(text: string): SeoSkill {
+  const q = text.toLowerCase();
+  if (q.length < 8) return SEO_SKILLS[0];
+
+  let bestId: SeoSkillId = "general";
+  let bestScore = 0;
+  for (const [id, keywords] of Object.entries(SKILL_KEYWORDS) as [
+    Exclude<SeoSkillId, "general">,
+    string[],
+  ][]) {
+    let score = 0;
+    for (const kw of keywords) {
+      if (q.includes(kw)) {
+        // Multi-word matches are stronger signals than single-word ones
+        score += kw.includes(" ") ? 3 : 1;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = id;
+    }
+  }
+
+  // Require at least one match before switching off general
+  if (bestScore < 1) return SEO_SKILLS[0];
+  return findSkill(bestId);
+}

@@ -9,7 +9,7 @@ export default function SeoChatPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="SEO Chat"
-        description="Ask anything SEO. Upload an image for image-SEO analysis (alt, filename, compression, schema). Pick a focus skill (technical / on-page / off-page / local / e-commerce / international / news / image / video / AI-visibility / schema / migration / analytics / penalty / audit / keyword research / SERP / competitor / outreach / programmatic / mobile / page-experience / accessibility / editorial / reputation) to narrow the AI to that specialty."
+        description="One chat for every SEO topic. Ask anything — the AI auto-focuses on the right specialty (technical, on-page, AI visibility, schema, local, hreflang, CWV, and 20+ more). Drop an image for image-SEO analysis."
         icon={Bot}
         accent="violet"
       />
