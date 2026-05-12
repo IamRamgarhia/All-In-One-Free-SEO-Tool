@@ -75,24 +75,33 @@ export default async function RootLayout({
       data-ui-mode={uiMode}
       className={`dark ${sansFont.variable} ${monoFont.variable} h-full antialiased`}
     >
+      <head>
+        {/*
+          Synchronous embed-mode detection. Runs before React hydrates so
+          the chrome-hiding CSS rule kicks in on the very first paint —
+          no flash of full-shell content inside iframes that load with
+          ?embed=1 (used by the per-client tool drawer).
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(new URL(location.href).searchParams.get('embed')==='1')document.documentElement.dataset.embed='1';}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="h-screen overflow-hidden bg-background text-foreground">
         <EmbedModeToggle />
         <ConfirmDialogProvider>
           <QuickAddClientProvider>
             <div className="flex h-full">
-              <div data-shell-chrome="sidebar" className="contents">
-                <Sidebar unreadByHref={unreadByHref} />
-              </div>
+              <Sidebar unreadByHref={unreadByHref} />
               <div className="flex h-full min-w-0 flex-1 flex-col">
-                <div data-shell-chrome="topbar" className="contents">
-                  <TopBar unreadByHref={unreadByHref} />
-                </div>
+                <TopBar unreadByHref={unreadByHref} />
                 <main className="flex-1 overflow-y-auto p-4 md:p-6">
                   {children}
                 </main>
               </div>
             </div>
-            <div data-shell-chrome="ambient" className="contents">
+            <div data-shell-chrome="ambient">
               <AIAssistant />
               <PowerWidget />
               <FirstRunPrompt />

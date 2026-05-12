@@ -249,7 +249,7 @@ export default async function ClientDetailPage({
     .limit(1);
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6">
+    <div className="space-y-6">
       {brandingNeeded && (
         <BrandingPreflightBanner
           clientId={clientId}

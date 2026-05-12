@@ -287,6 +287,7 @@ export function Sidebar({
 
   return (
     <aside
+      data-shell-chrome="sidebar"
       className={`hidden shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-150 ease-out md:flex md:flex-col ${
         collapsed ? "w-[60px]" : "w-[260px]"
       }`}
