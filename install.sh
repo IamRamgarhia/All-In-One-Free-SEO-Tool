@@ -281,32 +281,63 @@ EOM
   fi
 fi
 
-# ---- 5. desktop shortcut (.desktop for Linux; alias for macOS) -------------
+# ---- 5. Desktop shortcuts (Linux: .desktop; macOS: .command alias) ---------
 if [ -d "$DESKTOP" ] && [ "$HAS_DOCKER" != "1" ]; then
+  # Make sure both scripts are executable (ZIP extraction can strip +x)
+  chmod +x "$DIR/START.sh" "$DIR/STOP.sh" 2>/dev/null || true
+
   OS="$(uname -s)"
   if [ "$OS" = "Linux" ]; then
-    SHORTCUT="$DESKTOP/SEO-Tool.desktop"
-    cat > "$SHORTCUT" <<EOF
+    START_SHORTCUT="$DESKTOP/Start-SEO-Tool.desktop"
+    cat > "$START_SHORTCUT" <<EOF
 [Desktop Entry]
 Type=Application
-Name=SEO Tool
-Comment=Self-hosted SEO platform by DiceCodes
-Exec=$DIR/seo.sh
+Name=Start SEO Tool
+Comment=Start the self-hosted SEO platform by DiceCodes
+Exec=$DIR/START.sh
 Path=$DIR
 Terminal=false
 Categories=Network;Office;
 EOF
-    chmod +x "$SHORTCUT" 2>/dev/null || true
-    say "Created desktop shortcut: $SHORTCUT"
-  elif [ "$OS" = "Darwin" ]; then
-    # macOS: create a clickable .command file (Terminal will run it)
-    SHORTCUT="$DESKTOP/SEO Tool.command"
-    cat > "$SHORTCUT" <<EOF
-#!/bin/bash
-cd "$DIR" && ./seo.sh
+    chmod +x "$START_SHORTCUT" 2>/dev/null || true
+    say "Created shortcut: $START_SHORTCUT"
+
+    STOP_SHORTCUT="$DESKTOP/Stop-SEO-Tool.desktop"
+    cat > "$STOP_SHORTCUT" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Stop SEO Tool
+Comment=Stop the running SEO Tool server
+Exec=$DIR/STOP.sh
+Path=$DIR
+Terminal=true
+Categories=Network;Office;
 EOF
-    chmod +x "$SHORTCUT" 2>/dev/null || true
-    say "Created desktop launcher: $SHORTCUT"
+    chmod +x "$STOP_SHORTCUT" 2>/dev/null || true
+    say "Created shortcut: $STOP_SHORTCUT"
+
+    # Clean up the old single shortcut from previous installs
+    [ -f "$DESKTOP/SEO-Tool.desktop" ] && rm -f "$DESKTOP/SEO-Tool.desktop"
+  elif [ "$OS" = "Darwin" ]; then
+    START_SHORTCUT="$DESKTOP/Start SEO Tool.command"
+    cat > "$START_SHORTCUT" <<EOF
+#!/bin/bash
+cd "$DIR" && ./START.sh
+EOF
+    chmod +x "$START_SHORTCUT" 2>/dev/null || true
+    say "Created launcher: $START_SHORTCUT"
+
+    STOP_SHORTCUT="$DESKTOP/Stop SEO Tool.command"
+    cat > "$STOP_SHORTCUT" <<EOF
+#!/bin/bash
+cd "$DIR" && ./STOP.sh
+read -p "Press Enter to close..."
+EOF
+    chmod +x "$STOP_SHORTCUT" 2>/dev/null || true
+    say "Created launcher: $STOP_SHORTCUT"
+
+    # Clean up the old single launcher from previous installs
+    [ -f "$DESKTOP/SEO Tool.command" ] && rm -f "$DESKTOP/SEO Tool.command"
   fi
 fi
 
@@ -345,8 +376,9 @@ if [ -d "$DESKTOP" ]; then
       echo "  data.db                     <- (lives in /data on the seo-data volume)"
     else
       echo "$DIR/"
-      echo "  seo.sh                      <- run this to start/stop (or double-click the shortcut)"
-      echo "  data.db                     <- your SQLite database (clients, keywords, audits — back this up)"
+      echo "  START.sh                    <- DOUBLE-CLICK to start the server (your daily-use file)"
+      echo "  STOP.sh                     <- DOUBLE-CLICK to stop the server"
+      echo "  data.db                     <- your SQLite database (clients, keywords, audits - back this up)"
       echo "  .seo-encryption-key         <- AES key that decrypts your API keys (back this up too)"
       echo "  .env.local                  <- env config (APP_PASSWORD, custom env vars)"
       echo "  dev-server.log              <- runtime log (tail this for errors)"
@@ -369,10 +401,11 @@ if [ -d "$DESKTOP" ]; then
       echo "Update:   Re-run the installer command"
       echo "Backup:   Settings -> Backup & restore -> Download backup"
     else
-      echo "Start:    Double-click the SEO Tool shortcut on your Desktop"
-      echo "          (or: cd $DIR && ./seo.sh)"
-      echo "Stop:     In the app -> profile menu -> System health -> Shutdown"
-      echo "          (or: kill \$(cat $DIR/.dev-server.pid))"
+      echo "Start:    Double-click 'Start SEO Tool' shortcut on your Desktop"
+      echo "          (or run: $DIR/START.sh)"
+      echo "Stop:     Double-click 'Stop SEO Tool' shortcut on your Desktop"
+      echo "          (or run: $DIR/STOP.sh)"
+      echo "          (or in app: profile menu -> System health -> Shutdown)"
       echo "Restart:  In the app -> profile menu -> Restart server"
       echo "Logs:     tail -f $DIR/dev-server.log"
       echo "Update:   Re-run the installer command"
@@ -395,7 +428,8 @@ if [ -d "$DESKTOP" ]; then
     if [ "$HAS_DOCKER" = "1" ]; then
       echo "   docker compose up -d in $DIR"
     else
-      echo "   Double-click the SEO Tool shortcut on your Desktop."
+      echo "   Double-click the 'Start SEO Tool' shortcut on your Desktop."
+      echo "   When you're done, double-click 'Stop SEO Tool' to shut it down."
     fi
     echo ""
     echo "Your data NEVER leaves this machine. No telemetry. No phone-home."

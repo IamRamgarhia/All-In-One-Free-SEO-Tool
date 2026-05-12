@@ -293,27 +293,45 @@ $pm run $runScript
     }
 }
 
-# ---- 5. desktop shortcut (.lnk) so the user can launch with a double-click
+# ---- 5. Desktop shortcuts so non-techies can start/stop with one click
 if ((Test-Path $desktop) -and (-not $hasDocker)) {
     try {
-        $shortcutPath = Join-Path $desktop "SEO Tool.lnk"
         $wshShell = New-Object -ComObject WScript.Shell
-        $sc = $wshShell.CreateShortcut($shortcutPath)
-        $sc.TargetPath = Join-Path $dir "seo.cmd"
-        $sc.WorkingDirectory = $dir
-        $sc.Description = "Launch the SEO Tool (DiceCodes)"
-        # Use the bundled favicon if present
         $iconCandidates = @(
             (Join-Path $dir "public\favicon.ico"),
             (Join-Path $dir "public\icon.ico")
         )
+        $iconPath = $null
         foreach ($ic in $iconCandidates) {
-            if (Test-Path $ic) { $sc.IconLocation = $ic; break }
+            if (Test-Path $ic) { $iconPath = $ic; break }
         }
-        $sc.Save()
-        Say "Created desktop shortcut: $shortcutPath"
+
+        $startPath = Join-Path $desktop "Start SEO Tool.lnk"
+        $startSc = $wshShell.CreateShortcut($startPath)
+        $startSc.TargetPath = Join-Path $dir "START.cmd"
+        $startSc.WorkingDirectory = $dir
+        $startSc.Description = "Start the SEO Tool (DiceCodes)"
+        if ($iconPath) { $startSc.IconLocation = $iconPath }
+        $startSc.Save()
+        Say "Created shortcut: $startPath"
+
+        $stopPath = Join-Path $desktop "Stop SEO Tool.lnk"
+        $stopSc = $wshShell.CreateShortcut($stopPath)
+        $stopSc.TargetPath = Join-Path $dir "STOP.cmd"
+        $stopSc.WorkingDirectory = $dir
+        $stopSc.Description = "Stop the SEO Tool"
+        if ($iconPath) { $stopSc.IconLocation = $iconPath }
+        $stopSc.Save()
+        Say "Created shortcut: $stopPath"
+
+        # Clean up the old "SEO Tool.lnk" from previous installs if present.
+        # We now have separate Start + Stop shortcuts.
+        $oldPath = Join-Path $desktop "SEO Tool.lnk"
+        if (Test-Path $oldPath) {
+            Remove-Item $oldPath -Force -ErrorAction SilentlyContinue
+        }
     } catch {
-        Warn "Couldn't create desktop shortcut: $($_.Exception.Message)"
+        Warn "Couldn't create desktop shortcuts: $($_.Exception.Message)"
     }
 }
 
@@ -332,10 +350,11 @@ Backup:   Settings -> Backup & restore -> Download backup
 "@
     } else {
 @"
-Start:    Double-click the "SEO Tool" shortcut on your desktop
-          (or: cd "$dir"; .\seo.cmd)
-Stop:     In the app -> profile menu -> System health -> Shutdown server
-          (or: Get-Process -Id (Get-Content "$dir\.dev-server.pid") | Stop-Process)
+Start:    Double-click "Start SEO Tool" shortcut on your Desktop
+          (or run: $dir\START.cmd)
+Stop:     Double-click "Stop SEO Tool" shortcut on your Desktop
+          (or run: $dir\STOP.cmd)
+          (or in app: profile menu -> System health -> Shutdown)
 Restart:  In the app -> profile menu -> Restart server (top-right power icon)
 Logs:     Get-Content "$dir\dev-server.log" -Wait -Tail 100
 Update:   Re-run the installer command (one-liner from README)
@@ -353,7 +372,8 @@ $dir\
     } else {
 @"
 $dir\
-  seo.cmd                     <- DOUBLE-CLICK to start/stop the server
+  START.cmd                   <- DOUBLE-CLICK to start the server (your daily-use file)
+  STOP.cmd                    <- DOUBLE-CLICK to stop the server
   data.db                     <- your SQLite database (clients, keywords, audits, reports - back this up)
   .seo-encryption-key         <- AES key that decrypts your API keys (back this up too)
   .env.local                  <- env config (APP_PASSWORD, custom env vars)
@@ -415,7 +435,8 @@ Full guide:       $dir\TROUBLESHOOTING.md (12 sections, covers most issues)
 
 ----------------------- DAILY USE --------------------
 The fastest way to launch every day:
-   Double-click the "SEO Tool" shortcut on your desktop.
+   Double-click the "Start SEO Tool" shortcut on your desktop.
+   When you're done, double-click "Stop SEO Tool" to shut it down.
 
 The app auto-opens in your browser. If the port is already serving
 (you opened it earlier), the launcher just opens a new tab.

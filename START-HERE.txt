@@ -5,9 +5,9 @@
 
 The fastest way to use this app:
 
-  Windows:        Double-click  seo.cmd
-  Mac / Linux:    Open Terminal here, run  ./seo.sh
-  Docker:        docker compose up -d
+  Windows:        Double-click  START.cmd       (to stop: STOP.cmd)
+  Mac / Linux:    Run  ./START.sh               (to stop: ./STOP.sh)
+  Docker:         docker compose up -d          (to stop: docker compose down)
 
 The app opens in your browser at http://localhost:3000
 (or whichever port the installer picked — check the Desktop guide)
@@ -16,7 +16,8 @@ The app opens in your browser at http://localhost:3000
 KEY FILES IN THIS FOLDER
 ------------------------------------------------------------
 
-  seo.cmd / seo.sh       <- LAUNCHER — start/stop the server
+  START.cmd / START.sh   <- START — double-click to start the server
+  STOP.cmd  / STOP.sh    <- STOP  — double-click to stop the server
   data.db                <- Your SQLite database
                             (clients, keywords, audits, reports —
                             BACK THIS UP regularly)
@@ -37,9 +38,11 @@ KEY FILES IN THIS FOLDER
 COMMON COMMANDS
 ------------------------------------------------------------
 
-Start the server          Double-click seo.cmd (Windows) / ./seo.sh (Mac/Linux)
-Stop the server           In app: profile menu -> System health -> Shutdown
-                          Or: kill the process whose PID is in .dev-server.pid
+Start the server          Double-click  START.cmd  (Windows)
+                                        START.sh   (Mac/Linux)
+Stop the server           Double-click  STOP.cmd   (Windows)
+                                        STOP.sh    (Mac/Linux)
+                          Or in app:    Profile menu -> System health -> Shutdown
 
 Update to latest          Re-run the installer one-liner (see README.md)
 Backup                    In app: Settings -> Backup & restore -> Download
