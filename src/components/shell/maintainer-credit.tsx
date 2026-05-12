@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import {
   Code2,
   Coffee,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { MAINTAINER, upiDeepLink } from "@/lib/maintainer";
+
+const PRESET_AMOUNTS = [100, 300, 500, 1000] as const;
 
 /**
  * Quiet "Built by" credit shown in app chrome. Two presentations:
@@ -112,8 +115,46 @@ export function MaintainerCredit({
 
 function SupportDialog({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState<"upi" | null>(null);
+  // Amount in INR. null = "any amount" — UPI deep link without `am=`
+  // lets the user type the amount themselves. Default to ₹300 since
+  // a preset is more inviting than a blank slate.
+  const [amount, setAmount] = useState<number | null>(300);
+  const [customAmount, setCustomAmount] = useState<string>("");
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+
   const upi = MAINTAINER.upi;
-  const deepLink = upiDeepLink({ note: `Tip for ${MAINTAINER.name}` });
+  // Rebuild deep link whenever the amount changes — same string the
+  // QR encodes so phone scans and "open in app" both prefill the same.
+  const deepLink = upiDeepLink({
+    amount: amount ?? undefined,
+    note: `Tip for ${MAINTAINER.name}`,
+  });
+
+  // Generate QR locally (no external service). Dark background → use
+  // dark modules on a light field so the camera contrast is reliable
+  // even when the dialog itself is dark.
+  useEffect(() => {
+    if (!deepLink) {
+      setQrDataUrl("");
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(deepLink, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 240,
+      color: { dark: "#0a0a0a", light: "#ffffff" },
+    })
+      .then((url) => {
+        if (!cancelled) setQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deepLink]);
 
   function copyUpi() {
     if (!upi) return;
@@ -122,6 +163,18 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
       toast.success("UPI ID copied");
       setTimeout(() => setCopied(null), 1500);
     });
+  }
+
+  function pickPreset(v: number) {
+    setAmount(v);
+    setCustomAmount("");
+  }
+
+  function pickCustom(raw: string) {
+    setCustomAmount(raw);
+    // Allow up to 6 digits (₹999,999) — UPI cap aside, this is sane.
+    const n = parseInt(raw.replace(/\D/g, ""), 10);
+    setAmount(Number.isFinite(n) && n > 0 ? n : null);
   }
 
   return (
@@ -158,8 +211,8 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
         <div className="space-y-4 p-5">
           <p className="text-xs text-muted-foreground">
             This tool is free and self-hosted. A small tip keeps the
-            updates coming. Pick whichever payment method works for
-            you.
+            updates coming. Pick an amount and scan with any UPI app —
+            GPay, PhonePe, Paytm, BHIM.
           </p>
 
           {upi && (
@@ -171,12 +224,86 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 <div>
                   <h3 className="text-sm font-semibold">UPI (India)</h3>
                   <p className="text-[10px] text-muted-foreground">
-                    Zero fees · instant · GPay / PhonePe / Paytm / BHIM
+                    Zero fees · instant · scan or tap
                   </p>
                 </div>
               </div>
+
+              {/* Amount picker — 4 presets + custom */}
+              <div className="mt-3 grid grid-cols-4 gap-1.5">
+                {PRESET_AMOUNTS.map((v) => {
+                  const active = amount === v && customAmount === "";
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => pickPreset(v)}
+                      className={`h-9 rounded-md text-xs font-semibold transition-colors ${
+                        active
+                          ? "bg-emerald-500/30 text-emerald-100 ring-1 ring-inset ring-emerald-400/60"
+                          : "bg-white/[0.04] text-foreground/80 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      ₹{v}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                    ₹
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Custom amount"
+                    value={customAmount}
+                    onChange={(e) => pickCustom(e.target.value)}
+                    className="h-9 w-full rounded-md bg-white/[0.04] pl-6 pr-2 text-xs text-foreground ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground focus:outline-none focus:ring-emerald-400/60"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAmount(null);
+                    setCustomAmount("");
+                  }}
+                  className={`h-9 rounded-md px-3 text-[11px] font-medium transition-colors ${
+                    amount === null
+                      ? "bg-emerald-500/30 text-emerald-100 ring-1 ring-inset ring-emerald-400/60"
+                      : "bg-white/[0.04] text-foreground/80 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08]"
+                  }`}
+                  title="Let payer choose the amount in the UPI app"
+                >
+                  Any
+                </button>
+              </div>
+
+              {/* QR code — regenerates locally as the amount changes */}
+              {qrDataUrl && (
+                <div className="mt-3 flex items-center justify-center rounded-lg bg-white p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={qrDataUrl}
+                    alt={`UPI QR code${amount ? ` for ₹${amount}` : ""}`}
+                    width={200}
+                    height={200}
+                    className="size-[200px]"
+                  />
+                </div>
+              )}
+              <p className="mt-2 text-center text-[10px] text-muted-foreground">
+                Scan with any UPI app — pays{" "}
+                <span className="font-semibold text-foreground/85">
+                  {amount ? `₹${amount}` : "any amount"}
+                </span>{" "}
+                to {MAINTAINER.name}
+              </p>
+
+              {/* UPI id with copy — fallback if scan doesn't work */}
               <div className="mt-3 flex items-center gap-1.5">
-                <code className="flex-1 truncate rounded-md bg-black/30 px-3 py-2 font-mono text-xs ring-1 ring-inset ring-white/5">
+                <code className="flex-1 truncate rounded-md bg-black/30 px-3 py-2 font-mono text-[11px] ring-1 ring-inset ring-white/5">
                   {upi}
                 </code>
                 <button
@@ -192,12 +319,15 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                   )}
                 </button>
               </div>
+
+              {/* "Open in UPI app" — works on mobile (taps into app);
+                  on desktop most browsers handle it gracefully too. */}
               {deepLink && (
                 <a
                   href={deepLink}
                   className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-md bg-emerald-500/15 px-3 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30 hover:bg-emerald-500/25"
                 >
-                  Open in UPI app →
+                  Open in UPI app (mobile)
                 </a>
               )}
             </section>

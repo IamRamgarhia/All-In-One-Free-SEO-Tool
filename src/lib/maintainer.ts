@@ -31,7 +31,7 @@ export const MAINTAINER = {
    *
    * Set to "" to hide the UPI card.
    */
-  upi: process.env.MAINTAINER_UPI ?? "dicecodes@upi",
+  upi: process.env.MAINTAINER_UPI ?? "princeramgarhiaa-1@okaxis",
   /**
    * Buy Me A Coffee URL — international fallback for users who can't
    * pay via UPI. Empty string hides it.
