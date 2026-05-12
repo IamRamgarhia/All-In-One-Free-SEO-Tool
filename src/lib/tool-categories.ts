@@ -118,6 +118,8 @@ const EXPLICIT: Record<string, ToolCategoryId> = {
   "/tools/cluster": "keywords",
   "/tools/branded-split": "keywords",
   "/tools/youtube": "keywords",
+  "/tools/serp-volatility": "keywords",
+  "/tools/cannibalization": "keywords",
 
   // Backlinks & outreach
   "/tools/backlink-discovery": "backlinks",

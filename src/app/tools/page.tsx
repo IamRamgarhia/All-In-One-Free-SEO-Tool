@@ -81,6 +81,22 @@ const tools = [
     accent: "rose",
   },
   {
+    href: "/tools/serp-volatility",
+    icon: Activity,
+    title: "SERP volatility tracker",
+    description:
+      "Day-over-day position shifts across every tracked keyword. Volatility score spikes during algorithm updates — pause big content moves when stormy.",
+    accent: "amber",
+  },
+  {
+    href: "/tools/cannibalization",
+    icon: GitMerge,
+    title: "Keyword cannibalization",
+    description:
+      "Finds queries where 2+ of your pages compete in the SERP — Google can't pick a winner, both suffer. GSC-powered, severity-ranked, suggests which page to keep.",
+    accent: "rose",
+  },
+  {
     href: "/tools/ai-schema",
     icon: Code2,
     title: "AI schema generator (from URL)",
