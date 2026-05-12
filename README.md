@@ -48,6 +48,8 @@ A typical SEO professional pays **₹25,000-₹45,000 per month** ($300-$540) fo
 | | **₹7.6 lakh / year** |
 | **This tool replaces all 6** | **₹0 / month** ✅ |
 
+> *Prices accurate as of February 2026. Ahrefs / Semrush / Surfer publish official pricing on their sites — what you actually pay can be higher with add-ons (extra users, extra projects, AI credits).*
+
 > **You're not paying for the data.** Google gives away the same data through their free APIs (Search Console, Analytics, PageSpeed, Trends, autocomplete). Ahrefs and Semrush charge you ₹10,000+/month to repackage what's already free. This tool just connects directly to the free sources.
 
 ---
@@ -155,7 +157,7 @@ Open <http://localhost:3000>. That's it.
 ✅ Share of voice — % of tracked-keyword visibility yours vs theirs
 
 ### 🤖 AI search visibility (the 2026 differentiator)
-> Google AI Overviews now appear on 47% of commercial queries. Gartner projects 25% organic-traffic drop by 2028. Most SEO tools haven't caught up. This one has.
+> Google AI Overviews now appear on **47% of commercial queries** ([Semrush AI Overview study, 2025](https://www.semrush.com/blog/google-ai-overviews-study/)). Gartner projects a **25% organic-traffic drop by 2028** ([Gartner 2024 prediction](https://www.gartner.com/en/newsroom/press-releases/2024-02-19-gartner-predicts-search-engine-volume-will-drop-25-percent-by-2026-due-to-ai-chatbots-and-other-virtual-agents)). Most SEO tools haven't caught up. This one has.
 
 ✅ LLM mention tracker — weekly checks across ChatGPT, Perplexity, Claude, Gemini, Google AI Overviews  
 ✅ Citation analysis — when not cited, see who is (Reddit, Wikipedia, industry pubs)  
@@ -278,7 +280,7 @@ Actively in development for the next 3-6 months. Want one of these sooner? Open 
 | 🔌 **Plugin marketplace** | Community-built extensions. Ship your own audit rule, niche template, report block. |
 | 🧠 **Custom dashboards + chart annotations** | Drag-and-drop dashboards per client. Annotate spikes with notes (algorithm update, big campaign, etc). |
 
-See [CLAUDE.md Part 12](CLAUDE.md) for the full v2 + v3 roadmap (~30 items). Community feedback shapes prioritization — file an issue with the 🔮 label.
+See [ROADMAP.md](ROADMAP.md) for the full v2 + v3 roadmap (~30 items). Community feedback shapes prioritization — file an issue with the 🔮 label.
 
 ---
 
@@ -390,6 +392,25 @@ Yes. Audits and rank tracking work for any country and language (country + BCP-4
 
 The tool detects 2,500+ technologies via Wappalyzer. Tech-stack-aware recommendations exist for WordPress, Shopify, Next.js, Webflow, Wix, Squarespace, Laravel, custom PHP, and ~20 more. For anything else, you get generic recommendations + a "give my developer instructions" button that generates a clear ticket.
 </details>
+
+---
+
+## 👋 Who built this?
+
+**Built solo by [Prince Ramgarhia](https://github.com/IamRamgarhia) (DiceCodes)** — a full-stack developer based in Punjab, India, building products end-to-end.
+
+This SEO platform exists because every existing tool either costs ₹10,000+/month or has critical gaps (no AI-search tracking, no integrated workflow, dated UI). Rather than pick one, I built the integrated tool I wanted as a freelance SEO myself: modern stack, free-first, privacy-first, tech-stack-aware.
+
+**Other shipped work:**
+- 🌐 [dicecodes.com](https://dicecodes.com) — portfolio + past projects
+- 🧾 [Free GST Billing Software](https://github.com/IamRamgarhia/Free-GST-Billing-Software) — open-source invoicing for Indian small businesses
+
+**Why trust a solo project over established SaaS?**
+- The full source is here — read it, audit it, fork it
+- Issues + PRs get a same-week response (solo dev = no support-tier roulette)
+- License (PolyForm Noncommercial) legally guarantees the tool stays free for end users forever — even if DiceCodes vanishes tomorrow, anyone can continue it
+
+**Want to hire the builder for your own product?** See [Need custom software?](#-need-custom-software-like-this-we-build-it) below.
 
 ---
 
