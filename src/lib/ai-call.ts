@@ -1,6 +1,7 @@
 import { getActiveProvider, getApiKey, getOllamaUrl } from "./api-keys";
 import { getSetting } from "./settings-store";
 import { checkMonthlyCap, logAiCall } from "./ai-usage";
+import { withAiPermit } from "./ai-semaphore";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
 import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
 import { callOpenAICompat as sharedCallOpenAICompat } from "./providers/openai-compat";
@@ -170,6 +171,12 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
   };
   const pickedModel = opts.modelOverride?.trim() || defaultModel[active];
 
+  // Acquire one of the global AI permits. Caps workspace-wide
+  // concurrency so the daily-agent's batch generations don't burst
+  // the provider's rate limit and break a manual user action that
+  // happens to fire at the same moment. Permits are auto-released
+  // in finally even when the dispatch throws.
+  await withAiPermit(async () => {
   try {
     if (active === "gemini") {
       const k = await getApiKey("gemini");
@@ -308,6 +315,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
     errorMsg = (err as Error).message;
     text = null;
   }
+  });
 
   // Log every call (success or failure) — async-fire, never block
   void logAiCall({

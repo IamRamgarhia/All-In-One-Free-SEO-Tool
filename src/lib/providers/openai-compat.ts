@@ -37,9 +37,38 @@ export type OpenAICompatCallOpts = {
   caller?: string;
 };
 
+/**
+ * Status codes worth retrying once.
+ *   0 — network error / abort
+ *   429 — rate-limited (free tiers + burst protection)
+ *   500/502/503/504 — transient server issues
+ * Permanent failures (400 bad request, 401 bad key, 404 wrong model)
+ * are NOT retried — retrying just wastes time.
+ */
+const RETRY_STATUSES = new Set([0, 429, 500, 502, 503, 504]);
+const RETRY_BACKOFF_MS = 1500;
+
 export async function callOpenAICompat(
   opts: OpenAICompatCallOpts,
 ): Promise<string | null> {
+  // One retry with backoff. Most rate-limits are bursty and a 1.5s
+  // delay is enough to slip past — the global ai-semaphore further
+  // reduces the chance of hitting 429 in the first place.
+  let attempt = 0;
+  while (true) {
+    const result = await dispatchOpenAICompat(opts);
+    if (result.ok) return result.text;
+    if (attempt >= 1 || !RETRY_STATUSES.has(result.status)) {
+      return null;
+    }
+    attempt++;
+    await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+  }
+}
+
+async function dispatchOpenAICompat(
+  opts: OpenAICompatCallOpts,
+): Promise<{ ok: true; text: string | null } | { ok: false; status: number }> {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), opts.timeoutMs);
   try {
@@ -86,18 +115,22 @@ export async function callOpenAICompat(
       console.error(
         `[${opts.caller ?? "openai-compat"}] ${opts.model} ${res.status}: ${errBody || res.statusText}`,
       );
-      return null;
+      return { ok: false, status: res.status };
     }
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
     };
-    return data.choices?.[0]?.message?.content?.trim() || null;
+    return {
+      ok: true,
+      text: data.choices?.[0]?.message?.content?.trim() || null,
+    };
   } catch (err) {
     console.error(
       `[${opts.caller ?? "openai-compat"}] ${opts.model} call failed:`,
       (err as Error).message,
     );
-    return null;
+    // Network / abort — treat as retryable (status 0 conventionally).
+    return { ok: false, status: 0 };
   } finally {
     clearTimeout(t);
   }
