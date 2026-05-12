@@ -3,6 +3,8 @@
 import { callAI } from "@/lib/ai-call";
 import { scanCwv } from "@/lib/pagespeed";
 import { saveToolRun } from "@/lib/tool-runs";
+import { db } from "@/db/client";
+import { toolFindings, type ToolFinding } from "@/db/schema";
 
 export type SxoAudit = {
   url: string;
@@ -16,12 +18,30 @@ export type SxoAudit = {
   /** Composite 0-100. */
   sxoScore: number;
   recommendations: string[];
+  /** Persisted run id — caller uses it to render the FindingsChecklist. */
+  runId?: number;
+  /** Persisted findings (one row per actionable check). */
+  findings?: ToolFinding[];
 };
 
 export type SxoState =
   | { ok: true; audit: SxoAudit }
   | { ok: false; error: string }
   | null;
+
+/**
+ * Build the raw checklist of findings from the SXO signals computed
+ * above. Each check produces ONE finding (pass or fail). Passing
+ * checks are kept (with severity="pass") so the user sees a green
+ * row for what's already working — important for trust after re-checks.
+ */
+type RawFinding = {
+  signature: string;
+  title: string;
+  category: string;
+  severity: "critical" | "high" | "medium" | "low" | "pass";
+  details: string;
+};
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost)";
@@ -286,11 +306,175 @@ Output a JSON object with: { "primaryPersona": "<one phrase>", "recommendations"
     sxoScore,
     recommendations,
   };
-  await saveToolRun({
+
+  // Build per-finding rows. Each signature is stable across runs so
+  // re-checks can match findings back to prior status (resolved/ignored).
+  const raw: RawFinding[] = [
+    {
+      signature: "sxo.page_promise",
+      title: pagePromise.ok
+        ? "Page promise is clear"
+        : "Page promise is unclear — missing or weak H1",
+      category: "Page promise",
+      severity: pagePromise.ok ? "pass" : "critical",
+      details: pagePromise.note,
+    },
+    {
+      signature: "sxo.time_to_answer",
+      title:
+        timeToAnswer.score >= 70
+          ? "Time-to-answer is solid"
+          : "Slow time-to-answer — readers wait for the point",
+      category: "Time-to-answer",
+      severity:
+        timeToAnswer.score >= 70
+          ? "pass"
+          : timeToAnswer.score >= 40
+            ? "medium"
+            : "high",
+      details: timeToAnswer.note,
+    },
+    {
+      signature: "sxo.next_step",
+      title: nextStep.ok
+        ? "Clear next step on the page"
+        : "No clear next step — dead-end risk",
+      category: "Next step",
+      severity: nextStep.ok ? "pass" : "high",
+      details: nextStep.note,
+    },
+    ...frictionItems.map((item, i): RawFinding => ({
+      signature: `sxo.friction.${i}.${item.slice(0, 32).replace(/\W+/g, "_").toLowerCase()}`,
+      title: item,
+      category: "Friction",
+      severity: "medium",
+      details: "Detected on initial page render — verify it isn't blocking the above-the-fold experience.",
+    })),
+    {
+      signature: "sxo.cwv",
+      title:
+        cwvScore >= 80
+          ? "Core Web Vitals look healthy"
+          : cwvScore >= 50
+            ? "Core Web Vitals need attention"
+            : "Poor Core Web Vitals — speed is hurting rankings",
+      category: "Core Web Vitals",
+      severity: cwvScore >= 80 ? "pass" : cwvScore >= 50 ? "medium" : "high",
+      details:
+        `PSI performance ${cwvScore}/100` +
+        (lcpMs !== null ? ` · LCP ${(lcpMs / 1000).toFixed(1)}s` : "") +
+        (cls !== null ? ` · CLS ${cls.toFixed(2)}` : ""),
+    },
+  ];
+
+  // Persist the run first so we have a runId to attach findings to.
+  const runId = await saveToolRun({
     toolId: "sxo",
     label: `${url} · SXO ${sxoScore}/100`,
     input: { url },
     result: { ok: true, audit },
-  }).catch(() => undefined);
-  return { ok: true, audit };
+  }).catch(() => null);
+
+  let savedFindings: ToolFinding[] = [];
+  if (runId !== null) {
+    // Ask the AI for plain-English fix steps + optional copy-paste
+    // snippet for each non-passing finding. One batched call to keep
+    // cost low. Failing AI = fall back to recommendations.
+    const fixMap = await generateFixSteps(
+      url,
+      raw.filter((f) => f.severity !== "pass"),
+    );
+
+    const rows = raw.map((f) => ({
+      runId,
+      toolId: "sxo",
+      signature: f.signature,
+      title: f.title,
+      category: f.category,
+      severity: f.severity,
+      details: f.details,
+      fixSteps: f.severity === "pass" ? null : fixMap[f.signature]?.steps ?? null,
+      codeSnippet:
+        f.severity === "pass" ? null : fixMap[f.signature]?.code ?? null,
+      status: "new" as const,
+    }));
+    try {
+      const inserted = await db
+        .insert(toolFindings)
+        .values(rows)
+        .returning();
+      savedFindings = inserted;
+    } catch {
+      // Don't fail the whole audit if the findings table write fails
+      savedFindings = [];
+    }
+  }
+
+  return {
+    ok: true,
+    audit: {
+      ...audit,
+      runId: runId ?? undefined,
+      findings: savedFindings,
+    },
+  };
+}
+
+/**
+ * Ask the AI for plain-English fix steps + optional copy-paste snippet
+ * for each finding. Returns a signature→{steps, code} map. Best-effort —
+ * if the AI fails, the findings still render without guidance and the
+ * user can mark them done manually.
+ */
+async function generateFixSteps(
+  url: string,
+  failingFindings: RawFinding[],
+): Promise<Record<string, { steps: string; code: string | null }>> {
+  if (failingFindings.length === 0) return {};
+  const prompt = `Page: ${url}
+For each finding below, write a "How to fix" section with 2-4 numbered plain-English steps. When a copy-paste HTML/JSON-LD/robots.txt/CSS snippet would help, include it.
+
+Return JSON with this shape:
+{
+  "fixes": [
+    { "signature": "<sig>", "steps": "1. …\\n2. …", "code": "<snippet or empty>" }
+  ]
+}
+
+Findings:
+${failingFindings
+  .map(
+    (f, i) =>
+      `${i + 1}. [${f.signature}] ${f.title}\n   Details: ${f.details}`,
+  )
+  .join("\n")}`;
+
+  const aiText = await callAI({
+    system:
+      "You are an SXO consultant. Output JSON only — no preamble, no markdown fences.",
+    user: prompt,
+    maxTokens: 1500,
+    temperature: 0.3,
+    feature: "general",
+  });
+  if (!aiText) return {};
+  const out: Record<string, { steps: string; code: string | null }> = {};
+  try {
+    const cleaned = aiText.replace(/```(?:json)?/g, "").trim();
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (!m) return {};
+    const parsed = JSON.parse(m[0]) as {
+      fixes?: { signature?: string; steps?: string; code?: string }[];
+    };
+    for (const fix of parsed.fixes ?? []) {
+      if (!fix.signature) continue;
+      out[fix.signature] = {
+        steps: (fix.steps ?? "").slice(0, 2000),
+        code: fix.code && fix.code.trim().length > 0 ? fix.code.slice(0, 2000) : null,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return out;
 }

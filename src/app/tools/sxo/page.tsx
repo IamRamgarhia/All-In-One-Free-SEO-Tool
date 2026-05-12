@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { runSxoAudit, type SxoState } from "./actions";
 import { RecentRuns } from "@/components/recent-runs";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
+import { FindingsChecklist } from "@/components/findings-checklist";
 
 export default function SxoPage() {
   const [state, formAction, pending] = useActionState<SxoState, FormData>(
@@ -138,20 +139,44 @@ export default function SxoPage() {
             </Card>
           </section>
 
-          <section className="glass-apple relative overflow-hidden rounded-2xl p-5">
-            <h3 className="text-sm font-semibold">Recommended fixes</h3>
-            <ul className="mt-2 space-y-1.5 text-sm">
-              {state.audit.recommendations.map((r, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-violet-400" />
-                  <span>{r}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-3">
-              <AiDisclaimer variant="inline" />
-            </div>
-          </section>
+          {/* Per-finding checklist with mark-complete + re-check.
+              Backed by the tool_findings table; persists status across
+              page reloads. The runs list re-renders when the user
+              completes everything and clicks Re-check. */}
+          {state.audit.findings && state.audit.findings.length > 0 ? (
+            <FindingsChecklist
+              findings={state.audit.findings}
+              subjectLabel={state.audit.url.replace(/^https?:\/\//, "")}
+              onRecheck={() => {
+                // Re-submit the same form so the audit re-runs with the
+                // same URL. The action will produce a new run_id and
+                // fresh findings; the user can compare scores.
+                const fd = new FormData();
+                fd.append("url", state.audit.url);
+                return new Promise<void>((resolve) => {
+                  formAction(fd);
+                  // Resolve quickly — the page will re-render with new
+                  // state when the action returns.
+                  setTimeout(resolve, 100);
+                });
+              }}
+            />
+          ) : (
+            <section className="rounded-lg border border-border bg-card p-5">
+              <h3 className="text-sm font-semibold">Recommended fixes</h3>
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {state.audit.recommendations.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3">
+                <AiDisclaimer variant="inline" />
+              </div>
+            </section>
+          )}
         </>
       )}
 
