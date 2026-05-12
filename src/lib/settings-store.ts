@@ -76,6 +76,18 @@ export type SettingKey =
   | "browser.max_concurrency"
   | "browser.proxies"
   | "browser.stealth_enabled"
+  // Remote browser endpoint. When set, all withBrowserContext calls use
+  // chromium.connect(<this WS endpoint>) instead of launching local
+  // Chrome. Lets self-hosters on tiny VPSes offload browser work to a
+  // managed service (Browserless, Cloudflare Browser Rendering, etc.).
+  | "browser.remote_ws"
+  // Lean-mode toggles — disable specific browser-dependent tools to
+  // free RAM on small boxes. Tool pages still render but show a
+  // "disabled in lean mode" notice and a link back to Settings.
+  | "browser.disable_rank_check"
+  | "browser.disable_local_cwv"
+  | "browser.disable_serp_scan"
+  | "browser.disable_gbp_scraper"
   // Cookie jar for logged-in scraping. Stored as JSON array of
   // { domain, name, value, path?, expires?, secure?, httpOnly? }.
   | "browser.cookies"

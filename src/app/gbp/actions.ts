@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { scrapeGbp, type GbpReport } from "@/lib/gbp-scraper";
 import { callAI } from "@/lib/ai-call";
+import { getSetting } from "@/lib/settings-store";
 import {
   GbpScopeMissingError,
   fetchGbpLocationSummary,
@@ -34,6 +35,27 @@ export async function runGbpScrape(
       ok: false,
       error:
         "No Google Business Profile URL on this client. Add it in Edit → GBP profile.",
+    };
+  }
+
+  // The browser-based scraper is now opt-in. Default install uses the
+  // official GBP API path (see loadGbpForClient below) which is faster,
+  // more reliable, and zero browser cost. Users who can't get the API
+  // scope can flip Settings → Browser → "Allow GBP scraper" to enable.
+  const scraperDisabled = Boolean(
+    await getSetting<boolean>("browser.disable_gbp_scraper"),
+  );
+  // Default-disabled: when the setting is undefined (fresh install),
+  // we treat it as disabled. User must explicitly opt in via a future
+  // toggle that sets browser.disable_gbp_scraper = false.
+  const explicitlyEnabled = (await getSetting<boolean>(
+    "browser.disable_gbp_scraper",
+  )) === false;
+  if (scraperDisabled || !explicitlyEnabled) {
+    return {
+      ok: false,
+      error:
+        "The browser-based GBP scraper is disabled to save memory. Use the official GBP API (connect Google with business.manage scope under Settings → Google), or enable the scraper under Settings → Browser pool.",
     };
   }
 

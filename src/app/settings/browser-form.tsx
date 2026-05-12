@@ -18,6 +18,11 @@ export function BrowserForm({
     stealth: boolean;
     cookies: string;
     cookieCount: number;
+    remoteWs: string;
+    disableRank: boolean;
+    disableCwv: boolean;
+    disableSerp: boolean;
+    allowGbpScraper: boolean;
   };
 }) {
   const [state, formAction, pending] = useActionState<
@@ -113,6 +118,99 @@ export function BrowserForm({
           Leave empty if not needed.
         </span>
       </label>
+
+      {/* Remote browser service — offload Chrome to a managed
+          endpoint. Compatible with Browserless / Cloudflare Browser
+          Rendering / Browserbase. When set, this server skips local
+          Chrome entirely (peak RAM drops by ~400-800 MB). */}
+      <label className="block space-y-1 text-xs">
+        <span className="text-muted-foreground">
+          Remote browser endpoint (WebSocket URL) — optional
+        </span>
+        <input
+          name="remoteWs"
+          type="text"
+          defaultValue={initial.remoteWs}
+          placeholder="wss://chrome.browserless.io?token=YOUR_TOKEN"
+          className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 font-mono text-xs focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+        />
+        <span className="block text-[10px] text-muted-foreground">
+          Drops local Chrome entirely — connects to Browserless,
+          Cloudflare Browser Rendering, Browserbase, or any
+          chromium.connect-compatible service. Saves ~400-800 MB RAM
+          on the server. Leave empty to use local browser. Env var
+          BROWSERLESS_WS_URL also works.
+        </span>
+      </label>
+
+      {/* Lean-mode toggles — disable specific browser-dependent tools
+          to free RAM on small hosts. Each turns off ONE feature; the
+          tool's page still renders but shows a "disabled" notice. */}
+      <fieldset className="space-y-2 rounded-lg border border-white/[0.06] bg-black/20 p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Lean mode — disable browser tools to save RAM
+        </legend>
+        <p className="text-[10px] text-muted-foreground">
+          Each checkbox turns off one browser-using feature. Useful on
+          small VPSes where you don&apos;t need every tool.
+        </p>
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="disableRank"
+            defaultChecked={initial.disableRank}
+            className="size-4 rounded border-white/20 bg-card/60"
+          />
+          <span>
+            Disable rank checking
+            <span className="ml-1 text-[10px] text-muted-foreground">
+              (daily Google SERP scrapes)
+            </span>
+          </span>
+        </label>
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="disableCwv"
+            defaultChecked={initial.disableCwv}
+            className="size-4 rounded border-white/20 bg-card/60"
+          />
+          <span>
+            Disable local Core Web Vitals
+            <span className="ml-1 text-[10px] text-muted-foreground">
+              (PSI API path still works without a browser)
+            </span>
+          </span>
+        </label>
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="disableSerp"
+            defaultChecked={initial.disableSerp}
+            className="size-4 rounded border-white/20 bg-card/60"
+          />
+          <span>
+            Disable SERP feature scanner
+            <span className="ml-1 text-[10px] text-muted-foreground">
+              (AI Overview / featured-snippet / PAA detection)
+            </span>
+          </span>
+        </label>
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="allowGbpScraper"
+            defaultChecked={initial.allowGbpScraper}
+            className="size-4 rounded border-white/20 bg-card/60"
+          />
+          <span>
+            Allow GBP scraper fallback
+            <span className="ml-1 text-[10px] text-muted-foreground">
+              (OFF by default — prefer official GBP API)
+            </span>
+          </span>
+        </label>
+      </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
         <button

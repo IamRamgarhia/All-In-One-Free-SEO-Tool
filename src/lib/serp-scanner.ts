@@ -77,6 +77,17 @@ export async function scanSerp(opts: SerpScanInput): Promise<SerpScanOutput> {
   const country = (opts.country ?? "US").toUpperCase();
   const clientDomain = normalizeDomain(opts.clientDomain);
 
+  // Lean-mode short-circuit. Lets users on small VPSes disable the
+  // SERP-feature scanner entirely while keeping other browser tools.
+  const { getSetting } = await import("./settings-store");
+  if (await getSetting<boolean>("browser.disable_serp_scan")) {
+    return {
+      ...empty(),
+      error:
+        "SERP scanner is disabled in Settings → Browser pool (lean mode).",
+    };
+  }
+
   return withBrowserContext(async (context) => {
     const page = await context.newPage();
     const out: SerpScanOutput = empty();

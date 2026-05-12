@@ -16,7 +16,7 @@ export function LocalCwvForm() {
         action={formAction}
         className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3"
       >
-        <div className="grid gap-3 md:grid-cols-[1fr_140px_140px]">
+        <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_120px]">
           <label className="space-y-1 text-xs">
             <span className="text-muted-foreground">URL</span>
             <input
@@ -35,6 +35,20 @@ export function LocalCwvForm() {
             >
               <option value="mobile">Mobile</option>
               <option value="desktop">Desktop</option>
+            </select>
+          </label>
+          <label
+            className="space-y-1 text-xs"
+            title="PSI = Google's PageSpeed Insights API (free, fast, no browser). Local = headless Chrome on this server (full control, console errors, slower)."
+          >
+            <span className="text-muted-foreground">Mode</span>
+            <select
+              name="mode"
+              defaultValue="psi"
+              className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+            >
+              <option value="psi">PSI API</option>
+              <option value="local">Local browser</option>
             </select>
           </label>
           <button

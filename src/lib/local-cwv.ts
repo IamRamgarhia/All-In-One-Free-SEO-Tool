@@ -79,6 +79,36 @@ export async function measureCwv(
   opts: { device?: "mobile" | "desktop" } = {},
 ): Promise<CwvResult> {
   const device = opts.device ?? "mobile";
+
+  // Lean-mode short-circuit. The PSI-API path (local-cwv-psi.ts) still
+  // works without a browser; route there instead, or return an error
+  // explaining the user disabled this in settings.
+  const { getSetting } = await import("./settings-store");
+  if (await getSetting<boolean>("browser.disable_local_cwv")) {
+    return {
+      ok: false,
+      url,
+      finalUrl: null,
+      lcpMs: null,
+      lcpElement: null,
+      fcpMs: null,
+      cls: null,
+      ttfbMs: null,
+      domContentLoadedMs: null,
+      loadMs: null,
+      tbtMs: null,
+      performanceScore: null,
+      verdict: { lcp: "unknown", cls: "unknown", fcp: "unknown" },
+      resources: { total: 0, bytes: 0, count: 0, byType: {} },
+      consoleErrors: 0,
+      consoleWarnings: 0,
+      networkErrors: [],
+      measuredAt: new Date().toISOString(),
+      fixes: [],
+      error:
+        "Local CWV is disabled in Settings → Browser pool (lean mode). Use the PSI API mode in the tool's dropdown instead — same data, no local browser.",
+    };
+  }
   const viewport =
     device === "mobile" ? { width: 412, height: 915 } : { width: 1366, height: 900 };
   const ua =

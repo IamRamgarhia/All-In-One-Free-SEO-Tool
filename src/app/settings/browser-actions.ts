@@ -31,12 +31,26 @@ export async function saveBrowserSettings(
     .replace(/\r/g, "");
   const cookies = parseCookieLines(cookiesRaw);
 
+  const remoteWs = String(formData.get("remoteWs") ?? "").trim();
+  const disableRank = formData.get("disableRank") === "on";
+  const disableCwv = formData.get("disableCwv") === "on";
+  const disableSerp = formData.get("disableSerp") === "on";
+  const allowGbpScraper = formData.get("allowGbpScraper") === "on";
+
   await setSetting("browser.max_concurrency", conc);
   await setSetting("browser.proxies", proxiesRaw);
   await setSetting("browser.stealth_enabled", stealth);
   await setSetting("browser.cookies", cookies);
+  await setSetting("browser.remote_ws", remoteWs);
+  await setSetting("browser.disable_rank_check", disableRank);
+  await setSetting("browser.disable_local_cwv", disableCwv);
+  await setSetting("browser.disable_serp_scan", disableSerp);
+  // Allow checkbox is inverted — the underlying flag stores "disable"
+  // semantics so the default (undefined) reads as disabled.
+  await setSetting("browser.disable_gbp_scraper", !allowGbpScraper);
 
-  // Force-close the browser so the next launch picks up new settings.
+  // Force-close the browser so the next launch picks up new settings
+  // (especially the remote WS endpoint switch).
   await closeBrowser();
 
   revalidatePath("/settings");
@@ -101,6 +115,11 @@ export async function loadBrowserSettings() {
   const cookiesText = cookies
     .map((c) => `${c.domain}\t${c.name}\t${c.value}`)
     .join("\n");
+  // GBP scraper allow-flag is inverted (storage uses "disable" semantics
+  // so the default `undefined` reads as disabled). Surface as "allow" in
+  // the form so the user makes the active choice to enable it.
+  const gbpScraperDisabled =
+    (await getSetting<boolean>("browser.disable_gbp_scraper")) ?? true;
   return {
     maxConcurrency:
       (await getSetting<number>("browser.max_concurrency")) ?? 4,
@@ -108,5 +127,13 @@ export async function loadBrowserSettings() {
     stealth: ((await getSetting<boolean>("browser.stealth_enabled")) ?? true),
     cookies: cookiesText,
     cookieCount: cookies.length,
+    remoteWs: (await getSetting<string>("browser.remote_ws")) ?? "",
+    disableRank:
+      (await getSetting<boolean>("browser.disable_rank_check")) ?? false,
+    disableCwv:
+      (await getSetting<boolean>("browser.disable_local_cwv")) ?? false,
+    disableSerp:
+      (await getSetting<boolean>("browser.disable_serp_scan")) ?? false,
+    allowGbpScraper: !gbpScraperDisabled,
   };
 }

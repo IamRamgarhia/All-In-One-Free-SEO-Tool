@@ -279,6 +279,27 @@ export async function checkRank(
 ): Promise<RankCheckResult> {
   const domain = normalizeDomain(rawDomain);
   const device = options.device ?? "desktop";
+
+  // Lean-mode short-circuit. When the user has disabled rank checking
+  // in Settings → Browser pool, we return a clear error instead of
+  // launching Chrome. Saves the user from a 30s wait + the browser
+  // RAM hit.
+  const { getSetting } = await import("./settings-store");
+  if (await getSetting<boolean>("browser.disable_rank_check")) {
+    return {
+      query,
+      domain: rawDomain,
+      engine: "google",
+      position: null,
+      url: null,
+      checkedAt: new Date(),
+      device,
+      resultsScanned: 0,
+      error:
+        "Rank checking is disabled in Settings → Browser pool (lean mode).",
+    };
+  }
+
   if (!domain) {
     return {
       query,

@@ -107,35 +107,60 @@ function release() {
   if (next) next();
 }
 
+/**
+ * Optional remote browser endpoint. When set (via Settings → Browser
+ * or the BROWSERLESS_WS_URL env var), we connect to that WebSocket
+ * instead of launching local Chrome. Compatible with Browserless,
+ * Cloudflare Browser Rendering, Browserbase, and any
+ * chromium.connect-compatible service.
+ *
+ * Lets self-hosters on tiny 1-GB VPSes offload the 250-400 MB browser
+ * cost per context to a managed service — typically $0-50/mo flat
+ * for the hosting cost the local browser would otherwise consume.
+ */
+async function getRemoteWsEndpoint(): Promise<string | null> {
+  const fromDb = await getSetting<string>("browser.remote_ws");
+  if (fromDb && fromDb.trim()) return fromDb.trim();
+  const env = process.env.BROWSERLESS_WS_URL;
+  return env && env.trim() ? env.trim() : null;
+}
+
 async function getBrowser(): Promise<Browser> {
   if (cachedBrowser && cachedBrowser.isConnected()) return cachedBrowser;
   if (!browserPromise) {
-    const opts: LaunchOptions = {
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-blink-features=AutomationControlled",
-        "--disable-dev-shm-usage",
-        "--disable-features=IsolateOrigins,site-per-process",
-        "--no-first-run",
-        "--no-default-browser-check",
-        // Memory-savers — combined these knock ~150-200 MB off each context.
-        "--disable-gpu",
-        "--disable-software-rasterizer",
-        "--disable-extensions",
-        "--disable-background-networking",
-        "--disable-background-timer-throttling",
-        "--disable-renderer-backgrounding",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-sync",
-        "--disable-default-apps",
-        "--mute-audio",
-        "--no-zygote",
-        // Cap V8 heap so a runaway page can't grow unbounded.
-        "--js-flags=--max-old-space-size=512",
-      ],
-    };
-    browserPromise = chromium.launch(opts);
+    const remoteWs = await getRemoteWsEndpoint();
+    if (remoteWs) {
+      // Remote browser: chromium.connect over WebSocket. The service
+      // handles launch/teardown; we just attach to a running instance.
+      browserPromise = chromium.connect(remoteWs);
+    } else {
+      const opts: LaunchOptions = {
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-blink-features=AutomationControlled",
+          "--disable-dev-shm-usage",
+          "--disable-features=IsolateOrigins,site-per-process",
+          "--no-first-run",
+          "--no-default-browser-check",
+          // Memory-savers — combined these knock ~150-200 MB off each context.
+          "--disable-gpu",
+          "--disable-software-rasterizer",
+          "--disable-extensions",
+          "--disable-background-networking",
+          "--disable-background-timer-throttling",
+          "--disable-renderer-backgrounding",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-sync",
+          "--disable-default-apps",
+          "--mute-audio",
+          "--no-zygote",
+          // Cap V8 heap so a runaway page can't grow unbounded.
+          "--js-flags=--max-old-space-size=512",
+        ],
+      };
+      browserPromise = chromium.launch(opts);
+    }
   }
   cachedBrowser = await browserPromise;
   // If browser ever disconnects, clear the cache so next call re-launches.
