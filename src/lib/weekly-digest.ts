@@ -21,6 +21,7 @@ import {
   tasks,
 } from "@/db/schema";
 import { ALGO_UPDATES } from "./algorithm-updates";
+import { getSetting } from "./settings-store";
 
 export type DigestRow = {
   clientId: number;
@@ -193,6 +194,12 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
     clientsDropped,
     algoOverlaps,
   });
+  const brand = {
+    name: (await getSetting<string>("brand.name")) ?? null,
+    tagline: (await getSetting<string>("brand.tagline")) ?? null,
+    footerText: (await getSetting<string>("brand.footer_text")) ?? null,
+    website: (await getSetting<string>("brand.website")) ?? null,
+  };
   const htmlVersion = renderHtml({
     weekStart,
     weekEnd: now,
@@ -202,6 +209,7 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
     clientsImproved,
     clientsDropped,
     algoOverlaps,
+    brand,
   });
 
   return {
@@ -224,6 +232,12 @@ type RenderOpts = {
   clientsImproved: number;
   clientsDropped: number;
   algoOverlaps: { name: string; date: string; type: string }[];
+  brand?: {
+    name: string | null;
+    tagline: string | null;
+    footerText: string | null;
+    website: string | null;
+  };
 };
 
 function renderText(o: RenderOpts): string {
@@ -359,6 +373,19 @@ ${
       .join("")}
   </tbody>
 </table>
+${
+  o.brand?.footerText || o.brand?.name
+    ? `<footer style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e5e7;font-size:11px;color:#888;text-align:center;line-height:1.5;">
+  ${
+    o.brand?.name
+      ? `<div><strong style="color:#444;">${esc(o.brand.name)}</strong>${o.brand.tagline ? ` · ${esc(o.brand.tagline)}` : ""}</div>`
+      : ""
+  }
+  ${o.brand?.footerText ? `<div>${esc(o.brand.footerText)}</div>` : ""}
+  ${o.brand?.website ? `<div><a href="${esc(o.brand.website)}" style="color:#888;text-decoration:none;">${esc(o.brand.website.replace(/^https?:\/\//, ""))}</a></div>` : ""}
+</footer>`
+    : ""
+}
 </body></html>`;
 }
 

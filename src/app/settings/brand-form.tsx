@@ -18,10 +18,20 @@ export function BrandForm({
   initialName,
   initialColor,
   initialLogoDataUrl,
+  initialTagline,
+  initialWebsite,
+  initialEmail,
+  initialPhone,
+  initialFooterText,
 }: {
   initialName: string | null;
   initialColor: string | null;
   initialLogoDataUrl: string | null;
+  initialTagline?: string | null;
+  initialWebsite?: string | null;
+  initialEmail?: string | null;
+  initialPhone?: string | null;
+  initialFooterText?: string | null;
 }) {
   const [name, setName] = useState(initialName ?? "");
   const [color, setColor] = useState(initialColor ?? "#6d49d6");
@@ -160,6 +170,82 @@ export function BrandForm({
           )}
         </div>
       </div>
+
+      {/* Contact + footer block. Optional fields that appear on
+          invoice PDFs, the weekly digest email header, the client
+          portal share page, and the monthly report cover. The
+          tagline, in particular, lets agencies show "Your growth
+          partner since 2018"-style copy where appropriate. */}
+      <fieldset className="space-y-3 rounded-xl border border-white/5 bg-black/20 p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Contact + footer (optional, used on invoices + emails)
+        </legend>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="brand-tagline">Tagline</Label>
+          <Input
+            id="brand-tagline"
+            name="tagline"
+            defaultValue={initialTagline ?? ""}
+            placeholder="Your growth partner — SEO done right"
+            maxLength={120}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Sub-headline under the brand name on report covers.
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="brand-email">Contact email</Label>
+            <Input
+              id="brand-email"
+              name="email"
+              type="email"
+              defaultValue={initialEmail ?? ""}
+              placeholder="hello@yourdomain.com"
+              maxLength={200}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="brand-phone">Phone</Label>
+            <Input
+              id="brand-phone"
+              name="phone"
+              defaultValue={initialPhone ?? ""}
+              placeholder="+1 555 123 4567"
+              maxLength={40}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="brand-website">Website</Label>
+          <Input
+            id="brand-website"
+            name="website"
+            defaultValue={initialWebsite ?? ""}
+            placeholder="https://yourdomain.com"
+            maxLength={200}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="brand-footer">Footer text</Label>
+          <Input
+            id="brand-footer"
+            name="footerText"
+            defaultValue={initialFooterText ?? ""}
+            placeholder="Acme SEO Co. · Registered in Delaware · EIN 12-3456789"
+            maxLength={200}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Single line shown in the bottom of invoices, the weekly
+            digest email, and the client portal page. Good for
+            registration info, address, or a tagline.
+          </p>
+        </div>
+      </fieldset>
 
       <div className="flex items-center gap-2">
         <Button

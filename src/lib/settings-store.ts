@@ -10,6 +10,15 @@ export type SettingKey =
   | "brand.name"
   | "brand.logo_data_url"
   | "brand.color"
+  // Extended brand fields — surfaced on PDFs (invoice, report cover),
+  // email digests (weekly digest header / footer), and the client
+  // portal share page. Optional; tool falls back gracefully when any
+  // field is empty.
+  | "brand.tagline"
+  | "brand.website"
+  | "brand.email"
+  | "brand.phone"
+  | "brand.footer_text"
   | "ui.mode"
   | "api.openai"
   | "api.anthropic"

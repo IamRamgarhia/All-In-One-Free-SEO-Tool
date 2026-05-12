@@ -65,6 +65,11 @@ export default async function SettingsPage() {
   const brandName = await getSetting<string>("brand.name");
   const brandColor = await getSetting<string>("brand.color");
   const brandLogo = await getSetting<string>("brand.logo_data_url");
+  const brandTagline = await getSetting<string>("brand.tagline");
+  const brandWebsite = await getSetting<string>("brand.website");
+  const brandEmail = await getSetting<string>("brand.email");
+  const brandPhone = await getSetting<string>("brand.phone");
+  const brandFooter = await getSetting<string>("brand.footer_text");
   const { byId: configuredKeys } = await configuredProviders();
   const ollamaUrl = await getOllamaUrl();
   const activeProvider = await getActiveProvider();
@@ -207,6 +212,11 @@ export default async function SettingsPage() {
             initialName={brandName}
             initialColor={brandColor}
             initialLogoDataUrl={brandLogo}
+            initialTagline={brandTagline}
+            initialWebsite={brandWebsite}
+            initialEmail={brandEmail}
+            initialPhone={brandPhone}
+            initialFooterText={brandFooter}
           />
         </div>
       </section>
