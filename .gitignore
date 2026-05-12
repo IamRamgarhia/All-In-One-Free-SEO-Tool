@@ -1,5 +1,14 @@
+# ─────────────────────────────────────────────────────────────────────
+# .gitignore — what NEVER goes to git.
+#
+# Anything regenerable (deps, build output) or per-install state
+# (database, logs, OAuth tokens, encryption keys) is excluded. Code,
+# config templates, docs, and migrations ARE tracked.
+# ─────────────────────────────────────────────────────────────────────
+
 # dependencies (regenerable via pnpm install)
 /node_modules
+/.pnpm-store
 
 # build artifacts (regenerable via pnpm build)
 /.next
@@ -7,37 +16,79 @@
 /out
 /build
 /coverage
+.turbo
+.vercel
+.swc
 
-# misc
-.DS_Store
-*.pem
+# TypeScript build incremental files
 *.tsbuildinfo
 next-env.d.ts
 
-# user data — NEVER commit. Each install creates its own fresh data.db.
+# OS metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE state (per-developer; share via the repo's own configs instead)
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+
+# Certificates / signing
+*.pem
+*.key
+
+# ─────────────────────────────────────────────────────────────────────
+# USER DATA — NEVER commit. Each install creates its own.
+# ─────────────────────────────────────────────────────────────────────
+
+# SQLite database + WAL / shared-memory + auto-backups
 data.db
 data.db-shm
 data.db-wal
 data.db.bak
+data.db.bak-*
 *.sqlite
 *.sqlite-*
 /data/
 
-# user env / secrets
-.env
-.env.local
-.env.*.local
+# Tool-generated user assets (screenshots, exports, PDFs, etc.)
+/public/uploads/
+/screenshots/
+/exports/
 
-# dev server runtime artifacts
+# OAuth refresh tokens / API-key encryption key — leakage = account compromise
+.seo-encryption-key
+
+# Per-instance runtime state
+.seo-port
 dev-server.log
 dev-server.err.log
 .dev-server.pid
 .dev-server.cmd
-.seo-port
-.seo-encryption-key
 
-# desktop guides regenerated per install
+# Logs in general
+*.log
+
+# Redis dump (if Redis worker writes locally)
+dump.rdb
+
+# Desktop guides regenerated per install
 *-Welcome.txt
 
-# claude code local settings — per-user
-.claude/settings.local.json
+# ─────────────────────────────────────────────────────────────────────
+# Secrets — NEVER commit.
+# ─────────────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+# Note: .env.example IS tracked — it's the documented template.
+
+# ─────────────────────────────────────────────────────────────────────
+# Per-user tool config (Claude Code, scheduled-task locks, etc.)
+# ─────────────────────────────────────────────────────────────────────
+.claude/
