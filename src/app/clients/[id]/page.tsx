@@ -374,15 +374,20 @@ export default async function ClientDetailPage({
 
             <div className="p-6 sm:p-8">
               {/* Breadcrumb — editorial micro caps */}
-              <nav className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <nav
+                aria-label="Breadcrumb"
+                className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+              >
                 <Link
                   href="/clients"
-                  className="transition-colors hover:text-foreground"
+                  className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                 >
                   Clients
                 </Link>
                 <span aria-hidden className="text-muted-foreground/40">·</span>
-                <span className="truncate text-foreground/80">{client.name}</span>
+                <span aria-current="page" className="truncate text-foreground/80">
+                  {client.name}
+                </span>
               </nav>
 
               {/* Headline grid */}
@@ -406,13 +411,17 @@ export default async function ClientDetailPage({
                       <a
                         href={client.url}
                         target="_blank"
-                        rel="noreferrer"
-                        className="group inline-flex max-w-full items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1 font-mono text-[12px] text-muted-foreground ring-1 ring-inset ring-border transition-colors hover:bg-muted/60 hover:text-foreground"
+                        rel="noreferrer noopener"
+                        aria-label={`${client.url} — opens in a new tab`}
+                        className="group inline-flex max-w-full items-center gap-1.5 rounded-md bg-muted/40 px-2 py-1 font-mono text-[12px] text-muted-foreground ring-1 ring-inset ring-border transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                       >
                         <span className="truncate">
                           {client.url.replace(/^https?:\/\//, "")}
                         </span>
-                        <ExternalLink className="size-3 shrink-0 opacity-60 group-hover:opacity-100" />
+                        <ExternalLink
+                          aria-hidden
+                          className="size-3 shrink-0 opacity-60 group-hover:opacity-100"
+                        />
                       </a>
                     </div>
                   </div>
@@ -434,46 +443,70 @@ export default async function ClientDetailPage({
                         {client.techStack.length === 1 ? "" : "s"} detected
                       </span>
                     )}
-                    {auditedLabel && (
+                    {auditedLabel && latestCompleted?.completedAt && (
                       <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <span className="size-1 rounded-full bg-muted-foreground/50" />
-                        <span title={auditedDateFull ?? undefined}>
-                          Audited {auditedLabel}
+                        <span
+                          aria-hidden
+                          className="size-1 rounded-full bg-muted-foreground/50"
+                        />
+                        <span>
+                          Audited{" "}
+                          <time
+                            dateTime={latestCompleted.completedAt.toISOString()}
+                          >
+                            {auditedLabel}
+                          </time>
                         </span>
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* RIGHT — score panel */}
-                <div className="relative lg:border-l lg:border-border lg:pl-8">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                {/* RIGHT — score panel.
+                    Wrapped in <dl> so the caption / number / sub-metadata
+                    relate semantically — screen readers announce as
+                    "Health score: 32 out of 100. 13 issues found. May 12,
+                    2026." */}
+                <dl
+                  className="relative lg:border-l lg:border-border lg:pl-8"
+                  aria-label="Latest audit summary"
+                >
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
                     Health score
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-2">
-                    <div
+                  </dt>
+                  <dd className="mt-2 flex items-baseline gap-2">
+                    <span
                       className={`font-bold tabular-nums leading-none ${toneClasses.number}`}
                       style={{ fontSize: "clamp(4rem, 6vw, 5.5rem)" }}
+                      aria-label={
+                        score === null
+                          ? "No score yet"
+                          : `${score} out of 100`
+                      }
                     >
                       {score === null ? "—" : score}
-                    </div>
-                    <div className="text-xl font-medium text-muted-foreground/60">
+                    </span>
+                    <span
+                      aria-hidden
+                      className="text-xl font-medium text-muted-foreground/60"
+                    >
                       /100
-                    </div>
-                  </div>
-                  {/* Strength bar */}
-                  <div
+                    </span>
+                  </dd>
+                  {/* Strength bar — decorative; the numeric label above
+                      already carries the semantic value. Animation guarded
+                      by motion-safe so prefers-reduced-motion users get an
+                      instant fill. */}
+                  <dd
+                    aria-hidden
                     className="mt-4 h-1 w-full overflow-hidden rounded-full bg-muted/40"
-                    role="img"
-                    aria-label={`Health score ${score ?? "unscored"} out of 100`}
                   >
                     <div
-                      className={`h-full rounded-full transition-[width] duration-700 ${toneClasses.bar}`}
+                      className={`h-full rounded-full motion-safe:transition-[width] motion-safe:duration-700 ${toneClasses.bar}`}
                       style={{ width: `${barFill}%` }}
                     />
-                  </div>
-                  {/* Sub-metadata */}
-                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                  </dd>
+                  <dd className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                     {latestCompleted ? (
                       <>
                         <span className="font-medium text-foreground/80 tabular-nums">
@@ -483,15 +516,21 @@ export default async function ClientDetailPage({
                         <span aria-hidden className="text-muted-foreground/40">
                           ·
                         </span>
-                        <span>{auditedDateFull}</span>
+                        {latestCompleted.completedAt && (
+                          <time
+                            dateTime={latestCompleted.completedAt.toISOString()}
+                          >
+                            {auditedDateFull}
+                          </time>
+                        )}
                       </>
                     ) : (
                       <span>
                         Run an audit to score this site — takes ~30 seconds.
                       </span>
                     )}
-                  </div>
-                </div>
+                  </dd>
+                </dl>
               </div>
 
               {/* Hairline + action row */}
