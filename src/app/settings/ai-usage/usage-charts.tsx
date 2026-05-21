@@ -1,16 +1,27 @@
 "use client";
 
 /**
- * Tremor-powered visualizations on the AI usage page. Server component
- * computes the aggregations and hands serialized data here so this
- * client island just renders. Both charts get:
- *   - Themed cyan/violet/amber/emerald accents matching the new palette
- *   - Plain-English value formatters (calls + USD)
- *   - Sensible empty states
+ * AI usage visualizations. Migrated off @tremor/react (effectively in
+ * maintenance mode) to plain recharts, which we already ship.
+ *
+ * Two panels:
+ *   - "Last 30 days · calls per day" — bar chart, cyan accent
+ *   - "Cost by feature" — donut, cycling through the brand palette
  */
 
-import { BarChart, DonutChart, Legend } from "@tremor/react";
-import { Activity, PieChart } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Activity, PieChart as PieChartIcon } from "lucide-react";
 
 type DailyPoint = {
   day: string;
@@ -24,6 +35,20 @@ type FeatureRow = {
   cost: number;
   tokens: number;
 };
+
+// Match the previous tremor palette (cyan / violet / amber / emerald / rose / indigo / pink / sky)
+const FEATURE_COLORS = [
+  "rgb(34 211 238)",   // cyan-400
+  "rgb(167 139 250)",  // violet-400
+  "rgb(251 191 36)",   // amber-400
+  "rgb(52 211 153)",   // emerald-400
+  "rgb(251 113 133)",  // rose-400
+  "rgb(129 140 248)",  // indigo-400
+  "rgb(244 114 182)",  // pink-400
+  "rgb(56 189 248)",   // sky-400
+];
+
+const CYAN = "rgb(34 211 238)";
 
 export function UsageCharts({
   days,
@@ -55,24 +80,44 @@ export function UsageCharts({
             Hover bars for daily totals + estimated cost.
           </p>
         </header>
-        <BarChart
-          data={days}
-          index="day"
-          categories={["calls"]}
-          colors={["cyan"]}
-          showLegend={false}
-          showGridLines={false}
-          yAxisWidth={32}
-          className="h-52"
-          valueFormatter={(v) => `${v.toLocaleString()}`}
-        />
+        <div className="h-52">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={days} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(255 255 255 / 0.05)" vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 10, fill: "rgb(148 163 184)" }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "rgb(148 163 184)" }}
+                tickLine={false}
+                axisLine={false}
+                width={32}
+                tickFormatter={(v) => v.toLocaleString()}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "rgb(15 23 42)",
+                  border: "1px solid rgb(255 255 255 / 0.08)",
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
+                formatter={(value) => [Number(value).toLocaleString(), "calls"]}
+                labelStyle={{ color: "rgb(226 232 240)" }}
+              />
+              <Bar dataKey="calls" fill={CYAN} radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </section>
 
       {/* Per-feature donut — 1/3 width */}
       <section className="rounded-xl border border-border bg-card p-5 shadow">
         <header className="mb-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <PieChart className="size-4 text-[oklch(0.68_0.16_295)]" />
+            <PieChartIcon className="size-4 text-[oklch(0.68_0.16_295)]" />
             Cost by feature
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -85,19 +130,54 @@ export function UsageCharts({
           </div>
         ) : (
           <>
-            <DonutChart
-              data={featureChart}
-              category="cost"
-              index="name"
-              colors={["cyan", "violet", "amber", "emerald", "rose", "indigo", "pink", "sky"]}
-              valueFormatter={(v) => `$${v.toFixed(3)}`}
-              className="h-44"
-            />
-            <Legend
-              categories={featureChart.map((f) => f.name)}
-              colors={["cyan", "violet", "amber", "emerald", "rose", "indigo", "pink", "sky"]}
-              className="mt-3 justify-center"
-            />
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={featureChart}
+                    dataKey="cost"
+                    nameKey="name"
+                    innerRadius={40}
+                    outerRadius={70}
+                    paddingAngle={2}
+                    isAnimationActive={false}
+                  >
+                    {featureChart.map((_, i) => (
+                      <Cell
+                        key={i}
+                        fill={FEATURE_COLORS[i % FEATURE_COLORS.length]}
+                        stroke="transparent"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgb(15 23 42)",
+                      border: "1px solid rgb(255 255 255 / 0.08)",
+                      borderRadius: 8,
+                      fontSize: 11,
+                    }}
+                    formatter={(value, name) => [
+                      `$${Number(value).toFixed(3)}`,
+                      String(name),
+                    ]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <ul className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              {featureChart.map((f, i) => (
+                <li key={f.name} className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-block size-2 rounded-sm"
+                    style={{
+                      background: FEATURE_COLORS[i % FEATURE_COLORS.length],
+                    }}
+                  />
+                  {f.name}
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </section>

@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Tremor-powered per-row rank trend. Replaces the hand-rolled SVG
- * polyline with a SparkAreaChart that has a gradient fill, smoother
- * curves, and consistent styling across the app.
+ * Per-row rank trend sparkline. Migrated off @tremor/react (which is
+ * effectively in maintenance mode) to plain recharts — we already have
+ * recharts as a dep. Direction-aware coloring (green = rank improved,
+ * red = rank dropped) preserved.
  *
  * Position semantics are inverted (lower position = better rank), so
  * the chart plots `100 - position` to keep the natural "up = better"
@@ -11,7 +12,7 @@
  * indicator, not a reading.
  */
 
-import { SparkAreaChart } from "@tremor/react";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
 type Point = {
   checkedAt: Date;
@@ -38,18 +39,35 @@ export function RankSparkline({ history }: { history: Point[] }) {
   const first = filtered[0].position;
   const last = filtered[filtered.length - 1].position;
   // Lower position is better — invert for direction
-  const color: "emerald" | "rose" | "gray" =
-    last < first ? "emerald" : last > first ? "rose" : "gray";
+  const strokeColor =
+    last < first
+      ? "rgb(52 211 153)" // emerald-400
+      : last > first
+        ? "rgb(251 113 133)" // rose-400
+        : "rgb(148 163 184)"; // slate-400
+
+  const gradientId = `rank-spark-${strokeColor.replace(/[^a-z0-9]/g, "")}`;
 
   return (
-    <SparkAreaChart
-      data={data}
-      categories={["rank"]}
-      index="t"
-      colors={[color]}
-      className="h-6 w-24"
-      showGradient
-      autoMinValue
-    />
+    <div className="h-6 w-24">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 1, right: 0, bottom: 1, left: 0 }}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={strokeColor} stopOpacity={0.4} />
+              <stop offset="100%" stopColor={strokeColor} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area
+            type="monotone"
+            dataKey="rank"
+            stroke={strokeColor}
+            strokeWidth={1.5}
+            fill={`url(#${gradientId})`}
+            isAnimationActive={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

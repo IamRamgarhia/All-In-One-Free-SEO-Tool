@@ -58,7 +58,6 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@resvg/resvg-js": "^2.6.2",
-    "@tremor/react": "^3.18.7",
     "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

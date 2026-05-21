@@ -1,6 +1,13 @@
 /**
  * Reads the user's _SEO DATA.xlsx and produces a clean JSON seed file at
  * src/data/seo-resources.json. Run once: `pnpm exec tsx src/db/import-xlsx.ts`.
+ *
+ * SECURITY NOTE: this script uses the `xlsx` (SheetJS community) package
+ * which has known prototype-pollution CVEs in the past. That risk does
+ * NOT apply here — this is a one-shot DEV-ONLY script that reads a
+ * trusted local file owned by the maintainer. We deliberately do NOT
+ * accept user-uploaded xlsx anywhere in the running app. If you change
+ * that later, swap to `exceljs` first.
  */
 import * as XLSX from "xlsx";
 import { mkdirSync, writeFileSync } from "node:fs";
