@@ -10,17 +10,28 @@ cd "$(dirname "$0")/.."
 
 STOPPED=0
 
-# ---- 1. Try the saved PID first
+# ---- 1. Try the saved PID first. Graceful first (SIGTERM), then wait
+# up to 5 seconds for the process to flush and exit, then SIGKILL.
+# SIGTERM gives Node a chance to close DB handles cleanly.
 if [ -f ".dev-server.pid" ]; then
   OUR_PID="$(cat .dev-server.pid 2>/dev/null || true)"
   if [ -n "$OUR_PID" ] && kill -0 "$OUR_PID" 2>/dev/null; then
-    kill "$OUR_PID" 2>/dev/null && {
-      echo "Stopped SEO Tool process $OUR_PID."
-      STOPPED=1
-    }
-    sleep 1
+    kill -TERM "$OUR_PID" 2>/dev/null || true
+    # Wait up to 5s for graceful exit
+    for i in 1 2 3 4 5; do
+      if ! kill -0 "$OUR_PID" 2>/dev/null; then
+        echo "Stopped SEO Tool process $OUR_PID gracefully."
+        STOPPED=1
+        break
+      fi
+      sleep 1
+    done
     # Force-kill if still alive
-    kill -0 "$OUR_PID" 2>/dev/null && kill -9 "$OUR_PID" 2>/dev/null || true
+    if kill -0 "$OUR_PID" 2>/dev/null; then
+      kill -9 "$OUR_PID" 2>/dev/null || true
+      echo "Stopped SEO Tool process $OUR_PID (forced)."
+      STOPPED=1
+    fi
   fi
   rm -f .dev-server.pid
 fi
@@ -32,10 +43,14 @@ PORT="3000"
 if command -v lsof >/dev/null 2>&1; then
   PORT_PID="$(lsof -ti :"$PORT" -sTCP:LISTEN 2>/dev/null || true)"
   if [ -n "$PORT_PID" ]; then
-    kill "$PORT_PID" 2>/dev/null && {
-      echo "Stopped process on port $PORT (PID $PORT_PID)."
-      STOPPED=1
-    }
+    # Graceful first, force after 3s
+    kill -TERM "$PORT_PID" 2>/dev/null || true
+    sleep 3
+    if kill -0 "$PORT_PID" 2>/dev/null; then
+      kill -9 "$PORT_PID" 2>/dev/null || true
+    fi
+    echo "Stopped process on port $PORT (PID $PORT_PID)."
+    STOPPED=1
   fi
 fi
 

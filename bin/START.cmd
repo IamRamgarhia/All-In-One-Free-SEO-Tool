@@ -115,6 +115,30 @@ echo (first launch can take 30-90 seconds while it compiles)
 
 REM ---- 6. Wait for /api/v1/health to confirm the app is actually up.
 powershell -NoProfile -Command "for ($i=0; $i -lt 60; $i++) { try { (Invoke-WebRequest -UseBasicParsing -Uri http://localhost:%PORT%/api/v1/health -TimeoutSec 1).StatusCode | Out-Null; break } catch { Start-Sleep -Seconds 1 } }"
-if not "%SEO_RESTART%"=="1" start "" "http://localhost:%PORT%"
+
+REM ---- 7. Open in app-window mode if Chrome/Edge/Brave is available.
+REM     `--app=URL` strips the tabs + URL bar, giving the user a
+REM     PWA-feel dedicated window. Falls back to default browser if
+REM     no Chromium browser is found.
+if "%SEO_RESTART%"=="1" goto :running
+set "APP_URL=http://localhost:%PORT%"
+set "OPENED=0"
+for %%B in (
+  "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
+  "%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+  "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+  "%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"
+  "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
+  "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+  "%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"
+  "%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe"
+) do (
+  if !OPENED!==0 if exist %%B (
+    start "" %%B --app="%APP_URL%"
+    set "OPENED=1"
+  )
+)
+if !OPENED!==0 start "" "%APP_URL%"
+:running
 echo SEO Tool is running at http://localhost:%PORT%
 endlocal

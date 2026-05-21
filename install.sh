@@ -608,10 +608,55 @@ EOF
     launchctl load "$AGENT_PATH" 2>/dev/null && say "Registered launchd auto-start: $AGENT_PATH" \
       || warn "Could not load launchd agent; reboot to take effect or run: launchctl load $AGENT_PATH"
   elif [ "$OS" = "Linux" ]; then
-    UNIT_DIR="$HOME/.config/systemd/user"
-    UNIT_PATH="$UNIT_DIR/seo-tool.service"
-    mkdir -p "$UNIT_DIR"
-    cat > "$UNIT_PATH" <<EOF
+    # Two modes here:
+    #   SEO_SYSTEM_SERVICE=1 -> install at /etc/systemd/system/ via sudo
+    #     so the service runs at BOOT (no user login required). Ideal for
+    #     headless VPS deploys. Requires sudo.
+    #   default              -> install at ~/.config/systemd/user/ via
+    #     the systemd-user manager. No sudo, but service only runs while
+    #     the user is logged in (or after `sudo loginctl enable-linger`).
+    if [ "$SEO_SYSTEM_SERVICE" = "1" ]; then
+      UNIT_PATH="/etc/systemd/system/seo-tool.service"
+      TMP_UNIT="$(mktemp)"
+      cat > "$TMP_UNIT" <<EOF
+[Unit]
+Description=SEO Tool (self-hosted)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$DIR
+ExecStart=/bin/bash $DIR/bin/START.sh
+Environment=SEO_RESTART=1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+      if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        sudo cp "$TMP_UNIT" "$UNIT_PATH"
+        sudo systemctl daemon-reload 2>/dev/null || true
+        if sudo systemctl enable --now seo-tool.service 2>/dev/null; then
+          say "Registered system-wide auto-start: $UNIT_PATH"
+          info "Boots without user login. Manage with:"
+          info "  sudo systemctl {start,stop,restart,status} seo-tool"
+        else
+          warn "Unit written to $UNIT_PATH but enable failed; check systemctl status seo-tool"
+        fi
+      else
+        warn "SEO_SYSTEM_SERVICE=1 set but sudo isn't available without password."
+        warn "Unit file saved to $TMP_UNIT — install manually:"
+        warn "  sudo cp $TMP_UNIT $UNIT_PATH"
+        warn "  sudo systemctl daemon-reload && sudo systemctl enable --now seo-tool"
+      fi
+    else
+      UNIT_DIR="$HOME/.config/systemd/user"
+      UNIT_PATH="$UNIT_DIR/seo-tool.service"
+      mkdir -p "$UNIT_DIR"
+      cat > "$UNIT_PATH" <<EOF
 [Unit]
 Description=SEO Tool (self-hosted)
 After=network-online.target
@@ -627,18 +672,20 @@ RestartSec=10
 [Install]
 WantedBy=default.target
 EOF
-    if command -v systemctl >/dev/null 2>&1; then
-      systemctl --user daemon-reload 2>/dev/null || true
-      systemctl --user enable seo-tool.service 2>/dev/null \
-        && say "Registered systemd-user auto-start: $UNIT_PATH" \
-        || warn "systemctl --user not available; the unit is at $UNIT_PATH for manual enable"
-      # `loginctl enable-linger $USER` (sudo) is needed for the unit to
-      # start without an active login session. We don't sudo silently —
-      # tell the user how to enable it themselves.
-      info "To run when you're NOT logged in (e.g. headless server):"
-      info "  sudo loginctl enable-linger $USER"
-    else
-      warn "No systemctl found; unit written but not enabled: $UNIT_PATH"
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user daemon-reload 2>/dev/null || true
+        systemctl --user enable seo-tool.service 2>/dev/null \
+          && say "Registered systemd-user auto-start: $UNIT_PATH" \
+          || warn "systemctl --user not available; the unit is at $UNIT_PATH for manual enable"
+        # `loginctl enable-linger $USER` (sudo) is needed for the unit to
+        # start without an active login session. We don't sudo silently —
+        # tell the user how to enable it themselves.
+        info "To run when you're NOT logged in (e.g. headless server):"
+        info "  sudo loginctl enable-linger $USER"
+        info "Or re-run installer with SEO_SYSTEM_SERVICE=1 for true boot-time start."
+      else
+        warn "No systemctl found; unit written but not enabled: $UNIT_PATH"
+      fi
     fi
   fi
 fi

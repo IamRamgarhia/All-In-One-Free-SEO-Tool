@@ -1,5 +1,12 @@
 @echo off
-REM Internal alias for START.cmd. Kept so /api/restart (which spawns
-REM "seo.cmd" by name) continues to work after we renamed the user-
-REM facing launcher to START.cmd. End users should use START.cmd.
+REM Multi-purpose entry: `seo doctor` runs the diagnostic dump,
+REM everything else is forwarded to START.cmd (preserves the legacy
+REM /api/restart compatibility that spawns "seo.cmd" by name).
+setlocal
+cd /d "%~dp0\.."
+if /I "%~1"=="doctor" (
+  node bin\seo-doctor.cjs
+  exit /b %errorlevel%
+)
+endlocal
 call "%~dp0START.cmd" %*

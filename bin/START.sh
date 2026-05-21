@@ -132,12 +132,45 @@ for i in $(seq 1 60); do
   sleep 1
 done
 
-# ---- 9. Open browser unless this is a restart
+# ---- 9. Open browser unless this is a restart.
+# Try Chrome / Edge / Brave with --app=URL first for the PWA-like
+# dedicated-window experience (no tabs, no URL bar). Fall back to the
+# system default browser if none of those are installed.
 if [ "$SEO_RESTART" != "1" ]; then
-  if command -v open >/dev/null 2>&1; then
-    open "http://localhost:$PORT" 2>/dev/null || true
-  elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "http://localhost:$PORT" 2>/dev/null || true
+  APP_URL="http://localhost:$PORT"
+  OPENED=0
+  OS_NAME="$(uname -s)"
+
+  open_app_window() {
+    local bin="$1"
+    if command -v "$bin" >/dev/null 2>&1; then
+      "$bin" --app="$APP_URL" >/dev/null 2>&1 &
+      OPENED=1
+    fi
+  }
+
+  if [ "$OS_NAME" = "Darwin" ]; then
+    # macOS: try the canonical .app bundles first via `open -a`
+    for app in "Google Chrome" "Microsoft Edge" "Brave Browser"; do
+      if [ "$OPENED" = "0" ] && [ -d "/Applications/$app.app" ]; then
+        open -na "$app" --args --app="$APP_URL" >/dev/null 2>&1 && OPENED=1
+      fi
+    done
+  else
+    # Linux: probe binaries in PATH
+    for bin in google-chrome google-chrome-stable chromium chromium-browser microsoft-edge brave-browser; do
+      if [ "$OPENED" = "0" ]; then
+        open_app_window "$bin"
+      fi
+    done
+  fi
+
+  if [ "$OPENED" = "0" ]; then
+    if command -v open >/dev/null 2>&1; then
+      open "$APP_URL" 2>/dev/null || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "$APP_URL" 2>/dev/null || true
+    fi
   fi
 fi
 

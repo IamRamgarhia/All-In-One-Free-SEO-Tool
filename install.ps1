@@ -715,8 +715,46 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
         if (Test-Path $oldPath) {
             Remove-Item $oldPath -Force -ErrorAction SilentlyContinue
         }
+
+        # Also drop a Start Menu shortcut so Windows search ("SEO Tool"
+        # -> Enter) finds the app. One extra CreateShortcut into the
+        # per-user Programs folder — no admin needed.
+        $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
+        if (Test-Path $startMenu) {
+            $menuPath = Join-Path $startMenu "SEO Tool.lnk"
+            $menuSc = $wshShell.CreateShortcut($menuPath)
+            $menuSc.TargetPath = Join-Path $dir "bin\START.cmd"
+            $menuSc.WorkingDirectory = $dir
+            $menuSc.Description = "Start the SEO Tool (DiceCodes)"
+            if ($iconPath) { $menuSc.IconLocation = $iconPath }
+            $menuSc.Save()
+            Say "Created Start Menu shortcut: $menuPath"
+        }
     } catch {
         Warn "Couldn't create desktop shortcuts: $($_.Exception.Message)"
+    }
+}
+
+# ---- 5c. Defender exclusion (opt-in via SEO_DEFENDER_EXCLUDE=1) ------------
+# First start is noticeably slower because Defender real-time-scans every
+# file in node_modules + the Playwright Chromium binary. Adding an
+# exclusion for $dir speeds this up dramatically. Requires admin elevation
+# (Add-MpPreference), so we only run it when the user opts in AND we're
+# already running elevated. Otherwise print the one-liner so they can run
+# it themselves in an admin shell.
+if (-not $hasDocker -and $env:SEO_DEFENDER_EXCLUDE -eq "1") {
+    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if ($isAdmin) {
+        try {
+            Add-MpPreference -ExclusionPath $dir -ErrorAction Stop
+            Say "Added Defender exclusion: $dir (faster first start)"
+        } catch {
+            Warn "Could not add Defender exclusion: $($_.Exception.Message)"
+        }
+    } else {
+        Info "SEO_DEFENDER_EXCLUDE=1 set but installer is not elevated."
+        Info "Run this once in an Administrator PowerShell to skip Defender scans:"
+        Info "  Add-MpPreference -ExclusionPath '$dir'"
     }
 }
 
