@@ -1,15 +1,20 @@
 /**
  * AI image generation for content (blog hero, OG image, illustrative images).
  *
- * BYO key — supports OpenAI's gpt-image-1 / dall-e-3 today, with the same
- * key the user already has in Settings. Returns the generated image as a
- * base64 data URL so the UI can download / copy without server file
- * storage.
+ * Free-first routing (matches the project-wide "no paid API required"
+ * stance):
+ *   1. If the caller passes `provider: "openai"` AND the user has an
+ *      OpenAI key configured, use DALL-E 3 (paid, high quality).
+ *   2. Otherwise fall back to Pollinations.ai — a public free image
+ *      service that accepts a prompt as a URL parameter and returns a
+ *      PNG. No key, no signup, no rate-limit on reasonable use. The
+ *      tool always works out of the box; OpenAI is an optional upgrade.
  *
- * Why not local Stable Diffusion: requires GPU + model weights + Python.
- * Out of scope for a Node-only self-hosted runtime. Users who want local
- * gen can plug Ollama + a vision/diffusion model and we'll route there
- * once such an open API exists; for now BYO OpenAI key.
+ * Returns the generated image as a base64 data URL so the UI can
+ * download / copy without server file storage.
+ *
+ * Local-only alternative (future): plug Ollama + a diffusion model.
+ * We'll route there once an open API exists for it.
  */
 
 import { getApiKey } from "./api-keys";
@@ -18,10 +23,16 @@ export type ImageGenInput = {
   prompt: string;
   /** Aspect ratio preset — maps to the right size argument per provider. */
   aspect: "square" | "landscape" | "portrait";
-  /** "standard" or "hd" (more detail, more cost). */
+  /** "standard" or "hd" (more detail, more cost). OpenAI only. */
   quality?: "standard" | "hd";
-  /** Photo / illustration / vector / 3D rendering. */
+  /** Photo / illustration / vector / 3D rendering. OpenAI only. */
   style?: "natural" | "vivid";
+  /**
+   * Provider preference. "auto" picks OpenAI if a key is configured,
+   * otherwise falls back to Pollinations.ai. "pollinations" forces the
+   * free path. "openai" requires the user to have a key.
+   */
+  provider?: "auto" | "pollinations" | "openai";
 };
 
 export type ImageGenResult =
@@ -31,16 +42,26 @@ export type ImageGenResult =
       dataUrl: string;
       /** Echo of the prompt used (some providers rewrite). */
       revisedPrompt?: string;
-      provider: "openai";
+      provider: "openai" | "pollinations";
       model: string;
       sizeBytes: number;
     }
   | { ok: false; error: string };
 
-const SIZE_MAP: Record<ImageGenInput["aspect"], string> = {
+const OPENAI_SIZE_MAP: Record<ImageGenInput["aspect"], string> = {
   square: "1024x1024",
   landscape: "1792x1024",
   portrait: "1024x1792",
+};
+
+// Pollinations.ai uses width × height query params and returns PNG.
+const POLLINATIONS_SIZE_MAP: Record<
+  ImageGenInput["aspect"],
+  { w: number; h: number }
+> = {
+  square: { w: 1024, h: 1024 },
+  landscape: { w: 1792, h: 1024 },
+  portrait: { w: 1024, h: 1792 },
 };
 
 export async function generateImage(
@@ -49,16 +70,79 @@ export async function generateImage(
   if (!input.prompt.trim())
     return { ok: false, error: "Prompt is required." };
 
-  const apiKey = await getApiKey("openai");
-  if (!apiKey) {
-    return {
-      ok: false,
-      error:
-        "Image generation requires an OpenAI API key. Add one in Settings → AI provider, then retry.",
-    };
+  const wanted = input.provider ?? "auto";
+  const openaiKey = await getApiKey("openai");
+
+  // Decide route
+  let route: "openai" | "pollinations";
+  if (wanted === "openai") {
+    if (!openaiKey) {
+      return {
+        ok: false,
+        error:
+          "Requested OpenAI but no API key is set. Switch provider to 'auto' / 'pollinations' for the free path, or add a key in Settings → AI provider.",
+      };
+    }
+    route = "openai";
+  } else if (wanted === "pollinations") {
+    route = "pollinations";
+  } else {
+    // auto: prefer OpenAI when key present (better quality), else free
+    route = openaiKey ? "openai" : "pollinations";
   }
 
-  const size = SIZE_MAP[input.aspect] ?? "1024x1024";
+  if (route === "pollinations") {
+    return await callPollinations(input);
+  }
+  return await callOpenAI(input, openaiKey as string);
+}
+
+async function callPollinations(
+  input: ImageGenInput,
+): Promise<ImageGenResult> {
+  const { w, h } = POLLINATIONS_SIZE_MAP[input.aspect] ?? { w: 1024, h: 1024 };
+  // The image.pollinations.ai endpoint is a public GET that returns PNG.
+  // We append `nologo=true` to suppress the watermark and a random
+  // seed so re-requests with the same prompt give variation.
+  const seed = Math.floor(Math.random() * 1_000_000);
+  const url =
+    `https://image.pollinations.ai/prompt/${encodeURIComponent(input.prompt.slice(0, 1500))}` +
+    `?width=${w}&height=${h}&nologo=true&seed=${seed}`;
+
+  const ctl = new AbortController();
+  const tid = setTimeout(() => ctl.abort(), 60_000);
+  try {
+    const res = await fetch(url, { signal: ctl.signal });
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: `Pollinations responded ${res.status}. Try again, or switch to OpenAI in settings.`,
+      };
+    }
+    const ab = await res.arrayBuffer();
+    const buf = Buffer.from(ab);
+    return {
+      ok: true,
+      dataUrl: `data:image/png;base64,${buf.toString("base64")}`,
+      provider: "pollinations",
+      model: "pollinations-default",
+      sizeBytes: buf.length,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Pollinations request failed: ${(err as Error).message}`,
+    };
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+async function callOpenAI(
+  input: ImageGenInput,
+  apiKey: string,
+): Promise<ImageGenResult> {
+  const size = OPENAI_SIZE_MAP[input.aspect] ?? "1024x1024";
   const quality = input.quality ?? "standard";
   const style = input.style ?? "vivid";
   const model = "dall-e-3";
@@ -79,28 +163,30 @@ export async function generateImage(
       response_format: "b64_json",
     }),
   });
+
   if (!res.ok) {
-    const text = await res.text();
+    const text = await res.text().catch(() => "");
     return {
       ok: false,
-      error: `OpenAI error ${res.status}: ${text.slice(0, 400)}`,
+      error: `OpenAI image gen failed (${res.status}): ${text.slice(0, 200)}`,
     };
   }
-  const data = (await res.json()) as {
+
+  type OpenAIImageResponse = {
     data?: { b64_json?: string; revised_prompt?: string }[];
   };
-  const b64 = data.data?.[0]?.b64_json;
+  const json = (await res.json()) as OpenAIImageResponse;
+  const b64 = json.data?.[0]?.b64_json;
   if (!b64) {
-    return { ok: false, error: "No image returned." };
+    return { ok: false, error: "OpenAI returned no image data" };
   }
-
-  const sizeBytes = Math.round((b64.length * 3) / 4);
+  const buf = Buffer.from(b64, "base64");
   return {
     ok: true,
     dataUrl: `data:image/png;base64,${b64}`,
-    revisedPrompt: data.data?.[0]?.revised_prompt,
+    revisedPrompt: json.data?.[0]?.revised_prompt,
     provider: "openai",
     model,
-    sizeBytes,
+    sizeBytes: buf.length,
   };
 }
