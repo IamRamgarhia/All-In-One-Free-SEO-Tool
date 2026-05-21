@@ -3,7 +3,7 @@
 import { eq, desc, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, auditIssues, clients, tasks } from "@/db/schema";
-import { generateExecSummary } from "@/lib/ai-summary";
+import { generateExecSummary, type ExecSummaryDataPoint } from "@/lib/ai-summary";
 import {
   getGa4OrganicTraffic,
   getGscQuickWins,
@@ -16,7 +16,18 @@ const severityRank = (s: string) =>
   ({ critical: 4, high: 3, medium: 2, low: 1 })[s] ?? 0;
 
 export type ExecPreviewResult =
-  | { ok: true; summary: string }
+  | {
+      ok: true;
+      summary: string;
+      /**
+       * Deterministic citations for the summary. Render them next to the
+       * preview so the user can verify each claim before sending the
+       * report. Same data points appear in the PDF.
+       */
+      dataPoints: ExecSummaryDataPoint[];
+      /** "ai" if a real model produced the prose; "template" if fallback. */
+      source: "ai" | "template";
+    }
   | { ok: false; error: string };
 
 /**
@@ -122,5 +133,10 @@ export async function previewExecSummary(
     quickWinsCount: gscQuickWins.length,
   });
 
-  return { ok: true, summary };
+  return {
+    ok: true,
+    summary: summary.prose,
+    dataPoints: summary.dataPoints,
+    source: summary.source,
+  };
 }

@@ -6,10 +6,14 @@ import { previewExecSummary } from "./preview-actions";
 import { AiFeedback } from "@/components/ai-feedback";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
 
+type DataPoint = { label: string; value: string };
+
 export function SummaryPreview({ clientId }: { clientId: number }) {
   const [, startTransition] = useTransition();
   const [generating, setGenerating] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
+  const [dataPoints, setDataPoints] = useState<DataPoint[]>([]);
+  const [source, setSource] = useState<"ai" | "template" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -30,6 +34,28 @@ export function SummaryPreview({ clientId }: { clientId: number }) {
             <p className="whitespace-pre-wrap text-sm text-foreground/95">
               {summary}
             </p>
+            {dataPoints.length > 0 && (
+              <details className="rounded-md border border-white/[0.06] bg-white/[0.02] open:bg-white/[0.04]">
+                <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground">
+                  Data behind this summary ({dataPoints.length})
+                  {source === "template" && (
+                    <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-300 ring-1 ring-inset ring-amber-500/30">
+                      template fallback — no AI key configured
+                    </span>
+                  )}
+                </summary>
+                <ul className="space-y-1 border-t border-white/[0.06] px-3 py-2 text-[12px]">
+                  {dataPoints.map((dp, i) => (
+                    <li key={i} className="flex gap-2 leading-relaxed">
+                      <span className="shrink-0 font-medium text-muted-foreground">
+                        {dp.label}:
+                      </span>
+                      <span className="text-foreground/90">{dp.value}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <AiFeedback
@@ -47,8 +73,13 @@ export function SummaryPreview({ clientId }: { clientId: number }) {
                   startTransition(async () => {
                     const r = await previewExecSummary(clientId);
                     setGenerating(false);
-                    if (r.ok) setSummary(r.summary);
-                    else setError(r.error);
+                    if (r.ok) {
+                      setSummary(r.summary);
+                      setDataPoints(r.dataPoints);
+                      setSource(r.source);
+                    } else {
+                      setError(r.error);
+                    }
                   });
                 }}
                 disabled={generating}

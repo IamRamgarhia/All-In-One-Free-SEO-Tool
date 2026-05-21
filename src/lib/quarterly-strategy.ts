@@ -274,8 +274,10 @@ export async function generateQuarterlyStrategyPdf(
   }
 
   if (!narrative) {
-    // Fallback to the monthly exec-summary helper, padded with q-context
-    narrative = await generateExecSummary({
+    // Fallback to the monthly exec-summary helper, padded with q-context.
+    // Quarterly strategy doesn't surface the dataPoints list separately —
+    // it's a single narrative-style PDF — so we just take the prose.
+    const fallback = await generateExecSummary({
       clientId,
       clientName: client.name,
       clientUrl: client.url,
@@ -296,6 +298,7 @@ export async function generateQuarterlyStrategyPdf(
       })),
       quickWinsCount: 0,
     });
+    narrative = fallback.prose;
   }
 
   // ============== Render the PDF ==============

@@ -4,9 +4,40 @@
  *
  * Uses the central `callAI` helper so it benefits from credit-saver mode
  * + the feedback-driven style learning automatically.
+ *
+ * Cite-or-bust pattern (Move #4): the function returns BOTH the prose
+ * AND a deterministic list of `dataPoints` derived from the input.
+ * Callers should render `dataPoints` alongside the prose as a "Data
+ * behind this summary" footer / expand — so every claim in the
+ * summary can be audited against the underlying numbers. Computing
+ * citations from input (not asking the LLM) avoids:
+ *   - free-tier providers that don't reliably return JSON
+ *   - LLM hallucinating "I used number X" when it didn't
+ *   - extra token spend
  */
 
 import { callAI } from "./ai-call";
+
+export type ExecSummaryDataPoint = {
+  /** Short label, e.g. "Health score", "Organic sessions (28d)". */
+  label: string;
+  /** Human-readable value, e.g. "78 / 100 (+5 vs last)". */
+  value: string;
+};
+
+export type ExecSummaryResult = {
+  /** The 50-90 word executive summary itself. */
+  prose: string;
+  /**
+   * Every input data point that was non-null and therefore *could* have
+   * influenced the prose. Render this somewhere visible — a callout,
+   * a footer accordion, a "Data used" PDF section. Building reader
+   * trust depends on it.
+   */
+  dataPoints: ExecSummaryDataPoint[];
+  /** Whether the prose came from a real LLM call or the template fallback. */
+  source: "ai" | "template";
+};
 
 export type ExecSummaryInput = {
   clientId?: number;
@@ -40,8 +71,9 @@ Strict rules:
 
 export async function generateExecSummary(
   input: ExecSummaryInput,
-): Promise<string> {
+): Promise<ExecSummaryResult> {
   const userPrompt = buildUserPrompt(input);
+  const dataPoints = collectDataPoints(input);
 
   const result = await callAI({
     system: SYSTEM_PROMPT,
@@ -54,8 +86,93 @@ export async function generateExecSummary(
     ignoreCreditSaver: true,
   });
 
-  if (result && result.trim().length > 0) return result.trim();
-  return templateSummary(input);
+  if (result && result.trim().length > 0) {
+    return { prose: result.trim(), dataPoints, source: "ai" };
+  }
+  return { prose: templateSummary(input), dataPoints, source: "template" };
+}
+
+/**
+ * Deterministic citation builder. Walks every input field and emits a
+ * line for each non-null piece of evidence. The same input always
+ * produces the same dataPoints list — no model in the loop.
+ */
+function collectDataPoints(input: ExecSummaryInput): ExecSummaryDataPoint[] {
+  const out: ExecSummaryDataPoint[] = [];
+
+  if (input.score !== null) {
+    if (input.prevScore !== null) {
+      const delta = input.score - input.prevScore;
+      const sign = delta > 0 ? "+" : "";
+      out.push({
+        label: "Health score",
+        value: `${input.score} / 100 (${sign}${delta} vs last audit, was ${input.prevScore})`,
+      });
+    } else {
+      out.push({
+        label: "Health score",
+        value: `${input.score} / 100 (first measurement)`,
+      });
+    }
+  }
+
+  out.push({
+    label: "Tasks",
+    value: `${input.doneTasks} done / ${input.openTasks} open / ${input.totalTasks} total`,
+  });
+
+  if (input.topIssues.length > 0) {
+    const top = input.topIssues[0];
+    out.push({
+      label: `Top issue (${top.severity})`,
+      value: `${top.type} — ${top.message}`,
+    });
+    if (input.topIssues.length > 1) {
+      out.push({
+        label: "Other issues surfaced",
+        value: `${input.topIssues.length - 1} more (${input.topIssues.slice(1, 4).map((i) => i.type).join(", ")}${input.topIssues.length > 4 ? ", …" : ""})`,
+      });
+    }
+  }
+
+  if (typeof input.organicSessions === "number") {
+    const trend =
+      typeof input.organicSessionsDeltaPct === "number"
+        ? ` (${input.organicSessionsDeltaPct > 0 ? "+" : ""}${input.organicSessionsDeltaPct}% vs prior 28d)`
+        : "";
+    out.push({
+      label: "Organic sessions (last 28d)",
+      value: `${input.organicSessions.toLocaleString()}${trend}`,
+    });
+  }
+
+  if (input.topQueries && input.topQueries.length > 0) {
+    const q = input.topQueries[0];
+    out.push({
+      label: "Top organic query",
+      value: `"${q.query}" — ${q.clicks} clicks @ position ${q.position.toFixed(1)}`,
+    });
+  }
+
+  if (typeof input.quickWinsCount === "number" && input.quickWinsCount > 0) {
+    out.push({
+      label: "Quick-win keywords (positions 4-15)",
+      value: String(input.quickWinsCount),
+    });
+  }
+
+  if (input.techStack && input.techStack.length > 0) {
+    out.push({
+      label: "Detected tech stack",
+      value: input.techStack.join(", "),
+    });
+  }
+
+  if (input.niche) {
+    out.push({ label: "Niche", value: input.niche });
+  }
+
+  return out;
 }
 
 function buildUserPrompt(input: ExecSummaryInput): string {

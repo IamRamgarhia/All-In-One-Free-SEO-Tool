@@ -712,7 +712,32 @@ export async function generateReportPdf(
     .fillColor(palette.ink)
     .fontSize(11)
     .font("Helvetica")
-    .text(exec, { lineGap: 4 });
+    .text(exec.prose, { lineGap: 4 });
+
+  // Cite-or-bust: every claim in the prose maps to one of these
+  // deterministic data points. The reader can verify each one against
+  // the body of the report. Built from `input` not from the LLM, so
+  // the same numbers always produce the same citations.
+  if (exec.dataPoints.length > 0) {
+    doc.moveDown(0.8);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(8)
+      .fillColor(palette.mute)
+      .text("DATA BEHIND THIS SUMMARY", { characterSpacing: 1 });
+    doc.moveDown(0.3);
+    doc.font("Helvetica").fontSize(9).fillColor(palette.mute);
+    for (const dp of exec.dataPoints) {
+      doc.text(`• ${dp.label}: ${dp.value}`, { lineGap: 1 });
+    }
+    if (exec.source === "template") {
+      doc.moveDown(0.3);
+      doc.text(
+        "(Summary generated from template — no AI provider configured.)",
+        { lineGap: 1 },
+      );
+    }
+  }
 
   doc.moveDown(1.5);
 
