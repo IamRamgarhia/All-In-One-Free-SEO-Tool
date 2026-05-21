@@ -52,6 +52,16 @@ type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
+  /**
+   * Items marked `guided: true` are visible in Guided mode (the default
+   * for new users). Items without the flag are Pro-only — they still
+   * exist and are reachable by direct URL or via /tools, but the
+   * sidebar hides them so beginners aren't drowning in 80 leaf nodes.
+   *
+   * The "Show all tools" footer toggle flips ui.mode from guided to pro
+   * (or back). Settings → UI mode is the explicit knob.
+   */
+  guided?: boolean;
 };
 
 type NavGroup = {
@@ -193,14 +203,14 @@ const groups: NavGroup[] = [
     title: "Essentials",
     pinned: true,
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/welcome", label: "Get started", icon: Sparkles },
-      { href: "/clients", label: "Clients", icon: Users },
-      { href: "/seo-chat", label: "SEO chat", icon: Bot },
-      { href: "/audits", label: "Audits", icon: ClipboardList },
-      { href: "/tasks", label: "Tasks", icon: ListChecks },
-      { href: "/tools", label: "All tools", icon: Wrench },
-      { href: "/reports", label: "Reports", icon: FileDown },
+      { href: "/", label: "Dashboard", icon: LayoutDashboard, guided: true },
+      { href: "/welcome", label: "Get started", icon: Sparkles, guided: true },
+      { href: "/clients", label: "Clients", icon: Users, guided: true },
+      { href: "/seo-chat", label: "SEO chat", icon: Bot, guided: true },
+      { href: "/audits", label: "Audits", icon: ClipboardList, guided: true },
+      { href: "/tasks", label: "Tasks", icon: ListChecks, guided: true },
+      { href: "/tools", label: "All tools", icon: Wrench, guided: true },
+      { href: "/reports", label: "Reports", icon: FileDown, guided: true },
     ],
   },
   {
@@ -208,9 +218,9 @@ const groups: NavGroup[] = [
     title: "Everyday",
     defaultOpen: false,
     items: [
-      { href: "/morning", label: "Morning briefing", icon: Activity },
+      { href: "/morning", label: "Morning briefing", icon: Activity, guided: true },
       { href: "/digest", label: "Weekly digest", icon: Send },
-      { href: "/grader", label: "Instant audit", icon: Sparkles },
+      { href: "/grader", label: "Instant audit", icon: Sparkles, guided: true },
       { href: "/agent", label: "AI agent", icon: Bot },
       { href: "/capacity", label: "Capacity", icon: Gauge },
       { href: "/activity", label: "Activity log", icon: History },
@@ -220,13 +230,10 @@ const groups: NavGroup[] = [
     id: "content",
     title: "Content",
     items: [
-      { href: "/content", label: "Content overview", icon: FileText },
+      { href: "/content", label: "Content overview", icon: FileText, guided: true },
       { href: "/content/calendar", label: "Content calendar", icon: FileText },
-      { href: "/blog", label: "AI blog writer", icon: Wand2 },
-      // GROUP D: Content decay is the most-trafficked of the three
-      // (decay / gap / topic clusters). Pointing here until the
-      // tabbed Content health hub ships; other URLs remain reachable.
-      { href: "/content-decay", label: "Content health", icon: TrendingDown },
+      { href: "/blog", label: "AI blog writer", icon: Wand2, guided: true },
+      { href: "/content-decay", label: "Content health", icon: TrendingDown, guided: true },
       { href: "/title-tests", label: "Title A/B tests", icon: Wand2 },
       { href: "/meta-rewrite", label: "Meta rewrite batch", icon: Wand2 },
     ],
@@ -235,7 +242,7 @@ const groups: NavGroup[] = [
     id: "keywords",
     title: "Keywords & ranks",
     items: [
-      { href: "/keywords", label: "Tracked keywords", icon: Search },
+      { href: "/keywords", label: "Tracked keywords", icon: Search, guided: true },
       { href: "/cannibalization", label: "Cannibalization", icon: GitMerge },
       { href: "/cwv", label: "Core Web Vitals", icon: Gauge },
       { href: "/serp-scans", label: "SERP scans archive", icon: Globe },
@@ -253,9 +260,6 @@ const groups: NavGroup[] = [
         label: "Ad Funnel Architect ⭐",
         icon: Megaphone,
       },
-      // Forward-looking placeholders — the Meta + Google Ads + LinkedIn
-      // standalone dashboards aren't built yet, but the Ad Funnel
-      // generator covers their copy + strategy needs in the meantime.
       { href: "/tools/branded-split", label: "Branded vs non-branded", icon: Target },
     ],
   },
@@ -263,7 +267,7 @@ const groups: NavGroup[] = [
     id: "backlinks",
     title: "Backlinks & outreach",
     items: [
-      { href: "/backlinks", label: "Backlinks", icon: Link2 },
+      { href: "/backlinks", label: "Backlinks", icon: Link2, guided: true },
       { href: "/link-building", label: "Link building", icon: Link2 },
       { href: "/outreach", label: "Outreach", icon: Send },
       { href: "/broken-links", label: "Broken links", icon: Link2 },
@@ -273,7 +277,7 @@ const groups: NavGroup[] = [
     id: "local",
     title: "Local SEO",
     items: [
-      { href: "/gbp", label: "Google Business Profile", icon: Building },
+      { href: "/gbp", label: "Google Business Profile", icon: Building, guided: true },
       { href: "/citations", label: "Citations", icon: MapPin },
       { href: "/local-rank", label: "Local rank tracker", icon: MapPin },
       { href: "/local-grid", label: "Local rank heatmap", icon: MapPin },
@@ -284,9 +288,6 @@ const groups: NavGroup[] = [
     title: "Competitors & brand",
     items: [
       { href: "/competitors", label: "Competitors", icon: Network },
-      // GROUP B: Brand SERP / Knowledge Panel / Author authority
-      // folded under a single Brand-monitor entry. Other URLs still
-      // resolve via direct nav + All tools grid.
       { href: "/brand-monitor", label: "Brand visibility", icon: Network },
       { href: "/compare", label: "Site compare", icon: GitCompare },
     ],
@@ -296,8 +297,6 @@ const groups: NavGroup[] = [
     title: "AI visibility",
     items: [
       { href: "/ai-visibility", label: "AI visibility tracker", icon: Sparkles },
-      // GROUP G: AI bot logs hidden behind Settings → Advanced (still
-      // reachable via direct URL).
       { href: "/chats", label: "AI chat history", icon: Bot },
     ],
   },
@@ -316,8 +315,6 @@ const groups: NavGroup[] = [
     id: "imports",
     title: "Imports",
     items: [
-      // GROUP E: 4 import paths consolidated under one Import hub
-      // with tabs. Old URLs still resolve.
       { href: "/import", label: "Import (all sources)", icon: ScanText },
     ],
   },
@@ -335,8 +332,8 @@ const groups: NavGroup[] = [
     title: "Account",
     pinned: true,
     items: [
-      { href: "/settings", label: "Settings", icon: Settings },
-      { href: "/learn", label: "Learn", icon: GraduationCap },
+      { href: "/settings", label: "Settings", icon: Settings, guided: true },
+      { href: "/learn", label: "Learn", icon: GraduationCap, guided: true },
       { href: "/knowledge", label: "Knowledge hub", icon: GraduationCap },
     ],
   },
@@ -352,13 +349,35 @@ function isActive(pathname: string, href: string) {
 
 export function Sidebar({
   unreadByHref,
+  uiMode = "guided",
 }: {
   unreadByHref?: Record<string, number>;
+  /**
+   * "guided" (default for new users): filters nav to only items marked
+   * `guided: true`. Empty groups collapse out of view. ~15 items total
+   * across ~7 groups.
+   * "pro": shows everything (the historical sidebar).
+   */
+  uiMode?: "guided" | "pro";
 } = {}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const unread = unreadByHref ?? {};
+
+  // Apply the guided/pro filter. In guided mode every item must opt-in
+  // via `guided: true`. Pinned groups stay visible even after filtering
+  // (Essentials + Account) so the rail always has anchors at top + bottom;
+  // non-pinned groups with no surviving items are hidden entirely.
+  const visibleGroups: NavGroup[] =
+    uiMode === "pro"
+      ? groups
+      : groups
+          .map((g) => ({
+            ...g,
+            items: g.items.filter((it) => it.guided),
+          }))
+          .filter((g) => g.pinned || g.items.length > 0);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
@@ -376,7 +395,10 @@ export function Sidebar({
   }, []);
 
   // Auto-open the group containing the current route — even if the user
-  // had it collapsed — so navigation context is always visible.
+  // had it collapsed — so navigation context is always visible. We
+  // iterate the FULL groups list (not visibleGroups) because the active
+  // route may live in a hidden-by-guided-mode group and we still want
+  // to surface it when the user lands there via direct URL.
   useEffect(() => {
     for (const g of groups) {
       if (g.items.some((it) => isActive(pathname, it.href))) {
@@ -498,7 +520,7 @@ export function Sidebar({
           collapsed ? "px-1.5" : "px-2"
         }`}
       >
-        {groups.map((group) => {
+        {visibleGroups.map((group) => {
           const isOpen =
             group.pinned ||
             (openGroups[group.id] ?? group.defaultOpen ?? false);
@@ -663,6 +685,39 @@ export function Sidebar({
             </>
           )}
         </Link>
+        {/* Guided/Pro mode toggle. In guided mode the rail is filtered
+            down to ~15 essentials; switching to pro reveals all 80+
+            entries. Persisted via the ui.mode workspace setting so the
+            choice survives reloads. */}
+        {!collapsed && (
+          <form
+            action="/api/ui-mode/toggle"
+            method="POST"
+            className="border-t border-sidebar-border px-3 py-2"
+          >
+            <button
+              type="submit"
+              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+              title={
+                uiMode === "guided"
+                  ? "Reveal every tool in the sidebar"
+                  : "Hide advanced tools — keep the essentials only"
+              }
+            >
+              <span className="inline-flex items-center gap-2">
+                {uiMode === "guided" ? (
+                  <PanelLeftOpen className="size-3.5" />
+                ) : (
+                  PanelLeftClose && <PanelLeftClose className="size-3.5" />
+                )}
+                <span>{uiMode === "guided" ? "Show all tools" : "Guided mode"}</span>
+              </span>
+              <span className="rounded bg-sidebar-accent/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sidebar-foreground/80">
+                {uiMode === "guided" ? "Pro" : "Easy"}
+              </span>
+            </button>
+          </form>
+        )}
         {/* Live status pill */}
         <div
           className={`flex items-center gap-2 border-t border-sidebar-border py-2 text-xs text-sidebar-foreground/60 ${
