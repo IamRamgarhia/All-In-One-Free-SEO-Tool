@@ -277,7 +277,20 @@ export default async function PerClientKeywordsPage({
               <tr className="border-b border-white/5 text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-5 py-3 text-left font-medium">Query</th>
                 <th className="px-3 py-3 text-left font-medium">Device</th>
-                <th className="px-3 py-3 text-center font-medium">Position</th>
+                <th className="px-3 py-3 text-center font-medium">
+                  <span
+                    className="inline-flex items-center gap-1"
+                    title="Browser-mode rank checks have ~±1-2 position noise from SERP personalization and rotating features. Treat single readings as approximate; the Trend column is the real signal."
+                  >
+                    Position
+                    <span
+                      aria-hidden
+                      className="grid size-3.5 cursor-help place-items-center rounded-full bg-muted/60 text-[8px] font-bold text-muted-foreground/80 ring-1 ring-inset ring-border"
+                    >
+                      ?
+                    </span>
+                  </span>
+                </th>
                 <th className="px-3 py-3 text-left font-medium">SERP features</th>
                 <th className="px-3 py-3 text-left font-medium">Trend</th>
                 <th className="px-3 py-3 text-right font-medium">Actions</th>

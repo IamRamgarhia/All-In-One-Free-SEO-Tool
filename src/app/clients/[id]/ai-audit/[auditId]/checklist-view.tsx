@@ -186,6 +186,54 @@ export function ChecklistView({
         <section className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3">
           <h3 className="text-sm font-semibold">Executive summary</h3>
           <p className="text-sm leading-relaxed">{audit.summary}</p>
+
+          {/* Cite-or-bust: every claim in the summary maps to an issue
+              in the checklist below. Surfacing the top-5 critical/high
+              findings here lets the reader audit the summary against
+              concrete evidence without scrolling. */}
+          {(() => {
+            const evidence = issues
+              .filter(
+                (i) =>
+                  (i.severity === "critical" || i.severity === "high") &&
+                  i.status === "new",
+              )
+              .slice(0, 5);
+            if (evidence.length === 0) return null;
+            return (
+              <details className="rounded-md border border-white/[0.06] bg-white/[0.02] open:bg-white/[0.04]">
+                <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground">
+                  Data behind this summary ({evidence.length})
+                  <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-300 ring-1 ring-inset ring-amber-500/30">
+                    AI-generated — verify each
+                  </span>
+                </summary>
+                <ul className="space-y-1.5 border-t border-white/[0.06] px-3 py-2 text-[12px]">
+                  {evidence.map((e) => (
+                    <li key={e.id} className="flex gap-2 leading-relaxed">
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ring-1 ring-inset ${
+                          SEV_TONE[e.severity] ?? ""
+                        }`}
+                      >
+                        {e.severity}
+                      </span>
+                      <span className="text-foreground/90">
+                        <span className="font-medium capitalize">
+                          {e.type.replace(/_/g, " ")}
+                        </span>
+                        {": "}
+                        <span className="text-muted-foreground">
+                          {e.message}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            );
+          })()}
+
           <AiDisclaimer />
         </section>
       )}

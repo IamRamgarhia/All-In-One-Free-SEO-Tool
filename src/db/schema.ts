@@ -736,8 +736,13 @@ export const backlinks = sqliteTable("backlinks", {
     .notNull()
     .default("active"),
   notes: text("notes"),
-  /** "discovered" = found via GSC/scrape; "manual" = user logged it after building. */
-  source: text("source", { enum: ["discovered", "manual"] })
+  /**
+   * "discovered" = found via GSC/scrape; "manual" = user logged it after
+   * building; "ahrefs_wmt" = bulk-imported from an Ahrefs Webmaster
+   * Tools CSV export (free for verified site owners, pairs cleanly with
+   * our limited free-tier index).
+   */
+  source: text("source", { enum: ["discovered", "manual", "ahrefs_wmt"] })
     .notNull()
     .default("discovered"),
   /** Method/strategy: outreach, guest_post, citation, broken_link, etc. */

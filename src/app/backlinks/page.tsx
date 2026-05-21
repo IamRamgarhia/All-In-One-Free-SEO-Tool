@@ -9,6 +9,7 @@ import {
   ClientToolGrid,
   type ClientToolCard,
 } from "@/components/shell/client-tool-grid";
+import { ImportAhrefsForm } from "./import-ahrefs-form";
 
 export default async function BacklinksIndexPage() {
   const all = await db.select().from(clients).orderBy(desc(clients.createdAt));
@@ -82,6 +83,10 @@ export default async function BacklinksIndexPage() {
           (free for verified site owners) and import the CSV here.
         </p>
       </section>
+
+      <ImportAhrefsForm
+        clients={all.map((c) => ({ id: c.id, name: c.name }))}
+      />
 
       <ClientToolGrid cards={cards} basePath="/backlinks/c" />
     </div>
