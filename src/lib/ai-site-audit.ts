@@ -164,7 +164,9 @@ export async function runAiSiteAudit(opts: {
         .map((c) => c.title),
     });
 
-    // Insert all checks as audit_issues (passing ones marked resolved)
+    // Insert all checks as audit_issues (passing ones marked resolved).
+    // AI-generated rows always get confidence="test" — the user must
+    // verify these against their actual page; the AI can't measure.
     const issuesToInsert: NewAuditIssue[] = checks.map((c) => ({
       auditId: created.id,
       severity: c.severity,
@@ -175,6 +177,7 @@ export async function runAiSiteAudit(opts: {
       fixSteps: c.pass ? null : fixStepsByTitle.get(c.title) ?? null,
       category: c.category,
       aiGenerated: true,
+      confidence: "test",
     }));
     if (issuesToInsert.length > 0) {
       await db.insert(auditIssues).values(issuesToInsert);

@@ -1,0 +1,24 @@
+-- Confidence on every audit issue.
+--
+-- The CLAUDE.md design spec calls for three tiers — "Definitely fix",
+-- "Probably worth it", "Worth testing" — so users can prioritize and
+-- know when the tool is guessing vs reporting fact. Implementation was
+-- shipped UI-only via the ConfidenceBadge component; this migration
+-- adds the data so the badge can show the actual confidence per issue
+-- instead of a one-size-fits-all default.
+--
+-- Possible values:
+--   "definitely" — objective measurement; Google-documented; no
+--                  reasonable false-positive (e.g. 404, missing canonical,
+--                  noindex set)
+--   "probably"   — best-practice heuristic; could be a deliberate design
+--                  choice (e.g. title length > 60ch, multiple H1s,
+--                  missing schema.org markup)
+--   "test"       — AI-generated suggestion or pattern-matching guess;
+--                  user should verify before acting
+--
+-- Nullable on purpose: legacy rows stay unaffected; the audit-confidence
+-- helper falls back to a severity-derived default when this column is
+-- null. New inserts go through that helper so they're always populated.
+
+ALTER TABLE audit_issues ADD COLUMN confidence TEXT;

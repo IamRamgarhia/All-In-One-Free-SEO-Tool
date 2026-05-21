@@ -134,6 +134,15 @@ export const auditIssues = sqliteTable("audit_issues", {
   aiGenerated: integer("ai_generated", { mode: "boolean" }).notNull().default(false),
   /** User-added sticky notes. */
   notes: text("notes"),
+  /**
+   * How confident the tool is in this finding. Drives the
+   * ConfidenceBadge in the UI and helps users prioritize:
+   *   "definitely" — objective measurement; no reasonable false positive
+   *   "probably"   — best-practice heuristic; could be intentional
+   *   "test"       — AI guess; verify before acting
+   * Nullable so legacy rows remain untouched; new inserts must populate.
+   */
+  confidence: text("confidence", { enum: ["definitely", "probably", "test"] }),
   ...timestamps,
 });
 

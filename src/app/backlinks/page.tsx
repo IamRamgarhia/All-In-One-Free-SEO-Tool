@@ -54,6 +54,35 @@ export default async function BacklinksIndexPage() {
           </a>
         }
       />
+
+      {/* Honesty banner. Free-tier backlink indexes will NEVER match
+          Ahrefs / Semrush / Majestic — those crawl the open web with
+          dedicated infrastructure and decade-long historical indexes.
+          Surface that fact at the top of the tool so the user
+          calibrates expectations: pair with GSC + Ahrefs Webmaster
+          Tools (also free) for full coverage. */}
+      <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-[12px]">
+        <div className="font-semibold text-amber-300">
+          Honest about what this shows
+        </div>
+        <p className="mt-1 leading-relaxed text-amber-200/80">
+          Backlink data here comes from Google Search Console (your own
+          site&apos;s confirmed inbound links) plus Common Crawl
+          extraction. It is intentionally narrower than a paid index
+          like Ahrefs or Semrush — building one of those at scale costs
+          millions per year. For comprehensive coverage, pair this with{" "}
+          <a
+            href="https://ahrefs.com/webmaster-tools"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-amber-100"
+          >
+            Ahrefs Webmaster Tools
+          </a>{" "}
+          (free for verified site owners) and import the CSV here.
+        </p>
+      </section>
+
       <ClientToolGrid cards={cards} basePath="/backlinks/c" />
     </div>
   );

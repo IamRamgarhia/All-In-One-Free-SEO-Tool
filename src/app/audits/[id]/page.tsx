@@ -17,9 +17,11 @@ import { db } from "@/db/client";
 import { audits, auditIssues, clients } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
 import { Term } from "@/components/ui/term";
+import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { FixWizard } from "@/components/fix-wizard";
 import { IssueExplainer } from "@/components/issue-explainer";
 import { isFixable } from "@/lib/fix-suggestions";
+import { confidenceReason } from "@/lib/audit-confidence";
 import { setStatusForType } from "../issue-actions";
 
 // Map audit issue-types to the glossary term key.
@@ -132,21 +134,37 @@ export default async function AuditDetailPage({
   );
 
   // Group repeating issue types within each severity to keep the page tidy.
+  // Confidence is captured per-group: we take the strongest level seen
+  // for that type (definitely > probably > test). Mixed-confidence
+  // groups inherit the strongest reading so a single objective failure
+  // isn't downgraded by adjacent heuristic flags.
   type Group = {
     severity: "critical" | "high" | "medium" | "low";
     type: string;
     sample: string;
     affectedUrls: string[];
     issueIds: number[];
+    confidence: "definitely" | "probably" | "test" | null;
+    aiGenerated: boolean;
   };
+  const CONF_RANK: Record<string, number> = { definitely: 3, probably: 2, test: 1 };
   function groupByType(issues: typeof sorted): Group[] {
     const map = new Map<string, Group>();
     for (const i of issues) {
       const key = `${i.severity}:${i.type}`;
       const existing = map.get(key);
+      const iConf = (i as { confidence?: "definitely" | "probably" | "test" | null }).confidence ?? null;
+      const iAi = (i as { aiGenerated?: boolean }).aiGenerated ?? false;
       if (existing) {
         existing.affectedUrls.push(i.url);
         existing.issueIds.push(i.id);
+        if (
+          iConf &&
+          (!existing.confidence ||
+            CONF_RANK[iConf] > CONF_RANK[existing.confidence])
+        ) {
+          existing.confidence = iConf;
+        }
       } else {
         map.set(key, {
           severity: i.severity as Group["severity"],
@@ -154,6 +172,8 @@ export default async function AuditDetailPage({
           sample: i.message,
           affectedUrls: [i.url],
           issueIds: [i.id],
+          confidence: iConf,
+          aiGenerated: iAi,
         });
       }
     }
@@ -371,6 +391,16 @@ export default async function AuditDetailPage({
                           <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-white/10">
                             {g.affectedUrls.length} pages
                           </span>
+                        )}
+                        {g.confidence && (
+                          <ConfidenceBadge
+                            level={g.confidence}
+                            reason={confidenceReason(
+                              g.confidence,
+                              g.type,
+                              g.aiGenerated,
+                            )}
+                          />
                         )}
                       </div>
                       <p className="text-sm leading-relaxed text-muted-foreground">

@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { audits, auditIssues, clients, tasks } from "@/db/schema";
 import { runAudit } from "@/lib/audit";
 import { findingsToTasks } from "@/lib/audit-to-task";
+import { confidenceForIssue } from "@/lib/audit-confidence";
 import { notify, type NotificationField } from "@/lib/notifier";
 import { logActivity } from "@/lib/activity";
 import { runAutomations } from "@/lib/automation-engine";
@@ -133,6 +134,11 @@ export async function runAuditForClient(clientId: number) {
           severity: f.severity,
           url: f.url,
           message: f.message,
+          confidence: confidenceForIssue({
+            type: f.type,
+            aiGenerated: false,
+            severity: f.severity,
+          }),
           ...(inheritedStatus
             ? { status: inheritedStatus as "ignored" | "resolved" | "false_positive" }
             : {}),
