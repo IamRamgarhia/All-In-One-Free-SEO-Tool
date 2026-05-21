@@ -11,7 +11,7 @@
  *   - Cap on length (~60 lines) so it stays scan-friendly
  */
 
-import { and, desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   audits,
@@ -69,15 +69,94 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
   let clientsImproved = 0;
   let clientsDropped = 0;
 
-  for (const c of allClients) {
-    // Latest 8 snapshots — first two power the delta math, the full
-    // window feeds the inline sparkbar in the email digest.
-    const snaps = await db
+  // Batch-load everything once instead of 4 queries per client. With 20
+  // clients the old loop fired 80 round-trips through Drizzle/better-sqlite3
+  // — fast in absolute terms but wasteful and N+1-shaped. inArray() turns
+  // it into 4 total queries regardless of client count.
+  const clientIds = allClients.map((c) => c.id);
+
+  type SnapRow = typeof clientMetricSnapshots.$inferSelect;
+  type AuditRow = typeof audits.$inferSelect;
+  type TaskRow = typeof tasks.$inferSelect;
+  const snapsByClient = new Map<number, SnapRow[]>();
+  const auditsByClient = new Map<number, AuditRow[]>();
+  const tasksByClient = new Map<number, TaskRow[]>();
+  const highIssuesByClient = new Map<number, number>();
+
+  if (clientIds.length > 0) {
+    // Snapshots — pull all from the last 90 days for these clients in
+    // one go, then group + sort + slice in memory. Old loop did
+    // `desc + limit 8` per client; this gives the same window cheaply.
+    const snapCutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const allSnaps = await db
       .select()
       .from(clientMetricSnapshots)
-      .where(eq(clientMetricSnapshots.clientId, c.id))
-      .orderBy(desc(clientMetricSnapshots.capturedAt))
-      .limit(8);
+      .where(
+        and(
+          inArray(clientMetricSnapshots.clientId, clientIds),
+          gte(clientMetricSnapshots.capturedAt, snapCutoff),
+        ),
+      )
+      .orderBy(desc(clientMetricSnapshots.capturedAt));
+    for (const s of allSnaps) {
+      const arr = snapsByClient.get(s.clientId) ?? [];
+      if (arr.length < 8) arr.push(s); // already desc-ordered
+      snapsByClient.set(s.clientId, arr);
+    }
+
+    const allRecentAudits = await db
+      .select()
+      .from(audits)
+      .where(
+        and(
+          inArray(audits.clientId, clientIds),
+          gte(audits.createdAt, weekStart),
+        ),
+      );
+    for (const a of allRecentAudits) {
+      const arr = auditsByClient.get(a.clientId) ?? [];
+      arr.push(a);
+      auditsByClient.set(a.clientId, arr);
+    }
+    auditsRun = allRecentAudits.length;
+
+    const allDoneTasks = await db
+      .select()
+      .from(tasks)
+      .where(
+        and(
+          inArray(tasks.clientId, clientIds),
+          eq(tasks.status, "done"),
+          gte(tasks.updatedAt, weekStart),
+        ),
+      );
+    for (const t of allDoneTasks) {
+      const arr = tasksByClient.get(t.clientId) ?? [];
+      arr.push(t);
+      tasksByClient.set(t.clientId, arr);
+    }
+    tasksDoneThisWeek = allDoneTasks.length;
+
+    const allHighIssues = await db
+      .select({ clientId: audits.clientId })
+      .from(auditIssues)
+      .innerJoin(audits, eq(auditIssues.auditId, audits.id))
+      .where(
+        and(
+          inArray(audits.clientId, clientIds),
+          eq(auditIssues.severity, "high"),
+        ),
+      );
+    for (const row of allHighIssues) {
+      highIssuesByClient.set(
+        row.clientId,
+        (highIssuesByClient.get(row.clientId) ?? 0) + 1,
+      );
+    }
+  }
+
+  for (const c of allClients) {
+    const snaps = snapsByClient.get(c.id) ?? [];
     const latest = snaps[0];
     const prev = snaps[1];
     const scoreHistory = snaps
@@ -86,40 +165,9 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
       .map((s) => s.healthScore)
       .filter((v): v is number => v !== null);
 
-    // Audits run this week
-    const recentAudits = await db
-      .select()
-      .from(audits)
-      .where(
-        and(eq(audits.clientId, c.id), gte(audits.createdAt, weekStart)),
-      );
-    auditsRun += recentAudits.length;
-
-    // Tasks completed this week
-    const taskCompleted = await db
-      .select()
-      .from(tasks)
-      .where(
-        and(
-          eq(tasks.clientId, c.id),
-          eq(tasks.status, "done"),
-          gte(tasks.updatedAt, weekStart),
-        ),
-      );
-    tasksDoneThisWeek += taskCompleted.length;
-
-    // Open high-severity issues
-    const openIssues = await db
-      .select({ id: auditIssues.id, severity: auditIssues.severity })
-      .from(auditIssues)
-      .innerJoin(audits, eq(auditIssues.auditId, audits.id))
-      .where(
-        and(
-          eq(audits.clientId, c.id),
-          eq(auditIssues.severity, "high"),
-        ),
-      );
-    const openHighIssues = openIssues.length;
+    const recentAudits = auditsByClient.get(c.id) ?? [];
+    const taskCompleted = tasksByClient.get(c.id) ?? [];
+    const openHighIssues = highIssuesByClient.get(c.id) ?? 0;
 
     const scoreLatest = latest?.healthScore ?? null;
     const scoreDelta =
@@ -136,7 +184,6 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
       else if (scoreDelta <= -5) clientsDropped += 1;
     }
 
-    // Highlight + concern
     let highlight = "";
     let concern = "";
     if (taskCompleted.length > 0) {
@@ -400,7 +447,16 @@ function esc(s: string): string {
 /**
  * Auto-send tick. Fires from the dashboard alongside the other tick runners.
  * Sends the weekly digest once per Monday 09:00 UTC if enabled in settings.
+ *
+ * Ordering: write `last_auto_run_at` only AFTER the send completes
+ * successfully. The old behavior wrote it up-front (before send) — if
+ * the send then crashed or threw, the user lost the digest for that
+ * week with no retry. An in-memory `digestInFlight` flag prevents the
+ * dashboard tick (which can fire every few seconds while a user is on
+ * the page) from spawning concurrent sends while the first is still
+ * working.
  */
+let digestInFlight = false;
 export async function tickWeeklyDigestRunner(): Promise<void> {
   const { getSetting, setSetting } = await import("./settings-store");
   const enabled = await getSetting<boolean>("digest.auto_send_enabled");
@@ -421,8 +477,8 @@ export async function tickWeeklyDigestRunner(): Promise<void> {
     if (lastRun >= thisMonday) return;
   }
 
-  await setSetting("digest.last_auto_run_at", thisMonday.toISOString());
-
+  if (digestInFlight) return; // Another tick is mid-send
+  digestInFlight = true;
   try {
     const digest = await buildWeeklyDigest();
     const { sendMail } = await import("./mailer");
@@ -432,8 +488,13 @@ export async function tickWeeklyDigestRunner(): Promise<void> {
       text: digest.textVersion,
       html: digest.htmlVersion,
     });
+    // Only mark as "ran" once send actually succeeded. Failed sends
+    // retry on the next tick within the same Monday window.
+    await setSetting("digest.last_auto_run_at", thisMonday.toISOString());
     await setSetting("digest.last_sent_at", new Date().toISOString());
   } catch {
-    // Retry next Monday if this failed
+    // Don't write last_auto_run_at — next tick will retry
+  } finally {
+    digestInFlight = false;
   }
 }

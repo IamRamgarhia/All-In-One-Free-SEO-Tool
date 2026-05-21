@@ -38,6 +38,12 @@ export async function getApiKey(provider: Provider): Promise<string | null> {
   const fromDb = await getSetting<string>(SETTING_KEY[provider]);
   if (fromDb && fromDb.length > 0) {
     const plain = decrypt(fromDb);
+    // Decrypt failed — key missing or corrupt. Don't send `enc:v1:...`
+    // ciphertext as the API key Bearer token. Fall through to env var.
+    if (plain === null) {
+      const fromEnvFallback = process.env[ENV_VAR[provider]];
+      return fromEnvFallback && fromEnvFallback.length > 0 ? fromEnvFallback : null;
+    }
     // Lazy migration: if the row was stored plaintext, re-write encrypted
     // on first read so subsequent reads/backups carry the protected form.
     if (!isEncrypted(fromDb) && plain) {

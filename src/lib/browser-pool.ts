@@ -41,11 +41,38 @@ let proxyCounter = 0;
 let active = 0;
 const waiters: Array<() => void> = [];
 
-async function getMaxConcurrency(): Promise<number> {
+// Kick off the first cache refresh at module load so acquire() doesn't
+// run on the DEFAULT_CONCURRENCY value for the very first request.
+void Promise.resolve().then(() => refreshMaxConcurrencyCache()).catch(() => undefined);
+
+// Cached so acquire() can make its capacity decision synchronously.
+// Without a sync read, two concurrent acquires can both `await
+// getSetting(...)` (which is async because it hits SQLite via a promise
+// wrapper) and the event loop can interleave their increments —
+// classic TOCTOU. The cached value is refreshed in the background by
+// refreshMaxConcurrencyCache() on a 30s interval and on release().
+let cachedMaxConcurrency: number = DEFAULT_CONCURRENCY;
+let lastMaxRefreshAt = 0;
+
+async function refreshMaxConcurrencyCache(): Promise<void> {
   const raw = await getSetting<number | string>("browser.max_concurrency");
   const n = typeof raw === "number" ? raw : Number(raw ?? "");
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_CONCURRENCY;
-  return Math.min(MAX_CONCURRENCY_HARD_CAP, Math.floor(n));
+  if (!Number.isFinite(n) || n < 1) {
+    cachedMaxConcurrency = DEFAULT_CONCURRENCY;
+  } else {
+    cachedMaxConcurrency = Math.min(MAX_CONCURRENCY_HARD_CAP, Math.floor(n));
+  }
+  lastMaxRefreshAt = Date.now();
+}
+
+function getMaxConcurrencySync(): number {
+  // Trigger a background refresh if stale. Don't await — the cached
+  // value is good enough for this acquire; the next one will see the
+  // updated value once the refresh resolves.
+  if (Date.now() - lastMaxRefreshAt > 30_000) {
+    void refreshMaxConcurrencyCache().catch(() => undefined);
+  }
+  return cachedMaxConcurrency;
 }
 
 async function getProxies(): Promise<string[]> {
@@ -85,14 +112,13 @@ async function getStoredCookies(): Promise<StoredCookie[]> {
 }
 
 async function acquire(): Promise<void> {
-  // Race-free counter increment: we INC active first, then check if we
-  // overshot the cap. If so, decrement back and queue up. This avoids
-  // the classic "check-then-set" race where two concurrent acquires
-  // both pass `active < max` before either increments.
-  //
-  // We also cache max in a closure so a slow getSetting() round-trip
-  // can't interleave with another caller's check.
-  const max = await getMaxConcurrency();
+  // Race-free counter increment using a synchronously-cached cap.
+  // Reading the cap async (await getSetting) inside acquire would let
+  // two concurrent acquires interleave between the await and the
+  // increment — both could see `active < max` and overshoot.
+  // getMaxConcurrencySync returns the cached value and kicks off a
+  // background refresh when stale.
+  const max = getMaxConcurrencySync();
   active += 1;
   if (active <= max) return;
   active -= 1;
@@ -372,14 +398,14 @@ export type ProxyHealth = {
 export async function checkProxyHealth(): Promise<ProxyHealth[]> {
   const proxies = await getProxies();
   if (proxies.length === 0) return [];
-  const browser = await getBrowser();
-  const stealth = await isStealthEnabled();
 
-  // Concurrency-bounded health check. The previous version did a flat
-  // Promise.all over every proxy — 20 proxies × ~300 MB per Chromium
-  // context = 6 GB instant RAM spike, guaranteed OOM on small VPSes.
-  // Cap at 3 in-flight contexts; queue the rest.
-  const HEALTH_CHECK_CONCURRENCY = 3;
+  // Route every proxy probe through acquire()/release() so health checks
+  // share the SAME concurrency budget as regular browser work. Without
+  // this, a "check all proxies" admin action could spawn 20 contexts in
+  // parallel even while normal user scrapes are running — guaranteed
+  // OOM on small VPSes and starves the user-facing queue. The previous
+  // local HEALTH_CHECK_CONCURRENCY=3 cap solved the OOM in isolation
+  // but ignored coexisting load.
   const results: ProxyHealth[] = new Array(proxies.length);
   let nextIndex = 0;
 
@@ -394,13 +420,14 @@ export async function checkProxyHealth(): Promise<ProxyHealth[]> {
         continue;
       }
       const start = Date.now();
+      await acquire();
       let context: BrowserContext | null = null;
       try {
+        const browser = await getBrowser();
         context = await browser.newContext({
           userAgent: REALISTIC_UA,
           viewport: { width: 800, height: 600 },
           proxy,
-          ...(stealth ? {} : {}),
         });
         const page = await context.newPage();
         const resp = await page.goto("https://api.ipify.org/?format=json", {
@@ -431,16 +458,16 @@ export async function checkProxyHealth(): Promise<ProxyHealth[]> {
         };
       } finally {
         if (context) await context.close().catch(() => {});
+        release();
       }
     }
   }
 
-  await Promise.all(
-    Array.from(
-      { length: Math.min(HEALTH_CHECK_CONCURRENCY, proxies.length) },
-      worker,
-    ),
-  );
+  // Spin up workers up to the cached cap. acquire() inside each worker
+  // enforces the real per-call limit; this just avoids spawning more
+  // worker promises than we could ever serve at once.
+  const workerCount = Math.min(getMaxConcurrencySync(), proxies.length);
+  await Promise.all(Array.from({ length: Math.max(1, workerCount) }, worker));
   return results;
 }
 

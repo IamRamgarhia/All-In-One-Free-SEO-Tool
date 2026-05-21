@@ -21,6 +21,51 @@ import { decrypt } from "@/lib/crypto";
 
 export type WpCreds = { endpoint: string; key: string };
 
+/**
+ * SSRF guard. Rejects URLs that resolve to loopback, link-local, or
+ * RFC1918 private space. The wpEndpoint field is user-controlled (or
+ * anyone-who-can-write-the-clients-table-controlled) and gets fetched
+ * with our Bearer key in the X-STB-Key header — if an attacker pointed
+ * it at http://169.254.169.254/ (AWS IMDSv1) or http://localhost:6379/
+ * (Redis), our key would leak to that internal endpoint and we'd
+ * happily forward any response back.
+ *
+ * Returns null when the URL is safe to fetch; returns an error message
+ * when it's not.
+ */
+function rejectIfPrivateUrl(rawUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return "Invalid URL";
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return `Only http(s) URLs allowed (got ${parsed.protocol})`;
+  }
+  const h = parsed.hostname.toLowerCase();
+  // Bare hostnames / aliases that resolve to the local machine
+  if (
+    h === "localhost" ||
+    h === "ip6-localhost" ||
+    h === "ip6-loopback" ||
+    h.endsWith(".localhost")
+  ) {
+    return "Endpoint points at localhost";
+  }
+  // IPv4 literals — loopback, link-local, RFC 1918
+  if (/^127\./.test(h)) return "Endpoint is loopback (127.x.x.x)";
+  if (/^169\.254\./.test(h)) return "Endpoint is link-local (169.254.x.x — cloud metadata)";
+  if (/^10\./.test(h)) return "Endpoint is private (10.x.x.x)";
+  if (/^192\.168\./.test(h)) return "Endpoint is private (192.168.x.x)";
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return "Endpoint is private (172.16-31.x.x)";
+  if (/^0\./.test(h)) return "Endpoint is 0.0.0.0/8 (invalid)";
+  // IPv6 literals — loopback + link-local + unique-local
+  if (h === "::1" || h === "[::1]") return "Endpoint is IPv6 loopback";
+  if (/^\[?(fe80|fc|fd)/i.test(h)) return "Endpoint is IPv6 link-local / unique-local";
+  return null;
+}
+
 export async function getClientWpCreds(
   clientId: number,
 ): Promise<WpCreds | null> {
@@ -30,8 +75,12 @@ export async function getClientWpCreds(
     .where(eq(clients.id, clientId))
     .limit(1);
   if (!c?.endpoint || !c?.key) return null;
-  // Decrypt at-rest WP application password (no-op for legacy plaintext rows)
-  return { endpoint: c.endpoint.replace(/\/+$/, ""), key: decrypt(c.key) };
+  // Decrypt at-rest WP application password (no-op for legacy plaintext rows).
+  // Fail closed if decryption fails — we never want to forward `enc:v1:...`
+  // ciphertext as the X-STB-Key Bearer header to the remote WordPress site.
+  const key = decrypt(c.key);
+  if (!key) return null;
+  return { endpoint: c.endpoint.replace(/\/+$/, ""), key };
 }
 
 async function wpFetch<T>(
@@ -40,6 +89,10 @@ async function wpFetch<T>(
   init?: RequestInit,
 ): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string }> {
   const url = `${creds.endpoint}${path}`;
+  const ssrfErr = rejectIfPrivateUrl(url);
+  if (ssrfErr) {
+    return { ok: false, status: 0, error: ssrfErr };
+  }
   try {
     const res = await fetch(url, {
       ...init,
@@ -208,7 +261,10 @@ export async function findPostIdByUrl(
   });
   if (r.ok && typeof r.data.id === "number") return r.data.id;
 
-  // Fallback: scrape the page for the WP "shortlink" with ?p=<id>
+  // Fallback: scrape the page for the WP "shortlink" with ?p=<id>.
+  // Apply the SAME SSRF guard here — the `url` parameter is caller-
+  // controlled and `redirect: "follow"` could chain into an internal IP.
+  if (rejectIfPrivateUrl(url)) return null;
   try {
     const res = await fetch(url, {
       headers: { accept: "text/html" },

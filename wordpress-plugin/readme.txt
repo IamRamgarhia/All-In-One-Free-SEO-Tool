@@ -4,7 +4,7 @@ Tags: seo, ai, automation, meta tags, schema, yoast, rank math
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: PolyForm Noncommercial 1.0.0
 License URI: https://polyformproject.org/licenses/noncommercial/1.0.0/
 
@@ -113,7 +113,16 @@ The plugin doesn't collect or transmit any personal data. It exposes a REST endp
 
 == Changelog ==
 
-= 0.2.0 (current) =
+= 0.2.1 (current) =
+* SECURITY (Critical): XSS — JSON-LD output was interpolated unescaped into the
+  &lt;script&gt; block, allowing a bridge-key holder to inject arbitrary JS into
+  every visitor's session via a `</script>` payload. Output now escapes
+  `</script` sequences before render.
+* Fixed: stb_rest_set_schema no longer runs wp_kses_post() on JSON-LD
+  (it was stripping characters that are legitimate inside JSON strings,
+  corrupting valid schema). Replaced with json_decode() validation.
+
+= 0.2.0 =
 * Added: Create-post endpoint (used by SEO Tool's daily AI agent for approved blog drafts)
 * Added: Find-by-URL endpoint (resolves a public URL to a post ID for one-click fixes)
 * Fixed: Duplicate route registration for GET + POST on `/post/{id}/seo` (POST was shadowing GET in some WP versions)

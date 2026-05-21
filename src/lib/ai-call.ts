@@ -1,6 +1,18 @@
 import { getActiveProvider, getApiKey, getOllamaUrl } from "./api-keys";
 import { getSetting } from "./settings-store";
 import { checkMonthlyCap, logAiCall } from "./ai-usage";
+
+// Cap how much of the user/system prompt we persist to ai_usage_log.
+// Full prompts may contain pasted API keys, OAuth tokens, or other
+// secrets — and the ai_usage_log table is NOT encrypted at rest.
+// A short preview is enough for debugging without becoming a credential
+// leak vector if data.db is ever backed up to an untrusted location.
+const LOG_PROMPT_PREVIEW_CHARS = 300;
+function logPreview(text: string): string {
+  if (typeof text !== "string") return "";
+  if (text.length <= LOG_PROMPT_PREVIEW_CHARS) return text;
+  return text.slice(0, LOG_PROMPT_PREVIEW_CHARS) + "... (truncated)";
+}
 import { withAiPermit } from "./ai-semaphore";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
 import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
@@ -82,7 +94,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
       feature: opts.feature ?? "general",
       provider: active,
       model: null,
-      promptText: opts.user,
+      promptText: logPreview(opts.user),
       completionText: null,
       status: "blocked_by_cap",
       errorMsg: `Monthly AI cap of $${cap.capUsd?.toFixed(2)} reached.`,
@@ -322,7 +334,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
     feature: opts.feature ?? "general",
     provider: active,
     model,
-    promptText: `${system}\n\n${opts.user}`,
+    promptText: logPreview(`${system}\n\n${opts.user}`),
     completionText: text,
     latencyMs: Date.now() - start,
     clientId: opts.clientId ?? null,

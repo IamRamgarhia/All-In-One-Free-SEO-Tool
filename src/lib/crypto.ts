@@ -157,18 +157,24 @@ export function encrypt(plaintext: string): string {
 /**
  * Decrypt a stored value. Plain values (no enc: prefix) are passed
  * through unchanged — supports lazy migration of legacy plaintext rows.
- * Returns the plaintext, or the original input if decryption fails
- * (e.g. wrong key, corrupted ciphertext).
+ * Returns the plaintext on success, or `null` on failure (wrong key,
+ * corrupted ciphertext, missing key).
+ *
+ * Callers MUST fail-closed on null — never forward ciphertext to remote
+ * APIs thinking it's plaintext. The previous behavior returned the raw
+ * `enc:v1:...` blob on failure, which silently sent ciphertext as
+ * Bearer tokens / API keys to upstream services.
  */
-export function decrypt(value: string): string {
-  if (!value || !isEncrypted(value)) return value;
+export function decrypt(value: string): string | null {
+  if (!value) return value;
+  if (!isEncrypted(value)) return value;
   const key = loadOrCreateKey();
-  if (!key) return value;
+  if (!key) return null;
 
   try {
     const body = value.slice(PREFIX.length);
     const [nonceB64, ctWithTagB64] = body.split(":");
-    if (!nonceB64 || !ctWithTagB64) return value;
+    if (!nonceB64 || !ctWithTagB64) return null;
     const nonce = Buffer.from(nonceB64, "base64");
     const ctWithTag = Buffer.from(ctWithTagB64, "base64");
     // The last 16 bytes are the GCM auth tag
@@ -181,10 +187,10 @@ export function decrypt(value: string): string {
     return pt.toString("utf-8");
   } catch (err) {
     console.warn(
-      "[crypto] decrypt failed — returning ciphertext as-is. Reason:",
+      "[crypto] decrypt failed — returning null. Reason:",
       (err as Error).message,
     );
-    return value;
+    return null;
   }
 }
 

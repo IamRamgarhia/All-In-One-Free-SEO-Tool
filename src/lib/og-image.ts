@@ -70,18 +70,37 @@ async function loadFonts(): Promise<{ regular: ArrayBuffer; bold: ArrayBuffer }>
   }
   // Fallback: pull from Google Fonts CDN at first run. Cached for the
   // process lifetime.
+  //
+  // 8s hard timeout — without it, a slow or unreachable Google Fonts
+  // (firewalled VPS, GFW, DNS hiccup) would leave the OG-image request
+  // hanging until the platform-level timeout. The fontless render path
+  // in generateOgImage() catches the throw and returns a graceful
+  // error so the call site can render a placeholder.
   const fetchTtf = async (cssUrl: string): Promise<ArrayBuffer> => {
-    const cssRes = await fetch(cssUrl, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-    });
-    const css = await cssRes.text();
-    const match = css.match(/src:\s*url\((https:[^)]+\.ttf)\)/);
-    if (!match) throw new Error("Couldn't find TTF in CSS response");
-    const fontRes = await fetch(match[1]);
-    return await fontRes.arrayBuffer();
+    const ctl = new AbortController();
+    const tid = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const cssRes = await fetch(cssUrl, {
+        signal: ctl.signal,
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+      });
+      if (!cssRes.ok) {
+        throw new Error(`Google Fonts CSS responded ${cssRes.status}`);
+      }
+      const css = await cssRes.text();
+      const match = css.match(/src:\s*url\((https:[^)]+\.ttf)\)/);
+      if (!match) throw new Error("Couldn't find TTF in CSS response");
+      const fontRes = await fetch(match[1], { signal: ctl.signal });
+      if (!fontRes.ok) {
+        throw new Error(`Google Fonts TTF responded ${fontRes.status}`);
+      }
+      return await fontRes.arrayBuffer();
+    } finally {
+      clearTimeout(tid);
+    }
   };
   cachedFontRegular = await fetchTtf(
     "https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap",

@@ -181,7 +181,14 @@ export async function getAccessToken(
       .limit(1);
 
     if (c?.googleRefreshToken) {
+      // Fail closed on decrypt failure — never send `enc:v1:...` ciphertext
+      // to Google's token endpoint thinking it's a refresh token.
       const refreshTokenPlain = decrypt(c.googleRefreshToken);
+      if (!refreshTokenPlain) {
+        throw new Error(
+          "Google refresh token could not be decrypted (encryption key missing or rotated). Reconnect Google in client settings.",
+        );
+      }
       const accessTokenPlain = c.googleAccessToken
         ? decrypt(c.googleAccessToken)
         : null;

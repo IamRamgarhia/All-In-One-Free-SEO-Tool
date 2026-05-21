@@ -101,22 +101,50 @@ for (const f of files) {
     count += 1;
     console.log(`[migrate] applied ${f}`);
   } catch (err) {
-    // Tolerate "already exists" on individual ALTER / CREATE statements —
-    // happens when a previous run partially applied. Record the migration
-    // as applied so we don't retry.
+    // The "already exists / duplicate column" fast-path used to mark
+    // the migration as applied without re-running the SQL. That is
+    // unsafe: the migration ran inside a transaction, so the failing
+    // statement rolled back ALL other statements in the file too —
+    // including new tables, indexes, or rows that have not yet been
+    // applied. Marking it "done" hides the real state and the next
+    // migration may assume those objects exist.
+    //
+    // Re-attempt the migration statement-by-statement OUTSIDE a
+    // transaction, skipping individual statements that fail with
+    // "already exists" / "duplicate column". If every statement either
+    // succeeds or is a benign no-op, mark it applied. Otherwise bail.
     if (/already exists|duplicate column/i.test(err.message)) {
-      try {
+      let allBenign = true;
+      let appliedAny = false;
+      for (const stmt of statements) {
+        try {
+          sqlite.exec(stmt);
+          appliedAny = true;
+        } catch (e2) {
+          if (/already exists|duplicate column/i.test(e2.message)) continue;
+          allBenign = false;
+          console.error(
+            `[migrate] failed on ${f} (statement-level replay):`,
+            e2.message,
+          );
+          break;
+        }
+      }
+      if (allBenign) {
         sqlite
           .prepare(
             "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
           )
           .run(f, Date.now());
-        console.log(`[migrate] ${f} — schema already current, marked applied.`);
+        console.log(
+          appliedAny
+            ? `[migrate] ${f} — recovered, applied missing statements + marked done.`
+            : `[migrate] ${f} — schema already current, marked applied.`,
+        );
         count += 1;
         continue;
-      } catch {
-        // fall through
       }
+      // Fall through to hard failure
     }
     console.error(`[migrate] failed on ${f}:`, err.message);
     process.exit(1);

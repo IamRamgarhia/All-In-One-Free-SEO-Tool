@@ -3,7 +3,7 @@
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/SEO-Tool
  * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('STB_VERSION', '0.2.0');
+define('STB_VERSION', '0.2.1');
 define('STB_OPTION_KEY', 'stb_connection_key');
 define('STB_OPTION_REVISIONS', 'stb_revisions');
 define('STB_REST_NAMESPACE', 'seo-tool/v1');
@@ -376,9 +376,28 @@ function stb_rest_set_schema(WP_REST_Request $req): WP_REST_Response
 {
     $id = (int)$req['id'];
     $body = $req->get_json_params() ?: [];
-    $jsonld = isset($body['jsonld']) ? wp_kses_post($body['jsonld']) : '';
-    if (!$jsonld) {
+    // IMPORTANT: do NOT run wp_kses_post() on JSON-LD. It's an HTML
+    // sanitizer that strips characters that are legitimate inside JSON
+    // string values (<, >, &), producing invalid JSON. Instead, validate
+    // that the input is well-formed JSON via json_decode().
+    $jsonld_raw = isset($body['jsonld']) ? (string)$body['jsonld'] : '';
+    if ($jsonld_raw === '') {
         return new WP_REST_Response(['ok' => false, 'error' => 'jsonld required'], 400);
+    }
+    $decoded = json_decode($jsonld_raw, true);
+    if ($decoded === null && strtolower(trim($jsonld_raw)) !== 'null') {
+        return new WP_REST_Response(
+            ['ok' => false, 'error' => 'jsonld must be valid JSON'],
+            400,
+        );
+    }
+    // Re-encode for canonical form, also flags edge-case unicode.
+    $jsonld = wp_json_encode($decoded, JSON_UNESCAPED_SLASHES);
+    if ($jsonld === false) {
+        return new WP_REST_Response(
+            ['ok' => false, 'error' => 'jsonld could not be re-encoded'],
+            400,
+        );
     }
     $old = (string)get_post_meta($id, '_stb_schema_jsonld', true);
     update_post_meta($id, '_stb_schema_jsonld', $jsonld);
@@ -391,7 +410,14 @@ add_action('wp_head', function () {
     if (is_singular()) {
         $jsonld = get_post_meta(get_the_ID(), '_stb_schema_jsonld', true);
         if (!empty($jsonld)) {
-            echo "\n<!-- SEO Tool: schema -->\n<script type=\"application/ld+json\">$jsonld</script>\n";
+            // CRITICAL: escape </script> sequences so an attacker who can
+            // POST schema JSON-LD can't break out of the <script> block
+            // and inject arbitrary JavaScript. The </script> check must
+            // be case-insensitive — `</SCRIPT>` also closes the block.
+            $safe = preg_replace('#</(script)#i', '<\/$1', $jsonld);
+            echo "\n<!-- SEO Tool: schema -->\n<script type=\"application/ld+json\">"
+                . $safe
+                . "</script>\n";
         }
     }
 });
