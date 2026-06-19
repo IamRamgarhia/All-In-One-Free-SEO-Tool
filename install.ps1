@@ -693,18 +693,23 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
 
         # Sweep up files from EARLIER installs in two places:
         #   (a) install root — Start/Stop wrappers briefly lived here;
-        #       they're now under <install>\launcher\. The .hta and .html
-        #       at root are KEPT (they're the user-facing entry points).
+        #       they're now under <install>\launcher\. SEO Tool.html
+        #       was a previous attempt at a browser launcher but browsers
+        #       can't reliably execute the .hta from a click — Chrome
+        #       just downloads it. Removed in favour of the .hta direct.
         #   (b) Desktop — old .lnk shortcuts + welcome.txt
-        # After this pass:
-        #   <install>\SEO Tool.html        ← status panel
-        #   <install>\SEO Tool.hta         ← Windows control panel (real buttons)
+        # After this pass at the install root:
+        #   <install>\SEO Tool.hta         ← the one Windows entry point
+        #                                    (double-click directly in
+        #                                    File Explorer — no browser
+        #                                    involved)
         #   <install>\launcher\            ← Start/Stop .cmd / .command wrappers
         foreach ($rootLegacy in @(
             "Start SEO Tool.cmd",
             "Stop SEO Tool.cmd",
             "Start SEO Tool.command",
-            "Stop SEO Tool.command"
+            "Stop SEO Tool.command",
+            "SEO Tool.html"
         )) {
             $p = Join-Path $dir $rootLegacy
             if (Test-Path $p) {

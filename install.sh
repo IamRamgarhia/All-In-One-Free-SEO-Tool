@@ -524,15 +524,16 @@ if [ "$HAS_DOCKER" != "1" ]; then
   chmod +x "$DIR/launcher/Start SEO Tool.command" "$DIR/launcher/Stop SEO Tool.command" 2>/dev/null || true
 
   # Sweep up files left behind by EARLIER installs (root-level Start/Stop
-  # wrappers AND various desktop shortcut sets). After this pass:
-  #   <install>/SEO Tool.html     ← status panel
-  #   <install>/SEO Tool.hta      ← Windows control panel (real buttons)
-  #   <install>/launcher/         ← Start/Stop wrappers
+  # wrappers + old SEO Tool.html browser launcher). After this pass:
+  #   <install>/SEO Tool.hta      ← THE one Windows entry point
+  #                                  (double-click in File Explorer)
+  #   <install>/launcher/         ← Start/Stop wrappers (.cmd / .command)
   for legacy_root in \
     "Start SEO Tool.cmd" \
     "Stop SEO Tool.cmd" \
     "Start SEO Tool.command" \
-    "Stop SEO Tool.command"; do
+    "Stop SEO Tool.command" \
+    "SEO Tool.html"; do
     [ -f "$DIR/$legacy_root" ] && rm -f "$DIR/$legacy_root"
   done
 
