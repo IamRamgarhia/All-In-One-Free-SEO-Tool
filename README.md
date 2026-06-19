@@ -1,15 +1,18 @@
 <div align="center">
 
-# Free SEO Tool — Self-Hosted, Open-Source Alternative to Ahrefs &amp; Semrush
+# All-In-One Free SEO Tool — Open-Source Alternative to Ahrefs, Semrush, Moz &amp; SE Ranking
 
-### 🚀 150+ SEO tools in one self-hostable app. Audits, rank tracking, keyword research, AI content, backlinks, local SEO, AI-search visibility, paid-ads funnels, white-label reports.
+### 🚀 The complete free SEO platform. 150+ tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
 
-**Replace ₹25,000–₹65,000/month ($300–$770) of SEO subscriptions with one free tool. Own your data. No paid API keys required to start.**
+**Replace ₹25,000–₹65,000/month ($300–$770) of SEO subscriptions with one MIT-licensed free tool. Own your data. Works with free AI keys (Gemini, Groq) — no paid APIs required.**
 
-[![License](https://img.shields.io/badge/license-PolyForm_NC_1.0.0-amber.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Stack](https://img.shields.io/badge/Next.js_16-React_19-cyan.svg)](#-tech-stack)
 [![Self-Hosted](https://img.shields.io/badge/self_hosted-✓-green.svg)](#-install-in-one-command)
+[![Free Forever](https://img.shields.io/badge/free-forever-violet.svg)](#-how-much-you-save)
 [![Star us](https://img.shields.io/github/stars/IamRamgarhia/SEO-Tool?style=social)](https://github.com/IamRamgarhia/SEO-Tool)
+
+> **Use cases:** free seo tool · all in one seo · ahrefs alternative · semrush alternative · moz alternative · open source seo · self-hosted seo · rank tracker · keyword research · technical seo · local seo · AI search optimization (GEO) · LLM citation tracking · backlink checker · content brief generator · white-label client reports · SEO automation for freelancers and small agencies
 
 [**⚡ Install**](#-install-in-one-command) · [**💰 How much you save**](#-how-much-you-save) · [**📸 Screenshots**](#-screenshots) · [**📦 Full feature list**](#-full-feature-list) · [**🔮 Coming soon**](#-coming-soon) · [**🆘 Troubleshooting**](TROUBLESHOOTING.md) · [**❓ FAQ**](#-faq) · [**📜 License**](#-license)
 
@@ -374,7 +377,7 @@ Runs on a $5/month VPS (1 GB RAM) for solo / small-agency use. See [`docs/HOSTIN
 <details>
 <summary><strong>Is this really free?</strong></summary>
 
-Yes — fully self-hostable under the [PolyForm Noncommercial 1.0.0](LICENSE) license. No usage limits, no feature gates, no telemetry. You can use it for personal SEO, paid freelance client work, or running an agency — all free. The only restriction is you can't sell the software itself or run it as a paid SaaS without a [commercial license](#-license).
+Yes — fully self-hostable under the **[MIT License](LICENSE)**. No usage limits, no feature gates, no telemetry, no commercial restrictions. Use it for personal SEO, paid freelance client work, running an agency, building a paid SaaS on top, or anything else. The MIT license is one of the most permissive open-source licenses there is.
 </details>
 
 <details>
@@ -446,7 +449,7 @@ This SEO platform exists because every existing tool either costs ₹10,000+/mon
 **Why trust a solo project over established SaaS?**
 - The full source is here — read it, audit it, fork it
 - Issues + PRs get a same-week response (solo dev = no support-tier roulette)
-- License (PolyForm Noncommercial) legally guarantees the tool stays free for end users forever — even if DiceCodes vanishes tomorrow, anyone can continue it
+- **MIT license** guarantees the tool stays free for everyone forever — even if DiceCodes vanishes tomorrow, anyone can continue, fork, or commercialise it
 
 **Want to hire the builder for your own product?** See [Need custom software?](#-need-custom-software-like-this-we-build-it) below.
 
@@ -454,23 +457,22 @@ This SEO platform exists because every existing tool either costs ₹10,000+/mon
 
 ## 📜 License
 
-**[PolyForm Noncommercial 1.0.0](LICENSE)** — source-available, not OSI-open-source.
+**[MIT License](LICENSE)** — one of the most permissive open-source licenses in existence.
 
 ### ✅ You CAN, freely:
 - Self-host for your own SEO work (any scale)
 - Use it for paid freelance / agency client work
 - Modify, fork, and adapt the code
-- Share copies under these same terms
-- Contribute back via pull requests
+- **Sell** the software or a modified version
+- Offer it as a **paid hosted SaaS**
+- Re-license your fork under any license you want
+- Bundle it inside a commercial product
 
-### ❌ You CANNOT, without written permission from DiceCodes:
-- Sell this software or any derivative of it
-- Offer it as a paid hosted service (SaaS)
-- Re-license it under a different license
-- Strip the DiceCodes maintainer credit and pass it off as your own
+### Only requirements:
+- Keep the MIT copyright + permission notice in copies / substantial portions
+- That's it. No other strings attached.
 
-**For commercial licensing** (paid SaaS hosting, white-label resale, OEM embedding):  
-📧 [Contact@dicecodes.com](mailto:Contact@dicecodes.com?subject=Commercial%20license%20enquiry)
+A maintainer credit + "support this project" donation prompt is included in the app, but neither is a license requirement — you can strip them in your fork. Asking nicely: leaving the credit in place helps other SEOs find the project.
 
 ---
 

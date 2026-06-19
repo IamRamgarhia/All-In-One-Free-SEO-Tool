@@ -32,6 +32,8 @@ export type AiFeature =
   | "meta_rewrite"
   | "review_reply"
   | "content_idea"
+  | "ai_sentiment"
+  | "geo_swot"
   | "general";
 
 export async function logFeedback(opts: {
@@ -206,6 +208,8 @@ Rules:
     "meta_rewrite",
     "review_reply",
     "content_idea",
+    "ai_sentiment",
+    "geo_swot",
     "general",
   ];
 

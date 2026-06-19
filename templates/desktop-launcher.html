@@ -1,0 +1,370 @@
+<!doctype html>
+<!--
+  SEO Tool — desktop launcher.
+
+  Drops to the user's Desktop as "SEO Tool.html" during install. Acts
+  as a one-page control panel that:
+
+    1. Polls http://localhost:{{PORT}}/api/v1/health every 2 seconds.
+    2. When the server is UP — shows a big "Open SEO Tool" button + the
+       current install path + a "Stop" link to STOP.cmd / STOP.sh.
+    3. When the server is DOWN — shows a big "Start SEO Tool" link to
+       START.cmd / START.sh + plain-language instructions for opening
+       it the first time. Auto-redirects to the app the moment the
+       health probe starts succeeding.
+
+  Browsers cannot execute local processes from a button click for
+  security reasons, so "Start" is a file:// link that hands the .cmd /
+  .sh / .command file to the OS's default handler. Windows runs the
+  .cmd directly; macOS opens .command in Terminal; Linux Desktop runs
+  the .desktop entry.
+
+  The install.ps1 / install.sh scripts substitute {{PORT}}, {{DIR}},
+  {{START_CMD}}, and {{STOP_CMD}} before writing this file to the
+  Desktop. The unprocessed template lives in the repo so contributors
+  can edit it cleanly.
+
+  Single-file by design — no external CSS, no fonts, no images, no
+  network calls except the health probe. Works offline.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SEO Tool — Launcher</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%237c3aed' d='M12 2L4 6v6c0 5 4 9 8 10 4-1 8-5 8-10V6l-8-4zm0 6l2 4h-4l2-4z'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #0a0a14;
+        --card: #14141f;
+        --border: #2a2a3a;
+        --text: #e6e6f0;
+        --muted: #8a8aa0;
+        --primary: #8b5cf6;
+        --primary-hover: #a78bfa;
+        --success: #10b981;
+        --danger: #f43f5e;
+        --warn: #f59e0b;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f8f9fc;
+          --card: #ffffff;
+          --border: #e4e6f0;
+          --text: #1a1a2e;
+          --muted: #5c5c75;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+          Arial, sans-serif;
+        background:
+          radial-gradient(
+            ellipse at top left,
+            rgba(139, 92, 246, 0.15),
+            transparent 60%
+          ),
+          radial-gradient(
+            ellipse at bottom right,
+            rgba(16, 185, 129, 0.1),
+            transparent 60%
+          ),
+          var(--bg);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        min-height: 100vh;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 40px;
+        max-width: 480px;
+        width: 100%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        text-align: center;
+      }
+      .logo {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 16px;
+        background:
+          linear-gradient(135deg, var(--primary), var(--success));
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        color: white;
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 0 0 28px;
+        line-height: 1.5;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 24px;
+        background: rgba(245, 158, 11, 0.12);
+        color: var(--warn);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+      }
+      .status.up {
+        background: rgba(16, 185, 129, 0.12);
+        color: var(--success);
+        border-color: rgba(16, 185, 129, 0.3);
+      }
+      .status.down {
+        background: rgba(244, 63, 94, 0.12);
+        color: var(--danger);
+        border-color: rgba(244, 63, 94, 0.3);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        padding: 14px 20px;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.15s;
+        font-family: inherit;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: white;
+      }
+      .btn-primary:hover {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);
+      }
+      .btn-secondary {
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        margin-top: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+      }
+      .btn-secondary:hover {
+        border-color: var(--muted);
+        color: var(--text);
+      }
+      .path {
+        margin-top: 24px;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 11px;
+        color: var(--muted);
+        word-break: break-all;
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .hint {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .hint kbd {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 11px;
+        border: 1px solid var(--border);
+      }
+      .footer {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .footer a {
+        color: var(--primary-hover);
+        text-decoration: none;
+      }
+      .footer a:hover {
+        text-decoration: underline;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="logo">SEO</div>
+      <h1>SEO Tool</h1>
+      <p class="subtitle">
+        Your self-hosted SEO workspace.<br />
+        Built by DiceCodes — runs entirely on this machine.
+      </p>
+
+      <div id="status" class="status">
+        <span class="dot"></span>
+        <span id="statusText">Checking…</span>
+      </div>
+
+      <!-- UP state: app is running -->
+      <div id="upState" hidden>
+        <a id="openBtn" class="btn btn-primary" href="#"
+          >Open SEO Tool →</a
+        >
+        <a id="stopBtn" class="btn btn-secondary" href="{{STOP_CMD}}">
+          Stop the server
+        </a>
+      </div>
+
+      <!-- DOWN state: app is not running -->
+      <div id="downState" hidden>
+        <a id="startBtn" class="btn btn-primary" href="{{START_CMD}}">
+          Start SEO Tool
+        </a>
+        <p class="hint">
+          Clicking will run <code>START.cmd</code> in your install folder.
+          On macOS double-click <kbd>START.sh</kbd> in the folder below.
+          The launcher polls every 2 seconds and will auto-open the app
+          when it&apos;s ready.
+        </p>
+      </div>
+
+      <div class="path">{{DIR}}</div>
+
+      <div class="footer">
+        Port: <strong>{{PORT}}</strong> &middot;
+        <a href="https://github.com/IamRamgarhia/SEO-Tool" target="_blank"
+          >GitHub</a
+        >
+      </div>
+    </main>
+
+    <script>
+      const PORT = "{{PORT}}";
+      const APP_URL = "http://localhost:" + PORT;
+      const HEALTH = APP_URL + "/api/v1/health";
+
+      const $status = document.getElementById("status");
+      const $statusText = document.getElementById("statusText");
+      const $upState = document.getElementById("upState");
+      const $downState = document.getElementById("downState");
+      const $openBtn = document.getElementById("openBtn");
+
+      $openBtn.href = APP_URL;
+      $openBtn.addEventListener("click", (e) => {
+        // Open in current tab so the launcher steps out of the way
+        e.preventDefault();
+        window.location.href = APP_URL;
+      });
+
+      let wasDown = false;
+      let pollMs = 2000;
+      let consecutiveErrors = 0;
+
+      async function probe() {
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 1500);
+          const res = await fetch(HEALTH, {
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          clearTimeout(tid);
+          if (res.ok) {
+            consecutiveErrors = 0;
+            setUp();
+            // Auto-redirect after the FIRST successful probe following
+            // a down state — gives the user a "click start → wait →
+            // app opens" experience without needing a second click.
+            if (wasDown) {
+              wasDown = false;
+              setTimeout(() => {
+                window.location.href = APP_URL;
+              }, 600);
+            }
+            return;
+          }
+          throw new Error("non-2xx");
+        } catch {
+          consecutiveErrors++;
+          setDown();
+          wasDown = true;
+        }
+      }
+
+      function setUp() {
+        $status.className = "status up";
+        $statusText.textContent = "Running";
+        $upState.hidden = false;
+        $downState.hidden = true;
+        pollMs = 5000; // slower poll once we know it's running
+      }
+
+      function setDown() {
+        $status.className = "status down";
+        $statusText.textContent =
+          consecutiveErrors > 5 ? "Not running" : "Starting…";
+        $upState.hidden = true;
+        $downState.hidden = false;
+        pollMs = 2000;
+      }
+
+      // Kick off + schedule
+      probe();
+      setInterval(probe, pollMs);
+    </script>
+  </body>
+</html>

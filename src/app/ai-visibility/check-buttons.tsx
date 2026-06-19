@@ -51,7 +51,7 @@ export function CheckAllButton() {
       type="button"
       disabled={pending}
       className="shadow-lg shadow-fuchsia-500/25 ring-1 ring-inset ring-white/15"
-      onClick={() => startTransition(() => runAllAiChecks())}
+      onClick={() => startTransition(async () => { await runAllAiChecks(); })}
     >
       {pending ? (
         <Loader2 className="size-4 animate-spin" />

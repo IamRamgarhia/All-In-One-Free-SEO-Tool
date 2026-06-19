@@ -235,6 +235,18 @@ export const aiVisibilityChecks = sqliteTable("ai_visibility_checks", {
     .notNull()
     .default(0),
   error: text("error"),
+  /**
+   * Sentiment of the brand mention (null when no mention OR
+   * classification failed). Classified locally by the user's chosen
+   * LLM — see src/lib/ai-sentiment.ts.
+   */
+  sentiment: text("sentiment", {
+    enum: ["positive", "neutral", "negative", "mixed"],
+  }),
+  /** -100 (very negative) to +100 (very positive). Null when no mention. */
+  sentimentScore: integer("sentiment_score"),
+  /** Short LLM-written rationale (~20 words) so the user can audit. */
+  sentimentReason: text("sentiment_reason"),
   checkedAt: integer("checked_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -1012,6 +1024,8 @@ export const aiFeedback = sqliteTable("ai_feedback", {
       "meta_rewrite",
       "review_reply",
       "content_idea",
+      "ai_sentiment",
+      "geo_swot",
       "general",
     ],
   }).notNull(),

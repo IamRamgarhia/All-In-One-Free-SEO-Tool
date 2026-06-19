@@ -113,7 +113,7 @@ To save time on issues / PRs for these:
 - **Competing with Screaming Frog on raw crawl depth.** Match basics, win on integration. SF is the right tool for 500k+ URL audits.
 - **Custom AI model training.** Use the best LLM API for the job (BYO key) — training a domain-specific model has poor ROI for an SEO tool.
 - **Enterprise SSO / SAML.** Built for freelancers + small agencies. If you're 50+ seats, the integrated workflow benefits diminish anyway.
-- **Hosted SaaS version.** This tool is intentionally self-hosted only. PolyForm Noncommercial license prohibits paid SaaS hosting.
+- **Hosted SaaS version (by DiceCodes).** Intentionally self-hosted only as our official distribution. With the MIT license, anyone is free to fork it and run a paid hosted version.
 
 ---
 

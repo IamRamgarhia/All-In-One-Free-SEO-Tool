@@ -25,6 +25,8 @@ export type AiFeatureName =
   | "meta_rewrite"
   | "review_reply"
   | "content_idea"
+  | "ai_sentiment"
+  | "geo_swot"
   | "general";
 
 export type AiCallOptions = {
@@ -203,7 +205,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://api.groq.com/openai/v1/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -221,7 +223,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://api.openai.com/v1/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -235,7 +237,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         apiKey: k,
         model,
         extraHeaders: { "x-title": "SEO Tool" },
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -248,7 +250,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://api.perplexity.ai/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -265,7 +267,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://api.mistral.ai/v1/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -278,7 +280,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://api.deepseek.com/v1/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -291,7 +293,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://api.cerebras.ai/v1/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -304,7 +306,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://api.together.xyz/v1/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,
@@ -317,7 +319,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         endpoint: "https://models.inference.ai.azure.com/chat/completions",
         apiKey: k,
         model,
-        ...opts,
+        ...packed,
         max,
         temperature,
         timeoutMs,

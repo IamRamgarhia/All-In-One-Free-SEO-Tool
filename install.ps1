@@ -716,6 +716,33 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
             Remove-Item $oldPath -Force -ErrorAction SilentlyContinue
         }
 
+        # Drop the smart HTML launcher on the desktop too. Double-click
+        # opens it in the user's default browser; it auto-detects
+        # whether the server is running and either opens the app or
+        # links to START.cmd. Survives port changes (template gets
+        # re-written on every install with the current port).
+        $launcherTpl = Join-Path $dir "templates\desktop-launcher.html"
+        $launcherOut = Join-Path $desktop "SEO Tool.html"
+        if (Test-Path $launcherTpl) {
+            try {
+                $tpl = [System.IO.File]::ReadAllText($launcherTpl)
+                $startCmdUri = "file:///" + ((Join-Path $dir "bin\START.cmd") -replace '\\', '/' -replace ' ', '%20')
+                $stopCmdUri = "file:///" + ((Join-Path $dir "bin\STOP.cmd") -replace '\\', '/' -replace ' ', '%20')
+                $dirDisplay = $dir
+                $rendered = $tpl `
+                    -replace '\{\{PORT\}\}', $port `
+                    -replace '\{\{DIR\}\}', [Regex]::Escape($dirDisplay).Replace('\\', '\') `
+                    -replace '\{\{START_CMD\}\}', $startCmdUri `
+                    -replace '\{\{STOP_CMD\}\}', $stopCmdUri
+                # Avoid regex-escape weirdness in $dirDisplay by using simple Replace
+                $rendered = $tpl.Replace('{{PORT}}', "$port").Replace('{{DIR}}', $dirDisplay).Replace('{{START_CMD}}', $startCmdUri).Replace('{{STOP_CMD}}', $stopCmdUri)
+                [System.IO.File]::WriteAllText($launcherOut, $rendered, [System.Text.UTF8Encoding]::new($false))
+                Say "Created desktop launcher: $launcherOut"
+            } catch {
+                Warn "Couldn't write SEO Tool.html launcher: $($_.Exception.Message)"
+            }
+        }
+
         # Also drop a Start Menu shortcut so Windows search ("SEO Tool"
         # -> Enter) finds the app. One extra CreateShortcut into the
         # per-user Programs folder — no admin needed.

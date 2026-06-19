@@ -571,6 +571,35 @@ EOF
     # Clean up the old single launcher from previous installs
     [ -f "$DESKTOP/SEO Tool.command" ] && rm -f "$DESKTOP/SEO Tool.command"
   fi
+
+  # Drop the smart HTML launcher on the desktop. Double-click opens it
+  # in the user's default browser; it auto-detects whether the server
+  # is running and either opens the app or links to START. Survives
+  # port changes (template is re-written every install with current port).
+  LAUNCHER_TPL="$DIR/templates/desktop-launcher.html"
+  if [ -f "$LAUNCHER_TPL" ]; then
+    LAUNCHER_OUT="$DESKTOP/SEO Tool.html"
+    # OS-aware paths for the start/stop links
+    if [ "$(uname -s)" = "Darwin" ]; then
+      START_LINK="file://$DIR/bin/START.sh"
+      STOP_LINK="file://$DIR/bin/STOP.sh"
+    elif [ "$(uname -s)" = "Linux" ]; then
+      START_LINK="file://$DIR/bin/START.sh"
+      STOP_LINK="file://$DIR/bin/STOP.sh"
+    else
+      START_LINK="file:///$(printf '%s' "$DIR" | sed 's| |%20|g')/bin/START.sh"
+      STOP_LINK="file:///$(printf '%s' "$DIR" | sed 's| |%20|g')/bin/STOP.sh"
+    fi
+    # sed-substitute the four placeholders. Use a delimiter unlikely to
+    # appear in any of the values (|) to dodge slash-escaping pain.
+    sed -e "s|{{PORT}}|$PORT|g" \
+        -e "s|{{DIR}}|$DIR|g" \
+        -e "s|{{START_CMD}}|$START_LINK|g" \
+        -e "s|{{STOP_CMD}}|$STOP_LINK|g" \
+        "$LAUNCHER_TPL" > "$LAUNCHER_OUT" \
+      && say "Created desktop launcher: $LAUNCHER_OUT" \
+      || warn "Could not write desktop HTML launcher"
+  fi
 fi
 
 # ---- 5b. Auto-start at login (opt-in via SEO_AUTOSTART=1) ------------------
