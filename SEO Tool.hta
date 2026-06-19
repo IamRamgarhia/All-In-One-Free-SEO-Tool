@@ -1,0 +1,389 @@
+<!doctype html>
+<!--
+  SEO Tool — Windows control panel (HTML Application).
+
+  Why .hta and not .html: regular HTML files run inside a browser
+  sandbox that REFUSES to execute local .cmd files when you click a
+  file:// link. Chrome / Edge just show the script source as text.
+  HTML Applications (.hta) run via Windows' built-in mshta.exe with
+  full system access — same look as the HTML page, but the buttons
+  ACTUALLY run the scripts.
+
+  Double-click this file. Windows opens it in mshta.exe automatically
+  (registered handler since Windows XP). The control panel pops up
+  with three buttons that genuinely do what they say.
+
+  Single-file: no external CSS, no fonts, no images.
+  Works without any installer step — committed at the repo root.
+
+  macOS / Linux users: this file does nothing for you. Use
+  "Start SEO Tool.command" / "Stop SEO Tool.command" or
+  bin/START.sh / bin/STOP.sh directly.
+-->
+<html lang="en">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta charset="utf-8" />
+    <title>SEO Tool — Control Panel</title>
+    <hta:application
+      id="seoToolApp"
+      applicationname="SEO Tool"
+      border="thin"
+      caption="yes"
+      icon=""
+      maximizebutton="no"
+      minimizebutton="yes"
+      showintaskbar="yes"
+      singleinstance="yes"
+      sysmenu="yes"
+      windowstate="normal"
+      contextmenu="no"
+      navigable="no"
+      scroll="no"
+      innerborder="no"
+    />
+    <style>
+      :root {
+        --bg: #0a0a14;
+        --card: #14141f;
+        --border: #2a2a3a;
+        --text: #e6e6f0;
+        --muted: #8a8aa0;
+        --primary: #8b5cf6;
+        --primary-hover: #a78bfa;
+        --success: #10b981;
+        --success-hover: #34d399;
+        --danger: #f43f5e;
+        --danger-hover: #fb7185;
+        --warn: #f59e0b;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        width: 100%; height: 100%;
+        background:
+          radial-gradient(ellipse at top left, rgba(139,92,246,0.15), transparent 60%),
+          radial-gradient(ellipse at bottom right, rgba(16,185,129,0.1), transparent 60%),
+          var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+        overflow: hidden;
+      }
+      body {
+        display: flex; align-items: center; justify-content: center;
+        padding: 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 28px;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+      }
+      .header { text-align: center; margin-bottom: 22px; }
+      .logo {
+        width: 46px; height: 46px; margin: 0 auto 10px;
+        background: linear-gradient(135deg, var(--primary), var(--success));
+        border-radius: 11px;
+        display: inline-block;
+        color: white; font-size: 18px; font-weight: 800;
+        line-height: 46px;
+        text-align: center;
+        letter-spacing: -0.5px;
+      }
+      h1 {
+        font-size: 20px; font-weight: 700; margin: 0 0 4px;
+        letter-spacing: -0.3px;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .status {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        margin: 12px 0 0;
+        background: rgba(245,158,11,0.12);
+        color: var(--warn);
+        border: 1px solid rgba(245,158,11,0.3);
+      }
+      .status.up {
+        background: rgba(16,185,129,0.12);
+        color: var(--success);
+        border-color: rgba(16,185,129,0.3);
+      }
+      .status.down {
+        background: rgba(244,63,94,0.12);
+        color: var(--danger);
+        border-color: rgba(244,63,94,0.3);
+      }
+      .actions {
+        margin-top: 18px;
+      }
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 13px 16px;
+        margin-bottom: 8px;
+        border: none;
+        border-radius: 9px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        color: white;
+        font-family: inherit;
+        text-align: center;
+        transition: opacity 0.15s;
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn-open   { background: #8b5cf6; }
+      .btn-start  { background: #10b981; }
+      .btn-stop   { background: #f43f5e; }
+      .btn-open:hover:not(:disabled)  { background: #a78bfa; }
+      .btn-start:hover:not(:disabled) { background: #34d399; }
+      .btn-stop:hover:not(:disabled)  { background: #fb7185; }
+      .hint {
+        margin-top: 12px;
+        font-size: 11px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.5;
+      }
+      .footer {
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        font-size: 10px;
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="header">
+        <div class="logo">SEO</div>
+        <h1>SEO Tool</h1>
+        <p class="subtitle">All-in-one free SEO platform</p>
+        <div id="status" class="status">Checking…</div>
+      </div>
+
+      <div class="actions">
+        <button id="openBtn"  class="btn btn-open"  onclick="openApp()"  disabled>→ Open SEO Tool</button>
+        <button id="startBtn" class="btn btn-start" onclick="startApp()">▶ Start the server</button>
+        <button id="stopBtn"  class="btn btn-stop"  onclick="stopApp()"  disabled>■ Stop the server</button>
+      </div>
+
+      <p class="hint">
+        The buttons really work — this is an HTA, not a regular web page.
+      </p>
+
+      <div class="footer">
+        SEO Tool by DiceCodes &middot; github.com/IamRamgarhia/SEO-Tool
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      // HTA uses the IE rendering engine. Some modern APIs (fetch,
+      // ConfigBuilder, fetch streams) aren't available. We use the
+      // classic ActiveX objects HTAs are designed for.
+
+      var shell = new ActiveXObject("WScript.Shell");
+      var fso   = new ActiveXObject("Scripting.FileSystemObject");
+
+      // Resolve the install dir = the folder this .hta lives in.
+      // location.pathname looks like "/C:/Users/.../seo/SEO%20Tool.hta"
+      // — clean it up to a real Windows path.
+      function installDir() {
+        var p = unescape(location.pathname);
+        if (p.charAt(0) === "/") p = p.substring(1);
+        p = p.replace(/\//g, "\\");
+        // strip the filename
+        var i = p.lastIndexOf("\\");
+        return i >= 0 ? p.substring(0, i) : p;
+      }
+      var DIR = installDir();
+
+      // Read .seo-port from disk if it exists, otherwise scan the
+      // ephemeral range + common dev ports until something responds.
+      function readPortFile() {
+        try {
+          var fp = DIR + "\\.seo-port";
+          if (!fso.FileExists(fp)) return null;
+          var f = fso.OpenTextFile(fp, 1, false);
+          var s = f.ReadAll();
+          f.Close();
+          s = s.replace(/^\s+|\s+$/g, "");
+          var n = parseInt(s, 10);
+          return isNaN(n) ? null : n;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      var CANDIDATES = (function () {
+        var c = [];
+        var fromFile = readPortFile();
+        if (fromFile) c.push(fromFile);
+        // Common dev defaults
+        c = c.concat([3000, 3001, 3002, 3010, 5000, 5173, 4000, 8080, 8081]);
+        // First 40 ephemeral-range ports (covers most install-path hashes)
+        for (var i = 0; i < 40; i++) c.push(49152 + i);
+        return c;
+      })();
+
+      var currentPort = null;
+      var pollMs = 2500;
+      var probeCache = {}; // port → boolean (last result)
+
+      function httpHealth(port, callback) {
+        var url = "http://localhost:" + port + "/api/v1/health";
+        try {
+          var xhr = new ActiveXObject("Microsoft.XMLHTTP");
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+              try {
+                if (xhr.status === 200 && xhr.responseText.indexOf("seo-tool") !== -1) {
+                  callback(true);
+                } else {
+                  callback(false);
+                }
+              } catch (e) { callback(false); }
+            }
+          };
+          xhr.open("GET", url, true);
+          xhr.setRequestHeader("Cache-Control", "no-cache");
+          xhr.send(null);
+          // Cap probe time at 1.5s — HTA's XMLHTTP has no built-in
+          // timeout so we kill it with setTimeout.
+          setTimeout(function () {
+            if (xhr.readyState !== 4) {
+              try { xhr.abort(); } catch (e) {}
+              callback(false);
+            }
+          }, 1500);
+        } catch (e) {
+          callback(false);
+        }
+      }
+
+      // Scan all candidate ports in parallel-ish (HTA can't truly do
+      // Promise.all, so we kick them off + tally callbacks).
+      function findServer(done) {
+        var remaining = CANDIDATES.length;
+        var found = null;
+        for (var i = 0; i < CANDIDATES.length; i++) {
+          (function (port) {
+            httpHealth(port, function (ok) {
+              if (ok && !found) found = port;
+              remaining--;
+              if (remaining === 0) done(found);
+            });
+          })(CANDIDATES[i]);
+        }
+      }
+
+      function setUp(port) {
+        currentPort = port;
+        var $s = document.getElementById("status");
+        $s.className = "status up";
+        $s.innerHTML = "● Running on port " + port;
+        document.getElementById("openBtn").disabled  = false;
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("stopBtn").disabled  = false;
+        pollMs = 5000;
+      }
+
+      function setDown() {
+        currentPort = null;
+        var $s = document.getElementById("status");
+        $s.className = "status down";
+        $s.innerHTML = "● Stopped — click Start";
+        document.getElementById("openBtn").disabled  = true;
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("stopBtn").disabled  = true;
+        pollMs = 2500;
+      }
+
+      function setChecking(text) {
+        var $s = document.getElementById("status");
+        $s.className = "status";
+        $s.innerHTML = text || "Checking…";
+      }
+
+      // --- Real working buttons ---
+
+      function openApp() {
+        if (!currentPort) return;
+        shell.Run("cmd /c start http://localhost:" + currentPort, 0, false);
+      }
+
+      function startApp() {
+        document.getElementById("startBtn").disabled = true;
+        setChecking("Starting server…");
+        // shell.Run waits-on-exit when third arg is true; we want
+        // fire-and-forget (the server runs in the background).
+        // The script lives in bin\START.cmd. The CWD must be the
+        // install dir so relative paths resolve. cmd /c handles that.
+        var cmd = '"' + DIR + '\\bin\\START.cmd"';
+        try {
+          // Run with cwd=DIR so START.cmd's relative paths resolve.
+          // ProcessAndWindow style 0 = hidden window (no flicker).
+          var oldDir = shell.CurrentDirectory;
+          shell.CurrentDirectory = DIR;
+          shell.Run(cmd, 0, false);
+          shell.CurrentDirectory = oldDir;
+        } catch (e) {
+          alert("Couldn't start the server: " + e.message);
+          setDown();
+        }
+      }
+
+      function stopApp() {
+        document.getElementById("stopBtn").disabled = true;
+        setChecking("Stopping server…");
+        var cmd = '"' + DIR + '\\bin\\STOP.cmd"';
+        try {
+          var oldDir = shell.CurrentDirectory;
+          shell.CurrentDirectory = DIR;
+          shell.Run(cmd, 0, false);
+          shell.CurrentDirectory = oldDir;
+        } catch (e) {
+          alert("Couldn't stop the server: " + e.message);
+        }
+      }
+
+      // --- Polling loop ---
+
+      function tick() {
+        if (currentPort) {
+          httpHealth(currentPort, function (ok) {
+            if (ok) {
+              setUp(currentPort);
+            } else {
+              setDown();
+              // The known port stopped responding — re-scan next tick
+              currentPort = null;
+            }
+          });
+        } else {
+          setChecking("Scanning for server…");
+          findServer(function (port) {
+            if (port) setUp(port); else setDown();
+          });
+        }
+      }
+
+      // Kick off
+      tick();
+      setInterval(tick, 2500);
+    </script>
+  </body>
+</html>

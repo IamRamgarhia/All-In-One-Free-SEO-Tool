@@ -1,30 +1,29 @@
 <!doctype html>
 <!--
-  SEO Tool — control panel (lives at the install root).
+  SEO Tool — status panel (cross-platform).
 
-  Sits next to "Start SEO Tool.cmd" and "Stop SEO Tool.cmd". Either
-  file can be double-clicked: the .cmd files do the real work
-  (browsers can't execute local processes from a button click for
-  security reasons); this HTML is a friendly visual control with
-  live status and big colored buttons that hand off to those .cmds
-  via file:// links.
+  Lives at the install root. Browsers WILL NOT execute local .cmd /
+  .sh files from a button click — that's a hard security boundary
+  every modern browser enforces. So this page is honest about it:
+  - On Windows: tells you to use SEO Tool.hta (real working buttons)
+    or double-click "Start SEO Tool.cmd" in this folder.
+  - On macOS / Linux: tells you to double-click
+    "Start SEO Tool.command" or run bin/START.sh.
+  - The Open button DOES work — once the server is running, click it
+    to jump to the app.
 
-  Port discovery: tries a list of common dev ports (3000, 3001,
-  3010, 5173, 8080) PLUS the deterministic-ephemeral range starts
-  AND honors a #port=NNNN URL hash override. The first endpoint
-  that returns our /api/v1/health signature wins.
+  Port discovery: probes a list of common dev ports + the start of
+  the IANA ephemeral range. URL hash override #port=63140 skips the
+  scan for power users.
 
-  No template substitution needed — this file is committed to the
-  repo and works for any install. Start SEO Tool.cmd / .command live
-  alongside; their relative file:// paths are stable.
-
-  Single-file: no external CSS, no fonts, no images. Works offline.
+  Port-agnostic — no template substitution needed. Works on any
+  install committed at the repo root.
 -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>SEO Tool — Control Panel</title>
+    <title>SEO Tool — Status</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%237c3aed' d='M12 2L4 6v6c0 5 4 9 8 10 4-1 8-5 8-10V6l-8-4zm0 6l2 4h-4l2-4z'/%3E%3C/svg%3E"
@@ -40,9 +39,7 @@
         --primary: #8b5cf6;
         --primary-hover: #a78bfa;
         --success: #10b981;
-        --success-hover: #34d399;
         --danger: #f43f5e;
-        --danger-hover: #fb7185;
         --warn: #f59e0b;
       }
       @media (prefers-color-scheme: light) {
@@ -78,7 +75,7 @@
         width: 100%;
         box-shadow: 0 20px 60px rgba(0,0,0,0.4);
       }
-      .header { text-align: center; margin-bottom: 28px; }
+      .header { text-align: center; margin-bottom: 24px; }
       .logo {
         width: 52px; height: 52px; margin: 0 auto 14px;
         background: linear-gradient(135deg, var(--primary), var(--success));
@@ -113,7 +110,6 @@
         0%,100% { opacity: 1; }
         50% { opacity: 0.4; }
       }
-      .actions { display: grid; gap: 10px; margin-top: 4px; }
       .btn {
         display: inline-flex; align-items: center; justify-content: center;
         gap: 10px; width: 100%;
@@ -124,38 +120,44 @@
         transition: all 0.15s;
         font-family: inherit;
         color: white;
+        background: var(--primary);
+        margin-top: 6px;
       }
-      .btn[aria-disabled="true"] {
-        opacity: 0.4; cursor: not-allowed; pointer-events: none;
-      }
-      .btn-open { background: var(--primary); }
-      .btn-open:hover {
+      .btn:hover {
         background: var(--primary-hover);
         transform: translateY(-1px);
         box-shadow: 0 8px 20px rgba(139,92,246,0.3);
       }
-      .btn-start { background: var(--success); }
-      .btn-start:hover {
-        background: var(--success-hover);
-        transform: translateY(-1px);
-        box-shadow: 0 8px 20px rgba(16,185,129,0.3);
+      .btn[aria-disabled="true"] {
+        opacity: 0.4; cursor: not-allowed; pointer-events: none;
       }
-      .btn-stop { background: var(--danger); }
-      .btn-stop:hover {
-        background: var(--danger-hover);
-        transform: translateY(-1px);
-        box-shadow: 0 8px 20px rgba(244,63,94,0.3);
+      .instructions {
+        margin-top: 18px;
+        padding: 14px 16px;
+        background: rgba(139, 92, 246, 0.08);
+        border: 1px solid rgba(139, 92, 246, 0.25);
+        border-radius: 10px;
+        font-size: 12px;
+        color: var(--text);
+        line-height: 1.6;
       }
-      .icon { font-size: 16px; line-height: 1; }
-      .hint {
-        margin-top: 14px;
+      .instructions strong {
+        color: var(--primary-hover);
+        display: block;
+        margin-bottom: 6px;
         font-size: 11px;
-        color: var(--muted);
-        line-height: 1.5;
-        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .instructions code {
+        background: rgba(0,0,0,0.3);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 11px;
       }
       .footer {
-        margin-top: 14px;
+        margin-top: 16px;
         padding-top: 14px;
         border-top: 1px solid var(--border);
         color: var(--muted);
@@ -174,102 +176,94 @@
       <div class="header">
         <div class="logo">SEO</div>
         <h1>SEO Tool</h1>
-        <p class="subtitle">
-          All-in-one free SEO platform.<br />
-          Open · Start · Stop — pick one.
-        </p>
+        <p class="subtitle">All-in-one free SEO platform</p>
         <div id="status" class="status">
           <span class="dot"></span>
-          <span id="statusText">Checking ports…</span>
+          <span id="statusText">Scanning for server…</span>
         </div>
       </div>
 
-      <div class="actions">
-        <a id="openBtn" class="btn btn-open" href="#" aria-disabled="true">
-          <span class="icon">→</span> Open SEO Tool
-        </a>
-        <!--
-          IMPORTANT: these file:// links resolve RELATIVE to where this
-          HTML lives. Since this file ships at the install root next to
-          "Start SEO Tool.cmd" and "Stop SEO Tool.cmd", the relative
-          links just work — no install-time substitution needed.
-        -->
-        <a id="startBtn" class="btn btn-start" href="Start%20SEO%20Tool.cmd">
-          <span class="icon">▶</span> Start the server
-        </a>
-        <a id="stopBtn" class="btn btn-stop" href="Stop%20SEO%20Tool.cmd" aria-disabled="true">
-          <span class="icon">■</span> Stop the server
-        </a>
-      </div>
+      <a id="openBtn" class="btn" href="#" aria-disabled="true">
+        Open SEO Tool →
+      </a>
 
-      <p class="hint">
-        On Windows, Start / Stop run the .cmd file in your install
-        folder (your browser may show a one-time security prompt).
-        On macOS use <code>Start SEO Tool.command</code> instead.
-      </p>
+      <div class="instructions">
+        <strong id="instTitle">How to start the server</strong>
+        <div id="instBody">Loading…</div>
+      </div>
 
       <div class="footer">
         <a href="https://github.com/IamRamgarhia/SEO-Tool" target="_blank">GitHub</a>
         &middot;
-        <a href="https://github.com/IamRamgarhia/SEO-Tool/issues" target="_blank">Report an issue</a>
+        <a href="https://github.com/IamRamgarhia/SEO-Tool/issues" target="_blank">Issues</a>
       </div>
     </main>
 
     <script>
-      // Port discovery. The launcher doesn't know the install's port
-      // up-front (the user could have any port from the IANA ephemeral
-      // range hashed from their install path). We probe a short list:
-      //
-      //   1. URL hash override:  SEO Tool.html#port=63140
-      //   2. Common dev defaults (3000, 3001, 8080, 5173, 5000, 4000)
-      //   3. The first ~30 ports from the ephemeral range (49152+)
-      //      — covered LAZILY so we don't take forever
-      //
-      // The first endpoint that returns a /api/v1/health response with
-      // our service signature wins.
+      // Detect OS once
+      var UA = navigator.userAgent || "";
+      var IS_WIN  = /Windows/i.test(UA);
+      var IS_MAC  = /Mac OS X/i.test(UA);
+      // Show the right instructions for the OS — honest about the
+      // browser-security limit (HTML pages can't execute local .cmd /
+      // .sh files; the OS needs to handle the double-click).
+      var instTitle = document.getElementById("instTitle");
+      var instBody  = document.getElementById("instBody");
+      if (IS_WIN) {
+        instTitle.textContent = "On Windows — two ways to start/stop";
+        instBody.innerHTML =
+          '1. Double-click <code>SEO Tool.hta</code> in this folder — real working Start / Stop buttons in a small window.<br>' +
+          '2. Or double-click <code>Start SEO Tool.cmd</code> / <code>Stop SEO Tool.cmd</code> directly.<br>' +
+          '<em>Browsers can&rsquo;t run .cmd files from a button click for security reasons — that&rsquo;s why this page only shows status.</em>';
+      } else if (IS_MAC) {
+        instTitle.textContent = "On macOS — double-click in Finder";
+        instBody.innerHTML =
+          'Open this folder in Finder and double-click <code>Start SEO Tool.command</code> / <code>Stop SEO Tool.command</code>.<br>' +
+          'First time only: right-click → Open → Open (macOS Gatekeeper prompt).';
+      } else {
+        instTitle.textContent = "On Linux — run from terminal";
+        instBody.innerHTML =
+          'In this folder, run:<br>' +
+          '<code>./bin/START.sh</code> to start, <code>./bin/STOP.sh</code> to stop.<br>' +
+          'Or create a .desktop launcher pointing to those scripts.';
+      }
 
-      const HASH_PORT = (location.hash.match(/port=(\d+)/) || [])[1];
-      const COMMON = ["3000","3001","3002","3010","5000","5173","4000","8080","8081"];
-      const EPHEMERAL = Array.from({length: 30}, (_, i) => String(49152 + i));
-      const PORTS = HASH_PORT
-        ? [HASH_PORT, ...COMMON, ...EPHEMERAL]
-        : [...COMMON, ...EPHEMERAL];
+      // Port discovery (probe likely ports)
+      var HASH_PORT = (location.hash.match(/port=(\d+)/) || [])[1];
+      var COMMON = ["3000","3001","3002","3010","5000","5173","4000","8080","8081"];
+      var EPHEMERAL = [];
+      for (var i = 0; i < 30; i++) EPHEMERAL.push(String(49152 + i));
+      var PORTS = HASH_PORT ? [HASH_PORT].concat(COMMON).concat(EPHEMERAL) : COMMON.concat(EPHEMERAL);
 
-      const $status = document.getElementById("status");
-      const $statusText = document.getElementById("statusText");
-      const $openBtn = document.getElementById("openBtn");
-      const $startBtn = document.getElementById("startBtn");
-      const $stopBtn = document.getElementById("stopBtn");
+      var $status = document.getElementById("status");
+      var $statusText = document.getElementById("statusText");
+      var $openBtn = document.getElementById("openBtn");
+      var currentPort = null;
+      var pollMs = 2000;
+      var wasDown = false;
 
-      let currentPort = null;
-      let pollMs = 2000;
-      let wasDown = false;
-
-      async function probePort(port) {
+      async function probe(port) {
         try {
           const ctl = new AbortController();
           const tid = setTimeout(() => ctl.abort(), 800);
-          const res = await fetch(`http://localhost:${port}/api/v1/health`, {
+          const res = await fetch("http://localhost:" + port + "/api/v1/health", {
             cache: "no-store",
             signal: ctl.signal,
           });
           clearTimeout(tid);
           if (!res.ok) return false;
           const body = await res.json().catch(() => null);
-          if (!body || body.service !== "seo-tool") return false;
-          return true;
-        } catch {
+          return body && body.service === "seo-tool";
+        } catch (_) {
           return false;
         }
       }
 
-      async function findServer() {
-        // Probe in parallel batches of 4 so the page becomes responsive
-        // quickly even when nothing's running.
+      async function find() {
         const BATCH = 4;
         for (let i = 0; i < PORTS.length; i += BATCH) {
           const batch = PORTS.slice(i, i + BATCH);
-          const results = await Promise.all(batch.map((p) => probePort(p)));
+          const results = await Promise.all(batch.map((p) => probe(p)));
           for (let j = 0; j < batch.length; j++) {
             if (results[j]) return batch[j];
           }
@@ -279,30 +273,23 @@
 
       function setUp(port) {
         currentPort = port;
-        const url = `http://localhost:${port}`;
+        const url = "http://localhost:" + port;
         $status.className = "status up";
-        $statusText.textContent = `Running on port ${port}`;
-        $openBtn.href = url;
+        $statusText.textContent = "Running on port " + port;
         $openBtn.setAttribute("aria-disabled", "false");
-        $startBtn.setAttribute("aria-disabled", "true");
-        $stopBtn.setAttribute("aria-disabled", "false");
+        $openBtn.href = url;
         pollMs = 5000;
         if (wasDown) {
           wasDown = false;
-          setTimeout(() => {
-            window.location.href = url;
-          }, 600);
+          setTimeout(() => { window.location.href = url; }, 600);
         }
       }
-
       function setDown() {
         currentPort = null;
         $status.className = "status down";
-        $statusText.textContent = "Stopped — click Start";
+        $statusText.textContent = "Not running — use the file below";
         $openBtn.setAttribute("aria-disabled", "true");
         $openBtn.removeAttribute("href");
-        $startBtn.setAttribute("aria-disabled", "false");
-        $stopBtn.setAttribute("aria-disabled", "true");
         pollMs = 2000;
         wasDown = true;
       }
@@ -310,35 +297,18 @@
       $openBtn.addEventListener("click", (e) => {
         if ($openBtn.getAttribute("aria-disabled") === "true") {
           e.preventDefault();
-          return;
-        }
-        if (currentPort) {
-          e.preventDefault();
-          window.location.href = `http://localhost:${currentPort}`;
         }
       });
 
       async function tick() {
-        // If we know the port, just re-probe that one (fast).
         if (currentPort) {
-          const ok = await probePort(currentPort);
-          if (ok) {
-            setUp(currentPort);
-          } else {
-            setDown();
-          }
+          if (await probe(currentPort)) setUp(currentPort); else setDown();
           return;
         }
-        // Otherwise scan for any responding port.
-        $statusText.textContent = "Scanning for running server…";
-        const found = await findServer();
-        if (found) {
-          setUp(found);
-        } else {
-          setDown();
-        }
+        $statusText.textContent = "Scanning for server…";
+        const p = await find();
+        if (p) setUp(p); else setDown();
       }
-
       tick();
       setInterval(tick, pollMs);
     </script>
