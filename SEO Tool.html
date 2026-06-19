@@ -131,6 +131,21 @@
       .btn[aria-disabled="true"] {
         opacity: 0.4; cursor: not-allowed; pointer-events: none;
       }
+      .btn-start {
+        background: var(--success);
+      }
+      .btn-start:hover {
+        background: var(--success-hover, #34d399);
+        box-shadow: 0 8px 20px rgba(16,185,129,0.35);
+      }
+      .start-help {
+        display: block;
+        text-align: center;
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      [hidden] { display: none !important; }
       .instructions {
         margin-top: 18px;
         padding: 14px 16px;
@@ -183,9 +198,20 @@
         </div>
       </div>
 
-      <a id="openBtn" class="btn" href="#" aria-disabled="true">
+      <a id="openBtn" class="btn" href="#" aria-disabled="true" hidden>
         Open SEO Tool →
       </a>
+
+      <!-- Prominent Start path when the server is down. The link
+           opens the .hta file via file:// — Windows hands it to
+           mshta.exe which has real buttons that execute the server
+           start. Hidden when the server is detected as running. -->
+      <a id="startHtaBtn" class="btn btn-start" href="SEO%20Tool.hta">
+        ▶ Open SEO Tool.hta to start
+      </a>
+      <span id="startHelp" class="start-help">
+        Opens a small Windows control panel with working Start / Stop buttons.
+      </span>
 
       <div class="instructions">
         <strong id="instTitle">How to start the server</strong>
@@ -239,6 +265,8 @@
       var $status = document.getElementById("status");
       var $statusText = document.getElementById("statusText");
       var $openBtn = document.getElementById("openBtn");
+      var $startHtaBtn = document.getElementById("startHtaBtn");
+      var $startHelp = document.getElementById("startHelp");
       var currentPort = null;
       var pollMs = 2000;
       var wasDown = false;
@@ -277,8 +305,12 @@
         const url = "http://localhost:" + port;
         $status.className = "status up";
         $statusText.textContent = "Running on port " + port;
+        // Show the Open button, hide the Start-HTA prompt
+        $openBtn.hidden = false;
         $openBtn.setAttribute("aria-disabled", "false");
         $openBtn.href = url;
+        $startHtaBtn.hidden = true;
+        $startHelp.hidden = true;
         pollMs = 5000;
         if (wasDown) {
           wasDown = false;
@@ -288,9 +320,13 @@
       function setDown() {
         currentPort = null;
         $status.className = "status down";
-        $statusText.textContent = "Not running — use the file below";
+        $statusText.textContent = "Not running — click Start below";
+        // Hide the Open button, show the Start-HTA prompt
+        $openBtn.hidden = true;
         $openBtn.setAttribute("aria-disabled", "true");
         $openBtn.removeAttribute("href");
+        $startHtaBtn.hidden = false;
+        $startHelp.hidden = false;
         pollMs = 2000;
         wasDown = true;
       }
