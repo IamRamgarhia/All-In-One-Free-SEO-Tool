@@ -704,12 +704,18 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
         #                                    File Explorer — no browser
         #                                    involved)
         #   <install>\launcher\            ← Start/Stop .cmd / .command wrappers
+        # After this pass the install root will have exactly two
+        # user-facing entry files:
+        #   "Start SEO Tool (Windows).hta"     ← Windows users
+        #   "Start SEO Tool (Mac).command"     ← Mac users
+        # Plus the launcher/ folder for power-user wrappers.
         foreach ($rootLegacy in @(
             "Start SEO Tool.cmd",
             "Stop SEO Tool.cmd",
             "Start SEO Tool.command",
             "Stop SEO Tool.command",
-            "SEO Tool.html"
+            "SEO Tool.html",
+            "SEO Tool.hta"
         )) {
             $p = Join-Path $dir $rootLegacy
             if (Test-Path $p) {

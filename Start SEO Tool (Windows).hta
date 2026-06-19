@@ -321,28 +321,61 @@
 
       // --- Real working buttons ---
 
+      // After clicking Start, we don't want the polling tick to
+      // immediately reset the status to "Stopped" — the server takes
+      // 5-30 seconds to boot (Next.js compile on first run is the
+      // slowest). Track the click time + grace window; while inside
+      // that window, missing-server probes show "Starting…" instead
+      // of "Stopped".
+      var startClickedAt = 0;
+      var stopClickedAt  = 0;
+      var GRACE_MS = 60000; // 60s — enough for cold Next.js start
+
       function openApp() {
         if (!currentPort) return;
         shell.Run("cmd /c start http://localhost:" + currentPort, 0, false);
       }
 
-      function startApp() {
-        document.getElementById("startBtn").disabled = true;
-        setChecking("Starting server…");
-        // shell.Run waits-on-exit when third arg is true; we want
-        // fire-and-forget (the server runs in the background).
-        // The script lives in bin\START.cmd. The CWD must be the
-        // install dir so relative paths resolve. cmd /c handles that.
-        var cmd = '"' + DIR + '\\bin\\START.cmd"';
+      // shell.Run quirks: passing a quoted path string directly works
+      // but window-style 0 (hidden) makes errors invisible. We use
+      // style 1 (normal) so the user SEES the console window with
+      // any errors. The console closes when START.cmd exits (which
+      // happens fast after it spawns the background server).
+      function runCmd(scriptName, errPrefix) {
+        var cmdPath = DIR + "\\bin\\" + scriptName;
+        if (!fso.FileExists(cmdPath)) {
+          alert(errPrefix + ": missing file\n\nExpected:\n" + cmdPath);
+          return false;
+        }
         try {
-          // Run with cwd=DIR so START.cmd's relative paths resolve.
-          // ProcessAndWindow style 0 = hidden window (no flicker).
+          // Use cmd /c "" "path with spaces" — the empty "" is a
+          // documented cmd.exe parsing workaround so paths with spaces
+          // work even when the line itself is double-quoted.
+          var line = 'cmd /c "" "' + cmdPath + '"';
           var oldDir = shell.CurrentDirectory;
           shell.CurrentDirectory = DIR;
-          shell.Run(cmd, 0, false);
+          // Style 1 = normal window. The console flashes briefly,
+          // user sees any errors, then it closes.
+          // bWaitOnReturn = false (third arg) = fire-and-forget.
+          shell.Run(line, 1, false);
           shell.CurrentDirectory = oldDir;
+          return true;
         } catch (e) {
-          alert("Couldn't start the server: " + e.message);
+          alert(
+            errPrefix + "\n\n" +
+            "Error: " + e.message + "\n" +
+            "Path:  " + cmdPath
+          );
+          return false;
+        }
+      }
+
+      function startApp() {
+        document.getElementById("startBtn").disabled = true;
+        setChecking("Starting server… (up to 60s for first boot)");
+        startClickedAt = (new Date()).getTime();
+        if (!runCmd("START.cmd", "Couldn't start the server")) {
+          startClickedAt = 0; // reset grace if the spawn itself failed
           setDown();
         }
       }
@@ -350,29 +383,45 @@
       function stopApp() {
         document.getElementById("stopBtn").disabled = true;
         setChecking("Stopping server…");
-        var cmd = '"' + DIR + '\\bin\\STOP.cmd"';
-        try {
-          var oldDir = shell.CurrentDirectory;
-          shell.CurrentDirectory = DIR;
-          shell.Run(cmd, 0, false);
-          shell.CurrentDirectory = oldDir;
-        } catch (e) {
-          alert("Couldn't stop the server: " + e.message);
+        stopClickedAt = (new Date()).getTime();
+        if (!runCmd("STOP.cmd", "Couldn't stop the server")) {
+          stopClickedAt = 0;
         }
       }
 
       // --- Polling loop ---
+
+      function inGrace(clickedAt) {
+        return clickedAt > 0 && ((new Date()).getTime() - clickedAt) < GRACE_MS;
+      }
 
       function tick() {
         if (currentPort) {
           httpHealth(currentPort, function (ok) {
             if (ok) {
               setUp(currentPort);
+              return;
+            }
+            // Known port went dark. If we just clicked Stop, that's
+            // expected — show "Stopped". If not, the server crashed.
+            currentPort = null;
+            if (inGrace(stopClickedAt)) {
+              setDown();
+              stopClickedAt = 0;
             } else {
               setDown();
-              // The known port stopped responding — re-scan next tick
-              currentPort = null;
             }
+          });
+        } else if (inGrace(startClickedAt)) {
+          // Inside the Start grace window — keep probing aggressively
+          // but show "Starting…" not "Stopped" until something answers.
+          setChecking("Starting server… (still booting)");
+          findServer(function (port) {
+            if (port) {
+              setUp(port);
+              startClickedAt = 0; // clear grace once we're up
+            }
+            // Otherwise leave status as "Starting…" and try again next tick
           });
         } else {
           setChecking("Scanning for server…");

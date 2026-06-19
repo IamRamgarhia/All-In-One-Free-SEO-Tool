@@ -528,14 +528,21 @@ if [ "$HAS_DOCKER" != "1" ]; then
   #   <install>/SEO Tool.hta      ← THE one Windows entry point
   #                                  (double-click in File Explorer)
   #   <install>/launcher/         ← Start/Stop wrappers (.cmd / .command)
+  # After this pass the install root will have two user-facing entries:
+  #   "Start SEO Tool (Windows).hta"     ← Windows users
+  #   "Start SEO Tool (Mac).command"     ← Mac users
+  # Plus the launcher/ folder for power-user wrappers.
   for legacy_root in \
     "Start SEO Tool.cmd" \
     "Stop SEO Tool.cmd" \
     "Start SEO Tool.command" \
     "Stop SEO Tool.command" \
-    "SEO Tool.html"; do
+    "SEO Tool.html" \
+    "SEO Tool.hta"; do
     [ -f "$DIR/$legacy_root" ] && rm -f "$DIR/$legacy_root"
   done
+  # New entry files need +x on macOS / Linux
+  chmod +x "$DIR/Start SEO Tool (Mac).command" 2>/dev/null || true
 
   if [ -d "$DESKTOP" ]; then
     for legacy_desktop in \
