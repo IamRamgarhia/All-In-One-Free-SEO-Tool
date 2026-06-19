@@ -692,18 +692,19 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
         }
 
         # Sweep up files from EARLIER installs in two places:
-        #   (a) install root — Start/Stop wrappers used to live there;
-        #       now consolidated under <install>\launcher\
+        #   (a) install root — Start/Stop wrappers briefly lived here;
+        #       they're now under <install>\launcher\. The .hta and .html
+        #       at root are KEPT (they're the user-facing entry points).
         #   (b) Desktop — old .lnk shortcuts + welcome.txt
-        # After this pass the install root has exactly ONE launcher
-        # file at top level: SEO Tool.html (the status panel). All
-        # executable launchers live in <install>\launcher\.
+        # After this pass:
+        #   <install>\SEO Tool.html        ← status panel
+        #   <install>\SEO Tool.hta         ← Windows control panel (real buttons)
+        #   <install>\launcher\            ← Start/Stop .cmd / .command wrappers
         foreach ($rootLegacy in @(
             "Start SEO Tool.cmd",
             "Stop SEO Tool.cmd",
             "Start SEO Tool.command",
-            "Stop SEO Tool.command",
-            "SEO Tool.hta"
+            "Stop SEO Tool.command"
         )) {
             $p = Join-Path $dir $rootLegacy
             if (Test-Path $p) {

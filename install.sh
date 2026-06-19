@@ -523,16 +523,16 @@ if [ "$HAS_DOCKER" != "1" ]; then
   chmod +x "$DIR/bin/START.sh" "$DIR/bin/STOP.sh" "$DIR/bin/seo.sh" 2>/dev/null || true
   chmod +x "$DIR/launcher/Start SEO Tool.command" "$DIR/launcher/Stop SEO Tool.command" 2>/dev/null || true
 
-  # Sweep up files left behind by EARLIER installs (root-level launcher
-  # wrappers AND various desktop shortcut sets). The install root now
-  # has exactly ONE launcher-related file: SEO Tool.html. Everything
-  # else lives in <install>/launcher/.
+  # Sweep up files left behind by EARLIER installs (root-level Start/Stop
+  # wrappers AND various desktop shortcut sets). After this pass:
+  #   <install>/SEO Tool.html     ← status panel
+  #   <install>/SEO Tool.hta      ← Windows control panel (real buttons)
+  #   <install>/launcher/         ← Start/Stop wrappers
   for legacy_root in \
     "Start SEO Tool.cmd" \
     "Stop SEO Tool.cmd" \
     "Start SEO Tool.command" \
-    "Stop SEO Tool.command" \
-    "SEO Tool.hta"; do
+    "Stop SEO Tool.command"; do
     [ -f "$DIR/$legacy_root" ] && rm -f "$DIR/$legacy_root"
   done
 

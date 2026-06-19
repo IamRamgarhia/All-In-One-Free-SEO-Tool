@@ -210,19 +210,17 @@
       var instTitle = document.getElementById("instTitle");
       var instBody  = document.getElementById("instBody");
       if (IS_WIN) {
-        instTitle.textContent = "On Windows — go to the launcher folder";
+        instTitle.textContent = "✅ Windows — one-click control panel ready";
         instBody.innerHTML =
-          'Open the <code>launcher/</code> folder next to this file, then:<br>' +
-          '1. Double-click <code>SEO Tool.hta</code> — real working Start / Stop buttons in a small window.<br>' +
-          '2. Or double-click <code>Start SEO Tool.cmd</code> / <code>Stop SEO Tool.cmd</code> directly.<br>' +
-          '<em>Browsers can&rsquo;t run .cmd files from a button click for security reasons — that&rsquo;s why all the executable launcher files live in their own folder.</em><br>' +
-          '<a id="openLauncherDir" href="launcher/" target="_blank">Open launcher folder →</a>';
+          'Close this page and <strong>double-click <code>SEO Tool.hta</code></strong> in the same folder. ' +
+          'It opens a small window with real working <strong>Start / Stop / Open</strong> buttons.<br><br>' +
+          '<em>Why this page can&rsquo;t do it directly: browsers refuse to run local .cmd / .exe files from a button click for security reasons. The .hta file bypasses that — it runs via Windows&rsquo; built-in mshta.exe with full system access.</em><br><br>' +
+          '<strong>Fallback:</strong> if .hta won&rsquo;t open, use <code>launcher/Start SEO Tool.cmd</code> and <code>launcher/Stop SEO Tool.cmd</code>.';
       } else if (IS_MAC) {
         instTitle.textContent = "On macOS — open the launcher folder";
         instBody.innerHTML =
           'Open the <code>launcher/</code> folder next to this file and double-click <code>Start SEO Tool.command</code> / <code>Stop SEO Tool.command</code>.<br>' +
-          'First time only: right-click → Open → Open (macOS Gatekeeper prompt).<br>' +
-          '<a id="openLauncherDir" href="launcher/" target="_blank">Open launcher folder →</a>';
+          'First time only: right-click → Open → Open (macOS Gatekeeper prompt).';
       } else {
         instTitle.textContent = "On Linux — run from terminal";
         instBody.innerHTML =
