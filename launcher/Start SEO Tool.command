@@ -10,5 +10,7 @@
 # Linux desktops will need to mark it executable + use the file
 # manager's "Open with Terminal" action (or use a .desktop file).
 
-cd "$(dirname "$0")"
+# Lives in <install>/launcher/ — step up to the install root so
+# bin/START.sh's relative paths resolve.
+cd "$(dirname "$0")/.."
 ./bin/START.sh

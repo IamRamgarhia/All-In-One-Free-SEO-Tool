@@ -210,22 +210,25 @@
       var instTitle = document.getElementById("instTitle");
       var instBody  = document.getElementById("instBody");
       if (IS_WIN) {
-        instTitle.textContent = "On Windows — two ways to start/stop";
+        instTitle.textContent = "On Windows — go to the launcher folder";
         instBody.innerHTML =
-          '1. Double-click <code>SEO Tool.hta</code> in this folder — real working Start / Stop buttons in a small window.<br>' +
+          'Open the <code>launcher/</code> folder next to this file, then:<br>' +
+          '1. Double-click <code>SEO Tool.hta</code> — real working Start / Stop buttons in a small window.<br>' +
           '2. Or double-click <code>Start SEO Tool.cmd</code> / <code>Stop SEO Tool.cmd</code> directly.<br>' +
-          '<em>Browsers can&rsquo;t run .cmd files from a button click for security reasons — that&rsquo;s why this page only shows status.</em>';
+          '<em>Browsers can&rsquo;t run .cmd files from a button click for security reasons — that&rsquo;s why all the executable launcher files live in their own folder.</em><br>' +
+          '<a id="openLauncherDir" href="launcher/" target="_blank">Open launcher folder →</a>';
       } else if (IS_MAC) {
-        instTitle.textContent = "On macOS — double-click in Finder";
+        instTitle.textContent = "On macOS — open the launcher folder";
         instBody.innerHTML =
-          'Open this folder in Finder and double-click <code>Start SEO Tool.command</code> / <code>Stop SEO Tool.command</code>.<br>' +
-          'First time only: right-click → Open → Open (macOS Gatekeeper prompt).';
+          'Open the <code>launcher/</code> folder next to this file and double-click <code>Start SEO Tool.command</code> / <code>Stop SEO Tool.command</code>.<br>' +
+          'First time only: right-click → Open → Open (macOS Gatekeeper prompt).<br>' +
+          '<a id="openLauncherDir" href="launcher/" target="_blank">Open launcher folder →</a>';
       } else {
         instTitle.textContent = "On Linux — run from terminal";
         instBody.innerHTML =
           'In this folder, run:<br>' +
           '<code>./bin/START.sh</code> to start, <code>./bin/STOP.sh</code> to stop.<br>' +
-          'Or create a .desktop launcher pointing to those scripts.';
+          'Or use <code>launcher/Start SEO Tool.command</code> if your file manager supports running it.';
       }
 
       // Port discovery (probe likely ports)

@@ -10,5 +10,7 @@ REM SIGTERM, 5s wait, force-kill fallback, port cleanup) lives
 REM there.
 
 setlocal
-cd /d "%~dp0"
+REM Lives in <install>\launcher\ — step up to the install root so
+REM bin\STOP.cmd's relative paths resolve correctly.
+cd /d "%~dp0\.."
 call bin\STOP.cmd

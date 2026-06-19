@@ -198,16 +198,22 @@
       var shell = new ActiveXObject("WScript.Shell");
       var fso   = new ActiveXObject("Scripting.FileSystemObject");
 
-      // Resolve the install dir = the folder this .hta lives in.
-      // location.pathname looks like "/C:/Users/.../seo/SEO%20Tool.hta"
-      // — clean it up to a real Windows path.
+      // Resolve the install dir = the PARENT of the folder this .hta
+      // lives in. The .hta sits at <install>\launcher\SEO Tool.hta;
+      // bin\, .seo-port, and data.db all live one level up at <install>.
+      // location.pathname looks like
+      // "/C:/Users/.../seo/launcher/SEO%20Tool.hta" — clean it up to a
+      // real Windows path and step up one folder.
       function installDir() {
         var p = unescape(location.pathname);
         if (p.charAt(0) === "/") p = p.substring(1);
         p = p.replace(/\//g, "\\");
         // strip the filename
         var i = p.lastIndexOf("\\");
-        return i >= 0 ? p.substring(0, i) : p;
+        var ownDir = i >= 0 ? p.substring(0, i) : p;
+        // step up one level out of launcher\
+        var j = ownDir.lastIndexOf("\\");
+        return j >= 0 ? ownDir.substring(0, j) : ownDir;
       }
       var DIR = installDir();
 

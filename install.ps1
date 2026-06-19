@@ -691,17 +691,31 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
             if (Test-Path $ic) { $iconPath = $ic; break }
         }
 
-        # Sweep up legacy desktop launcher files from earlier installs.
-        # All three launchers (Start SEO Tool.cmd, Stop SEO Tool.cmd,
-        # SEO Tool.html) now ship at the INSTALL ROOT — committed to
-        # the repo, no install-time rendering required, no desktop
-        # clutter. Users can pin the install folder to the taskbar /
-        # File Explorer favourites for the same one-click feel.
+        # Sweep up files from EARLIER installs in two places:
+        #   (a) install root — Start/Stop wrappers used to live there;
+        #       now consolidated under <install>\launcher\
+        #   (b) Desktop — old .lnk shortcuts + welcome.txt
+        # After this pass the install root has exactly ONE launcher
+        # file at top level: SEO Tool.html (the status panel). All
+        # executable launchers live in <install>\launcher\.
+        foreach ($rootLegacy in @(
+            "Start SEO Tool.cmd",
+            "Stop SEO Tool.cmd",
+            "Start SEO Tool.command",
+            "Stop SEO Tool.command",
+            "SEO Tool.hta"
+        )) {
+            $p = Join-Path $dir $rootLegacy
+            if (Test-Path $p) {
+                Remove-Item $p -Force -ErrorAction SilentlyContinue
+            }
+        }
         foreach ($legacy in @(
             "Start SEO Tool.lnk",
             "Stop SEO Tool.lnk",
             "SEO Tool.lnk",
             "SEO Tool.html",
+            "SEO Tool.hta",
             "SEO-Tool-Welcome.txt"
         )) {
             $p = Join-Path $desktop $legacy
@@ -711,13 +725,15 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
         }
 
         # Also drop a Start Menu shortcut so Windows search ("SEO Tool"
-        # -> Enter) finds the app. One extra CreateShortcut into the
-        # per-user Programs folder — no admin needed.
+        # -> Enter) finds the app. Points at the launcher folder's
+        # friendly wrapper rather than bin\START.cmd directly — the
+        # wrapper sets cwd correctly and the shortcut name matches
+        # what users will see in the launcher folder.
         $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
         if (Test-Path $startMenu) {
             $menuPath = Join-Path $startMenu "SEO Tool.lnk"
             $menuSc = $wshShell.CreateShortcut($menuPath)
-            $menuSc.TargetPath = Join-Path $dir "bin\START.cmd"
+            $menuSc.TargetPath = Join-Path $dir "launcher\Start SEO Tool.cmd"
             $menuSc.WorkingDirectory = $dir
             $menuSc.Description = "Start the SEO Tool (DiceCodes)"
             if ($iconPath) { $menuSc.IconLocation = $iconPath }

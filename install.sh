@@ -517,30 +517,39 @@ fi
 # old .desktop / .command shortcut pairs. The HTML has Open + Start +
 # Stop buttons with live status — cleaner desktop, fewer files to
 # explain, same one-click experience.
-if [ -d "$DESKTOP" ] && [ "$HAS_DOCKER" != "1" ]; then
+if [ "$HAS_DOCKER" != "1" ]; then
+  # The repo ships executable launchers under <install>/launcher/.
+  # ZIP-based installs strip +x — re-add it.
   chmod +x "$DIR/bin/START.sh" "$DIR/bin/STOP.sh" "$DIR/bin/seo.sh" 2>/dev/null || true
-  # Root-level wrappers need the executable bit too (the repo commits
-  # them but ZIP installs strip +x).
-  chmod +x "$DIR/Start SEO Tool.command" "$DIR/Stop SEO Tool.command" 2>/dev/null || true
+  chmod +x "$DIR/launcher/Start SEO Tool.command" "$DIR/launcher/Stop SEO Tool.command" 2>/dev/null || true
 
-  # Sweep up legacy desktop launcher files from earlier installs. All
-  # three launchers (Start SEO Tool.command, Stop SEO Tool.command,
-  # SEO Tool.html) now ship at the INSTALL ROOT — committed to the
-  # repo, no install-time rendering required, no desktop clutter.
-  # Users can favorite the install folder or drag the launchers to
-  # the Dock / Files sidebar for the same one-click feel.
-  for legacy in \
-    "Start-SEO-Tool.desktop" \
-    "Stop-SEO-Tool.desktop" \
-    "SEO-Tool.desktop" \
+  # Sweep up files left behind by EARLIER installs (root-level launcher
+  # wrappers AND various desktop shortcut sets). The install root now
+  # has exactly ONE launcher-related file: SEO Tool.html. Everything
+  # else lives in <install>/launcher/.
+  for legacy_root in \
+    "Start SEO Tool.cmd" \
+    "Stop SEO Tool.cmd" \
     "Start SEO Tool.command" \
     "Stop SEO Tool.command" \
-    "SEO Tool.command" \
-    "SEO Tool.html" \
-    "SEO-Tool-Welcome.txt"; do
-    [ -f "$DESKTOP/$legacy" ] && rm -f "$DESKTOP/$legacy"
+    "SEO Tool.hta"; do
+    [ -f "$DIR/$legacy_root" ] && rm -f "$DIR/$legacy_root"
   done
 
+  if [ -d "$DESKTOP" ]; then
+    for legacy_desktop in \
+      "Start-SEO-Tool.desktop" \
+      "Stop-SEO-Tool.desktop" \
+      "SEO-Tool.desktop" \
+      "Start SEO Tool.command" \
+      "Stop SEO Tool.command" \
+      "SEO Tool.command" \
+      "SEO Tool.html" \
+      "SEO Tool.hta" \
+      "SEO-Tool-Welcome.txt"; do
+      [ -f "$DESKTOP/$legacy_desktop" ] && rm -f "$DESKTOP/$legacy_desktop"
+    done
+  fi
 fi
 
 # ---- 5b. Auto-start at login (opt-in via SEO_AUTOSTART=1) ------------------
