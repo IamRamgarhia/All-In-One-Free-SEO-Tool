@@ -513,66 +513,29 @@ MSG
   fi
 fi
 
-# ---- 5. Desktop shortcuts (Linux: .desktop; macOS: .command alias) ---------
-# Launchers now live in bin/. ZIP extraction may strip +x — restore it.
+# ---- 5. Desktop launcher — a SINGLE HTML control panel replaces the
+# old .desktop / .command shortcut pairs. The HTML has Open + Start +
+# Stop buttons with live status — cleaner desktop, fewer files to
+# explain, same one-click experience.
 if [ -d "$DESKTOP" ] && [ "$HAS_DOCKER" != "1" ]; then
   chmod +x "$DIR/bin/START.sh" "$DIR/bin/STOP.sh" "$DIR/bin/seo.sh" 2>/dev/null || true
 
-  OS="$(uname -s)"
-  if [ "$OS" = "Linux" ]; then
-    START_SHORTCUT="$DESKTOP/Start-SEO-Tool.desktop"
-    cat > "$START_SHORTCUT" <<EOF
-[Desktop Entry]
-Type=Application
-Name=Start SEO Tool
-Comment=Start the self-hosted SEO platform by DiceCodes
-Exec=$DIR/bin/START.sh
-Path=$DIR
-Terminal=false
-Categories=Network;Office;
-EOF
-    chmod +x "$START_SHORTCUT" 2>/dev/null || true
-    say "Created shortcut: $START_SHORTCUT"
+  # Sweep up legacy launcher files from previous installs so the user
+  # ends with exactly ONE launcher on their Desktop (SEO Tool.html)
+  # instead of 3-4 confusing files. The HTML control panel replaces
+  # the function of all of these.
+  for legacy in \
+    "Start-SEO-Tool.desktop" \
+    "Stop-SEO-Tool.desktop" \
+    "SEO-Tool.desktop" \
+    "Start SEO Tool.command" \
+    "Stop SEO Tool.command" \
+    "SEO Tool.command" \
+    "SEO-Tool-Welcome.txt"; do
+    [ -f "$DESKTOP/$legacy" ] && rm -f "$DESKTOP/$legacy"
+  done
 
-    STOP_SHORTCUT="$DESKTOP/Stop-SEO-Tool.desktop"
-    cat > "$STOP_SHORTCUT" <<EOF
-[Desktop Entry]
-Type=Application
-Name=Stop SEO Tool
-Comment=Stop the running SEO Tool server
-Exec=$DIR/bin/STOP.sh
-Path=$DIR
-Terminal=true
-Categories=Network;Office;
-EOF
-    chmod +x "$STOP_SHORTCUT" 2>/dev/null || true
-    say "Created shortcut: $STOP_SHORTCUT"
-
-    # Clean up the old single shortcut from previous installs
-    [ -f "$DESKTOP/SEO-Tool.desktop" ] && rm -f "$DESKTOP/SEO-Tool.desktop"
-  elif [ "$OS" = "Darwin" ]; then
-    START_SHORTCUT="$DESKTOP/Start SEO Tool.command"
-    cat > "$START_SHORTCUT" <<EOF
-#!/bin/bash
-cd "$DIR" && ./bin/START.sh
-EOF
-    chmod +x "$START_SHORTCUT" 2>/dev/null || true
-    say "Created launcher: $START_SHORTCUT"
-
-    STOP_SHORTCUT="$DESKTOP/Stop SEO Tool.command"
-    cat > "$STOP_SHORTCUT" <<EOF
-#!/bin/bash
-cd "$DIR" && ./bin/STOP.sh
-read -p "Press Enter to close..."
-EOF
-    chmod +x "$STOP_SHORTCUT" 2>/dev/null || true
-    say "Created launcher: $STOP_SHORTCUT"
-
-    # Clean up the old single launcher from previous installs
-    [ -f "$DESKTOP/SEO Tool.command" ] && rm -f "$DESKTOP/SEO Tool.command"
-  fi
-
-  # Drop the smart HTML launcher on the desktop. Double-click opens it
+  # Drop the HTML control panel on the desktop. Double-click opens it
   # in the user's default browser; it auto-detects whether the server
   # is running and either opens the app or links to START. Survives
   # port changes (template is re-written every install with current port).
@@ -719,9 +682,14 @@ EOF
   fi
 fi
 
-# ---- 6. comprehensive desktop welcome file ---------------------------------
+# ---- 6. Desktop welcome file (Docker installs ONLY).
+# Native installs get SEO Tool.html — a much better control panel with
+# live status + Open / Start / Stop buttons in one window. Docker
+# users don't get the HTML launcher (Docker handles its own lifecycle),
+# so they still benefit from a plain-text welcome with docker compose
+# commands.
 WELCOME="$DESKTOP/SEO-Tool-Welcome.txt"
-if [ -d "$DESKTOP" ]; then
+if [ -d "$DESKTOP" ] && [ "$HAS_DOCKER" = "1" ]; then
   {
     echo "======================================================"
     echo "   SEO TOOL — INSTALLED SUCCESSFULLY"
