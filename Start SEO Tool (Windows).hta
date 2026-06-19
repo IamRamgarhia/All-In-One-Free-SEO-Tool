@@ -336,11 +336,15 @@
         shell.Run("cmd /c start http://localhost:" + currentPort, 0, false);
       }
 
-      // shell.Run quirks: passing a quoted path string directly works
-      // but window-style 0 (hidden) makes errors invisible. We use
-      // style 1 (normal) so the user SEES the console window with
-      // any errors. The console closes when START.cmd exits (which
-      // happens fast after it spawns the background server).
+      // Run a .cmd file by quoted path. Verified empirically:
+      //   - '"' + path + '"'                works
+      //   - 'cmd /c "' + path + '"'         also works
+      //   - 'cmd /c "" "' + path + '"'      FAILS (Run returns 1, no exec)
+      // We use the simplest working form. Window style 1 = normal so
+      // the console flashes briefly and the user sees any error
+      // output before it closes. bWaitOnReturn = false = fire-and-
+      // forget; the spawned cmd in turn launches the background
+      // server and exits quickly.
       function runCmd(scriptName, errPrefix) {
         var cmdPath = DIR + "\\bin\\" + scriptName;
         if (!fso.FileExists(cmdPath)) {
@@ -348,17 +352,22 @@
           return false;
         }
         try {
-          // Use cmd /c "" "path with spaces" — the empty "" is a
-          // documented cmd.exe parsing workaround so paths with spaces
-          // work even when the line itself is double-quoted.
-          var line = 'cmd /c "" "' + cmdPath + '"';
+          var line = '"' + cmdPath + '"';
           var oldDir = shell.CurrentDirectory;
           shell.CurrentDirectory = DIR;
-          // Style 1 = normal window. The console flashes briefly,
-          // user sees any errors, then it closes.
-          // bWaitOnReturn = false (third arg) = fire-and-forget.
-          shell.Run(line, 1, false);
+          var rc = shell.Run(line, 1, false);
           shell.CurrentDirectory = oldDir;
+          // WScript.Shell.Run returns a Win32 error code when launched
+          // with bWaitOnReturn=false. Most commonly 0 = success spawn.
+          // Non-zero here means the spawn itself failed (rare).
+          if (rc !== 0 && rc !== undefined) {
+            alert(
+              errPrefix + "\n\n" +
+              "shell.Run returned " + rc + "\n" +
+              "Line: " + line
+            );
+            return false;
+          }
           return true;
         } catch (e) {
           alert(
@@ -377,7 +386,44 @@
         if (!runCmd("START.cmd", "Couldn't start the server")) {
           startClickedAt = 0; // reset grace if the spawn itself failed
           setDown();
+          return;
         }
+        // Watchdog: if 60s passes and the server STILL isn't up, the
+        // process probably crashed during boot. Surface the last lines
+        // of dev-server.err.log so the user can see WHY instead of
+        // staring at "Starting…" forever.
+        setTimeout(crashDiagnostics, GRACE_MS + 2000);
+      }
+
+      function crashDiagnostics() {
+        if (currentPort) return; // server came up; nothing to diagnose
+        if (!startClickedAt) return; // start wasn't actually clicked
+        var errLog = DIR + "\\dev-server.err.log";
+        var tail = "";
+        if (fso.FileExists(errLog)) {
+          try {
+            var f = fso.OpenTextFile(errLog, 1, false);
+            var text = f.ReadAll();
+            f.Close();
+            // Last ~2000 chars usually contain the actual error
+            tail = text.length > 2000 ? "…\n" + text.substring(text.length - 2000) : text;
+          } catch (e) {
+            tail = "(couldn't read dev-server.err.log: " + e.message + ")";
+          }
+        }
+        var msg =
+          "The server started but crashed during boot.\n\n" +
+          "Most common cause: stale .next build that references modules " +
+          "no longer in node_modules. Fix by opening a terminal in:\n" +
+          DIR + "\n" +
+          "and running:\n" +
+          "  pnpm run build\n" +
+          "(takes ~2 min). Then click Start again.\n\n" +
+          "=== Last lines of dev-server.err.log ===\n" +
+          (tail || "(empty)");
+        alert(msg);
+        startClickedAt = 0;
+        setDown();
       }
 
       function stopApp() {
