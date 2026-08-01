@@ -123,6 +123,27 @@ jobs:
           node scripts/migrate.cjs
           pnpm exec tsx scripts/agent-check.ts
 
+      # Bulk reporting has one property that must never regress: a batch
+      # produces DRAFTS. If it ever marks its own output approved, the
+      # review step becomes decoration and reports go to clients unread —
+      # and it would look completely normal from the outside, just with
+      # an empty review queue.
+      #
+      # Renders real PDFs, so it needs a database with a client in it.
+      - name: Report batch checks
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/reports.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            db.close();
+          "
+          pnpm exec tsx scripts/report-batch-check.ts
+
       # The auth gate cannot be tested in-process. Middleware runs in the
       # Edge sandbox and learns the auth mode from the Node runtime, and
       # the first version of that handshake silently failed: registering

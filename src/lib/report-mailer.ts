@@ -190,6 +190,17 @@ export async function sendReportEmail(opts: {
   clientId: number;
   template: ReportTemplate;
   recipients: string[];
+  /**
+   * Send THIS pdf rather than rendering a fresh one.
+   *
+   * Required by the review workflow, and not an optimisation. A report
+   * is generated, a human reads it, approves it — and if sending
+   * regenerated the PDF, the client would receive a document nobody had
+   * reviewed. Data moves between those two moments: a rank check runs,
+   * an audit completes, a task is ticked off. The approved bytes are
+   * the ones that must go out.
+   */
+  pdf?: Buffer;
 }): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
   if (opts.recipients.length === 0) {
     return { ok: false, error: "No recipients" };
@@ -202,10 +213,14 @@ export async function sendReportEmail(opts: {
   if (!client) return { ok: false, error: "Client not found" };
 
   let pdf: Buffer;
-  try {
-    pdf = await generateReportPdf(opts.clientId, opts.template);
-  } catch (err) {
-    return { ok: false, error: `PDF generation failed: ${(err as Error).message}` };
+  if (opts.pdf) {
+    pdf = opts.pdf;
+  } else {
+    try {
+      pdf = await generateReportPdf(opts.clientId, opts.template);
+    } catch (err) {
+      return { ok: false, error: `PDF generation failed: ${(err as Error).message}` };
+    }
   }
 
   const periodLabel = new Date().toLocaleDateString("en-US", {

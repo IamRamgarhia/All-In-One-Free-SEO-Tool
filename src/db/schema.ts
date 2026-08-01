@@ -1667,6 +1667,26 @@ export const reportArchives = sqliteTable("report_archives", {
   dataSnapshot: text("data_snapshot", { mode: "json" }).$type<unknown>(),
   execSummary: text("exec_summary"),
   pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  /**
+   * Where this report is in the review workflow.
+   *
+   * Defaults to "approved" so every report that predates the batch
+   * workflow reads correctly — each was generated deliberately by a
+   * human clicking a button, and treating them as unreviewed drafts
+   * would fill the review queue with history on first boot.
+   */
+  status: text("status", {
+    enum: ["draft", "approved", "sent", "failed", "rejected"],
+  })
+    .notNull()
+    .default("approved"),
+  batchId: integer("batch_id").references(() => reportBatches.id, {
+    onDelete: "set null",
+  }),
+  reviewedAt: integer("reviewed_at", { mode: "timestamp" }),
+  sentAt: integer("sent_at", { mode: "timestamp" }),
+  /** Why generation failed, kept beside the client it failed for. */
+  error: text("error"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -2063,3 +2083,35 @@ export const agentActions = sqliteTable("agent_actions", {
 });
 export type AgentAction = typeof agentActions.$inferSelect;
 export type NewAgentAction = typeof agentActions.$inferInsert;
+
+/**
+ * One "generate everyone's monthly report" run.
+ *
+ * Exists because generation is slow — the PDF renderer is behind a
+ * process-wide mutex, so eighteen clients is eighteen sequential
+ * renders — and a user staring at a spinner for four minutes needs to
+ * know it is working and which client it is on. Progress lives in the
+ * database rather than in memory so the page can be closed, reopened,
+ * or opened on a phone, and still show where the run got to.
+ */
+export const reportBatches = sqliteTable("report_batches", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** The period every report in the batch covers — set once, not per report. */
+  periodStart: integer("period_start", { mode: "timestamp" }),
+  periodEnd: integer("period_end", { mode: "timestamp" }),
+  template: text("template").notNull().default("detailed"),
+  status: text("status", { enum: ["running", "done", "failed"] })
+    .notNull()
+    .default("running"),
+  total: integer("total").notNull().default(0),
+  done: integer("done").notNull().default(0),
+  failed: integer("failed").notNull().default(0),
+  startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+  /** Lets the progress bar say "Acme Coffee (7 of 18)" rather than "39%". */
+  currentClientId: integer("current_client_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
+  error: text("error"),
+});
+export type ReportBatch = typeof reportBatches.$inferSelect;

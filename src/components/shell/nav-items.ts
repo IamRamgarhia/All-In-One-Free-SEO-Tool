@@ -17,6 +17,7 @@ import {
   Building,
   ClipboardList,
   FileDown,
+  FileStack,
   FileText,
   Gauge,
   GitCompare,
@@ -205,6 +206,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "deliverables",
     title: "Deliverables",
     items: [
+      { href: "/reports/batch", label: "Generate all reports", icon: FileStack, guided: true },
       { href: "/reports/archive", label: "Report archive", icon: FileDown },
       { href: "/automations", label: "Automations", icon: Workflow },
       { href: "/invoices", label: "Invoices", icon: Receipt },
