@@ -52,6 +52,13 @@ data.db-shm
 data.db-wal
 data.db.bak
 data.db.bak-*
+# Anything at all that looks like a copy of the user's database. The
+# patterns above only covered the .bak naming the in-app backup uses; a
+# hand-made copy called data.db.backup-whatever slipped straight past
+# them and into `git add -A`.
+data.db*.backup*
+data.db-*.backup*
+*.db.backup*
 *.sqlite
 *.sqlite-*
 /data/

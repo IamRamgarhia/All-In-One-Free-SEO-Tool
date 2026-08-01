@@ -837,6 +837,26 @@ export const keywordRankings = sqliteTable("keyword_rankings", {
   }).default(false),
   hasLocalPack: integer("has_local_pack", { mode: "boolean" }).default(false),
   paaCount: integer("paa_count").default(0),
+  /**
+   * Where the number came from. "scrape" is the historic default, so
+   * every pre-existing row reads correctly without a backfill.
+   *
+   * These are not interchangeable — see 0055_ranking_provenance.sql.
+   * "gsc" is an impression-weighted daily average from Google; "scrape"
+   * is a point-in-time position our IP was shown. Mixing them on a chart
+   * without saying which is which invents movement that never happened.
+   */
+  source: text("source", { enum: ["scrape", "gsc"] })
+    .notNull()
+    .default("scrape"),
+  /** GSC only: how many impressions the average rests on. */
+  impressions: integer("impressions"),
+  /**
+   * GSC only: the day the figure describes (YYYY-MM-DD), which is two to
+   * three days before we fetched it. Without this, freshness badges
+   * would say "just now" about data that is days old.
+   */
+  dataDate: text("data_date"),
 });
 
 export const gbpPlaybookCompletions = sqliteTable("gbp_playbook_completions", {

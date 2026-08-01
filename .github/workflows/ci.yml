@@ -77,6 +77,34 @@ jobs:
         env:
           CI: "1"
 
+      # Load every page and report anything that doesn't render.
+      #
+      # E2E covers a handful of screens deliberately and well. This
+      # covers all 226 shallowly: does the page return 200 at all. That
+      # is the exact question nothing could answer when /tasks imported a
+      # package missing from package.json and 500'd for months —
+      # typecheck passed, the build passed, and the failure only happened
+      # when React tried to render.
+      #
+      # Runs against an empty database on purpose: every page must cope
+      # with having no data, which is the state every new install is in
+      # and the one least likely to have been clicked through.
+      - name: Route sweep (all pages render)
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/sweep.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          PORT=3200 pnpm start &
+          server=$!
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:3200/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          node scripts/route-sweep.mjs http://localhost:3200 "$SEO_DB_PATH"
+          status=$?
+          kill $server 2>/dev/null || true
+          exit $status
+
       # The auth gate cannot be tested in-process. Middleware runs in the
       # Edge sandbox and learns the auth mode from the Node runtime, and
       # the first version of that handshake silently failed: registering

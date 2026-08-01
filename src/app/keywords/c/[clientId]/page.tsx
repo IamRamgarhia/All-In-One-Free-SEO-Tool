@@ -14,6 +14,10 @@ import { CheckRankButton, CheckAllRanksButton } from "@/app/keywords/rank-button
 import { ScanSerpButton } from "@/app/keywords/serp-button";
 import { untrackKeyword } from "@/app/keywords/actions";
 import { clientScope } from "@/lib/client-scope";
+import {
+  ConnectGscNudge,
+  RankSourceBadge,
+} from "@/components/ui/rank-source-badge";
 import { RankSparkline } from "./rank-sparkline";
 
 const deviceTone: Record<string, string> = {
@@ -151,6 +155,9 @@ export default async function PerClientKeywordsPage({
       hasFeaturedSnippet: boolean;
       hasLocalPack: boolean;
       paaCount: number;
+      source: "scrape" | "gsc";
+      impressions: number | null;
+      dataDate: string | null;
     }[]
   >();
   for (const r of ranks) {
@@ -163,6 +170,9 @@ export default async function PerClientKeywordsPage({
       hasFeaturedSnippet: !!r.hasFeaturedSnippet,
       hasLocalPack: !!r.hasLocalPack,
       paaCount: r.paaCount ?? 0,
+      source: r.source,
+      impressions: r.impressions,
+      dataDate: r.dataDate,
     });
     ranksByKeyword.set(r.keywordId, list);
   }
@@ -201,7 +211,11 @@ export default async function PerClientKeywordsPage({
 
       <PageHeader
         title={`Keywords · ${client.name}`}
-        description="Research, track ranks, find quick wins. Browser-mode rank checks via Playwright — no API costs."
+        description={
+          client.gscProperty
+            ? "Research, track ranks, find quick wins. Rankings come from Search Console — Google's own numbers, free, no API costs."
+            : "Research, track ranks, find quick wins. Rank checks run in a headless browser — free, but connect Search Console for Google's own numbers."
+        }
         icon={Search}
         accent="cyan"
         actions={
@@ -269,11 +283,18 @@ export default async function PerClientKeywordsPage({
                 Tracked keywords ({tracked.length})
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Run rank checks via headless browser — slow but free.
+                {client.gscProperty
+                  ? "Rankings come from Search Console where Google has data, and a live SERP check where it doesn't."
+                  : "Rank checks run through a headless browser — slow but free."}
               </p>
             </div>
             <CheckAllRanksButton />
           </header>
+          {!client.gscProperty && (
+            <div className="border-b border-white/5 px-5 py-3">
+              <ConnectGscNudge clientId={clientId} />
+            </div>
+          )}
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -282,7 +303,7 @@ export default async function PerClientKeywordsPage({
                 <th className="px-3 py-3 text-center font-medium">
                   <span
                     className="inline-flex items-center gap-1"
-                    title="Browser-mode rank checks have ~±1-2 position noise from SERP personalization and rotating features. Treat single readings as approximate; the Trend column is the real signal."
+                    title="Every position says where it came from. Search Console numbers are Google's own, averaged over a day, lagging 2-3 days. Live checks are current but carry ~±1-2 positions of noise from personalisation and rotating SERP features. Either way, the Trend column is the stronger signal than any single reading."
                   >
                     Position
                     <span
@@ -320,6 +341,15 @@ export default async function PerClientKeywordsPage({
                     </td>
                     <td className="px-3 py-3 text-center">
                       <PositionBadge position={latest?.position ?? null} />
+                      {latest && (
+                        <div className="mt-1 flex justify-center">
+                          <RankSourceBadge
+                            source={latest.source}
+                            dataDate={latest.dataDate}
+                            impressions={latest.impressions}
+                          />
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       <SerpFeaturePills
