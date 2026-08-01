@@ -37,6 +37,7 @@ import {
   Search,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   Target,
   TrendingDown,
@@ -99,6 +100,11 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/digest", label: "Weekly digest", icon: Send },
       { href: "/grader", label: "Instant audit", icon: Sparkles, guided: true },
       { href: "/agent", label: "AI agent", icon: Bot },
+      // Guided, because "what is this thing doing to my sites while I'm
+      // not looking" is a question a beginner needs answered more
+      // urgently than an expert does — and the answer, including the
+      // undo button, is on this page.
+      { href: "/agent/autopilot", label: "Autopilot", icon: ShieldCheck, guided: true },
       { href: "/capacity", label: "Capacity", icon: Gauge },
       { href: "/activity", label: "Activity log", icon: History },
     ],

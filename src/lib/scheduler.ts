@@ -66,6 +66,25 @@ function runners(): Runner[] {
       run: async () => (await import("./daily-agent")).tickDailyAgent(),
     },
     {
+      // The autonomous loop: plan work per client, apply what the user's
+      // autonomy level permits, queue the rest, and turn everything it
+      // can't touch into tasks.
+      //
+      // Separate from `daily_agent`, which refreshes inputs (audits, RSS,
+      // suggestions). This one acts on them. Keeping them apart means a
+      // slow crawl can't delay the acting, and a user who turns autonomy
+      // off still gets fresh data.
+      //
+      // Every 6h rather than daily so a fix queued in the morning isn't
+      // sitting untouched until tomorrow. The per-run and per-day caps in
+      // agent settings — not this interval — are what bound how much it
+      // changes.
+      id: "autonomous_agent",
+      label: "Autonomous agent",
+      everyMs: 6 * HOUR,
+      run: async () => (await import("./agent/run")).runAgentForAllClients(),
+    },
+    {
       id: "schedule_runner",
       label: "Scheduled reports",
       everyMs: 15 * MINUTE,

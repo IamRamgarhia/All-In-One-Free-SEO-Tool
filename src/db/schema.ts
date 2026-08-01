@@ -1968,3 +1968,98 @@ export const userInvites = sqliteTable("user_invites", {
     .default(sql`(unixepoch())`),
 });
 export type UserInvite = typeof userInvites.$inferSelect;
+
+/**
+ * One cycle of the autonomous agent, per client.
+ *
+ * `mode` is stored rather than looked up because the autonomy setting
+ * can change, and a history that can't explain why it did what it did is
+ * not an audit trail. See 0056_agent_autonomy.sql.
+ */
+export const agentRuns = sqliteTable("agent_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "cascade",
+  }),
+  mode: text("mode", {
+    enum: ["suggest", "apply_safe", "apply_all"],
+  })
+    .notNull()
+    .default("suggest"),
+  trigger: text("trigger", { enum: ["scheduled", "manual"] })
+    .notNull()
+    .default("scheduled"),
+  startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+  planned: integer("planned").notNull().default(0),
+  applied: integer("applied").notNull().default(0),
+  queued: integer("queued").notNull().default(0),
+  skipped: integer("skipped").notNull().default(0),
+  failed: integer("failed").notNull().default(0),
+  /** Plain-language account of the cycle. Written by code, not an LLM. */
+  summary: text("summary"),
+  error: text("error"),
+});
+export type AgentRun = typeof agentRuns.$inferSelect;
+
+/**
+ * One thing the agent did, or proposed doing, to a live site.
+ *
+ * `beforeValue` is load-bearing: it is the undo. CLAUDE.md's rule for
+ * anything touching a CMS is preview → save previous version →
+ * one-click undo → opt-out, and without this column the third of those
+ * is impossible.
+ */
+export const agentActions = sqliteTable("agent_actions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: integer("run_id").references(() => agentRuns.id, {
+    onDelete: "cascade",
+  }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  targetUrl: text("target_url"),
+  /**
+   * The CMS's own id for the thing edited (e.g. a WordPress post id).
+   * Reverting uses this rather than re-resolving the URL, so an undo
+   * can't land on a different page than the edit did.
+   */
+  targetRef: text("target_ref"),
+  beforeValue: text("before_value"),
+  afterValue: text("after_value"),
+  reason: text("reason"),
+  /**
+   * "safe" means the problem is measurable and the fix is mechanical —
+   * a 102-character title is too long by a rule, not an opinion.
+   * "needs_review" means a human should look, however good the
+   * suggestion is.
+   */
+  risk: text("risk", { enum: ["safe", "needs_review"] })
+    .notNull()
+    .default("needs_review"),
+  status: text("status", {
+    enum: [
+      "proposed",
+      "queued",
+      "applied",
+      "verified",
+      "failed",
+      "reverted",
+      "skipped",
+    ],
+  })
+    .notNull()
+    .default("proposed"),
+  error: text("error"),
+  appliedAt: integer("applied_at", { mode: "timestamp" }),
+  /** Set only after re-fetching the page and finding the change present. */
+  verifiedAt: integer("verified_at", { mode: "timestamp" }),
+  verifyNote: text("verify_note"),
+  revertedAt: integer("reverted_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type AgentAction = typeof agentActions.$inferSelect;
+export type NewAgentAction = typeof agentActions.$inferInsert;

@@ -105,6 +105,24 @@ jobs:
           kill $server 2>/dev/null || true
           exit $status
 
+      # The agent's safety properties, against a real database.
+      #
+      # Every one of them is silent when broken: an agent that ignores
+      # its own cooldown still produces a tidy run log, and one that
+      # "applies" a change without recording the previous value looks
+      # identical to one that did — until someone needs to undo it on a
+      # client's live website.
+      #
+      # The first version of this check reported 15/15 while the run was
+      # throwing, because it only asserted the summary was long enough to
+      # read. It now fails loudly on a crashed run.
+      - name: Agent safety checks
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/agent.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          pnpm exec tsx scripts/agent-check.ts
+
       # The auth gate cannot be tested in-process. Middleware runs in the
       # Edge sandbox and learns the auth mode from the Node runtime, and
       # the first version of that handshake silently failed: registering

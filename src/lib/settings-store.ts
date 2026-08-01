@@ -29,6 +29,8 @@ export type SettingKey =
   | "ui.mode"
   /** "light" | "dark" | "system" — defaults to "system". */
   | "ui.theme"
+  /** Autonomy level and guardrails for the agent. See lib/agent/autonomy.ts. */
+  | "agent.settings"
   | "api.openai"
   | "api.anthropic"
   | "api.gemini"
