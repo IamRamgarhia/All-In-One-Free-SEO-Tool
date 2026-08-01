@@ -598,7 +598,13 @@ const tools = [
     icon: Activity,
     title: "Real-user CWV (CrUX)",
     description:
-      "Real Chrome user data over the last 28 days. Same data Google uses for page-experience ranking. Free with a PageSpeed key.",
+      // Was "Same data Google uses for page-experience ranking" — which
+      // directly contradicts the CrUX Origin Summary card below it, and
+      // the origin card is the correct one. Google evaluates Core Web
+      // Vitals at ORIGIN level; URL-level CrUX is diagnostic, not the
+      // ranking input. Telling users a URL-level pass means they're fine
+      // is exactly the folklore this project is meant not to repeat.
+      "Real Chrome user data for one URL, last 28 days. Good for finding which page is slow — but Google's ranking signal is origin-level, so check the CrUX Origin Summary before concluding you're fine. Free with a PageSpeed key.",
     accent: "emerald",
   },
   {
