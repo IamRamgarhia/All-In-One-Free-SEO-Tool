@@ -3,6 +3,13 @@ import { db } from "@/db/client";
 import { workspaceSettings } from "@/db/schema";
 
 export type SettingKey =
+  /**
+   * Per-runner scheduler bookkeeping: `scheduler.<runner_id>.started_at`,
+   * `.finished_at`, `.last_error`. Open-ended because the runner list
+   * lives in scheduler.ts and shouldn't require editing this union every
+   * time a background job is added — the prefix keeps it namespaced.
+   */
+  | `scheduler.${string}`
   | "webhook.url"
   | "webhook.notify_on_audit_complete"
   | "webhook.notify_on_score_drop"

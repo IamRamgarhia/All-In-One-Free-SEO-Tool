@@ -17,6 +17,7 @@ import {
   HandMetal,
 } from "lucide-react";
 import { getSetting } from "@/lib/settings-store";
+import { SchedulerStatusPanel } from "./scheduler-status";
 import { PageHeader } from "@/components/shell/page-header";
 
 export const dynamic = "force-dynamic";
@@ -259,6 +260,8 @@ export default async function AutomationsOverviewPage() {
         icon={Workflow}
         accent="cyan"
       />
+
+      <SchedulerStatusPanel />
 
       <section className="glass-apple relative overflow-hidden rounded-2xl">
         <header className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">

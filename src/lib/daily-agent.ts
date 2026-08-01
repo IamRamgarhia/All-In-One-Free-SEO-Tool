@@ -51,9 +51,16 @@ export async function tickDailyAgent(): Promise<DailyAgentReport | null> {
     ) {
       return null;
     }
-    // Claim the slot BEFORE doing work so a concurrent caller backs off.
+    // Run first, THEN record. The previous order claimed the slot before
+    // doing any work, so a process that died mid-run (a `docker stop`, a
+    // STOP.cmd, an OOM) left `last_run` set to a batch that never
+    // happened — and the entire daily sweep was skipped for 24h with no
+    // record of it. `_tickInFlight` plus the scheduler's own started/
+    // finished tracking already prevent overlap, so claiming early
+    // bought nothing.
+    const report = await runDailyAgentBody();
     await setSetting("daily_agent_runner.last_run", Date.now());
-    return await runDailyAgentBody();
+    return report;
   } finally {
     _tickInFlight = false;
   }

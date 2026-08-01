@@ -231,6 +231,19 @@ export const aiVisibilityChecks = sqliteTable("ai_visibility_checks", {
   prompt: text("prompt").notNull(),
   response: text("response").notNull(),
   citations: text("citations", { mode: "json" }).$type<string[]>(),
+  /**
+   * "live"   — the provider actually searched the web for this answer;
+   *            citations are real fetched sources.
+   * "memory" — a plain chat completion. Reflects training data, and any
+   *            URLs in the text are unverified model output.
+   *
+   * This distinction decides whether a row is evidence of AI-search
+   * visibility at all. Storing them identically meant a hallucinated
+   * mention counted the same as a real citation.
+   */
+  grounding: text("grounding", { enum: ["live", "memory"] })
+    .notNull()
+    .default("memory"),
   mentionsDomain: integer("mentions_domain", { mode: "boolean" })
     .notNull()
     .default(false),

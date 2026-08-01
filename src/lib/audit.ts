@@ -1,3 +1,9 @@
+import {
+  ALLOW_ALL,
+  fetchRobotsPolicy,
+  isAllowed,
+} from "./robots-policy";
+
 export type Severity = "critical" | "high" | "medium" | "low";
 
 export type AuditFinding = {
@@ -131,6 +137,8 @@ type FetchedPage = {
   headers: Headers;
   responseTimeMs: number;
   redirectHops: number;
+  /** True when `html` came from a headless browser, not the raw fetch. */
+  renderedWithJs?: boolean;
 };
 
 async function fetchPage(url: string, timeoutMs = 12_000): Promise<FetchedPage | null> {
@@ -1018,49 +1026,153 @@ async function checkBrokenLinks(
 // Crawler
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * How many pages to fetch at once.
+ *
+ * The crawler used to be strictly sequential — `await fetchPage()` in a
+ * while loop — so a 25-page audit could take up to 25 x 12s = five
+ * minutes on one thread, for the single most-used feature in the app.
+ * Six is comfortably polite for a site audit (well under what a browser
+ * opens) while cutting wall-clock roughly 5x. Sites that ask for a
+ * Crawl-delay drop to one at a time; see `crawlSite`.
+ */
+const CRAWL_CONCURRENCY = 6;
+
+/**
+ * Upper bound on a site-requested Crawl-delay we'll actually honour.
+ * Some robots.txt files carry `Crawl-delay: 3600` (or larger) aimed at
+ * bulk scrapers; obeying that literally would hang the audit for an
+ * hour with no feedback. We cap, and the audit reports the cap.
+ */
+const MAX_CRAWL_DELAY_MS = 5_000;
+
+export type CrawlOutcome = {
+  pages: FetchedPage[];
+  /** URLs skipped because robots.txt disallowed them. */
+  blockedByRobots: string[];
+  /** Crawl-delay we actually applied, in ms. */
+  appliedDelayMs: number;
+  robotsUnreachable: boolean;
+};
+
 async function crawlSite(
   homeUrl: string,
-  options: { maxPages: number; maxDepth: number },
-): Promise<FetchedPage[]> {
+  options: {
+    maxPages: number;
+    maxDepth: number;
+    /**
+     * Ignore robots.txt. For staging/pre-production audits of a site the
+     * user controls — the case CLAUDE.md calls out. Off by default:
+     * this tool crawls competitor and prospect sites, so obeying
+     * robots.txt has to be the default, not an option nobody finds.
+     */
+    ignoreRobots?: boolean;
+  },
+): Promise<CrawlOutcome> {
   const visited = new Set<string>();
   const results: FetchedPage[] = [];
+  const blockedByRobots: string[] = [];
   const origin = new URL(homeUrl).origin;
 
-  // BFS queue: [url, depth]
-  const queue: { url: string; depth: number }[] = [
-    { url: homeUrl, depth: 0 },
-  ];
+  const policy = options.ignoreRobots
+    ? ALLOW_ALL
+    : await fetchRobotsPolicy(origin, USER_AGENT);
+
+  const delayMs = Math.min(
+    (policy.crawlDelaySec ?? 0) * 1000,
+    MAX_CRAWL_DELAY_MS,
+  );
+  // A site that asks us to slow down gets one request at a time —
+  // running six in parallel and then sleeping would defeat the point.
+  const concurrency = delayMs > 0 ? 1 : CRAWL_CONCURRENCY;
+
+  function crawlable(u: URL): boolean {
+    if (options.ignoreRobots) return true;
+    return isAllowed(policy, u.pathname + u.search);
+  }
+
+  if (!crawlable(new URL(homeUrl))) {
+    return {
+      pages: [],
+      blockedByRobots: [homeUrl],
+      appliedDelayMs: delayMs,
+      robotsUnreachable: policy.unreachable,
+    };
+  }
+
+  // BFS frontier, drained a level at a time so `maxDepth` still means
+  // depth. Within a level, pages are fetched `concurrency` at a time.
+  let frontier: string[] = [homeUrl];
   visited.add(homeUrl);
 
-  while (queue.length > 0 && results.length < options.maxPages) {
-    const { url, depth } = queue.shift()!;
-    const page = await fetchPage(url);
-    if (!page) continue;
-    if (!page.headers.get("content-type")?.includes("html")) continue;
-    results.push(page);
+  for (let depth = 0; depth <= options.maxDepth; depth++) {
+    if (frontier.length === 0) break;
+    if (results.length >= options.maxPages) break;
 
-    if (depth < options.maxDepth) {
-      for (const href of extractHrefs(page.html, page.finalUrl)) {
-        try {
-          const u = new URL(href);
-          if (u.origin !== origin) continue;
-          if (/\.(pdf|jpg|jpeg|png|gif|svg|webp|avif|mp4|zip|css|js)(\?|$)/i.test(u.pathname))
-            continue;
-          // Cap check FIRST. Previously this ran AFTER `visited.add`,
-          // so a site with pathological redirects could grow visited
-          // into 10k+ entries (~50 MB) before the check fired.
-          if (visited.size >= options.maxPages * 4) break;
-          if (visited.has(u.toString())) continue;
-          visited.add(u.toString());
-          queue.push({ url: u.toString(), depth: depth + 1 });
-        } catch {
-          // ignore
+    const level = frontier.slice(0, options.maxPages - results.length);
+    frontier = [];
+
+    let cursor = 0;
+    const nextLinks: string[] = [];
+
+    async function worker(): Promise<void> {
+      while (true) {
+        const i = cursor++;
+        if (i >= level.length) return;
+        if (results.length >= options.maxPages) return;
+
+        if (delayMs > 0 && i > 0) {
+          await new Promise((r) => setTimeout(r, delayMs));
         }
+
+        const page = await fetchPage(level[i]);
+        if (!page) continue;
+        if (!page.headers.get("content-type")?.includes("html")) continue;
+        results.push(page);
+        if (depth < options.maxDepth) {
+          nextLinks.push(...extractHrefs(page.html, page.finalUrl));
+        }
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, level.length) }, worker),
+    );
+
+    for (const href of nextLinks) {
+      try {
+        const u = new URL(href);
+        if (u.origin !== origin) continue;
+        if (
+          /\.(pdf|jpg|jpeg|png|gif|svg|webp|avif|mp4|zip|css|js)(\?|$)/i.test(
+            u.pathname,
+          )
+        )
+          continue;
+        // Cap check FIRST. Previously this ran AFTER `visited.add`,
+        // so a site with pathological redirects could grow visited
+        // into 10k+ entries (~50 MB) before the check fired.
+        if (visited.size >= options.maxPages * 4) break;
+        const key = u.toString();
+        if (visited.has(key)) continue;
+        visited.add(key);
+        if (!crawlable(u)) {
+          if (blockedByRobots.length < 25) blockedByRobots.push(key);
+          continue;
+        }
+        frontier.push(key);
+      } catch {
+        // ignore malformed
       }
     }
   }
 
-  return results;
+  return {
+    pages: results,
+    blockedByRobots,
+    appliedDelayMs: delayMs,
+    robotsUnreachable: policy.unreachable,
+  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1117,19 +1229,96 @@ export function scoreFindings(
 // Public API
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * Re-fetch a page through a real browser when its static HTML looks
+ * client-rendered, and use the rendered DOM for the checks instead.
+ *
+ * Without this, every React/Vue/Angular SPA produced a wall of false
+ * criticals — missing_title, missing_h1, thin_content, missing_meta —
+ * because the checks run regex over whatever `fetch` returned, which
+ * for an SPA is an empty shell. We already *detected* the situation
+ * (the `js_rendered_only` finding) and then reported the symptoms as if
+ * they were real problems.
+ *
+ * The `js_rendered_only` finding itself is still emitted from the
+ * static HTML, because it remains true and useful: AI crawlers don't
+ * run JS either, so a page that only exists after hydration really is
+ * invisible to them. What changes is that we no longer *also* claim the
+ * page has no title.
+ *
+ * Best-effort: if the browser pool is unavailable or lean mode is on,
+ * we keep the static HTML and the checks behave exactly as before.
+ */
+async function renderIfClientSide(
+  page: FetchedPage,
+): Promise<FetchedPage> {
+  const wordCount = countWords(page.html);
+  const scriptBytes = (page.html.match(/<script[\s\S]*?<\/script>/gi) ?? []).reduce(
+    (s, t) => s + t.length,
+    0,
+  );
+  // Same thresholds as the js_rendered_only finding, so the two can't
+  // disagree about whether a page is client-rendered.
+  const looksClientRendered = wordCount < 80 && scriptBytes > 50_000;
+  if (!looksClientRendered) return page;
+
+  try {
+    const { withBrowserPage } = await import("./browser-pool");
+    const html = await withBrowserPage(
+      async (p) => {
+        await p.goto(page.finalUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 20_000,
+        });
+        // networkidle is unreliable on pages with polling/analytics;
+        // a short settle after DOMContentLoaded catches the hydration
+        // pass without waiting on long-lived connections.
+        await p.waitForTimeout(1_200);
+        return p.content();
+      },
+      { blockHeavyResources: true },
+    );
+    if (html && countWords(html) > wordCount) {
+      return { ...page, html, renderedWithJs: true };
+    }
+  } catch {
+    // Browser unavailable / lean mode / navigation failed — fall back
+    // to static HTML rather than failing the audit.
+  }
+  return page;
+}
+
 export async function runAudit(
   rawUrl: string,
-  options: { maxPages?: number; maxDepth?: number } = {},
+  options: {
+    maxPages?: number;
+    maxDepth?: number;
+    /** Skip robots.txt. For staging sites the user controls. */
+    ignoreRobots?: boolean;
+    /**
+     * Re-render client-side pages in a real browser before checking
+     * them. On by default — without it SPAs get a wall of false
+     * "missing title / no h1 / thin content" criticals.
+     */
+    renderJs?: boolean;
+  } = {},
 ): Promise<AuditResult> {
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
   const fetchedAt = new Date();
   const maxPages = options.maxPages ?? 25;
   const maxDepth = options.maxDepth ?? 2;
+  const renderJs = options.renderJs !== false;
 
   // Crawl
   let pages: FetchedPage[];
+  let crawl: CrawlOutcome;
   try {
-    pages = await crawlSite(url, { maxPages, maxDepth });
+    crawl = await crawlSite(url, {
+      maxPages,
+      maxDepth,
+      ignoreRobots: options.ignoreRobots,
+    });
+    pages = crawl.pages;
   } catch (err) {
     return {
       url,
@@ -1191,7 +1380,14 @@ export async function runAudit(
   );
   const techContext = classifyTech(tech);
 
-  for (const page of pages) {
+  // Re-render client-side pages before checking them, so an SPA is
+  // graded on what a browser sees rather than on its empty shell.
+  // Concurrency-capped by the shared browser pool.
+  const checkable = renderJs
+    ? await Promise.all(pages.map((p) => renderIfClientSide(p)))
+    : pages;
+
+  for (const page of checkable) {
     const r = checkPage(page);
     findings.push(...r.findings);
     metaIndex.set(page.finalUrl, r.meta);
@@ -1216,13 +1412,34 @@ export async function runAudit(
   // crawled page. Snapshot the count before site-wide checks append to
   // the same array, so scoring can weight the two classes correctly.
   const perPageFindings = findings.length;
+  const origin = new URL(url).origin;
+
+  // Tell the user what we skipped and why. Silently crawling fewer
+  // pages than asked looks like the crawler failed; naming robots.txt
+  // as the cause turns it into information they can act on (and, on
+  // their own staging site, override).
+  if (crawl.blockedByRobots.length > 0) {
+    findings.push({
+      type: "blocked_by_robots",
+      severity: "low",
+      url: crawl.blockedByRobots[0],
+      message: `${crawl.blockedByRobots.length} page${crawl.blockedByRobots.length === 1 ? " was" : "s were"} skipped because robots.txt disallows crawling them (e.g. ${crawl.blockedByRobots[0]}). Googlebot is subject to the same rules — if these pages should rank, loosen the Disallow.`,
+    });
+  }
+  if (crawl.appliedDelayMs > 0) {
+    findings.push({
+      type: "crawl_delay_applied",
+      severity: "low",
+      url: origin,
+      message: `robots.txt requests a crawl delay, so this audit fetched pages one at a time (${crawl.appliedDelayMs}ms apart). That slows every crawler, including search engines.`,
+    });
+  }
 
   // Site-wide checks
   const siteFindings = await checkSiteWide(url, pages, metaIndex);
   findings.push(...siteFindings);
 
   // Broken links (best effort, capped)
-  const origin = new URL(url).origin;
   const linkFindings = await checkBrokenLinks(pages, origin);
   findings.push(...linkFindings);
 

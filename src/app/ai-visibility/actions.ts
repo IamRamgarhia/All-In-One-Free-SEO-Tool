@@ -102,6 +102,7 @@ export async function runAiCheck(keywordId: number): Promise<RunCheckResult> {
       prompt: r.prompt,
       response: r.response,
       citations: r.citations,
+      grounding: r.grounding,
       mentionsDomain: r.mentionsDomain,
       citationsForDomain: r.citationsForDomain,
       error: r.error ?? null,
