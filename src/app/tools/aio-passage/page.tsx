@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -48,10 +49,7 @@ export default function AioPassagePage() {
   const pending = mode === "paste" ? pastePending : urlPending;
   const [markdown, setMarkdown] = useState(SAMPLE);
   const [url, setUrl] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -339,6 +337,8 @@ function PassageRow({
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (preloadedRewrite && preloadedRewrite !== rewrite) {
+      // Seeds the editable textarea from a restored run without locking the user out of editing it afterwards.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRewrite(preloadedRewrite);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

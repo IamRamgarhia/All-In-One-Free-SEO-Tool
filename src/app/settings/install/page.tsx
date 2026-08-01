@@ -54,7 +54,7 @@ export default function InstallPage() {
             <dd className="mt-0.5">
               The power button in the bottom-right corner of every page lets
               you restart or cleanly stop the server. Use restart if the app
-              feels stuck; stop when you're done for the day.
+              feels stuck; stop when you&apos;re done for the day.
             </dd>
           </div>
         </dl>

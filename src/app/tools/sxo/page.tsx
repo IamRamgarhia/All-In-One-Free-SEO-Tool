@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { useSearchParams } from "next/navigation";
 import { Eye, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -14,10 +15,7 @@ export default function SxoPage() {
     runSxoAudit,
     null,
   );
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   // Auto-fill the URL when the tool is opened from a client context.
   // The "Tools for this client" launcher links here with ?url=... so

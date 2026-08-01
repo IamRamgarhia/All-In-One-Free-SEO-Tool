@@ -138,7 +138,7 @@ export function ProfileMenu() {
               className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5"
             >
               <Info className="size-3.5 text-muted-foreground" />
-              What's automated
+              What&apos;s automated
             </Link>
             <div className="my-1 border-t border-white/[0.06]" />
             <Link

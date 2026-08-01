@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import {
   AlertTriangle,
   Check,
@@ -85,16 +86,13 @@ export default function CodeGeneratorPage() {
   );
   const [target, setTarget] = useState<GeneratorTarget>("html-snippet");
   const [task, setTask] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   const spec = useMemo(() => TARGETS[target], [target]);
 
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   // Update iframe srcDoc when generated code or preview toggle changes.
   useEffect(() => {

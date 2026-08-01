@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import {
   Download,
   Image as ImageIcon,
@@ -17,10 +18,7 @@ export default function ImageGenPage() {
     runImageGen,
     null,
   );
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   function download() {
     if (!state?.ok) return;

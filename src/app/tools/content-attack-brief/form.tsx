@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { Loader2, Target, AlertTriangle } from "lucide-react";
 import {
   runContentAttackBrief,
@@ -18,10 +19,7 @@ export function ContentAttackBriefForm({ clients }: Props) {
     ContentAttackBriefState,
     FormData
   >(runContentAttackBrief, null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   return (
     <>

@@ -44,6 +44,8 @@ export function InstallActions() {
       setInstallPrompt(e as BeforeInstallPromptEvent);
     }
     function onInstalled() {
+      // navigator.standalone is browser-only and can't be read during SSR.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPwaInstalled(true);
       setInstallPrompt(null);
     }
@@ -56,6 +58,8 @@ export function InstallActions() {
       // @ts-expect-error iOS Safari only
       window.navigator.standalone
     ) {
+      // Effect is the correct tool here.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPwaInstalled(true);
     }
 
@@ -171,7 +175,7 @@ export function InstallActions() {
         </div>
         <p className="mt-1.5 text-[12px] text-muted-foreground">
           Adds an icon that starts the server <em>and</em> opens the browser —
-          works even after you've stopped the server.
+          works even after you&apos;ve stopped the server.
         </p>
         {!isWindows && (
           <p className="mt-2 text-[11px] text-amber-300">

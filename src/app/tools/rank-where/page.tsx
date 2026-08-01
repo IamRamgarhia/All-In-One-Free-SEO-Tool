@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { ExternalLink, Loader2, Target } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { checkRank, type RankWhereState } from "./actions";
@@ -51,10 +52,7 @@ export default function RankWherePage() {
     checkRank,
     null,
   );
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

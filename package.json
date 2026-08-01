@@ -101,7 +101,9 @@
     "db:migrate": "node scripts/migrate.cjs",
     "db:studio": "drizzle-kit studio",
     "package": "tsx scripts/package.ts",
-    "gen:social-preview": "tsx scripts/gen-social-preview.ts"
+    "gen:social-preview": "tsx scripts/gen-social-preview.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -126,7 +128,7 @@
     "next": "16.2.4",
     "nodemailer": "^8.0.7",
     "pdfkit": "^0.18.0",
-    "playwright": "^1.59.1",
+    "playwright": "1.59.1",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -140,6 +142,7 @@
     "zod": "^4.4.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",

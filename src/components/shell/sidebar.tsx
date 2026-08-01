@@ -48,6 +48,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
+import { useStoredState } from "@/components/use-stored-state";
 
 /** Alias kept so the render code below reads unchanged. */
 const groups = NAV_GROUPS;
@@ -169,6 +170,11 @@ const GROUP_ACCENTS: Record<string, GroupAccent> = {
 
 
 const COLLAPSED_KEY = "seo:sidebar-collapsed";
+/** Stable identity — useSyncExternalStore needs a referentially stable fallback. */
+const EMPTY_GROUPS: Record<string, boolean> = {};
+const parseCollapsed = (raw: string) => raw === "1";
+const parseOpenGroups = (raw: string) =>
+  JSON.parse(raw) as Record<string, boolean>;
 const OPEN_GROUPS_KEY = "seo:sidebar-open-groups";
 
 function isActive(pathname: string, href: string) {
@@ -190,8 +196,24 @@ export function Sidebar({
   uiMode?: "guided" | "pro";
 } = {}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  // Both read from localStorage via useSyncExternalStore rather than
+  // useState + a hydrate effect. The old version rendered the server
+  // default, committed it to the DOM, then corrected itself — so a user
+  // who kept the sidebar collapsed watched it flash open and snap shut
+  // on every single page load.
+  const [collapsed, setCollapsedStored] = useStoredState<boolean>(
+    COLLAPSED_KEY,
+    false,
+    parseCollapsed,
+  );
+  const [storedOpenGroups, setStoredOpenGroups] = useStoredState<
+    Record<string, boolean>
+  >(OPEN_GROUPS_KEY, EMPTY_GROUPS, parseOpenGroups);
+  // Groups auto-opened because they contain the current route, layered
+  // over the stored preference. Kept separate so navigating somewhere
+  // doesn't silently rewrite what the user chose to leave collapsed.
+  const [routeOpened, setRouteOpened] = useState<Record<string, boolean>>({});
+  const openGroups = { ...storedOpenGroups, ...routeOpened };
   const unread = unreadByHref ?? {};
 
   // Apply the guided/pro filter. In guided mode every item must opt-in
@@ -208,53 +230,35 @@ export function Sidebar({
           }))
           .filter((g) => g.pinned || g.items.length > 0);
 
-  // Hydrate from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(COLLAPSED_KEY);
-      if (stored === "1") setCollapsed(true);
-    } catch {}
-    try {
-      const stored = window.localStorage.getItem(OPEN_GROUPS_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, boolean>;
-        setOpenGroups(parsed);
-      }
-    } catch {}
-  }, []);
-
   // Auto-open the group containing the current route — even if the user
   // had it collapsed — so navigation context is always visible. We
   // iterate the FULL groups list (not visibleGroups) because the active
   // route may live in a hidden-by-guided-mode group and we still want
   // to surface it when the user lands there via direct URL.
-  useEffect(() => {
-    for (const g of groups) {
-      if (g.items.some((it) => isActive(pathname, it.href))) {
-        setOpenGroups((prev) =>
-          prev[g.id] === true ? prev : { ...prev, [g.id]: true },
-        );
-      }
-    }
-  }, [pathname]);
+  // Derived during render rather than in an effect: which group holds
+  // the current route is a pure function of `pathname`, so computing it
+  // here saves the extra commit the effect version cost on every
+  // navigation. React restarts the render before touching the DOM.
+  const activeGroupId = groups.find((g) =>
+    g.items.some((it: NavItem) => isActive(pathname, it.href)),
+  )?.id;
+  if (activeGroupId && !routeOpened[activeGroupId]) {
+    setRouteOpened((prev) => ({ ...prev, [activeGroupId]: true }));
+  }
 
   function toggle() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
-      } catch {}
-      return next;
-    });
+    setCollapsedStored(!collapsed, (v) => (v ? "1" : "0"));
   }
 
   function toggleGroup(id: string) {
-    setOpenGroups((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
-      try {
-        window.localStorage.setItem(OPEN_GROUPS_KEY, JSON.stringify(next));
-      } catch {}
-      return next;
+    setStoredOpenGroups({ ...openGroups, [id]: !openGroups[id] }, JSON.stringify);
+    // Closing a route-opened group must clear the route override too,
+    // or the merge above would immediately re-open it.
+    setRouteOpened((prev) => {
+      if (!prev[id]) return prev;
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
     });
   }
 

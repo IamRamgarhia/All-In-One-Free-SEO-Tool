@@ -204,7 +204,7 @@ async function applyVariantToWordPress(
   const creds = await getClientWpCreds(t.clientId);
   if (!creds) return;
 
-  let postId = t.wpPostId ?? (await findPostIdByUrl(creds, t.pageUrl));
+  const postId = t.wpPostId ?? (await findPostIdByUrl(creds, t.pageUrl));
   if (!postId) return;
 
   const r = await setPostSeo(creds, postId, { title: newTitle });

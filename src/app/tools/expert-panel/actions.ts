@@ -174,7 +174,7 @@ export async function runExpertPanel(
   const TARGET = 90;
   const MAX_ROUNDS = 3;
 
-  let working = text;
+  const working = text;
   for (let round = 1; round <= MAX_ROUNDS; round++) {
     const slop = scoreContent(working);
     const userPrompt = `Content type: ${contentType}\nIndustry: ${industry}\nExpert panel: ${panel.join(", ")}\n\nLocal slop score (pre-computed, deterministic): ${slop.score}/100 — ${slop.violations.length} violations.\n\nContent:\n"""\n${working}\n"""\n\nScore the content from each expert's perspective. Output the JSON specified.`;

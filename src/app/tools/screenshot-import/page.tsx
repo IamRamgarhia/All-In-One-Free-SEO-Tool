@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { parseScreenshot } from "./actions";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
 import { RecentRuns } from "@/components/recent-runs";
@@ -55,11 +56,8 @@ export default function ScreenshotImportPage() {
   const [pending, startTransition] = useTransition();
   const [parsed, setParsed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (parsed) setRefreshKey((k) => k + 1);
-  }, [parsed]);
+  const refreshKey = useRunRefreshKey(parsed ?? null);
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

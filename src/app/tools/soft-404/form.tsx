@@ -91,7 +91,7 @@ export function Soft404Form() {
                   {state.result.flagged.length} flagged
                 </h3>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  Fix order: 410 if intentionally deleted, 301 if there's a
+                  Fix order: 410 if intentionally deleted, 301 if there&apos;s a
                   better page, expand content otherwise.
                 </p>
               </header>

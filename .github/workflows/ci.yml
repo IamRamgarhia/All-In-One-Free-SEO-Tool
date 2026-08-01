@@ -38,16 +38,18 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # Non-blocking, deliberately. The repo currently has ~75 pre-existing
-      # lint errors, almost all from React 19's `set-state-in-effect` rule
-      # firing on the standard "hydrate from localStorage on mount"
-      # pattern. Gating the build on that would mean either a permanently
-      # red CI or a risky 75-file sweep bundled into an unrelated change.
-      # Surfaced here so the count is visible and can be worked down;
-      # typecheck, test and build below are hard gates.
+      # Hard gate. The repo was at ~75 errors when CI was introduced —
+      # almost all React 19's `set-state-in-effect` rule catching real
+      # double-render patterns. Those are fixed; the handful of effects
+      # that are genuinely correct carry a per-line disable with the
+      # reason. Keeping this blocking is what stops the count creeping
+      # back up.
+      #
+      # Warnings are not failed on: the repo has ~93, mostly unused vars
+      # in work-in-progress code, and failing on those would push people
+      # toward deleting useful scaffolding rather than finishing it.
       - name: Lint
         run: pnpm lint
-        continue-on-error: true
 
       - name: Test
         run: pnpm test
@@ -58,3 +60,30 @@ jobs:
         run: pnpm build
         env:
           SEO_DB_PATH: ${{ runner.temp }}/ci.db
+
+      # E2E covers what unit tests structurally can't: whether a page
+      # actually renders in a browser. /tasks was importing a dependency
+      # that wasn't installed for months, and no amount of server-side
+      # testing would have caught it — the route 500'd only once React
+      # tried to render the component.
+      #
+      # Also guards the client-side state work (sidebar collapse, tool
+      # pinning, theme), where the server HTML is identical whether the
+      # behaviour works or not.
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E
+        run: pnpm test:e2e
+        env:
+          CI: "1"
+
+      - name: Upload E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

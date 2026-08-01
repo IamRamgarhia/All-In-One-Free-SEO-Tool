@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { getSetting } from "./settings-store";
 import { generateExecSummary } from "./ai-summary";
+import { ALGO_UPDATES } from "./algorithm-updates";
 import {
   captureClientSnapshot,
   loadSnapshotComparison,
@@ -1530,12 +1531,10 @@ function drawTrafficSparkline(
     const firstT = opts.dates[0].getTime();
     const lastT = opts.dates[opts.dates.length - 1].getTime();
     if (lastT > firstT) {
-      // Lazy require so the report-generator module graph isn't forced
-      // to pull algorithm-updates at import time.
-
-      const { ALGO_UPDATES } = require("./algorithm-updates") as {
-        ALGO_UPDATES: { date: string; endDate?: string; name: string }[];
-      };
+      // Was a lazy `require()` "so the module graph isn't forced to pull
+      // algorithm-updates at import time" — but that module is a static
+      // array with zero imports of its own, so the deferral saved
+      // nothing and cost a synchronous require inside a draw loop.
       for (const u of ALGO_UPDATES) {
         const startT = new Date(u.date + "T00:00:00Z").getTime();
         if (isNaN(startT)) continue;

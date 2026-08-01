@@ -218,7 +218,7 @@ export function scoreContent(rawText: string): SlopReport {
   }
 
   // 17 — Emoji Decoration
-  // eslint-disable-next-line no-misleading-character-class
+   
   const emojiRx = /^(?:#+\s*|[-*]\s*)(?:[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}])/gmu;
   const emojiHits = text.match(emojiRx) ?? [];
   if (emojiHits.length > 0) {

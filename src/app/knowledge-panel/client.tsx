@@ -22,8 +22,12 @@ export function KnowledgePanelClient({
 
   useEffect(() => {
     if (clientId) {
+      // Async load: the snapshot fetch can't run during render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       listKpSnapshots(Number(clientId)).then(setHistory);
     } else {
+      // Clearing history when no client is selected — the sibling branch is an async fetch, so this has to live in the same effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHistory([]);
     }
   }, [clientId, state]);

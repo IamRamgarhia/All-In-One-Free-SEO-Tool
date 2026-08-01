@@ -153,7 +153,7 @@ export default function ChatCapabilitiesPage() {
                   {c.examples.map((e, j) => (
                     <li key={j} className="flex items-start gap-1.5">
                       <span className="mt-1.5 size-1 shrink-0 rounded-full bg-emerald-400" />
-                      <span>"{e}"</span>
+                      <span>&quot;{e}&quot;</span>
                     </li>
                   ))}
                 </ul>
@@ -183,7 +183,7 @@ export default function ChatCapabilitiesPage() {
         <header className="border-b border-white/[0.06] px-5 py-3">
           <h2 className="text-sm font-semibold text-rose-300 inline-flex items-center gap-1.5">
             <XCircle className="size-4" />
-            Things it can't do (with workarounds)
+            Things it can&apos;t do (with workarounds)
           </h2>
         </header>
         <ul className="divide-y divide-white/[0.06]">

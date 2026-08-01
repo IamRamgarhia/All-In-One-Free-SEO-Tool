@@ -49,6 +49,7 @@ import {
   Zap,
 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
+import { useStoredState } from "@/components/use-stored-state";
 import {
   CATEGORY_LABELS,
   categoryOf,
@@ -872,43 +873,34 @@ type Tool = (typeof tools)[number];
 
 const PINNED_KEY = "seo:tools-pinned";
 
-function readPinned(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = window.localStorage.getItem(PINNED_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? new Set(arr.map(String)) : new Set();
-  } catch {
-    return new Set();
-  }
+/** Stable identity — useSyncExternalStore requires a stable fallback. */
+const NO_PINS: ReadonlySet<string> = new Set<string>();
+
+function parsePinned(raw: string): ReadonlySet<string> {
+  const arr = JSON.parse(raw);
+  return Array.isArray(arr) ? new Set(arr.map(String)) : NO_PINS;
 }
 
-function writePinned(set: Set<string>) {
-  try {
-    window.localStorage.setItem(PINNED_KEY, JSON.stringify(Array.from(set)));
-  } catch {
-    // ignore quota / private-mode errors
-  }
-}
+const serializePinned = (set: ReadonlySet<string>) =>
+  JSON.stringify(Array.from(set));
 
 export function ToolsGrid() {
   const [query, setQuery] = useState("");
-  const [pinned, setPinned] = useState<Set<string>>(new Set());
-  // Hydrate pinned from localStorage on mount — keeps SSR + client in
-  // sync (server renders empty pinned, client fills in after mount)
-  useEffect(() => {
-    setPinned(readPinned());
-  }, []);
+  // useSyncExternalStore rather than useState + a hydrate effect: the
+  // old version rendered with zero pins, committed that, then re-rendered
+  // with the real set — so pinned tools visibly jumped to the top a beat
+  // after the page appeared.
+  const [pinned, setPinned] = useStoredState<ReadonlySet<string>>(
+    PINNED_KEY,
+    NO_PINS,
+    parsePinned,
+  );
 
   function togglePin(href: string) {
-    setPinned((prev) => {
-      const next = new Set(prev);
-      if (next.has(href)) next.delete(href);
-      else next.add(href);
-      writePinned(next);
-      return next;
-    });
+    const next = new Set(pinned);
+    if (next.has(href)) next.delete(href);
+    else next.add(href);
+    setPinned(next, serializePinned);
   }
 
   const q = query.trim().toLowerCase();

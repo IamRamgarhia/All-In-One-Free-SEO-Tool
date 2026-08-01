@@ -41,6 +41,8 @@ export function ShareCard({
   // but the client immediately rendered "http://localhost:3001/portal/...".
   const [origin, setOrigin] = useState("");
   useEffect(() => {
+    // window.location doesn't exist on the server, and it isn't a stored value useStoredState could read.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(window.location.origin);
   }, []);
   const url = shareToken

@@ -106,3 +106,10 @@ dump.rdb
 # competitive analysis, pricing notes, validation outreach. Kept locally
 # for the maintainer + Claude Code to reference; never committed.
 CLAUDE.md
+.e2e/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

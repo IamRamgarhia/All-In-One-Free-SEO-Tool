@@ -161,11 +161,12 @@ export function MobileNav({
               ))}
             </nav>
 
+            {/* No "All tools" shortcut here — it's already the last item
+                in Essentials, which is pinned to the top of the list and
+                visible without scrolling. A second link to the same
+                place is just another thing to read. */}
             <footer className="border-t border-border px-4 py-3 text-[10px] text-muted-foreground">
-              <Link href="/tools" className="underline-offset-2 hover:underline">
-                All tools
-              </Link>
-              {" · Tap outside to close"}
+              Tap outside to close
             </footer>
           </aside>
         </div>

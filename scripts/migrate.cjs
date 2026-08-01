@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 // Production migration runner — invoked from the Docker entrypoint and from
 // `predev` / `prebuild` package scripts.
 //

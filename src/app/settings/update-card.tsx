@@ -55,6 +55,8 @@ export function UpdateCard() {
   }, []);
 
   useEffect(() => {
+    // Kicks off the initial async version check on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void check();
   }, [check]);
 
@@ -120,7 +122,7 @@ export function UpdateCard() {
         <div>
           <h3 className="text-sm font-semibold">Updates</h3>
           <p className="text-[11px] text-muted-foreground">
-            One-click update from GitHub's <code className="font-mono">main</code>
+            One-click update from GitHub&apos;s <code className="font-mono">main</code>
             {" "}branch. Pulls code, installs new dependencies if needed, applies
             migrations. Your data.db and .env.local are preserved.
           </p>
@@ -176,7 +178,7 @@ export function UpdateCard() {
               <p className="text-[11px] text-muted-foreground">
                 A newer commit is on GitHub. Click below to pull it. Most
                 changes hot-reload — refresh the page after. If new
-                dependencies were added, we'll tell you to restart.
+                dependencies were added, we&apos;ll tell you to restart.
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -211,7 +213,7 @@ export function UpdateCard() {
           ) : (
             <p className="flex items-center gap-1 rounded-md bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
               <CheckCircle2 className="size-3" />
-              You're on the latest version.
+              You&apos;re on the latest version.
             </p>
           )}
 
@@ -312,12 +314,18 @@ export function UpdateCard() {
  */
 function UpdateProgress() {
   const [elapsedMs, setElapsedMs] = useState(0);
-  const startRef = useRef<number>(Date.now());
+  // Initialised to null rather than Date.now(): the argument to useRef
+  // is evaluated on every render even though only the first is kept, so
+  // the old form read the clock on each pass for a value it discarded.
+  // The effect below sets the real start time on mount, which is also
+  // where the timer that consumes it starts.
+  const startRef = useRef<number | null>(null);
 
   useEffect(() => {
-    startRef.current = Date.now();
+    const startedAt = Date.now();
+    startRef.current = startedAt;
     const t = setInterval(() => {
-      setElapsedMs(Date.now() - startRef.current);
+      setElapsedMs(Date.now() - startedAt);
     }, 100);
     return () => clearInterval(t);
   }, []);
