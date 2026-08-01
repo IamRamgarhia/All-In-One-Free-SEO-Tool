@@ -151,10 +151,34 @@ async function ai() {
   const { getActiveProvider } = await import("../src/lib/api-keys");
 
   const provider = await getActiveProvider();
+
   if (!provider) {
-    bad("no AI provider configured", "add a key in Settings → AI first");
+    // Not a failure — there is nothing to call. But the no-provider
+    // path is itself worth asserting, and it is testable precisely
+    // BECAUSE no key is set: `configuredProviders()` used to mark
+    // Ollama configured unconditionally (getOllamaUrl always returns a
+    // localhost default), so this branch was unreachable and a new user
+    // with no keys got "Couldn't reach ollama — check your internet
+    // connection" instead of being told to add one.
+    const r = await callAIResult({ system: "x", user: "x", maxTokens: 10 });
+    if (r.ok) {
+      bad("no provider configured, yet the call succeeded");
+    } else if (r.failure.reason === "no_provider") {
+      ok("no-provider path reports correctly", r.failure.message.slice(0, 70));
+      ok("points at the fix", r.failure.fixHref ?? "(none)");
+    } else {
+      bad(
+        `no provider, but reason was "${r.failure.reason}"`,
+        r.failure.message.slice(0, 70),
+      );
+    }
+    console.log(
+      "\n  SKIP  live generation — set a key in Settings → AI (or export",
+    );
+    console.log("        GEMINI_API_KEY / GROQ_API_KEY) and re-run with --ai.");
     return;
   }
+
   ok("active provider", provider);
 
   const t0 = Date.now();

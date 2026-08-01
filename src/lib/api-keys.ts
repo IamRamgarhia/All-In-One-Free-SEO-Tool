@@ -66,6 +66,29 @@ export async function getOllamaUrl(): Promise<string> {
   return process.env.OLLAMA_URL?.replace(/\/+$/, "") ?? "http://localhost:11434";
 }
 
+/**
+ * Has the user actually pointed us at an Ollama server, as opposed to
+ * `getOllamaUrl()` handing back its hardcoded localhost default?
+ *
+ * The distinction matters more than it looks. `configuredProviders()`
+ * used to call `getOllamaUrl()` and test `url.length > 0` — which is
+ * true unconditionally, because of that default. So Ollama counted as
+ * configured on every install, `getActiveProvider()` never returned
+ * null, and a brand-new user with no keys at all was told
+ *
+ *   "Couldn't reach ollama — check your internet connection"
+ *
+ * instead of "No AI provider is set up yet. Add a free Gemini or Groq
+ * key in Settings → AI." It also made the no-provider branch in
+ * ai-error.ts unreachable, so the one message written for exactly this
+ * situation could never appear.
+ */
+export async function hasExplicitOllamaUrl(): Promise<boolean> {
+  const fromDb = await getSetting<string>("api.ollama_url");
+  if (fromDb && fromDb.trim().length > 0) return true;
+  return (process.env.OLLAMA_URL ?? "").trim().length > 0;
+}
+
 export type ActiveProvider = Provider | "ollama";
 
 /**
@@ -102,11 +125,10 @@ export async function configuredProviders(): Promise<{
   for (const p of PROVIDER_CATALOG) {
     let configured = false;
     if (p.id === "ollama") {
-      // Ollama has no key, just check it's reachable lazily — we treat it as
-      // "always potentially configured" if the URL setting is non-empty OR if
-      // env var is set.
-      const url = await getOllamaUrl();
-      configured = url.length > 0;
+      // Ollama has no API key, so "configured" means the user actually
+      // gave us a server URL — NOT that getOllamaUrl() returned its
+      // localhost default, which it always does. See hasExplicitOllamaUrl.
+      configured = await hasExplicitOllamaUrl();
     } else {
       const k = await getApiKey(p.id as Provider);
       configured = k !== null;
