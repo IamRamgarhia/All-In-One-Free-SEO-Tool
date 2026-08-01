@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dedupeResults,
+  extractDuckDuckGoHrefs,
   resultKey,
   unwrapDuckDuckGoUrl,
   GOOGLE_NON_ORGANIC,
@@ -77,6 +78,57 @@ describe("unwrapDuckDuckGoUrl", () => {
     expect(unwrapped).toHaveLength(3);
     const idx = unwrapped.findIndex((h) => new URL(h).hostname === "example.com");
     expect(idx + 1).toBe(2);
+  });
+});
+
+describe("extractDuckDuckGoHrefs", () => {
+  // Verbatim shape from a live duckduckgo.com/html/ response, including
+  // the `&amp;` entity — raw HTML keeps it, the DOM did not. Missing that
+  // decode leaves "&amp;rut=..." inside the uddg value and the unwrapped
+  // URL comes out wrong.
+  const HTML = `
+    <div class="result results_links">
+      <h2 class="result__title">
+        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.wikipedia.org%2F&amp;rut=ef4d4ea3">Wikipedia</a>
+      </h2>
+      <a class="result__url" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.wikipedia.org%2F&amp;rut=ef4d4ea3">www.wikipedia.org</a>
+    </div>
+    <div class="result results_links">
+      <h2 class="result__title">
+        <a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FWikipedia&amp;rut=aa11">Wikipedia - Wikipedia</a>
+      </h2>
+    </div>`;
+
+  it("takes one href per result, not the display URL too", () => {
+    // result__url points at the SAME destination; counting both would
+    // halve every reported position.
+    expect(extractDuckDuckGoHrefs(HTML)).toHaveLength(2);
+  });
+
+  it("decodes &amp; so the uddg payload survives", () => {
+    const [first] = extractDuckDuckGoHrefs(HTML);
+    expect(first).toContain("&rut=");
+    expect(first).not.toContain("&amp;");
+    expect(unwrapDuckDuckGoUrl(first)).toBe("https://www.wikipedia.org/");
+  });
+
+  it("produces correct positions end to end", () => {
+    const results = dedupeResults(
+      extractDuckDuckGoHrefs(HTML)
+        .map(unwrapDuckDuckGoUrl)
+        .filter((h): h is string => h !== null),
+    );
+    expect(results).toHaveLength(2);
+    const pos =
+      results.findIndex((h) => new URL(h).hostname === "www.wikipedia.org") + 1;
+    expect(pos).toBe(1);
+  });
+
+  it("returns nothing for an error page rather than throwing", () => {
+    // DDG serves a short 403 body to clients it doesn't like — which is
+    // what the headless browser used to get. Parsing it must be inert.
+    expect(extractDuckDuckGoHrefs("<html><body>error</body></html>")).toEqual([]);
+    expect(extractDuckDuckGoHrefs("")).toEqual([]);
   });
 });
 

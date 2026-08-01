@@ -84,6 +84,7 @@
   "engines": {
     "node": ">=20.11"
   },
+  "packageManager": "pnpm@10.34.5",
   "scripts": {
     "predev": "node scripts/migrate.cjs",
     "dev": "next dev",

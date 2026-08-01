@@ -23,6 +23,14 @@ const MOBILE_UA =
   "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.91 Mobile Safari/537.36";
 const MOBILE_VIEWPORT = { width: 412, height: 915 };
 
+/**
+ * Desktop UA for the plain-HTTP DuckDuckGo path. Must look like a real
+ * browser: DDG's /html/ endpoint serves a 403 error page to obviously
+ * automated clients, and a bot-shaped UA is the easiest way to trip it.
+ */
+const DESKTOP_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
 function normalizeDomain(input: string): string {
   return input
     .replace(/^https?:\/\//i, "")
@@ -349,84 +357,132 @@ async function checkOnGoogle(
   );
 }
 
+/**
+ * Decode the HTML entities that appear inside href attributes in raw
+ * markup. `&amp;` in particular — without decoding it, `&amp;rut=...`
+ * ends up inside the `uddg` query value and the unwrapped URL is wrong.
+ * The DOM did this for us; parsing raw HTML does not.
+ */
+function decodeAttr(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
+}
+
+/**
+ * Extract result hrefs from a raw DuckDuckGo HTML SERP.
+ *
+ * `a.result__a` is the title link; `a.result__url` is the display URL
+ * for the SAME result, so matching both double-counts every entry.
+ */
+export function extractDuckDuckGoHrefs(html: string): string[] {
+  const out: string[] = [];
+  const re = /<a\b[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]+)"/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) out.push(decodeAttr(m[1]));
+
+  // Some responses put href before class on the same anchor.
+  if (out.length === 0) {
+    const re2 = /<a\b[^>]*href="([^"]+)"[^>]*class="[^"]*\bresult__a\b[^"]*"/gi;
+    while ((m = re2.exec(html))) out.push(decodeAttr(m[1]));
+  }
+  return out;
+}
+
+/**
+ * DuckDuckGo rank check over plain HTTP — deliberately NOT the browser
+ * pool.
+ *
+ * `duckduckgo.com/html/` is DDG's no-JavaScript endpoint. Driving a
+ * headless browser at it returns **HTTP 403**: verified live, the
+ * Playwright request gets a 273-byte error page while a plain fetch with
+ * the same user-agent gets 200 and ten results. So the previous
+ * implementation could never have worked regardless of selectors — the
+ * page it parsed was an error page.
+ *
+ * Using fetch is also strictly better here: no browser launch (seconds
+ * saved per keyword), no context from the concurrency-capped pool held
+ * while a fallback runs, and no headless fingerprint to detect.
+ */
 async function checkOnDuckDuckGo(
   query: string,
   domain: string,
   device: "desktop" | "mobile" = "desktop",
 ): Promise<RankCheckResult> {
-  return withBrowserContext(
-    async (context) => {
-      const page = await context.newPage();
-      const checkedAt = new Date();
-      let resultsScanned = 0;
+  const checkedAt = new Date();
+  const base = {
+    query,
+    domain,
+    engine: "duckduckgo" as const,
+    checkedAt,
+    device,
+  };
 
-      try {
-    const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
-    await page.waitForTimeout(500);
-
-    // `a.result__a` is the title link; `a.result__url` is the display
-    // URL for the SAME result, so taking both used to double-count every
-    // entry. Title links alone give one anchor per result.
-    const links = await page.$$eval("a.result__a", (els: Element[]) =>
-      els.map((a) => (a as HTMLAnchorElement).href).filter(Boolean),
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 20_000);
+  try {
+    const res = await fetch(
+      `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+      {
+        signal: ctl.signal,
+        headers: {
+          "user-agent": device === "mobile" ? MOBILE_UA : DESKTOP_UA,
+          accept: "text/html,application/xhtml+xml",
+          "accept-language": "en-US,en;q=0.9",
+        },
+      },
     );
+
+    if (!res.ok) {
+      return {
+        ...base,
+        position: null,
+        url: null,
+        resultsScanned: 0,
+        error: `DuckDuckGo returned HTTP ${res.status}.`,
+      };
+    }
+
+    const html = await res.text();
 
     // Unwrap DDG's /l/?uddg= redirector and drop ad slots. Without this
     // every href looks like a duckduckgo.com link and the old filter
     // discarded all of them — which is why DDG checks always returned
     // "not ranking".
     const filtered = dedupeResults(
-      links
-        .map((h: string) => unwrapDuckDuckGoUrl(h))
+      extractDuckDuckGoHrefs(html)
+        .map(unwrapDuckDuckGoUrl)
         .filter((h): h is string => h !== null),
     );
 
-    resultsScanned = filtered.length;
+    const resultsScanned = filtered.length;
 
     for (let i = 0; i < filtered.length; i++) {
       if (urlMatches(filtered[i], domain)) {
         return {
-          query,
-          domain,
-          engine: "duckduckgo",
+          ...base,
           position: i + 1,
           url: filtered[i],
-          checkedAt,
-          device,
           resultsScanned,
         };
       }
     }
 
-    return {
-      query,
-      domain,
-      engine: "duckduckgo",
-      position: null,
-      url: null,
-      checkedAt,
-      device,
-      resultsScanned,
-    };
+    return { ...base, position: null, url: null, resultsScanned };
   } catch (err) {
     return {
-          query,
-          domain,
-          engine: "duckduckgo",
-          position: null,
-          url: null,
-          checkedAt,
-          device,
-          resultsScanned,
-          error: (err as Error).message,
-        };
-      } finally {
-        await page.close().catch(() => {});
-      }
-    },
-    { viewport: { width: 1280, height: 900 } },
-  );
+      ...base,
+      position: null,
+      url: null,
+      resultsScanned: 0,
+      error: (err as Error).message,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
