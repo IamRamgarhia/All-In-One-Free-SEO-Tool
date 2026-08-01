@@ -1064,6 +1064,56 @@ async function crawlSite(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Scoring
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Health score, 0-100.
+ *
+ * The two classes of finding have to be weighted differently:
+ *
+ *   - **Per-page** findings (missing title, no canonical, thin content…)
+ *     repeat once per crawled page. Their total scales LINEARLY with
+ *     crawl size, so they're averaged: the score answers "how bad is a
+ *     typical page here?"
+ *   - **Site-wide** findings (no robots.txt, no sitemap, broken links)
+ *     occur once per site regardless of crawl size, so they're applied
+ *     at full weight.
+ *
+ * The previous implementation divided the COMBINED total by
+ * `sqrt(pageCount)`. Because per-page findings grow as O(n) and the
+ * divisor only as O(√n), the same site scored progressively worse the
+ * more pages you crawled — 25 pages of identical issues took a 5×
+ * bigger hit than 1 page. That made scores incomparable between runs
+ * (crawl size varies with timeouts and settings) and turned the
+ * dashboard's health-score trend line into a measure of crawl depth
+ * rather than SEO health.
+ *
+ * Exported so the regression test can assert the property that matters:
+ * crawling more pages of the same quality must not change the score.
+ */
+export function scoreFindings(
+  findings: AuditFinding[],
+  perPageCount: number,
+  pagesCrawled: number,
+): number {
+  const pages = Math.max(1, pagesCrawled);
+
+  let perPageWeight = 0;
+  for (let i = 0; i < perPageCount && i < findings.length; i++) {
+    perPageWeight += severityWeight[findings[i].severity];
+  }
+
+  let siteWideWeight = 0;
+  for (let i = perPageCount; i < findings.length; i++) {
+    siteWideWeight += severityWeight[findings[i].severity];
+  }
+
+  const penalty = perPageWeight / pages + siteWideWeight;
+  return Math.max(0, Math.min(100, Math.round(100 - penalty)));
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Public API
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -1162,6 +1212,11 @@ export async function runAudit(
     }
   }
 
+  // Everything above this line is PER-PAGE — it repeats once for every
+  // crawled page. Snapshot the count before site-wide checks append to
+  // the same array, so scoring can weight the two classes correctly.
+  const perPageFindings = findings.length;
+
   // Site-wide checks
   const siteFindings = await checkSiteWide(url, pages, metaIndex);
   findings.push(...siteFindings);
@@ -1171,17 +1226,7 @@ export async function runAudit(
   const linkFindings = await checkBrokenLinks(pages, origin);
   findings.push(...linkFindings);
 
-  // Score = 100 - sum(weights), clamped 0..100
-  // Weights compound for repeated findings of same type to avoid one duplicate
-  // pattern flooding the score.
-  const totalWeight = findings.reduce(
-    (sum, f) => sum + severityWeight[f.severity],
-    0,
-  );
-  // Normalize by pages crawled so a 25-page site doesn't score worse than a
-  // 1-page site for the same proportion of issues.
-  const normalized = totalWeight / Math.sqrt(Math.max(1, pages.length));
-  const score = Math.max(0, Math.min(100, Math.round(100 - normalized)));
+  const score = scoreFindings(findings, perPageFindings, pages.length);
 
   const home = pages[0];
   return {

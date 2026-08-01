@@ -27,6 +27,7 @@
 
 import type { ActiveProvider, Provider } from "./api-keys";
 import { getApiKey, getOllamaUrl } from "./api-keys";
+import { defaultModelFor } from "./ai-model-presets";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
 import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
 import { callOpenAICompat as sharedCallOpenAICompat } from "./providers/openai-compat";
@@ -45,83 +46,66 @@ export type ProviderSpec = {
   endpoint?: string;
   /** Extra request headers. OpenRouter uses this for the required x-title. */
   extraHeaders?: Record<string, string>;
-  /**
-   * Sensible default model when the caller didn't pass modelOverride.
-   * Updated 2026-05 — Google deprecated -latest suffix; flash models renamed.
-   */
-  defaultModel: string;
 };
 
 export const PROVIDER_DISPATCH: Record<ActiveProvider, ProviderSpec> = {
   gemini: {
     id: "gemini",
     kind: "gemini",
-    defaultModel: "gemini-2.0-flash",
   },
   groq: {
     id: "groq",
     kind: "openai-compat",
     endpoint: "https://api.groq.com/openai/v1/chat/completions",
-    defaultModel: "llama-3.3-70b-versatile",
   },
   anthropic: {
     id: "anthropic",
     kind: "anthropic",
-    defaultModel: "claude-haiku-4-5-20251001",
   },
   openai: {
     id: "openai",
     kind: "openai-compat",
     endpoint: "https://api.openai.com/v1/chat/completions",
-    defaultModel: "gpt-4o-mini",
   },
   openrouter: {
     id: "openrouter",
     kind: "openai-compat",
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
     extraHeaders: { "x-title": "SEO Tool" },
-    defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
   },
   perplexity: {
     id: "perplexity",
     kind: "openai-compat",
     endpoint: "https://api.perplexity.ai/chat/completions",
-    defaultModel: "sonar",
   },
   ollama: {
     id: "ollama",
     kind: "ollama",
-    defaultModel: "llama3",
   },
   mistral: {
     id: "mistral",
     kind: "openai-compat",
     endpoint: "https://api.mistral.ai/v1/chat/completions",
-    defaultModel: "mistral-large-latest",
   },
   deepseek: {
     id: "deepseek",
     kind: "openai-compat",
     endpoint: "https://api.deepseek.com/v1/chat/completions",
-    defaultModel: "deepseek-chat",
   },
   cerebras: {
     id: "cerebras",
     kind: "openai-compat",
     endpoint: "https://api.cerebras.ai/v1/chat/completions",
-    defaultModel: "llama-3.3-70b",
   },
   together: {
     id: "together",
     kind: "openai-compat",
     endpoint: "https://api.together.xyz/v1/chat/completions",
-    defaultModel: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
   },
   github: {
     id: "github",
     kind: "openai-compat",
     endpoint: "https://models.inference.ai.azure.com/chat/completions",
-    defaultModel: "gpt-4o",
   },
 };
 
@@ -156,7 +140,7 @@ export async function dispatchProviderCall(
   const spec = PROVIDER_DISPATCH[providerId];
   if (!spec) return null;
 
-  const model = args.model?.trim() || spec.defaultModel;
+  const model = args.model?.trim() || defaultModelFor(providerId);
   const caller = args.caller ?? "provider-dispatch";
 
   switch (spec.kind) {
@@ -274,7 +258,10 @@ async function callOllamaDirect(args: {
 /**
  * Convenience: look up the default model for a provider. Callers that
  * want to log "which model actually ran" can use this before dispatch.
+ *
+ * Re-exported from ai-model-presets so the model the picker labels
+ * "default" is byte-for-byte the model dispatch sends when no override
+ * is set. These used to be two separate literals and drifted — the
+ * picker offered retired Gemini 1.5 ids while dispatch sent 2.0.
  */
-export function defaultModelFor(providerId: ActiveProvider): string {
-  return PROVIDER_DISPATCH[providerId]?.defaultModel ?? "";
-}
+export { defaultModelFor } from "./ai-model-presets";

@@ -1,0 +1,52 @@
+name: CI
+
+# The repo shipped for months with `@hello-pangea/dnd` imported by
+# src/app/tasks/kanban-board.tsx but absent from package.json — so a
+# clean clone could not build and /tasks could not render. Nothing
+# caught it because nothing ever ran `pnpm install && pnpm build` from
+# scratch. That is this workflow's job.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # --frozen-lockfile fails if package.json and pnpm-lock.yaml
+      # disagree, which is what an undeclared import looks like once
+      # someone adds it locally without committing the lockfile.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      # Runs migrations against a scratch DB then builds. Catches both
+      # broken migrations and any module that fails to resolve.
+      - name: Build
+        run: pnpm build
+        env:
+          SEO_DB_PATH: ${{ runner.temp }}/ci.db

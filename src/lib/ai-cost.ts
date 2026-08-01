@@ -10,39 +10,45 @@ export type CostRate = {
   outputPer1M: number;
 };
 
-const RATES: Record<string, CostRate> = {
-  // OpenAI
-  "gpt-4o-mini": { inputPer1M: 0.15, outputPer1M: 0.6 },
-  "gpt-4o": { inputPer1M: 2.5, outputPer1M: 10 },
+/**
+ * Rates come from the model-preset table — the same list that feeds the
+ * model picker and the dispatch defaults. Keeping a second hand-written
+ * map here is what caused the original bug: it had an entry for
+ * `gemini-1.5-flash-latest` (retired) but none for `gemini-2.0-flash`
+ * (what actually ran), so every Gemini call silently used the
+ * $1/$4 fallback — 13-50x over-stating spend on a free-tier key, and
+ * eventually tripping the monthly cap that disables all AI features.
+ *
+ * A model in the picker now always has a rate, enforced by a test.
+ */
+import { presetFor } from "./ai-model-presets";
 
-  // Anthropic
-  "claude-haiku-4-5-20251001": { inputPer1M: 1, outputPer1M: 5 },
-
-  // Google
-  "gemini-1.5-flash-latest": { inputPer1M: 0.075, outputPer1M: 0.3 },
-
-  // Groq — free tier is $0 effective; we still track tokens
-  "llama-3.3-70b-versatile": { inputPer1M: 0.59, outputPer1M: 0.79 }, // Groq paid
-
-  // OpenRouter free Llama
-  "meta-llama/llama-3.3-70b-instruct:free": { inputPer1M: 0, outputPer1M: 0 },
-
-  // Perplexity sonar
-  sonar: { inputPer1M: 1, outputPer1M: 1 },
-
-  // Ollama / local
-  llama3: { inputPer1M: 0, outputPer1M: 0 },
-  llama32: { inputPer1M: 0, outputPer1M: 0 },
-};
-
+/**
+ * Used only for a model id we've never seen — a custom id the user
+ * typed by hand. Deliberately mid-range: over-estimating blocks a user
+ * at the cap for spend they didn't incur, under-estimating lets real
+ * spend run past it. Callers can tell it apart via `isEstimate`.
+ */
 const FALLBACK_RATE: CostRate = { inputPer1M: 1, outputPer1M: 4 };
 
 export function rateFor(model: string | null | undefined): CostRate {
   if (!model) return FALLBACK_RATE;
-  if (RATES[model]) return RATES[model];
-  // Try lowercased
-  if (RATES[model.toLowerCase()]) return RATES[model.toLowerCase()];
-  return FALLBACK_RATE;
+  const preset = presetFor(model);
+  if (!preset) return FALLBACK_RATE;
+  // null = free tier / local model: no per-token charge to bill.
+  return {
+    inputPer1M: preset.inputPer1M ?? 0,
+    outputPer1M: preset.outputPer1M ?? 0,
+  };
+}
+
+/**
+ * True when `rateFor` fell back to the generic estimate rather than a
+ * known published rate. The AI-usage UI uses this to show "~" so users
+ * don't read a guess as a billed figure.
+ */
+export function isEstimatedRate(model: string | null | undefined): boolean {
+  return !model || !presetFor(model);
 }
 
 export function costMicros(
