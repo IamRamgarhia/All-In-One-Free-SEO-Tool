@@ -2,7 +2,7 @@
 
 # All-In-One Free SEO Tool — Open-Source Alternative to Ahrefs, Semrush, Moz &amp; SE Ranking
 
-### 🚀 The complete free SEO platform. 150+ tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
+### 🚀 The complete free SEO platform. 96 dedicated tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
 
 **Replace ₹25,000–₹65,000/month ($300–$770) of SEO subscriptions with one MIT-licensed free tool. Own your data. Works with free AI keys (Gemini, Groq) — no paid APIs required.**
 
@@ -55,7 +55,16 @@ A typical SEO professional pays **₹25,000-₹45,000 per month** ($300-$540) fo
 
 > *Prices accurate as of February 2026. Ahrefs / Semrush / Surfer publish official pricing on their sites — what you actually pay can be higher with add-ons (extra users, extra projects, AI credits).*
 
-> **You're not paying for the data.** Google gives away the same data through their free APIs (Search Console, Analytics, PageSpeed, Trends, autocomplete). Ahrefs and Semrush charge you ₹10,000+/month to repackage what's already free. This tool just connects directly to the free sources.
+> **Where this genuinely replaces them, and where it doesn't.**
+>
+> A lot of what those tools charge for *is* free data they repackage — Search Console, Analytics, PageSpeed, Trends and autocomplete are all Google APIs you can call yourself, and that's exactly what this does. Site audits, technical SEO, rank tracking, content tooling, reporting and client management are all fully covered here.
+>
+> Two things are **not** free data, and you should know that before you switch:
+>
+> - **Backlink index.** Ahrefs and Semrush operate their own web crawlers, and that index is the single biggest thing you pay them for. This tool uses Search Console's backlink data (your own sites only) plus Common Crawl — useful, but not a substitute for a commercial index. If backlink research is core to your work, keep a paid tool or pair this with the free Ahrefs Webmaster Tools.
+> - **Exact keyword search volumes.** There is no free source for real monthly volumes. This tool gives you a directional estimate from Trends, autocomplete and SERP signals, and shows you the raw inputs so you can judge it — it does not invent a number and present it as fact.
+>
+> Everything else, you can stop paying for.
 
 ---
 
@@ -92,7 +101,7 @@ Open <http://localhost:3000>. That's it.
 
 Every client gets a focused workspace with a 0-100 health score, today's priorities, daily-automation card, and one-click connections to Google Search Console + Analytics 4.
 
-### 150+ tools, organized by SEO discipline
+### 96 dedicated tools, organized by SEO discipline
 ![All Tools page showing 13 category filters — Audits & scoring, Reports, On-page, Schema, Indexing, Speed, Keywords & content, Backlinks & outreach, Local SEO, Competitors & brand, AI visibility, Imports & integrations — and a grid of tool cards including Full SEO health check, SERP feature tracker, Content attack brief, Meta tag generator, SEO code generator](docs/screenshots/03-all-tools.png)
 
 Filter by category or pin your favorites. Each tool is single-purpose and chainable — output of one feeds the next.
@@ -121,7 +130,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 
 ## 📦 Full feature list
 
-> **150+ tools across 14 SEO disciplines.** Every category an SEO professional needs, all in one self-hosted app.
+> **96 dedicated tools across 14 SEO disciplines.** Every category an SEO professional needs, all in one self-hosted app.
 
 ### 🔍 Site audits & technical SEO
 ✅ Full-site crawler with 30+ on-page checks  
@@ -493,7 +502,7 @@ If this tool saves you a ₹10,000+/month Ahrefs subscription, the cheapest way 
 
 **DiceCodes builds full-stack web apps end-to-end — solo, no agency overhead.**
 
-This entire SEO platform (150+ tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
+This entire SEO platform (96 dedicated tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
 
 | What we build | Typical timeline |
 |---|---|

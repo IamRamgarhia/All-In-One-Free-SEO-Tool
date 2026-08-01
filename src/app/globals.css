@@ -53,42 +53,69 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Light theme.
+
+   Previously this was the untouched shadcn greyscale default and was
+   never reachable — the root layout hardcoded `class="dark"`, so the
+   app was dark-only with no toggle. Plenty of SEO work happens in bright
+   offices, and a client-facing portal in forced dark reads as
+   unfinished.
+
+   Mirrors the dark palette's intent rather than inverting it: the same
+   cool-neutral base (hue 245) and the same electric-cyan brand accent,
+   darkened enough to hold contrast on white. Text/background pairs here
+   clear WCAG AA. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.995 0.002 245);    /* page canvas — barely off-white */
+  --foreground: oklch(0.21 0.014 245);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.21 0.014 245);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.21 0.014 245);
+
+  /* Cyan needs to go considerably darker than the dark-mode value to
+     stay AA against white, both as a fill behind white text and as
+     link/active colour. */
+  --primary: oklch(0.55 0.14 220);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.55 0.14 220 / 0.45);
+
+  --secondary: oklch(0.965 0.004 245);
+  --secondary-foreground: oklch(0.26 0.014 245);
+  --muted: oklch(0.965 0.004 245);
+  /* 0.48 keeps "muted" text at ~4.6:1 on the canvas. The shadcn default
+     of 0.556 fails AA, and this app leans on muted-foreground heavily
+     for helper copy. */
+  --muted-foreground: oklch(0.48 0.012 245);
+  --accent: oklch(0.955 0.006 245);
+  --accent-foreground: oklch(0.26 0.014 245);
+
+  --destructive: oklch(0.52 0.20 25);
+  --border: oklch(0.20 0.02 245 / 0.11);
+  --input: oklch(0.20 0.02 245 / 0.16);
+
+  /* Same five hues as dark, shifted darker for contrast on white. */
+  --chart-1: oklch(0.55 0.14 220);
+  --chart-2: oklch(0.55 0.13 155);
+  --chart-3: oklch(0.62 0.14 75);
+  --chart-4: oklch(0.52 0.17 295);
+  --chart-5: oklch(0.55 0.19 25);
+
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  --sidebar: oklch(0.975 0.004 245);
+  --sidebar-foreground: oklch(0.21 0.014 245);
+  --sidebar-primary: oklch(0.55 0.14 220);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.008 245);
+  --sidebar-accent-foreground: oklch(0.21 0.014 245);
+  --sidebar-border: oklch(0.20 0.02 245 / 0.10);
+  --sidebar-ring: oklch(0.55 0.14 220 / 0.45);
 }
 
 .dark {
+  color-scheme: dark;
+
   /* Premium SaaS palette — cool-neutral base + one owned brand accent.
      Base picks up a hint of cool (hue 245) to avoid the muddy zinc
      feel; brand is electric cyan, reserved for primary CTAs + active
@@ -147,7 +174,10 @@
   }
   html {
     @apply font-sans;
-    color-scheme: dark;
+    /* Drives native form controls, scrollbars and the canvas colour
+       before CSS paints. Was pinned to dark, which made the light theme
+       render with dark scrollbars and white-on-white date pickers. */
+    color-scheme: light;
     /* shadcn-admin uses default 16px html with text-sm (14px) as body.
        Matches every shadcn/ui example so component proportions look
        exactly like the reference template. */
@@ -217,7 +247,24 @@
  * No overrides needed; the natural scale at 16px base is correct. */
 
 @layer utilities {
+  /* Gradient headings.
+     The stops below are the LIGHT-mode values; `.dark` overrides them
+     just after. The originals ran at 0.75-0.92 lightness, which is
+     near-invisible on a white canvas — the single biggest thing that
+     broke when the light theme became reachable, because these are used
+     on almost every page title. */
   .text-gradient-brand {
+    background: linear-gradient(
+      135deg,
+      oklch(0.48 0.14 280),
+      oklch(0.45 0.2 290),
+      oklch(0.48 0.15 200)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .dark .text-gradient-brand {
     background: linear-gradient(
       135deg,
       oklch(0.92 0.06 280),
@@ -226,9 +273,18 @@
     );
     -webkit-background-clip: text;
     background-clip: text;
-    color: transparent;
   }
   .text-gradient-violet {
+    background: linear-gradient(
+      135deg,
+      oklch(0.52 0.2 290),
+      oklch(0.42 0.24 270)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .dark .text-gradient-violet {
     background: linear-gradient(
       135deg,
       oklch(0.85 0.18 290),
@@ -236,7 +292,6 @@
     );
     -webkit-background-clip: text;
     background-clip: text;
-    color: transparent;
   }
   .text-gradient-cyan {
     background: linear-gradient(

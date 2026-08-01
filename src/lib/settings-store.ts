@@ -27,6 +27,8 @@ export type SettingKey =
   | "brand.phone"
   | "brand.footer_text"
   | "ui.mode"
+  /** "light" | "dark" | "system" — defaults to "system". */
+  | "ui.theme"
   | "api.openai"
   | "api.anthropic"
   | "api.gemini"

@@ -47,32 +47,10 @@ import {
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
+import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  /**
-   * Items marked `guided: true` are visible in Guided mode (the default
-   * for new users). Items without the flag are Pro-only — they still
-   * exist and are reachable by direct URL or via /tools, but the
-   * sidebar hides them so beginners aren't drowning in 80 leaf nodes.
-   *
-   * The "Show all tools" footer toggle flips ui.mode from guided to pro
-   * (or back). Settings → UI mode is the explicit knob.
-   */
-  guided?: boolean;
-};
-
-type NavGroup = {
-  id: string;
-  title: string;
-  /** Pinned groups are always visible and not collapsible. */
-  pinned?: boolean;
-  /** Default-expanded if true; otherwise collapsed by default. */
-  defaultOpen?: boolean;
-  items: NavItem[];
-};
+/** Alias kept so the render code below reads unchanged. */
+const groups = NAV_GROUPS;
 
 /**
  * Per-group accent. Pre-baked Tailwind class strings so the JIT picks
@@ -189,155 +167,6 @@ const GROUP_ACCENTS: Record<string, GroupAccent> = {
   account: NEUTRAL_ACCENT,
 };
 
-/**
- * Sidebar nav after the Phase 2 tool-merge sweep. Tools that were
- * folded into a unified parent (SXO/GEO/E-E-A-T → Audits, Brand SERP /
- * Knowledge Panel / Author authority → Brand visibility, etc.) are
- * no longer listed here. Their URLs still work and they appear in
- * the All tools grid for discovery — they just don't take a sidebar
- * slot. Result: 50+ entries → 25 entries.
- */
-const groups: NavGroup[] = [
-  {
-    id: "essentials",
-    title: "Essentials",
-    pinned: true,
-    items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard, guided: true },
-      { href: "/welcome", label: "Get started", icon: Sparkles, guided: true },
-      { href: "/clients", label: "Clients", icon: Users, guided: true },
-      { href: "/seo-chat", label: "SEO chat", icon: Bot, guided: true },
-      { href: "/audits", label: "Audits", icon: ClipboardList, guided: true },
-      { href: "/tasks", label: "Tasks", icon: ListChecks, guided: true },
-      { href: "/tools", label: "All tools", icon: Wrench, guided: true },
-      { href: "/reports", label: "Reports", icon: FileDown, guided: true },
-    ],
-  },
-  {
-    id: "everyday",
-    title: "Everyday",
-    defaultOpen: false,
-    items: [
-      { href: "/morning", label: "Morning briefing", icon: Activity, guided: true },
-      { href: "/digest", label: "Weekly digest", icon: Send },
-      { href: "/grader", label: "Instant audit", icon: Sparkles, guided: true },
-      { href: "/agent", label: "AI agent", icon: Bot },
-      { href: "/capacity", label: "Capacity", icon: Gauge },
-      { href: "/activity", label: "Activity log", icon: History },
-    ],
-  },
-  {
-    id: "content",
-    title: "Content",
-    items: [
-      { href: "/content", label: "Content overview", icon: FileText, guided: true },
-      { href: "/content/calendar", label: "Content calendar", icon: FileText },
-      { href: "/blog", label: "AI blog writer", icon: Wand2, guided: true },
-      { href: "/content-decay", label: "Content health", icon: TrendingDown, guided: true },
-      { href: "/title-tests", label: "Title A/B tests", icon: Wand2 },
-      { href: "/meta-rewrite", label: "Meta rewrite batch", icon: Wand2 },
-    ],
-  },
-  {
-    id: "keywords",
-    title: "Keywords & ranks",
-    items: [
-      { href: "/keywords", label: "Tracked keywords", icon: Search, guided: true },
-      { href: "/cannibalization", label: "Cannibalization", icon: GitMerge },
-      { href: "/cwv", label: "Core Web Vitals", icon: Gauge },
-      { href: "/serp-scans", label: "SERP scans archive", icon: Globe },
-    ],
-  },
-  {
-    id: "paid-ads",
-    title: "Paid ads",
-    defaultOpen: true,
-    items: [
-      // The ⭐ marks this as the newest / most-recommended entry —
-      // matches the same treatment on /tools and the per-client launcher.
-      {
-        href: "/tools/ads-funnel",
-        label: "Ad Funnel Architect ⭐",
-        icon: Megaphone,
-      },
-      { href: "/tools/branded-split", label: "Branded vs non-branded", icon: Target },
-    ],
-  },
-  {
-    id: "backlinks",
-    title: "Backlinks & outreach",
-    items: [
-      { href: "/backlinks", label: "Backlinks", icon: Link2, guided: true },
-      { href: "/link-building", label: "Link building", icon: Link2 },
-      { href: "/outreach", label: "Outreach", icon: Send },
-      { href: "/broken-links", label: "Broken links", icon: Link2 },
-    ],
-  },
-  {
-    id: "local",
-    title: "Local SEO",
-    items: [
-      { href: "/gbp", label: "Google Business Profile", icon: Building, guided: true },
-      { href: "/citations", label: "Citations", icon: MapPin },
-      { href: "/local-rank", label: "Local rank tracker", icon: MapPin },
-      { href: "/local-grid", label: "Local rank heatmap", icon: MapPin },
-    ],
-  },
-  {
-    id: "competitors",
-    title: "Competitors & brand",
-    items: [
-      { href: "/competitors", label: "Competitors", icon: Network },
-      { href: "/brand-monitor", label: "Brand visibility", icon: Network },
-      { href: "/compare", label: "Site compare", icon: GitCompare },
-    ],
-  },
-  {
-    id: "ai-visibility",
-    title: "AI visibility",
-    items: [
-      { href: "/ai-visibility", label: "AI visibility tracker", icon: Sparkles },
-      { href: "/chats", label: "AI chat history", icon: Bot },
-    ],
-  },
-  {
-    id: "monitoring",
-    title: "Monitoring + history",
-    items: [
-      { href: "/monitor", label: "Page monitor", icon: Activity },
-      { href: "/snapshots", label: "Snapshots", icon: ImageIcon },
-      { href: "/history", label: "Tool run history", icon: History },
-      { href: "/algorithm-updates", label: "Algorithm updates", icon: History },
-      { href: "/news", label: "SEO news", icon: Newspaper },
-    ],
-  },
-  {
-    id: "imports",
-    title: "Imports",
-    items: [
-      { href: "/import", label: "Import (all sources)", icon: ScanText },
-    ],
-  },
-  {
-    id: "deliverables",
-    title: "Deliverables",
-    items: [
-      { href: "/reports/archive", label: "Report archive", icon: FileDown },
-      { href: "/automations", label: "Automations", icon: Workflow },
-      { href: "/invoices", label: "Invoices", icon: Receipt },
-    ],
-  },
-  {
-    id: "account",
-    title: "Account",
-    pinned: true,
-    items: [
-      { href: "/settings", label: "Settings", icon: Settings, guided: true },
-      { href: "/learn", label: "Learn", icon: GraduationCap, guided: true },
-      { href: "/knowledge", label: "Knowledge hub", icon: GraduationCap },
-    ],
-  },
-];
 
 const COLLAPSED_KEY = "seo:sidebar-collapsed";
 const OPEN_GROUPS_KEY = "seo:sidebar-open-groups";
@@ -375,7 +204,7 @@ export function Sidebar({
       : groups
           .map((g) => ({
             ...g,
-            items: g.items.filter((it) => it.guided),
+            items: g.items.filter((it: NavItem) => it.guided),
           }))
           .filter((g) => g.pinned || g.items.length > 0);
 
@@ -465,7 +294,7 @@ export function Sidebar({
                 SEO Tool
               </div>
               <div className="mt-1 truncate text-xs text-sidebar-foreground/60">
-                v0.1 · local
+                v0.2 · local
               </div>
             </div>
             <button
@@ -585,7 +414,7 @@ export function Sidebar({
               )}
               {(isOpen || collapsed) && (
                 <ul className="mt-0.5">
-                  {group.items.map(({ href, label, icon: Icon }) => {
+                  {group.items.map(({ href, label, icon: Icon }: NavItem) => {
                     const active = isActive(pathname, href);
                     return (
                       <li key={href}>
@@ -708,7 +537,7 @@ export function Sidebar({
                 {uiMode === "guided" ? (
                   <PanelLeftOpen className="size-3.5" />
                 ) : (
-                  PanelLeftClose && <PanelLeftClose className="size-3.5" />
+                  <PanelLeftClose className="size-3.5" />
                 )}
                 <span>{uiMode === "guided" ? "Show all tools" : "Guided mode"}</span>
               </span>

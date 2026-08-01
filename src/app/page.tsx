@@ -182,20 +182,24 @@ export default async function DashboardPage() {
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
             {isFresh
-              ? "100+ SEO tools, daily-agent automation, audits, rank tracking, content writer, code generator — fully self-hosted, no monthly bill. Connect any AI provider and add your first client to unlock everything."
+              ? "Paste a URL and get a full technical audit in about a minute — no API keys, no signup, nothing to configure. Rank tracking, content tools and AI features are all here too, and you can turn them on once you've seen the audit."
               : "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills."}
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             {isFresh ? (
               <>
-                <Link href="/settings#ai" className={buttonVariants()}>
-                  Connect an AI provider
+                {/* Lead with the thing that produces a result, not the
+                    thing that asks for a credential. Audits need no AI
+                    key, so a first-time user can see real output before
+                    deciding whether to configure anything. */}
+                <Link href="/clients/new" className={buttonVariants()}>
+                  Add your first site
                 </Link>
                 <Link
-                  href="/clients/new"
+                  href="/settings#ai"
                   className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  Or add a client first
+                  Or connect an AI provider
                   <ArrowUpRight className="size-3.5" />
                 </Link>
               </>
