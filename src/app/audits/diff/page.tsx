@@ -13,6 +13,7 @@ import {
 import { db } from "@/db/client";
 import { audits, auditIssues, clients } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
+import { assertClientAccess } from "@/lib/client-scope";
 
 type IssueRow = typeof auditIssues.$inferSelect;
 
@@ -48,6 +49,10 @@ export default async function AuditDiffPage({
     .where(eq(clients.id, auditA.clientId))
     .limit(1);
   if (!client) notFound();
+  // This route takes audit ids, not a client id, so the per-client
+  // layout guard never sees it — check here or a member could diff any
+  // audit in the agency by id.
+  await assertClientAccess(auditA.clientId);
 
   const [issuesA, issuesB] = await Promise.all([
     db

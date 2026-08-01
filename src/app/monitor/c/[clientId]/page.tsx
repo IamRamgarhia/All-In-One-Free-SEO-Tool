@@ -13,6 +13,7 @@ import {
   CheckPageButton,
 } from "@/app/monitor/monitor-buttons";
 import { deleteMonitoredPage, setMonitorStatus } from "@/app/monitor/actions";
+import { clientScope } from "@/lib/client-scope";
 
 const fieldTone: Record<string, string> = {
   title: "bg-violet-500/15 text-violet-300 ring-violet-500/30",
@@ -41,6 +42,7 @@ export default async function PerClientMonitorPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const pages = await db

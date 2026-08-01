@@ -13,6 +13,7 @@ import { CsvImportExport } from "@/app/keywords/import-form";
 import { CheckRankButton, CheckAllRanksButton } from "@/app/keywords/rank-buttons";
 import { ScanSerpButton } from "@/app/keywords/serp-button";
 import { untrackKeyword } from "@/app/keywords/actions";
+import { clientScope } from "@/lib/client-scope";
 import { RankSparkline } from "./rank-sparkline";
 
 const deviceTone: Record<string, string> = {
@@ -117,6 +118,7 @@ export default async function PerClientKeywordsPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const tracked = await db

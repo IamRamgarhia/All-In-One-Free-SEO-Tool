@@ -336,7 +336,12 @@ export async function generateMonthlyCalendar(
     );
 
   // Insert as tasks
-  const rows: Omit<Task, "id" | "createdAt" | "updatedAt">[] = calendar.map(
+  // Attribution columns omitted: the calendar generates these, not a
+  // person, so they start unassigned.
+  const rows: Omit<
+    Task,
+    "id" | "createdAt" | "updatedAt" | "assignedUserId" | "completedByUserId"
+  >[] = calendar.map(
     (t) => ({
       clientId: c.id,
       title: t.title,

@@ -114,7 +114,15 @@ function pathOf(url: string): string {
   }
 }
 
-export type QuickWinTask = Omit<Task, "id" | "createdAt" | "updatedAt">;
+/**
+ * Attribution columns are omitted too: these tasks are generated from an
+ * audit, not by a person, so they start unassigned and whoever picks one
+ * up claims it. Requiring a userId here would mean inventing one.
+ */
+export type QuickWinTask = Omit<
+  Task,
+  "id" | "createdAt" | "updatedAt" | "assignedUserId" | "completedByUserId"
+>;
 
 /**
  * Build (but do not insert) the list of quick-win tasks for a client

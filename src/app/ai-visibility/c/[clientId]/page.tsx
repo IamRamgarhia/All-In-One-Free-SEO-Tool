@@ -14,6 +14,7 @@ import {
   CheckOneButton,
 } from "@/app/ai-visibility/check-buttons";
 import { BrowserModeAiToggle } from "@/app/ai-visibility/browser-mode-toggle";
+import { clientScope } from "@/lib/client-scope";
 
 const providerLabel: Record<string, string> = {
   openai: "ChatGPT",
@@ -46,6 +47,7 @@ export default async function PerClientAIVisibilityPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const { ids: configured } = await configuredProviders();

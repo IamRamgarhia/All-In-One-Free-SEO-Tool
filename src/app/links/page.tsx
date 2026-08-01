@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { clients, shortLinks } from "@/db/schema";
 import { asc, desc } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import { CreateLinkForm } from "./create-form";
 import { CsvImportForm } from "./csv-import-form";
 import { CopyButton } from "./copy-button";
@@ -16,6 +17,7 @@ export default async function ShortLinksPage() {
     db
       .select({ id: clients.id, name: clients.name })
       .from(clients)
+      .where(await clientScope())
       .orderBy(asc(clients.name)),
     db.select().from(shortLinks).orderBy(desc(shortLinks.createdAt)).limit(200),
     headers(),

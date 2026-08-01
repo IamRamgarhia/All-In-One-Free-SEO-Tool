@@ -1,6 +1,7 @@
 import { and, desc, eq, gt } from "drizzle-orm";
 import { db } from "@/db/client";
 import { activityLog } from "@/db/schema";
+import { currentUserId } from "./auth";
 
 export type ActivityKind =
   | "client.created"
@@ -74,6 +75,11 @@ export async function logActivity(opts: {
       clientId: opts.clientId ?? null,
       entityType: opts.entityType,
       entityId: opts.entityId,
+      // Attribution is resolved here rather than passed by each of the
+      // ~40 call sites, because a parameter that every caller has to
+      // remember is a parameter most callers will forget. Null when the
+      // scheduler did it, or on a solo install — both honest answers.
+      userId: await currentUserId(),
     });
   } catch {
     // Never let activity logging break the main flow

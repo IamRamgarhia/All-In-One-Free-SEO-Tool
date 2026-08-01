@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { clients, audits } from "@/db/schema";
 import { desc, eq, and, count } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import {
   ClientToolGrid,
   type ClientToolCard,
@@ -18,6 +19,7 @@ export default async function AuditsIndexPage() {
   const all = await db
     .select()
     .from(clients)
+    .where(await clientScope())
     .orderBy(desc(clients.createdAt))
     .limit(500);
 

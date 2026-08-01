@@ -5,12 +5,14 @@ import { FileUp } from "lucide-react";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import { CsvImportClient } from "./csv-import-client";
 
 export default async function CsvImportPage() {
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   return (

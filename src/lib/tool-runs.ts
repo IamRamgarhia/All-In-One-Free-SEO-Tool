@@ -10,6 +10,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { toolRuns, type NewToolRun, type ToolRun } from "@/db/schema";
+import { currentUserId } from "./auth";
 
 export type ToolRunInput<TResult = unknown, TInput = Record<string, unknown>> = {
   toolId: string;
@@ -28,6 +29,8 @@ export async function saveToolRun<TResult, TInput = Record<string, unknown>>(
     label: run.label.slice(0, 200),
     inputJson: (run.input ?? null) as Record<string, unknown> | null,
     resultJson: run.result,
+    // Resolved here, not passed in — see the same note in activity.ts.
+    userId: await currentUserId(),
   };
   const [row] = await db
     .insert(toolRuns)

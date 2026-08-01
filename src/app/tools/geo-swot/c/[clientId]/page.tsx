@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { generateGeoSwot } from "@/lib/geo-swot";
 import { configuredProviders } from "@/lib/api-keys";
+import { clientScope } from "@/lib/client-scope";
 
 /**
  * Per-client GEO SWOT report. Runs generateGeoSwot() on the current
@@ -39,6 +40,7 @@ export default async function PerClientGeoSwotPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const { ids: providersConfigured } = await configuredProviders();

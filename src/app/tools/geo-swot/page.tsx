@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { clients, aiVisibilityChecks, keywords } from "@/db/schema";
 import { desc, eq, count, inArray, sql } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import {
   ClientToolGrid,
   type ClientToolCard,
@@ -19,7 +20,7 @@ import {
  * client has, to hint whether a SWOT will be useful).
  */
 export default async function GeoSwotIndex() {
-  const all = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  const all = await db.select().from(clients).where(await clientScope()).orderBy(desc(clients.createdAt));
 
   const cards: ClientToolCard[] = await Promise.all(
     all.map(async (c) => {

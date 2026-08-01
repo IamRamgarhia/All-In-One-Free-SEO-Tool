@@ -63,6 +63,9 @@ data.db.bak-*
 
 # OAuth refresh tokens / API-key encryption key — leakage = account compromise
 .seo-encryption-key
+# Signs session cookies. Committing it would let anyone who reads the
+# repo mint a valid session for any user id on any install built from it.
+.seo-session-secret
 
 # Per-instance runtime state
 .seo-port

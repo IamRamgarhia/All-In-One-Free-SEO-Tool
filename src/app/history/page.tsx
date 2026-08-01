@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { clients, toolRuns } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { TOOL_LABELS } from "@/lib/tool-runs";
+import { clientScope } from "@/lib/client-scope";
 import { HistoryClient } from "./client";
 
 type SearchParams = {
@@ -26,6 +27,7 @@ export default async function HistoryPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(clients.name);
 
   let q = db.select().from(toolRuns).$dynamic();

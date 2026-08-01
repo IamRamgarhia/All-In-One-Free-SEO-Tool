@@ -11,6 +11,7 @@ import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { AddCompetitorForm } from "@/app/competitors/add-form";
 import { deleteCompetitor } from "@/app/competitors/actions";
 import { EmptyState } from "@/components/ui/empty-state";
+import { clientScope } from "@/lib/client-scope";
 
 export default async function PerClientCompetitorsPage({
   params,
@@ -31,6 +32,7 @@ export default async function PerClientCompetitorsPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const rows = await db

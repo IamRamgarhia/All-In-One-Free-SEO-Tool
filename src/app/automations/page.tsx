@@ -22,6 +22,7 @@ import { NewAutomationForm } from "./new-form";
 import { WebhookTester } from "./webhook-tester";
 import { deleteAutomation, setAutomationEnabled } from "./actions";
 import { getSetting } from "@/lib/settings-store";
+import { clientScope } from "@/lib/client-scope";
 
 const triggerLabels: Record<string, { label: string; tone: string }> = {
   audit_completed: {
@@ -56,6 +57,7 @@ export default async function AutomationsPage() {
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(clients.name);
 
   const rows = await db

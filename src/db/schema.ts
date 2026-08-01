@@ -174,6 +174,14 @@ export const tasks = sqliteTable("tasks", {
   source: text("source"),
   /** Identifier of the plan run that produced this task (date-stamp). */
   sourceRef: text("source_ref"),
+  /** Who owns this task. Null on solo installs and on every pre-accounts row. */
+  assignedUserId: integer("assigned_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  /** Who actually finished it — the input /capacity and reports needed. */
+  completedByUserId: integer("completed_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   ...timestamps,
 });
 
@@ -619,6 +627,10 @@ export const activityLog = sqliteTable("activity_log", {
   })
     .notNull()
     .default("info"),
+  /** Who did it. Null for scheduler-driven entries and solo installs. */
+  userId: integer("user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -1516,6 +1528,10 @@ export const toolRuns = sqliteTable("tool_runs", {
   pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
   /** Optional free-form notes the user can add. */
   notes: text("notes"),
+  /** Who ran it. Null for scheduler runs and solo installs. */
+  userId: integer("user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -1851,3 +1867,84 @@ export const publishQueue = sqliteTable("publish_queue", {
 export type PublishQueueItem = typeof publishQueue.$inferSelect;
 export type NewPublishQueueItem = typeof publishQueue.$inferInsert;
 
+
+/**
+ * Accounts. Opt-in: an install with zero rows here keeps the original
+ * single-`APP_PASSWORD` behaviour, so no existing solo user is forced
+ * through a migration they didn't ask for. The moment someone registers,
+ * the app switches to real logins.
+ *
+ * Multi-USER, not multi-tenant — see 0054_users_and_teams.sql for why
+ * that distinction is deliberate.
+ */
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Stored lowercased; a `lower(email)` unique index is the backstop. */
+  email: text("email").notNull(),
+  /** scrypt, per-user salt. Never leaves the server. See src/lib/auth.ts. */
+  passwordHash: text("password_hash").notNull(),
+  name: text("name"),
+  role: text("role", {
+    enum: ["owner", "manager", "member", "viewer"],
+  })
+    .notNull()
+    .default("member"),
+  /** Deactivate rather than delete, so their attribution survives. */
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
+});
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Role = User["role"];
+
+/**
+ * Which clients a `member` or `viewer` may see. Owners and managers see
+ * everything and have no rows here — absence means unrestricted, which
+ * keeps the common case free of bookkeeping.
+ *
+ * The composite primary key and the `user_id` index live in
+ * 0054_users_and_teams.sql, not here. That's the convention throughout
+ * this file: no table declares its indexes to Drizzle, because the SQL
+ * files are hand-written and the generator has never emitted them. A
+ * table that broke the pattern would show up as a spurious diff the next
+ * time anyone runs `db:generate`.
+ */
+export const clientMembers = sqliteTable("client_members", {
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+/**
+ * Pending invitations. We store a hash of the invite token, not the
+ * token — same reasoning as passwords: a leaked database shouldn't hand
+ * anyone a working login link.
+ */
+export const userInvites = sqliteTable("user_invites", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull(),
+  role: text("role", {
+    enum: ["owner", "manager", "member", "viewer"],
+  })
+    .notNull()
+    .default("member"),
+  tokenHash: text("token_hash").notNull(),
+  invitedBy: integer("invited_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  acceptedAt: integer("accepted_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type UserInvite = typeof userInvites.$inferSelect;

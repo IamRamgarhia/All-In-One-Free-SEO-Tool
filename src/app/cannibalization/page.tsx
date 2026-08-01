@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolGrid } from "@/components/shell/client-tool-grid";
+import { clientScope } from "@/lib/client-scope";
 
 export default async function CannibalizationPickerPage() {
   const allClients = await db
@@ -18,6 +19,7 @@ export default async function CannibalizationPickerPage() {
       gscProperty: clients.gscProperty,
     })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   return (

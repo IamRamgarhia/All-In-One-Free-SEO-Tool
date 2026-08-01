@@ -77,6 +77,32 @@ jobs:
         env:
           CI: "1"
 
+      # The auth gate cannot be tested in-process. Middleware runs in the
+      # Edge sandbox and learns the auth mode from the Node runtime, and
+      # the first version of that handshake silently failed: registering
+      # the first owner issued a correct session and left every page
+      # reachable with no cookie at all, until someone restarted the
+      # server. Nothing above would have caught it — the unit tests were
+      # green, the build was green, and the bug only exists across the
+      # two runtimes.
+      #
+      # Needs its own database because it registers a permanent owner.
+      - name: Auth flow (real server, scratch DB)
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/auth.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          PORT=3100 pnpm start &
+          server=$!
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:3100/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          node scripts/auth-check.mjs http://localhost:3100 "$SEO_DB_PATH"
+          status=$?
+          kill $server 2>/dev/null || true
+          exit $status
+
       - name: Upload E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -86,3 +112,87 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # Separate job, because the failure it catches has nothing to do with
+  # the one above.
+  #
+  # A user's install died at `RUN pnpm build` inside Docker while the
+  # same commit built fine natively. Three causes, none visible to the
+  # job above: pnpm-workspace.yaml wasn't COPYied into the deps stage,
+  # `corepack prepare pnpm@latest` floated the image onto a different
+  # pnpm than the lockfile, and `pnpm build` silently triggers an install
+  # that doesn't inherit --ignore-scripts.
+  #
+  # Docker is the documented install path for non-technical users. It
+  # needs its own gate.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: seo-tool:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Building isn't enough — the image also has to boot, run
+      # migrations against an empty volume, and serve. A container that
+      # builds and then crash-loops is the same outcome for the user.
+      - name: Boot the container and wait for health
+        run: |
+          docker run -d --name seo-ci \
+            -p 3000:3000 \
+            -e APP_PASSWORD=ci-smoke-test \
+            -v seo-ci-data:/data \
+            seo-tool:ci
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/v1/health > /dev/null 2>&1; then
+              echo "healthy after ${i}s"
+              exit 0
+            fi
+            if ! docker ps --filter name=seo-ci --filter status=running -q | grep -q .; then
+              echo "container exited early:"
+              docker logs seo-ci
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "never became healthy:"
+          docker logs seo-ci
+          exit 1
+
+      # The password gate must not block the endpoints that carry their
+      # own auth — that regression shipped once and made client portals
+      # and the public API unreachable on every real deployment.
+      - name: Password gate lets through what it should
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/v1/health)
+          [ "$code" = "200" ] || { echo "health behind auth: $code"; exit 1; }
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' -L http://localhost:3000/)
+          [ "$code" = "200" ] || { echo "login page not served: $code"; exit 1; }
+
+      # The container refuses to start without APP_PASSWORD. Verify that
+      # guard actually fires, or it's decoration.
+      - name: Refuses to boot unauthenticated
+        run: |
+          if docker run --rm --name seo-ci-noauth seo-tool:ci 2>&1 | tee /tmp/out; then
+            echo "started without APP_PASSWORD — the guard did not fire"
+            exit 1
+          fi
+          grep -q "REFUSING TO START" /tmp/out || {
+            echo "failed for the wrong reason:"; cat /tmp/out; exit 1; }
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs seo-ci || true

@@ -5,6 +5,7 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import { AdsFunnelForm } from "./form";
 
 export default async function AdsFunnelToolPage({
@@ -23,6 +24,7 @@ export default async function AdsFunnelToolPage({
       niche: clients.niche,
     })
     .from(clients)
+    .where(await clientScope())
     .orderBy(desc(clients.createdAt));
 
   return (

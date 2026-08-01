@@ -17,6 +17,7 @@ import { db } from "@/db/client";
 import { activityLog, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { clientScope } from "@/lib/client-scope";
 
 const kindMeta: Record<
   string,
@@ -96,6 +97,7 @@ export default async function ActivityPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(clients.name);
 
   // Counts for filter chips (computed once)

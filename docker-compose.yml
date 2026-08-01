@@ -26,7 +26,23 @@ services:
     environment:
       # Password gate. Required for any non-loopback bind — the
       # entrypoint refuses to start without it (see docker-entrypoint).
+      #
+      # This is the one-password mode: everyone who has it is the same
+      # anonymous user. If more than one person uses this instance, open
+      # Settings → Team and register instead. Accounts supersede this
+      # password — once they exist, APP_PASSWORD no longer gets anyone in.
       APP_PASSWORD: ${APP_PASSWORD:-}
+      # Optional. Signs session cookies once accounts are in use. Leave
+      # unset and one is generated into /data/.seo-session-secret on
+      # first boot; set it explicitly if you run more than one replica,
+      # since each would otherwise generate its own and reject the
+      # other's cookies. Losing it logs everyone out and nothing more —
+      # it is not the encryption key, and no stored data depends on it.
+      SEO_SESSION_SECRET: ${SEO_SESSION_SECRET:-}
+      # Set to 1 when terminating TLS somewhere this container can't
+      # see (some tunnels), to force Secure on the session cookie.
+      # Normally unnecessary — x-forwarded-proto is honoured.
+      SEO_COOKIE_SECURE: ${SEO_COOKIE_SECURE:-}
       # Set to 1 when running behind nginx/Caddy/Cloudflare so
       # x-forwarded-for is trusted for the admin-endpoint IP check.
       TRUSTED_PROXY: ${TRUSTED_PROXY:-}

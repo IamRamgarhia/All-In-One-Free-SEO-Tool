@@ -12,6 +12,7 @@ import {
 import { db } from "@/db/client";
 import { audits, clients, tasks } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 
 const ESTIMATED_HOURS_PER_TASK = 0.75;
 
@@ -25,6 +26,7 @@ export default async function CapacityPage() {
       niche: clients.niche,
     })
     .from(clients)
+    .where(await clientScope())
     .orderBy(clients.name);
 
   const monthAgo = new Date();

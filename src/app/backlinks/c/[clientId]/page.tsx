@@ -13,6 +13,7 @@ import { LogLinkForm } from "@/app/backlinks/log-link-form";
 import { setBacklinkStatus, deleteBacklink } from "@/app/backlinks/actions";
 import { ClientInfoCard } from "@/components/client-info-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { clientScope } from "@/lib/client-scope";
 
 const statusTone: Record<string, string> = {
   active: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
@@ -55,6 +56,7 @@ export default async function PerClientBacklinksPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const rows = await db

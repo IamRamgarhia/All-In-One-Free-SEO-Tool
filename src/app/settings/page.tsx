@@ -17,11 +17,12 @@ import {
   Settings as SettingsIcon,
   Shield,
   Sparkles,
+  Users2,
 } from "lucide-react";
 import { SmtpForm } from "./smtp-form";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { db } from "@/db/client";
-import { audits, clients, keywords, tasks } from "@/db/schema";
+import { audits, clients, keywords, tasks, users } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { getSetting } from "@/lib/settings-store";
 import {
@@ -57,6 +58,9 @@ export default async function SettingsPage() {
   const [{ value: keywordCount }] = await db
     .select({ value: count() })
     .from(keywords);
+  const [{ value: teamCount }] = await db
+    .select({ value: count() })
+    .from(users);
 
   const dbPath =
     process.env.SEO_DB_PATH ?? path.join(process.cwd(), "data.db");
@@ -118,7 +122,9 @@ export default async function SettingsPage() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <span className="inline-flex items-center gap-1.5 font-medium">
             <span className="size-1.5 rounded-full bg-emerald-400" />
-            Local · single-user
+            {teamCount > 0
+              ? `Local · ${teamCount} ${teamCount === 1 ? "account" : "accounts"}`
+              : "Local · single-user"}
           </span>
           <span className="text-muted-foreground">{tz}</span>
           <span className="text-muted-foreground">Dark mode</span>
@@ -155,6 +161,7 @@ export default async function SettingsPage() {
               items: [
                 { href: "#ai", label: "AI keys", primary: true },
                 { href: "#google", label: "Google" },
+                { href: "#team", label: "Team" },
                 { href: "#email", label: "Email" },
               ],
             },
@@ -320,6 +327,43 @@ export default async function SettingsPage() {
             className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
           >
             {googleStatus.configured ? "Manage" : "Set up"}
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Team — accounts, roles, per-client access */}
+      <section
+        id="team"
+        className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md"
+      >
+        <header className="relative border-b border-white/5 px-5 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Users2 className="size-4 text-violet-300" />
+            Team
+            {teamCount > 0 ? (
+              <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
+                <CheckCircle2 className="size-3" />
+                {teamCount} {teamCount === 1 ? "person" : "people"}
+              </span>
+            ) : (
+              <span className="ml-1 inline-flex rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                Single password
+              </span>
+            )}
+          </h2>
+        </header>
+        <div className="flex items-center justify-between gap-4 px-5 py-4">
+          <p className="text-xs text-muted-foreground">
+            {teamCount > 0
+              ? "Everyone signs in as themselves. Assign clients so people only see the ones they work on."
+              : "Working with other people? Give each of them their own login, and assign who sees which clients."}
+          </p>
+          <Link
+            href="/settings/team"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors hover:bg-white/10"
+          >
+            {teamCount > 0 ? "Manage" : "Set up"}
             <ArrowRight className="size-3.5" />
           </Link>
         </div>

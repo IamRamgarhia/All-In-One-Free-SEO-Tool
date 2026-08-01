@@ -5,6 +5,7 @@ import { FileDown } from "lucide-react";
 import { db } from "@/db/client";
 import { clients, reportArchives } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import { ArchiveClient } from "./client";
 
 type SearchParams = { client?: string };
@@ -20,6 +21,7 @@ export default async function ReportArchivePage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(clients.name);
 
   let q = db

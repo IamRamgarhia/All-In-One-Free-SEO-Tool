@@ -302,12 +302,22 @@ Detected automatically via Wappalyzer + HTTP signatures. Recommendations adapt p
 ✅ Best-practices library citing Google's actual documentation  
 ✅ Google algorithm-update tracker (pulls from Search Status Dashboard)
 
+### 👥 Team (for agencies)
+✅ **Accounts are opt-in** — one person on one laptop needs none, and nothing changes for them  
+✅ Settings → Team: whoever registers first becomes the owner, everyone else joins by invite link  
+✅ Four roles — owner, manager, member, client viewer  
+✅ **Per-client access** — assign a member to three of your eighteen clients and that's all they see, everywhere: dashboard, tasks, reports, keywords. Typing another client's URL returns a 404, not a 403, so the roster itself stays private  
+✅ Deactivate rather than delete, so their name stays on the work they did  
+✅ Task completions, activity and tool runs record who did them  
+⚠️ Invite links are shown for you to copy, not emailed — no SMTP setup needed to add a second person
+
 ### 🔐 Privacy & data ownership
 ✅ **All data in a single SQLite file on your machine** — no cloud sync, no telemetry, no phone-home, no analytics  
 ✅ API keys + OAuth tokens encrypted at rest (AES-256-GCM)  
+✅ Passwords hashed with salted scrypt; sessions signed, 14-day expiry, revoked immediately on password change or deactivation  
 ✅ Backup = copy the install folder  
 ✅ Works fully offline with Ollama for AI  
-✅ Default-bind to localhost — LAN exposure is opt-in via `APP_PASSWORD`
+✅ Default-bind to localhost — LAN exposure is opt-in via `APP_PASSWORD` or real accounts
 
 ---
 

@@ -7,6 +7,7 @@ import { ListChecks, Sparkles, Clock, Check, LayoutGrid, LayoutTemplate, List } 
 import { db } from "@/db/client";
 import { tasks, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import { type TaskRowData } from "./task-row";
 import { NewTaskTrigger } from "./new-task-form";
 import { TasksBulkList, type BulkTask } from "./bulk-list";
@@ -62,6 +63,7 @@ export default async function TasksPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(clients.name);
 
   const filtered = all.filter((t) => inFilter(t, filter));

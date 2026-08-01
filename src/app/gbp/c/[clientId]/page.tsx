@@ -19,6 +19,7 @@ import { GbpPostComposer } from "./post-composer";
 import { GbpPostIdeas } from "./post-ideas";
 import { playbookFor, scoreGbpProfile } from "@/lib/gbp-playbook";
 import { ClientInfoCard } from "@/components/client-info-card";
+import { clientScope } from "@/lib/client-scope";
 import {
   getCompletionsForClient,
   togglePlaybookItem,
@@ -43,6 +44,7 @@ export default async function PerClientGbpPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   if (!client.gbpUrl) {

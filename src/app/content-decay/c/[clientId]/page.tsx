@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { findContentDecay } from "@/lib/google-data";
 import { ClientInfoCard } from "@/components/client-info-card";
+import { clientScope } from "@/lib/client-scope";
 
 export default async function PerClientContentDecayPage({
   params,
@@ -33,6 +34,7 @@ export default async function PerClientContentDecayPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   if (!client.gscProperty) {
