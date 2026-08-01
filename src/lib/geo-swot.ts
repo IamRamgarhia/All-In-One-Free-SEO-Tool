@@ -30,7 +30,7 @@
  * user's chosen provider (any free tier works).
  */
 
-import { and, eq, desc, gte, sql } from "drizzle-orm";
+import { and, eq, desc, gte } from "drizzle-orm";
 import { db } from "@/db/client";
 import { aiVisibilityChecks, competitors, keywords, clients } from "@/db/schema";
 import { callAI } from "./ai-call";

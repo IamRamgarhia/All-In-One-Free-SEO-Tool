@@ -1,4 +1,5 @@
 import type { ClientSocialLinks } from "@/db/schema";
+import { guardedFetch } from "./url-guard";
 
 export type SiteMetadata = {
   /** Final URL after redirects (origin-normalized). */
@@ -61,8 +62,7 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
 
   let res: Response;
   try {
-    res = await fetch(url, {
-      redirect: "follow",
+    res = await guardedFetch(url, {
       signal: controller.signal,
       headers: {
         "user-agent":

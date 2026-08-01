@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { Loader2, Network } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";

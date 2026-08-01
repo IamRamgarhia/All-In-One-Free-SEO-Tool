@@ -176,15 +176,6 @@ export async function callAIResult(opts: AiCallOptions): Promise<AiResult> {
     }
   }
 
-  // Re-pack — downstream provider helpers spread this onto their request
-  const packed: AiCallOptions = {
-    system,
-    user: safeUser,
-    maxTokens: max,
-    temperature,
-    timeoutMs,
-  };
-
   // Wrap dispatch with logging — each path returns (text, model)
   const start = Date.now();
   let model: string | null = null;

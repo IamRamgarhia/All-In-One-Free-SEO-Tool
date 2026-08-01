@@ -3,13 +3,7 @@ export const dynamic = "force-dynamic";
 import { Sparkles, Sun } from "lucide-react";
 import { count, desc, eq, ne, gte } from "drizzle-orm";
 import { db } from "@/db/client";
-import {
-  audits,
-  clients,
-  keywordRankings,
-  keywords,
-  tasks,
-} from "@/db/schema";
+import { audits, clients, keywordRankings, tasks } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { MorningBriefing } from "../morning-briefing";
 

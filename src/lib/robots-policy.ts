@@ -17,6 +17,8 @@
  * Request-rate, Visit-time — none affect whether we may fetch a URL.
  */
 
+import { guardedFetch } from "./url-guard";
+
 export type RobotsRule = { allow: boolean; pattern: string };
 
 export type RobotsPolicy = {
@@ -184,9 +186,8 @@ export async function fetchRobotsPolicy(
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${origin}/robots.txt`, {
+    const res = await guardedFetch(`${origin}/robots.txt`, {
       signal: ctl.signal,
-      redirect: "follow",
       headers: { "user-agent": userAgent, accept: "text/plain" },
     });
     if (res.status >= 400 && res.status < 500) return ALLOW_ALL;

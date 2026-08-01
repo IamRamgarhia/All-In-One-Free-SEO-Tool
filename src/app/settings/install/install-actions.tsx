@@ -44,8 +44,6 @@ export function InstallActions() {
       setInstallPrompt(e as BeforeInstallPromptEvent);
     }
     function onInstalled() {
-      // navigator.standalone is browser-only and can't be read during SSR.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPwaInstalled(true);
       setInstallPrompt(null);
     }

@@ -1,19 +1,42 @@
 /**
- * Reads the user's _SEO DATA.xlsx and produces a clean JSON seed file at
- * src/data/seo-resources.json. Run once: `pnpm exec tsx src/db/import-xlsx.ts`.
+ * Regenerates the backlink-prospect seed file (src/data/seo-resources.json)
+ * from a spreadsheet of SEO resource sites.
  *
- * SECURITY NOTE: this script uses the `xlsx` (SheetJS community) package
- * which has known prototype-pollution CVEs in the past. That risk does
- * NOT apply here — this is a one-shot DEV-ONLY script that reads a
- * trusted local file owned by the maintainer. We deliberately do NOT
- * accept user-uploaded xlsx anywhere in the running app. If you change
- * that later, swap to `exceljs` first.
+ * Maintainer-only, run rarely:
+ *
+ *   pnpm exec tsx src/db/import-xlsx.ts "path/to/SEO DATA.xlsx"
+ *   SEO_XLSX=path/to/data.xlsx pnpm exec tsx src/db/import-xlsx.ts
+ *
+ * The committed JSON is the thing the app actually reads, so you only
+ * need this when the source spreadsheet changes.
+ *
+ * SECURITY NOTE: uses the `xlsx` (SheetJS community) package, which has
+ * had prototype-pollution advisories. That risk doesn't apply here —
+ * this is a dev-only script reading a file the maintainer chose, and
+ * the app never accepts user-uploaded xlsx. If that changes, move to
+ * `exceljs` first. The package is a devDependency for the same reason.
  */
 import * as XLSX from "xlsx";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-const FILE = "C:\\Users\\princ\\Downloads\\_SEO DATA.xlsx";
+// Path comes from argv or env — it used to be hardcoded to one
+// maintainer's Downloads folder, which meant the script was unrunnable
+// by anyone else and put a personal filesystem path in a public repo.
+const FILE = process.argv[2] ?? process.env.SEO_XLSX ?? "";
+
+if (!FILE) {
+  console.error(
+    "Usage: pnpm exec tsx src/db/import-xlsx.ts <path-to-xlsx>\n" +
+      "   or: SEO_XLSX=<path> pnpm exec tsx src/db/import-xlsx.ts",
+  );
+  process.exit(1);
+}
+
+if (!existsSync(FILE)) {
+  console.error(`Spreadsheet not found: ${FILE}`);
+  process.exit(1);
+}
 const OUT = resolve(process.cwd(), "src", "data", "seo-resources.json");
 
 // Map sheet name → category (canonical, lowercase, hyphenated)

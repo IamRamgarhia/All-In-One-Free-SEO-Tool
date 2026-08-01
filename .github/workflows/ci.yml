@@ -38,18 +38,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # Hard gate. The repo was at ~75 errors when CI was introduced —
-      # almost all React 19's `set-state-in-effect` rule catching real
-      # double-render patterns. Those are fixed; the handful of effects
-      # that are genuinely correct carry a per-line disable with the
-      # reason. Keeping this blocking is what stops the count creeping
-      # back up.
+      # Hard gate, zero tolerance. The repo was at 75 errors + 93 warnings
+      # when CI was introduced; both are now at zero, and two of the
+      # "warnings" turned out to be real bugs hiding in the noise (an
+      # unfiltered client-scoped query, a transparent chart fill).
       #
-      # Warnings are not failed on: the repo has ~93, mostly unused vars
-      # in work-in-progress code, and failing on those would push people
-      # toward deleting useful scaffolding rather than finishing it.
+      # --max-warnings=0 is the point: a warning nobody fails on is a
+      # warning nobody reads, and that is exactly how those two survived.
+      # If a new one is genuinely fine, mark it — underscore-prefix an
+      # intentionally-unused binding, or add a disable with the reason.
       - name: Lint
-        run: pnpm lint
+        run: pnpm lint -- --max-warnings=0
 
       - name: Test
         run: pnpm test

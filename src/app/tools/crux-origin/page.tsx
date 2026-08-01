@@ -10,7 +10,7 @@ import {
   type OriginSummaryState,
 } from "../crux/actions";
 import { RecentRuns } from "@/components/recent-runs";
-import { useEffect, useState } from "react";
+
 
 const THRESH: Record<string, { good: number; ni: number; unit: string }> = {
   lcp: { good: 2500, ni: 4000, unit: "ms" },

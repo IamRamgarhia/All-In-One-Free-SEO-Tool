@@ -1,3 +1,5 @@
+
+import { guardedFetch } from "./url-guard";
 type DetectionRule = {
   name: string;
   category: "cms" | "framework" | "hosting" | "ecommerce" | "analytics" | "cdn";
@@ -148,8 +150,7 @@ export async function detectTechStack(rawUrl: string): Promise<DetectionResult> 
 
   let res: Response;
   try {
-    res = await fetch(url, {
-      redirect: "follow",
+    res = await guardedFetch(url, {
       signal: controller.signal,
       headers: {
         "user-agent":

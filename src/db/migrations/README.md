@@ -5,29 +5,51 @@
 `scripts/migrate.cjs` reads the `.sql` files in this folder, sorts by filename,
 and applies each one not yet recorded in the `__drizzle_migrations` table.
 Statements are split on `--> statement-breakpoint`. The Docker entrypoint runs
-this on every boot.
+this on every boot, and `predev` / `prebuild` run it locally.
 
-## Journal vs SQL drift (intentional)
+## Adding a migration
 
-The Drizzle journal (`meta/_journal.json`) and snapshot files (`meta/*.json`)
-only cover `0000` through `0022`. Migrations `0023` onward were authored as
-hand-written SQL and applied directly without regenerating snapshots.
+```sh
+# 1. Edit src/db/schema.ts
+# 2. Generate the SQL + snapshot
+pnpm db:generate
+# 3. Apply it
+pnpm db:migrate
+```
 
-This is **fine for production** because `migrate.cjs` works off the SQL files
-and the in-DB `__drizzle_migrations` table — it never reads the journal.
+`pnpm db:generate` is safe to run. It used not to be — see below.
 
-The drift only affects `drizzle-kit generate` — if you change `schema.ts` and
-re-generate, the diff will be computed against the `0019` snapshot, which is
-out of date. **Do not blindly run `drizzle-kit generate` against this repo.**
+## The journal drift, and how it was fixed (Aug 2026)
 
-## To re-align the journal (future cleanup)
+The Drizzle journal (`meta/_journal.json`) and its snapshots used to stop at
+`0022`, because migrations `0023`–`0052` were hand-written SQL applied
+directly without regenerating snapshots.
 
-1. Spin up a fresh empty SQLite DB.
-2. Run every SQL migration in order.
-3. Run `pnpm db:generate` once with the current `schema.ts` to capture an
-   accurate snapshot of the final state.
-4. Either delete and regenerate all SQL + snapshots, or accept a single
-   `00XX_realign.sql` that's a no-op and write snapshots forward from there.
+That was harmless in production — `migrate.cjs` works off the SQL files and the
+in-DB `__drizzle_migrations` table, and never reads the journal. But it made
+`drizzle-kit generate` actively dangerous, and worse than "produces a stale
+diff":
 
-Until that's done, treat the SQL files as the source of truth and edit
-`schema.ts` to mirror them by hand for type-safety.
+- It diffed `schema.ts` against the **0022** snapshot and emitted a 576-line
+  migration recreating 37 tables and adding 44 columns — every change from
+  0023–0052, duplicated.
+- It named that file `0023_omniscient_meteorite.sql`, which **collides with the
+  existing `0023_outreach_email.sql`** and sorts *before* it.
+- Since `migrate.cjs` sorts by filename, running it would have attempted
+  `CREATE TABLE` on tables that already exist, on a live database.
+
+**Fixed by `0053_realign_journal.sql`**: a deliberate no-op whose only purpose is
+to carry `meta/0053_snapshot.json`, which describes the real current schema.
+Future `generate` runs diff against that and emit correct incremental
+migrations. Verified: a fresh DB built from all 54 SQL files, then
+`pnpm db:generate`, reports *"No schema changes, nothing to migrate"*.
+
+The intermediate snapshots (`0020`–`0052`) were never created and aren't
+reconstructed — Drizzle only needs the most recent one to compute the next
+diff, so their absence costs nothing.
+
+## Editing schema.ts by hand
+
+Still fine, and still necessary if you write raw SQL for something Drizzle
+can't express. Just run `pnpm db:generate` afterwards so the snapshot keeps up
+— if it reports "No schema changes", `schema.ts` and the SQL agree.

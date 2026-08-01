@@ -1,0 +1,18 @@
+-- No-op. This migration exists only to give the Drizzle journal a
+-- truthful snapshot to diff future changes against.
+--
+-- Background: the journal and meta/*.json snapshots stopped at 0022,
+-- while migrations 0023-0052 were hand-written SQL applied directly.
+-- scripts/migrate.cjs works off the SQL files and the in-DB
+-- __drizzle_migrations table and never reads the journal, so production
+-- was always correct — but `drizzle-kit generate` diffed schema.ts
+-- against the 0022 snapshot and emitted a 576-line migration recreating
+-- 37 tables, named 0023_*, which SORTED BEFORE the real
+-- 0023_outreach_email.sql. Running it would have attempted CREATE TABLE
+-- on a live database.
+--
+-- meta/0053_snapshot.json now describes the real current schema, so
+-- `pnpm db:generate` produces correct incremental diffs from here on.
+-- Nothing to apply: every change it would have described is already in
+-- 0023 through 0052.
+SELECT 1;

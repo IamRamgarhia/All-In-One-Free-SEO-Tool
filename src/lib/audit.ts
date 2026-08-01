@@ -3,6 +3,7 @@ import {
   fetchRobotsPolicy,
   isAllowed,
 } from "./robots-policy";
+import { guardedFetch, guardUrl } from "./url-guard";
 
 export type Severity = "critical" | "high" | "medium" | "low";
 
@@ -146,8 +147,14 @@ async function fetchPage(url: string, timeoutMs = 12_000): Promise<FetchedPage |
   const t = setTimeout(() => controller.abort(), timeoutMs);
   const start = Date.now();
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
+    // guardedFetch, not fetch: `url` comes from a user-typed address
+    // and from hrefs discovered on the crawled page, so the server is
+    // being asked to connect wherever those point. Without this a
+    // crawl could be steered at 169.254.169.254 (cloud credentials) or
+    // at services on the host, and redirects are re-checked per hop
+    // because "public URL that 302s somewhere internal" is the usual
+    // bypass.
+    const res = await guardedFetch(url, {
       signal: controller.signal,
       headers: {
         "user-agent": USER_AGENT,
@@ -179,8 +186,7 @@ async function fetchUrlStatus(
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
+    const res = await guardedFetch(url, {
       method: "HEAD",
       signal: controller.signal,
       headers: { "user-agent": USER_AGENT },
@@ -200,8 +206,7 @@ async function fetchText(
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
+    const res = await guardedFetch(url, {
       signal: controller.signal,
       headers: { "user-agent": USER_AGENT },
     });
@@ -1308,6 +1313,31 @@ export async function runAudit(
   const maxPages = options.maxPages ?? 25;
   const maxDepth = options.maxDepth ?? 2;
   const renderJs = options.renderJs !== false;
+
+  // Check the entry URL up front and say plainly why it was refused.
+  // Left to the crawler, a blocked address falls through as "No pages
+  // reachable. Check the URL or your network." — which sends someone
+  // auditing http://localhost:3000 off debugging their network instead
+  // of telling them the server won't fetch its own address.
+  const entryVerdict = await guardUrl(url);
+  if (!entryVerdict.ok) {
+    return {
+      url,
+      finalUrl: url,
+      status: 0,
+      fetchedAt,
+      pagesCrawled: 0,
+      findings: [
+        {
+          type: "blocked_url",
+          severity: "critical",
+          url,
+          message: `${entryVerdict.reason} Audits run on the server, so it can only reach addresses that are reachable from the public internet.`,
+        },
+      ],
+      score: 0,
+    };
+  }
 
   // Crawl
   let pages: FetchedPage[];

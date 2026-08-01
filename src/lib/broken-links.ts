@@ -4,6 +4,8 @@
  * detect 404/410/timeouts.
  */
 
+import { guardedFetch } from "./url-guard";
+
 export type LinkCheck = {
   href: string;
   anchor: string;
@@ -35,9 +37,8 @@ async function fetchText(
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
-      redirect: "follow",
       headers: {
         "user-agent":
           "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost)",
@@ -72,20 +73,18 @@ async function checkLink(
     // so fall through to GET on common failure codes.
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await guardedFetch(url, {
         method: "HEAD",
         signal: c.signal,
-        redirect: "follow",
         headers: {
           "user-agent":
             "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost)",
         },
       });
       if (res.status === 405 || res.status === 501) {
-        res = await fetch(url, {
+        res = await guardedFetch(url, {
           method: "GET",
           signal: c.signal,
-          redirect: "follow",
           headers: {
             "user-agent":
               "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost)",
@@ -94,10 +93,9 @@ async function checkLink(
       }
     } catch {
       // Some hosts close the connection on HEAD — retry as GET
-      res = await fetch(url, {
+      res = await guardedFetch(url, {
         method: "GET",
         signal: c.signal,
-        redirect: "follow",
         headers: {
           "user-agent":
             "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost)",

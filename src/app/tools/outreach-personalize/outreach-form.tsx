@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Check, Copy, Loader2, Send, Sparkles } from "lucide-react";
+import { Check, Copy, Loader2, Sparkles } from "lucide-react";
 import { runPersonalize, type OutreachState } from "./actions";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
 

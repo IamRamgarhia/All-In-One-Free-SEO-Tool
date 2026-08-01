@@ -2,51 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
-import {
-  LayoutDashboard,
-  Users,
-  ListChecks,
-  ClipboardList,
-  Search,
-  FileText,
-  Network,
-  Sparkles,
-  Settings,
-  GraduationCap,
-  Link2,
-  Activity,
-  Send,
-  History,
-  Workflow,
-  Receipt,
-  ScanText,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Wand2,
-  Bot,
-  FileDown,
-  Gauge,
-  GitCompare,
-  MapPin,
-  Wrench,
-  Building,
-  Image as ImageIcon,
-  Layers,
-  Newspaper,
-  TrendingDown,
-  Flame,
-  GitMerge,
-  Magnet,
-  Megaphone,
-  Target,
-  Video,
-  Globe,
-  ChevronDown,
-  ChevronRight,
-  type LucideIcon,
-} from "lucide-react";
+import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
 import { useStoredState } from "@/components/use-stored-state";
 

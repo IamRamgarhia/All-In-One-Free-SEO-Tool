@@ -32,6 +32,26 @@ const eslintConfig = defineConfig([
     },
   },
 
+  // An underscore prefix means "this binding is deliberately unused".
+  // Needed for parameters whose position is fixed by a signature — a
+  // callback that only wants the third argument, or a function keeping a
+  // parameter for API parity. Without this the only ways to silence the
+  // warning are to delete a parameter that must stay, or to scatter
+  // eslint-disable comments; the convention is clearer than either.
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+
   // `react-hooks/purity` flags `Date.now()` / `new Date()` during render.
   // That is the right call in a Client Component, where render can run
   // many times and must be deterministic for hydration to match.

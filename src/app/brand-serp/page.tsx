@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { eq } from "drizzle-orm";
+
 import { Crown } from "lucide-react";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";

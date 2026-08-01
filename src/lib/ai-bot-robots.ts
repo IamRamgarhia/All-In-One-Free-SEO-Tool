@@ -16,6 +16,8 @@
  * their robots.txt with the recommended rules.
  */
 
+import { guardedFetch } from "./url-guard";
+
 /**
  * Canonical list of AI bot User-Agent strings. Kept in one place so
  * every UI + report reads the same list.
@@ -178,8 +180,7 @@ export async function auditAiBotRobots(siteUrl: string): Promise<RobotsAudit> {
   try {
     const ctl = new AbortController();
     const tid = setTimeout(() => ctl.abort(), 8000);
-    const res = await fetch(robotsUrl, {
-      redirect: "follow",
+    const res = await guardedFetch(robotsUrl, {
       signal: ctl.signal,
       headers: { accept: "text/plain,*/*" },
     });

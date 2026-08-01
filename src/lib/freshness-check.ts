@@ -17,6 +17,8 @@
  * All free — no APIs, just a fetch and some regex parsing.
  */
 
+import { guardedFetch } from "./url-guard";
+
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SEO-Tool-Freshness/1.0; +https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool)";
 
@@ -68,13 +70,12 @@ export async function auditFreshness(
   const t = setTimeout(() => ac.abort(), opts?.timeoutMs ?? 15_000);
   const now = Date.now();
   try {
-    const res = await fetch(normalizedUrl, {
+    const res = await guardedFetch(normalizedUrl, {
       headers: {
         "user-agent": USER_AGENT,
         accept: "text/html,application/xhtml+xml",
       },
       signal: ac.signal,
-      redirect: "follow",
     });
     if (!res.ok) {
       return {
@@ -303,7 +304,7 @@ async function fetchSitemapLastmod(
   signal: AbortSignal,
 ): Promise<string | null> {
   try {
-    const res = await fetch(sitemapUrl, {
+    const res = await guardedFetch(sitemapUrl, {
       headers: {
         "user-agent": USER_AGENT,
         accept: "application/xml,text/xml",

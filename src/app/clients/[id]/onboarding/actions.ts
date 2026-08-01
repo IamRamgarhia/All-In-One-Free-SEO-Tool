@@ -430,7 +430,14 @@ export async function getLearnedRulesForClient(
   clientId: number,
 ): Promise<{ rule: string; confidence: string; feature: string }[]> {
   const { aiPreferences } = await import("@/db/schema");
-  const { isNull, or, eq: drizzleEq, desc: drizzleDesc } = await import("drizzle-orm");
+  const { and, isNull, or, eq: drizzleEq, desc: drizzleDesc } = await import("drizzle-orm");
+  // Scoped to workspace-wide rules (client_id IS NULL) plus this
+  // client's own. The previous version imported `isNull` and `or`,
+  // commented that it would "filter post-fetch since the limit's tiny",
+  // and then `void`-ed both and returned every row — so the onboarding
+  // summary showed one client's learned style rules under another
+  // client's name, and the LIMIT 10 meant a busy client could crowd out
+  // the rules that actually applied.
   const rows = await db
     .select({
       rule: aiPreferences.rule,
@@ -439,14 +446,15 @@ export async function getLearnedRulesForClient(
     })
     .from(aiPreferences)
     .where(
-      drizzleEq(aiPreferences.active, true),
+      and(
+        drizzleEq(aiPreferences.active, true),
+        or(
+          isNull(aiPreferences.clientId),
+          drizzleEq(aiPreferences.clientId, clientId),
+        ),
+      ),
     )
     .orderBy(drizzleDesc(aiPreferences.confidence))
     .limit(10);
-  // Filter for workspace OR this client only (drizzle-orm's `or` chained
-  // checks were complicating the query — easier to filter post-fetch
-  // since the limit's tiny).
-  void isNull;
-  void or;
   return rows;
 }

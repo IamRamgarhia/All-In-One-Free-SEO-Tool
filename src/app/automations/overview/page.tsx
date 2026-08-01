@@ -1,21 +1,5 @@
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Bot,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  Mail,
-  RefreshCw,
-  ScanLine,
-  Settings,
-  ShieldAlert,
-  Target,
-  TrendingDown,
-  Workflow,
-  Globe,
-  HandMetal,
-} from "lucide-react";
+import { ArrowLeft, Bot, Calendar, CheckCircle2, Clock, Mail, RefreshCw, ScanLine, ShieldAlert, Target, TrendingDown, Workflow, Globe, HandMetal } from "lucide-react";
 import { getSetting } from "@/lib/settings-store";
 import { SchedulerStatusPanel } from "./scheduler-status";
 import { PageHeader } from "@/components/shell/page-header";
