@@ -63,10 +63,35 @@ COPY --from=build --chown=pwuser:pwuser /app/package.json ./package.json
 
 EXPOSE 3000
 
-# Apply pending migrations on start, then boot. Fail fast on migration
-# error — silently continuing produces a running server that 500s on
-# every DB-touching request, with no obvious clue why. Better to fail
-# the container start and surface the real SQL error in `docker logs`.
-# (migrate.cjs already exits 0 when no migrations directory exists,
-# so the fresh-volume case is fine.)
-CMD ["sh", "-c", "node scripts/migrate.cjs && node server.js"]
+# Refuse to boot exposed-and-unauthenticated.
+#
+# The container listens on 0.0.0.0 by design — Docker's port mapping is
+# what decides real exposure. But that means the ONLY thing standing
+# between a published port and an open instance is APP_PASSWORD, and a
+# user who edits the compose port mapping to reach the app from another
+# machine has no reason to know that. Failing loudly here is the last
+# point where we can tell them, and it costs nothing when the default
+# loopback mapping is used with a password set.
+#
+# Then apply pending migrations and boot. Fail fast on migration error —
+# silently continuing produces a running server that 500s on every
+# DB-touching request with no obvious clue why. Better to fail the
+# container start and surface the real SQL error in `docker logs`.
+# (migrate.cjs already exits 0 when no migrations directory exists, so
+# the fresh-volume case is fine.)
+CMD ["sh", "-c", "\
+if [ -z \"$APP_PASSWORD\" ] && [ \"$SEO_ALLOW_NO_PASSWORD\" != \"1\" ]; then \
+  echo '' >&2; \
+  echo 'REFUSING TO START: APP_PASSWORD is not set.' >&2; \
+  echo '' >&2; \
+  echo 'This container has no other authentication. If its port is' >&2; \
+  echo 'reachable from anywhere but this machine, every client record,' >&2; \
+  echo 'saved API key and admin action is open to whoever finds it.' >&2; \
+  echo '' >&2; \
+  echo 'Fix (pick one):' >&2; \
+  echo '  1. Set APP_PASSWORD in your .env or compose file  <- do this' >&2; \
+  echo '  2. Local-only, accept the risk: SEO_ALLOW_NO_PASSWORD=1' >&2; \
+  echo '' >&2; \
+  exit 1; \
+fi; \
+node scripts/migrate.cjs && node server.js"]

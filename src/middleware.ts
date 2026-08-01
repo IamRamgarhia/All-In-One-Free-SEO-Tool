@@ -11,6 +11,28 @@ import { timingSafeEqual } from "@/lib/secure-compare";
  */
 
 const COOKIE_NAME = "stb_auth";
+
+/**
+ * Paths the password gate must NOT cover.
+ *
+ * Everything below carries its own authentication (a share token, an
+ * API key, a webhook token) or is meant to be reachable by someone who
+ * will never have the workspace password. Gating them behind the cookie
+ * broke the exact features that only matter once APP_PASSWORD is set —
+ * i.e. every real deployment:
+ *
+ *   /portal/[token]      client magic-links showed clients a login wall
+ *   /api/v1/*            the public API 401'd valid Bearer keys, because
+ *                        middleware only ever checked the cookie
+ *   /api/webhooks/[token] inbound webhooks were rejected outright
+ *   /api/v1/health       the HTA launcher and START scripts poll this to
+ *                        decide whether the server came up
+ *
+ * These are not unauthenticated: api-auth.ts hashes and checks the
+ * Bearer key, the portal requires a 16+ char unguessable share token,
+ * and webhook routes match on their own token. The password gate was a
+ * second, incompatible auth scheme layered on top.
+ */
 const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
@@ -23,6 +45,14 @@ const PUBLIC_PATHS = [
   // Short-link redirector — must be public so external visitors clicking
   // the link reach the destination without hitting the auth gate.
   "/r",
+  // Client portal. Authenticated by the per-client share token in the
+  // path; the client has no workspace password and never will.
+  "/portal",
+  // Public API. Authenticated by `Authorization: Bearer seo_live_...`
+  // in api-auth.ts — a different scheme from the browser cookie.
+  "/api/v1",
+  // Inbound webhooks. Authenticated by the token in the path.
+  "/api/webhooks",
 ];
 
 function isPublicPath(pathname: string): boolean {

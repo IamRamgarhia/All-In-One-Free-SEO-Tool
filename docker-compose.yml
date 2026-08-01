@@ -8,8 +8,28 @@ services:
     ports:
       # Host port respects $SEO_HOST_PORT (set by install.sh/.ps1 when 3000
       # is occupied). Container always serves on 3000.
-      - "${SEO_HOST_PORT:-3000}:3000"
+      #
+      # Bound to 127.0.0.1 deliberately. The bare "3000:3000" form this
+      # used to carry publishes on 0.0.0.0, so `docker compose up -d` on
+      # a VPS put every client's data, all saved API keys, and the
+      # browser-driving endpoints on the public internet with no
+      # authentication — while the .cmd/.sh launchers correctly default
+      # to loopback. Same product, opposite exposure, depending only on
+      # how you started it.
+      #
+      # To reach it from another machine, do BOTH:
+      #   1. set APP_PASSWORD (see below) — otherwise there is no auth
+      #   2. set SEO_BIND_ADDR=0.0.0.0
+      # Better still, leave this alone and put a reverse proxy with TLS
+      # in front of 127.0.0.1.
+      - "${SEO_BIND_ADDR:-127.0.0.1}:${SEO_HOST_PORT:-3000}:3000"
     environment:
+      # Password gate. Required for any non-loopback bind — the
+      # entrypoint refuses to start without it (see docker-entrypoint).
+      APP_PASSWORD: ${APP_PASSWORD:-}
+      # Set to 1 when running behind nginx/Caddy/Cloudflare so
+      # x-forwarded-for is trusted for the admin-endpoint IP check.
+      TRUSTED_PROXY: ${TRUSTED_PROXY:-}
       # All user state lives in /data (mounted volume): data.db,
       # encryption key, port memory, screenshots. One backup target.
       SEO_DATA_DIR: /data

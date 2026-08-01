@@ -84,7 +84,64 @@ function isLocalRequest(req: Request): boolean {
   }
 }
 
+/**
+ * Reject cross-site requests.
+ *
+ * The origin check is the load-bearing one, not the IP check. Binding
+ * to 127.0.0.1 stops LAN devices, but it does NOT stop the browser the
+ * user is already running: any page they visit can issue
+ *
+ *     fetch('http://localhost:3000/api/update', {method:'POST', mode:'no-cors'})
+ *
+ * and that request arrives with `Host: localhost:3000`, passes
+ * isLocalRequest(), and — for /api/update — force-resets the user's
+ * working tree and runs `pnpm install` (arbitrary postinstall code).
+ * /api/restore overwrites data.db; /api/shutdown kills the server.
+ * There was no token, no Origin check, and no cookie to carry SameSite,
+ * so nothing stood between a malicious page and those endpoints.
+ *
+ * Next.js applies its own origin verification to Server Actions, but
+ * not to route handlers — these routes got none of it.
+ *
+ * `Sec-Fetch-Site` is set by the browser and cannot be spoofed by page
+ * JavaScript, which is what makes it a valid CSRF defence. Non-browser
+ * clients (curl, the launcher scripts) omit it entirely; we allow that,
+ * since a caller who can run curl on the box can run the command
+ * directly anyway. What we block is the browser-mediated path.
+ */
+function isCrossSiteRequest(req: Request): boolean {
+  const site = req.headers.get("sec-fetch-site");
+  if (site && site !== "same-origin" && site !== "none") return true;
+
+  // Older browsers predate Sec-Fetch-Site. Fall back to comparing
+  // Origin against Host — a cross-site fetch always sends Origin.
+  const origin = req.headers.get("origin");
+  if (origin) {
+    const host = req.headers.get("host");
+    try {
+      if (!host || new URL(origin).host !== host) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function guardAdminRequest(req: Request): Response | null {
+  // Cross-site check runs FIRST and applies even when APP_PASSWORD is
+  // set: the cookie is sent automatically on a cross-site POST, so a
+  // password does not protect against CSRF on its own.
+  if (isCrossSiteRequest(req)) {
+    return Response.json(
+      {
+        ok: false,
+        error:
+          "Cross-site request blocked. Admin actions can only be triggered from the app itself.",
+      },
+      { status: 403 },
+    );
+  }
+
   // If a password is configured, middleware already validated the cookie
   // before this route was reached — we don't need to re-check.
   if (process.env.APP_PASSWORD) return null;

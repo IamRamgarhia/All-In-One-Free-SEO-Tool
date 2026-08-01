@@ -28,6 +28,7 @@
 import type { ActiveProvider, Provider } from "./api-keys";
 import { getApiKey, getOllamaUrl } from "./api-keys";
 import { defaultModelFor } from "./ai-model-presets";
+import { NO_KEY_STATUS, NO_OLLAMA_URL_STATUS } from "./ai-error";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
 import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
 import { callOpenAICompat as sharedCallOpenAICompat } from "./providers/openai-compat";
@@ -118,6 +119,12 @@ export type DispatchArgs = {
   timeoutMs: number;
   /** For logging / error attribution. Passed through to the shared callers. */
   caller?: string;
+  /**
+   * Receives the provider's status + body when a call fails, so the
+   * caller can tell the user WHY rather than rendering an empty box.
+   * See ai-error.ts for how these become user-facing sentences.
+   */
+  onFailure?: (status: number, body: string) => void;
 };
 
 /**
@@ -146,7 +153,10 @@ export async function dispatchProviderCall(
   switch (spec.kind) {
     case "gemini": {
       const apiKey = await getApiKey(providerId as Provider);
-      if (!apiKey) return null;
+      if (!apiKey) {
+        args.onFailure?.(NO_KEY_STATUS, "no api key configured");
+        return null;
+      }
       return sharedCallGemini({
         apiKey,
         model,
@@ -156,11 +166,15 @@ export async function dispatchProviderCall(
         temperature: args.temperature,
         timeoutMs: args.timeoutMs,
         caller,
+        onFailure: args.onFailure,
       });
     }
     case "anthropic": {
       const apiKey = await getApiKey(providerId as Provider);
-      if (!apiKey) return null;
+      if (!apiKey) {
+        args.onFailure?.(NO_KEY_STATUS, "no api key configured");
+        return null;
+      }
       return sharedCallAnthropic({
         apiKey,
         model,
@@ -170,12 +184,16 @@ export async function dispatchProviderCall(
         temperature: args.temperature,
         timeoutMs: args.timeoutMs,
         caller,
+        onFailure: args.onFailure,
       });
     }
     case "openai-compat": {
       if (!spec.endpoint) return null;
       const apiKey = await getApiKey(providerId as Provider);
-      if (!apiKey) return null;
+      if (!apiKey) {
+        args.onFailure?.(NO_KEY_STATUS, "no api key configured");
+        return null;
+      }
       return sharedCallOpenAICompat({
         endpoint: spec.endpoint,
         apiKey,
@@ -187,6 +205,7 @@ export async function dispatchProviderCall(
         timeoutMs: args.timeoutMs,
         extraHeaders: spec.extraHeaders,
         caller,
+        onFailure: args.onFailure,
       });
     }
     case "ollama": {
@@ -194,7 +213,10 @@ export async function dispatchProviderCall(
       // Guard: an empty Ollama URL would fetch `null/api/chat` and throw
       // inside the outer catch, giving the caller a mystery null with
       // no hint about what to configure.
-      if (!url) return null;
+      if (!url) {
+        args.onFailure?.(NO_OLLAMA_URL_STATUS, "no ollama url configured");
+        return null;
+      }
       return callOllamaDirect({
         url,
         model,
@@ -203,6 +225,7 @@ export async function dispatchProviderCall(
         maxTokens: args.maxTokens,
         temperature: args.temperature,
         timeoutMs: args.timeoutMs,
+        onFailure: args.onFailure,
       });
     }
   }
@@ -222,6 +245,7 @@ async function callOllamaDirect(args: {
   maxTokens: number;
   temperature: number;
   timeoutMs: number;
+  onFailure?: (status: number, body: string) => void;
 }): Promise<string | null> {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), args.timeoutMs);
@@ -243,12 +267,17 @@ async function callOllamaDirect(args: {
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = (await res.text().catch(() => "")).slice(0, 240);
+      args.onFailure?.(res.status, body || res.statusText);
+      return null;
+    }
     const data = (await res.json()) as {
       message?: { content?: string };
     };
     return data.message?.content?.trim() ?? null;
-  } catch {
+  } catch (err) {
+    args.onFailure?.(0, (err as Error).message);
     return null;
   } finally {
     clearTimeout(t);

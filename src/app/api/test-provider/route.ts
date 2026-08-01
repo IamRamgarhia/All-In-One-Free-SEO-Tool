@@ -12,6 +12,7 @@
  */
 
 import { getApiKey, getOllamaUrl } from "@/lib/api-keys";
+import { MODEL_PRESETS, defaultModelFor } from "@/lib/ai-model-presets";
 import type { ActiveProvider } from "@/lib/api-keys";
 import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 
@@ -41,12 +42,13 @@ async function probeGemini(apiKey: string): Promise<ProbeResult> {
   // Current free-tier model names, newest first. We try in order and
   // return on the first 200. gemini-pro is intentionally NOT here — it
   // was removed from the v1beta endpoint and only causes confusion.
-  const candidates = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-  ];
+  // Drawn from the shared preset table so this probe can't drift from
+  // the models the app actually uses. The old hardcoded list still
+  // carried the Gemini 1.5 ids Google retired in Sept 2025 — the
+  // "Test connection" button burned two guaranteed 404s before finding
+  // a live model, and reported failure outright if the live ones were
+  // momentarily rate-limited.
+  const candidates = MODEL_PRESETS.gemini.map((p) => p.id);
   const attempts: string[] = [];
   let authError: { status: number; body: string } | null = null;
 
@@ -152,7 +154,7 @@ async function probeAnthropic(apiKey: string): Promise<ProbeResult> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: defaultModelFor("anthropic"),
         max_tokens: 30,
         messages: [{ role: "user", content: "Say: Connected." }],
       }),

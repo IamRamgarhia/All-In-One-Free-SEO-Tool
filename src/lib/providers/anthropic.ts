@@ -33,6 +33,13 @@ export type AnthropicCallOpts = {
   timeoutMs: number;
   /** Origin tag for server-log debugging */
   caller?: string;
+  /**
+   * Optional sink for failure details. The function still returns
+   * `string | null` so existing call sites are untouched — but a caller
+   * that wants to tell the USER why (callAI) passes this and gets the
+   * status + response body.
+   */
+  onFailure?: (status: number, body: string) => void;
 };
 
 export async function callAnthropic(
@@ -83,7 +90,7 @@ export async function callAnthropic(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: opts.model || "claude-haiku-4-5-20251001",
+        model: opts.model || "claude-haiku-4-5",
         max_tokens: opts.maxTokens,
         temperature: opts.temperature,
         system: systemPayload,
@@ -95,6 +102,7 @@ export async function callAnthropic(
       console.error(
         `[${opts.caller ?? "anthropic"}] Anthropic ${res.status}: ${errBody || res.statusText}`,
       );
+      opts.onFailure?.(res.status, errBody || res.statusText);
       return null;
     }
     const data = (await res.json()) as {
@@ -112,6 +120,7 @@ export async function callAnthropic(
       `[${opts.caller ?? "anthropic"}] Anthropic call failed:`,
       (err as Error).message,
     );
+    opts.onFailure?.(0, (err as Error).message);
     return null;
   } finally {
     clearTimeout(t);
