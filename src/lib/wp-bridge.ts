@@ -32,6 +32,14 @@ export type WpCreds = { endpoint: string; key: string };
  *
  * Returns null when the URL is safe to fetch; returns an error message
  * when it's not.
+ *
+ * SEO_ALLOW_PRIVATE_WP_ENDPOINT=1 turns the private-address rules off.
+ * That exists because blocking them outright is wrong for this product:
+ * a self-hoster running WordPress in the same compose stack, or on
+ * 192.168.x.x on their own LAN, is a normal setup and could not connect
+ * at all. It's opt-in and off by default so the protection still holds
+ * for anyone who hasn't thought about it, and it never disables the
+ * protocol check — file:// and gopher:// stay refused either way.
  */
 function rejectIfPrivateUrl(rawUrl: string): string | null {
   let parsed: URL;
@@ -43,6 +51,7 @@ function rejectIfPrivateUrl(rawUrl: string): string | null {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     return `Only http(s) URLs allowed (got ${parsed.protocol})`;
   }
+  if (process.env.SEO_ALLOW_PRIVATE_WP_ENDPOINT === "1") return null;
   const h = parsed.hostname.toLowerCase();
   // Bare hostnames / aliases that resolve to the local machine
   if (
@@ -127,10 +136,15 @@ export async function pingWpBridge(creds: WpCreds): Promise<{
   version?: string;
   error?: string;
 }> {
-  type Resp = { version?: string; ok?: boolean };
+  // The plugin sends `plugin_version`. This read `version`, so it was
+  // always undefined — and `hasPluginVersion(undefined, "0.3.0")` is
+  // false, which meant alt-text capability could never open on a real
+  // site no matter which plugin version was installed. `version` is
+  // still accepted in case an older build ever sent it.
+  type Resp = { plugin_version?: string; version?: string; ok?: boolean };
   const r = await wpFetch<Resp>(creds, "/ping", { method: "GET" });
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true, version: r.data.version };
+  return { ok: true, version: r.data.plugin_version ?? r.data.version };
 }
 
 export type PostSeo = {
@@ -142,13 +156,45 @@ export type PostSeo = {
   robots: string | null;
 };
 
+/**
+ * The plugin's wire format, which is snake_case and not the shape the
+ * rest of this codebase wants. Mapped explicitly below rather than cast,
+ * because casting is what hid the mismatch: this returned `r.data` as a
+ * `PostSeo`, so `seo.metaDescription` was `undefined` on every call. The
+ * agent read that as "this page has no meta description", recorded null
+ * as the value to restore, and its post-write verification could never
+ * match. Undo would have blanked a description that already existed.
+ */
+type WirePostSeo = {
+  id?: number;
+  title?: string;
+  meta_description?: string;
+  permalink?: string;
+  status?: string;
+  modified?: string;
+};
+
 export async function getPostSeo(
   creds: WpCreds,
   postId: number,
 ): Promise<{ ok: true; seo: PostSeo } | { ok: false; error: string }> {
-  const r = await wpFetch<PostSeo>(creds, `/post/${postId}/seo`, { method: "GET" });
+  const r = await wpFetch<WirePostSeo>(creds, `/post/${postId}/seo`, {
+    method: "GET",
+  });
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true, seo: r.data };
+  return {
+    ok: true,
+    seo: {
+      id: r.data.id ?? postId,
+      url: r.data.permalink ?? "",
+      title: r.data.title ?? "",
+      metaDescription: r.data.meta_description ?? "",
+      // The plugin doesn't report these yet. Null means "unknown", not
+      // "absent" — nothing should write a canonical based on this.
+      canonical: null,
+      robots: null,
+    },
+  };
 }
 
 export async function setPostSeo(
@@ -161,10 +207,39 @@ export async function setPostSeo(
     robots: string;
   }>,
 ): Promise<{ ok: boolean; error?: string }> {
-  const r = await wpFetch<{ ok: boolean }>(
+  // snake_case on the wire. Sending `metaDescription` meant the plugin's
+  // `isset($body['meta_description'])` was false, so it changed nothing
+  // and still answered `{ok: true, changes: []}` — a write that reported
+  // success and did nothing.
+  const body: Record<string, string> = {};
+  if (patch.title !== undefined) body.title = patch.title;
+  if (patch.metaDescription !== undefined) {
+    body.meta_description = patch.metaDescription;
+  }
+
+  // The plugin's update handler reads `title` and `meta_description` and
+  // nothing else, so a canonical or robots value sent here was accepted,
+  // ignored, and answered with `ok: true`. Two "apply fix" buttons told
+  // users the change had been made to their site when it hadn't. Say so
+  // instead — a refusal the user can act on beats a success they can't
+  // trust.
+  const unsupported = (["canonical", "robots"] as const).filter(
+    (f) => patch[f] !== undefined,
+  );
+  if (unsupported.length > 0) {
+    return {
+      ok: false,
+      error: `The SEO Tool Bridge plugin can't write ${unsupported.join(" or ")} yet. Change it in your SEO plugin (Yoast, Rank Math) for now.`,
+    };
+  }
+
+  if (Object.keys(body).length === 0) {
+    return { ok: false, error: "Nothing to write." };
+  }
+  const r = await wpFetch<{ ok: boolean; changes?: unknown[] }>(
     creds,
     `/post/${postId}/seo`,
-    { method: "POST", body: JSON.stringify(patch) },
+    { method: "POST", body: JSON.stringify(body) },
   );
   if (!r.ok) return { ok: false, error: r.error };
   return { ok: true };
@@ -189,10 +264,14 @@ export async function setPostSchema(
   postId: number,
   schemaJsonLd: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // The plugin reads `jsonld`, all lowercase. Sending `jsonLd` meant it
+  // saw an empty value and answered 400 "jsonld required" — so every
+  // schema write the agent could plan would have failed on a real site,
+  // including the one the contract test asserts is now executable.
   const r = await wpFetch<{ ok: boolean }>(
     creds,
     `/post/${postId}/schema`,
-    { method: "POST", body: JSON.stringify({ jsonLd: schemaJsonLd }) },
+    { method: "POST", body: JSON.stringify({ jsonld: schemaJsonLd }) },
   );
   if (!r.ok) return { ok: false, error: r.error };
   return { ok: true };

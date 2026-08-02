@@ -186,6 +186,24 @@ jobs:
           "
           pnpm exec tsx scripts/proposal-check.ts
 
+      # The agent's only path that changes someone's live website.
+      #
+      # It shipped talking to a WordPress plugin that nothing had ever
+      # called. Four field names disagreed across the JSON boundary and
+      # all four failed silently: /ping sends `plugin_version` and we read
+      # `version`, so alt-text capability could never open; the SEO and
+      # schema endpoints read snake_case keys we weren't sending, so
+      # WordPress accepted the write, changed nothing, and answered ok.
+      # TypeScript can't catch any of that — both sides are `string`.
+      #
+      # scripts/fake-wordpress.mjs implements the plugin's endpoints as
+      # the PHP is written, so the real client runs against them. It does
+      # NOT prove the PHP behaves as documented; that needs a real
+      # WordPress. It does prove our side, which is where all four bugs
+      # were.
+      - name: WordPress bridge checks
+        run: pnpm exec tsx scripts/wp-bridge-check.ts
+
       # The public grader is the only endpoint anyone on the internet can
       # reach AND that makes the server fetch a URL of their choosing.
       # Both properties that make that safe — refusing internal addresses
