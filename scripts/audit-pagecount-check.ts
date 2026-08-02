@@ -36,8 +36,17 @@ const bad = (m: string, d = "") => {
 async function main() {
   const [client] = await db.select().from(clients).limit(1);
   if (!client) {
-    console.log("No clients — add one and re-run.");
-    process.exit(0);
+    // Exit 1, not 0. An empty database means this check verified
+    // nothing, and a check that reports success having done nothing is
+    // the specific failure this project keeps finding — agent-check.ts
+    // was hardened against exactly this after going green in CI on a
+    // database it never touched. CI seeds a client before running this;
+    // if that seed is ever removed or silently fails, this must go red
+    // rather than quietly stop testing.
+    console.error(
+      "No clients in the database. This check has nothing to verify, which is a FAILURE, not a pass — seed a client first.",
+    );
+    process.exit(1);
   }
 
   console.log("Crawling example.com (up to 5 pages)…\n");

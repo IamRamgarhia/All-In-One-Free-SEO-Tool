@@ -142,7 +142,11 @@ type FetchedPage = {
   renderedWithJs?: boolean;
 };
 
-async function fetchPage(url: string, timeoutMs = 12_000): Promise<FetchedPage | null> {
+async function fetchPage(
+  url: string,
+  timeoutMs = 12_000,
+  allowPrivate = false,
+): Promise<FetchedPage | null> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   const start = Date.now();
@@ -155,6 +159,7 @@ async function fetchPage(url: string, timeoutMs = 12_000): Promise<FetchedPage |
     // because "public URL that 302s somewhere internal" is the usual
     // bypass.
     const res = await guardedFetch(url, {
+      allowPrivate,
       signal: controller.signal,
       headers: {
         "user-agent": USER_AGENT,
@@ -202,11 +207,13 @@ async function fetchUrlStatus(
 async function fetchText(
   url: string,
   timeoutMs = 6_000,
+  allowPrivate = false,
 ): Promise<{ status: number; text: string } | null> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await guardedFetch(url, {
+      allowPrivate,
       signal: controller.signal,
       headers: { "user-agent": USER_AGENT },
     });
@@ -903,9 +910,17 @@ async function checkSiteWide(
     });
   }
 
-  // Orphan pages (within the crawl window): pages no other crawled page
-  // links to. Doesn't catch true orphans (you'd need the full link graph)
-  // but flags obvious crawl-only-via-direct-URL pages.
+  // Orphan pages: crawled pages that no other crawled page links to.
+  //
+  // This used to say it couldn't catch true orphans, and it couldn't —
+  // the crawl only reached pages something linked to, so a page with no
+  // inbound links was never fetched and could never be reported. The
+  // crawl is now seeded from the sitemap, so a page that is published
+  // and linked from nowhere shows up here, which is the case worth
+  // reporting: it's in the sitemap, so the owner means it to be found.
+  //
+  // Still bounded by the crawl window — a page in neither the sitemap
+  // nor any link is genuinely invisible and nothing can find it.
   const incomingLinks = new Map<string, number>();
   for (const p of pages) {
     const linkRe = /<a[^>]*\shref=["']([^"']+)["']/gi;
@@ -1060,6 +1075,46 @@ export type CrawlOutcome = {
   robotsUnreachable: boolean;
 };
 
+/**
+ * URLs listed in the site's sitemap, to seed the crawl with.
+ *
+ * Best-effort by design: no sitemap, an unreachable one, or a malformed
+ * one all fall back to plain link-following, which is what the crawl did
+ * before. The only thing that changes is whether orphan pages are
+ * reachable at all.
+ *
+ * Checks robots.txt for a `Sitemap:` line as well as the conventional
+ * location, because WordPress with Yoast publishes /sitemap_index.xml
+ * and declares it there.
+ */
+async function collectSitemapUrls(
+  origin: string,
+  allowPrivate = false,
+): Promise<string[]> {
+  const candidates = new Set<string>([`${origin}/sitemap.xml`]);
+
+  const robots = await fetchText(`${origin}/robots.txt`, 6_000, allowPrivate);
+  if (robots && robots.status < 400) {
+    for (const line of robots.text.matchAll(/^\s*Sitemap:\s*(\S+)/gim)) {
+      candidates.add(line[1].trim());
+    }
+  }
+
+  const found = new Set<string>();
+  // A sitemap index points at more sitemaps. One level is enough for
+  // the sites this tool is for, and stops a malformed or hostile
+  // sitemap becoming an unbounded fetch loop.
+  for (const sm of [...candidates].slice(0, 5)) {
+    const r = await fetchText(sm, 10_000, allowPrivate);
+    if (!r || r.status >= 400) continue;
+    for (const m of r.text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)) {
+      found.add(m[1]);
+      if (found.size >= 500) return [...found];
+    }
+  }
+  return [...found];
+}
+
 async function crawlSite(
   homeUrl: string,
   options: {
@@ -1072,6 +1127,21 @@ async function crawlSite(
      * robots.txt has to be the default, not an option nobody finds.
      */
     ignoreRobots?: boolean;
+    /**
+     * URLs to crawl in addition to whatever is reachable by following
+     * links, normally everything in the sitemap.
+     *
+     * Without these, a crawl is blind to exactly the pages worth
+     * finding. An orphan page has no inbound links, so a link-following
+     * crawl never reaches it, so it never appears in `pages`, so the
+     * `orphan_pages` check could only ever report pages that were
+     * linked from somewhere — which is to say, not orphans. Measured on
+     * a four-page fixture with one real orphan: three pages crawled,
+     * zero orphans reported.
+     */
+    seedUrls?: string[];
+    /** See runAudit`s allowPrivateHosts. */
+    allowPrivate?: boolean;
   },
 ): Promise<CrawlOutcome> {
   const visited = new Set<string>();
@@ -1110,6 +1180,26 @@ async function crawlSite(
   let frontier: string[] = [homeUrl];
   visited.add(homeUrl);
 
+  // Sitemap URLs join the first level. Same-origin only — a sitemap is
+  // data from the site being audited, and a wrong or hostile one must
+  // not be able to send the crawler somewhere else — and still subject
+  // to robots.txt and maxPages like anything else.
+  for (const seed of options.seedUrls ?? []) {
+    if (results.length >= options.maxPages) break;
+    let u: URL;
+    try {
+      u = new URL(seed, homeUrl);
+    } catch {
+      continue;
+    }
+    if (u.origin !== origin) continue;
+    const normalised = u.toString().split("#")[0];
+    if (visited.has(normalised)) continue;
+    if (!crawlable(u)) continue;
+    visited.add(normalised);
+    frontier.push(normalised);
+  }
+
   for (let depth = 0; depth <= options.maxDepth; depth++) {
     if (frontier.length === 0) break;
     if (results.length >= options.maxPages) break;
@@ -1130,7 +1220,7 @@ async function crawlSite(
           await new Promise((r) => setTimeout(r, delayMs));
         }
 
-        const page = await fetchPage(level[i]);
+        const page = await fetchPage(level[i], 12_000, options.allowPrivate === true);
         if (!page) continue;
         if (!page.headers.get("content-type")?.includes("html")) continue;
         results.push(page);
@@ -1306,6 +1396,15 @@ export async function runAudit(
      * "missing title / no h1 / thin content" criticals.
      */
     renderJs?: boolean;
+    /**
+     * Allow auditing a site on a private address — localhost, a LAN
+     * range, a docker-compose hostname.
+     *
+     * Off by default and never set by the public grader, which anyone
+     * on the internet can reach. Only an operator auditing their own
+     * infrastructure should turn this on.
+     */
+    allowPrivateHosts?: boolean;
   } = {},
 ): Promise<AuditResult> {
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
@@ -1319,7 +1418,9 @@ export async function runAudit(
   // reachable. Check the URL or your network." — which sends someone
   // auditing http://localhost:3000 off debugging their network instead
   // of telling them the server won't fetch its own address.
-  const entryVerdict = await guardUrl(url);
+  const entryVerdict = await guardUrl(url, {
+    allowPrivate: options.allowPrivateHosts === true,
+  });
   if (!entryVerdict.ok) {
     return {
       url,
@@ -1343,10 +1444,21 @@ export async function runAudit(
   let pages: FetchedPage[];
   let crawl: CrawlOutcome;
   try {
+    // Read the sitemap first so orphan pages are reachable. The audit
+    // already fetched it later on for the missing_sitemap finding, but
+    // by then the crawl was over and anything nothing links to had
+    // already been missed.
+    const seedUrls = await collectSitemapUrls(
+      new URL(url).origin,
+      options.allowPrivateHosts === true,
+    );
+
     crawl = await crawlSite(url, {
       maxPages,
       maxDepth,
       ignoreRobots: options.ignoreRobots,
+      seedUrls,
+      allowPrivate: options.allowPrivateHosts === true,
     });
     pages = crawl.pages;
   } catch (err) {

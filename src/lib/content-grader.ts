@@ -155,7 +155,20 @@ export function gradeAgainstCorpus(opts: {
   else if (lengthRatio >= 0.4 && lengthRatio <= 2.0) lengthScore = 14;
   else lengthScore = 6;
 
-  // Coverage score (0-50): weighted by term importance (top 60)
+  // Coverage score (0-70): weighted by term importance (top 60)
+  //
+  // This was 0-50, with the missing 20 awarded for hitting a keyword
+  // density band. Density is not a ranking factor — CLAUDE.md §3.7
+  // names "keyword density should be 2-3%" as folklore this tool will
+  // not repeat — and scoring it did real harm: a writer chasing those
+  // 20 points was being told to repeat an exact-match phrase in prose
+  // that didn't need it, which is precisely the behaviour Google's spam
+  // guidance targets. It also pulled against the coverage score, which
+  // rewards the legitimate thing: covering what the ranking pages
+  // actually cover.
+  //
+  // The points moved here rather than being deleted, so a good draft
+  // still scores near 100 and existing scores stay comparable in shape.
   const totalWeight = opts.insights.topTerms
     .slice(0, 60)
     .reduce((s, t) => s + t.weight, 0);
@@ -171,20 +184,21 @@ export function gradeAgainstCorpus(opts: {
     }
   }
   const coverageScore =
-    totalWeight > 0 ? Math.round((hitWeight / totalWeight) * 50) : 0;
+    totalWeight > 0 ? Math.round((hitWeight / totalWeight) * 70) : 0;
 
-  // Density score (0-20): exact-match keyword density
+  // Density is still measured, because one direction of it is real:
+  // stuffing a phrase is a spam signal. Low density is not a defect —
+  // a page can cover a topic thoroughly while barely repeating the
+  // exact phrase, and that is usually better writing.
+  //
+  // So it is reported as a diagnostic and can WARN, but it can never
+  // add or subtract points.
   const keywordOccurrences = countKeywordHits(opts.content, target);
   const keywordDensityPct =
     userWordCount > 0 ? (keywordOccurrences / userWordCount) * 100 : 0;
-  let densityScore = 0;
-  if (keywordDensityPct >= targetDensity.min && keywordDensityPct <= targetDensity.max)
-    densityScore = 20;
-  else if (keywordDensityPct >= 0.3 && keywordDensityPct <= 2.5) densityScore = 12;
-  else if (keywordDensityPct >= 0.15 && keywordDensityPct <= 3.5) densityScore = 6;
-  else densityScore = 0;
+  const stuffed = keywordDensityPct > 3.5;
 
-  const score = lengthScore + coverageScore + densityScore;
+  const score = lengthScore + coverageScore;
 
   const recommendations: string[] = [];
   if (userWordCount < targetWordCount.min) {
@@ -196,13 +210,12 @@ export function gradeAgainstCorpus(opts: {
       `Trim ~${userWordCount - targetWordCount.ideal} words. Long-form is fine but you're well past the SERP average.`,
     );
   }
-  if (keywordDensityPct < targetDensity.min) {
+  // Only the stuffing direction gets a recommendation. "Use the keyword
+  // more often" was the advice this file used to give, and it is the
+  // one piece of advice on this screen that could make a page worse.
+  if (stuffed) {
     recommendations.push(
-      `Use "${opts.targetKeyword}" more often — currently ${keywordDensityPct.toFixed(2)}%, target ~${targetDensity.ideal}%.`,
-    );
-  } else if (keywordDensityPct > targetDensity.max) {
-    recommendations.push(
-      `Reduce "${opts.targetKeyword}" usage — ${keywordDensityPct.toFixed(2)}% reads as keyword-stuffed.`,
+      `"${opts.targetKeyword}" appears in ${keywordDensityPct.toFixed(1)}% of the words on this page, which reads as stuffed to a person and to Google. Cut the repetitions that don't earn their place — you don't need to hit a density figure, and there isn't one to hit.`,
     );
   }
   if (missingTerms.length > 0) {
@@ -222,13 +235,13 @@ export function gradeAgainstCorpus(opts: {
   }
   if (recommendations.length === 0) {
     recommendations.push(
-      "Length, density, and coverage are all on target. Focus on quality, examples, and original perspective.",
+      "Length and topic coverage are both on target. What's left is the part no score can measure: first-hand experience, specific examples, and a point of view the ranking pages don't already have.",
     );
   }
 
   return {
     score: Math.min(100, Math.max(0, score)),
-    breakdown: { lengthScore, coverageScore, densityScore },
+    breakdown: { lengthScore, coverageScore, densityScore: 0 },
     recommendations,
     missingTerms,
     presentTerms,

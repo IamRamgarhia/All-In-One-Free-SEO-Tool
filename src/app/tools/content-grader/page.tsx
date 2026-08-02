@@ -9,7 +9,7 @@ export default function ContentGraderPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Content grader"
-        description="Surfer / Clearscope replacement. Pulls the top-10 SERP results for your keyword, builds a TF-IDF corpus, then scores your draft on length, term coverage, and keyword density. Free — uses our existing browser-mode SERP scanner, no paid API."
+        description="Surfer / Clearscope replacement. Pulls the top-10 SERP results for your keyword, builds a TF-IDF corpus, then scores your draft on length and how much of what the ranking pages cover you actually cover. Keyword density is measured but deliberately not scored — it isn't a ranking factor. Free, no paid API."
         icon={Gauge}
         accent="emerald"
       />

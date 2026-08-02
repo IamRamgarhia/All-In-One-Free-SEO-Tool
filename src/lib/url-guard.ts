@@ -99,7 +99,26 @@ function isBlockedHostname(host: string): boolean {
  */
 export async function guardUrl(
   raw: string,
-  opts: { resolveDns?: boolean } = {},
+  opts: {
+    resolveDns?: boolean;
+    /**
+     * Permit loopback and private-range addresses.
+     *
+     * Deliberately a parameter and NOT an environment variable. A global
+     * switch would apply to the public grader too, and the two cases are
+     * not remotely the same risk: "the operator is auditing their own
+     * WordPress at 192.168.1.50" is fine, while "anyone on the internet
+     * can make this server fetch 169.254.169.254" is the exact attack
+     * this guard exists to stop.
+     *
+     * So it is passed only by callers where the URL comes from the
+     * operator. Anything reachable by a stranger must never set it.
+     *
+     * The protocol check is not relaxed by this — file:// and gopher://
+     * stay refused either way.
+     */
+    allowPrivate?: boolean;
+  } = {},
 ): Promise<UrlGuardResult> {
   let url: URL;
   try {
@@ -116,6 +135,8 @@ export async function guardUrl(
   }
 
   const host = url.hostname.replace(/^\[|\]$/g, "");
+
+  if (opts.allowPrivate) return { ok: true, url };
 
   if (isBlockedHostname(host)) {
     return {
@@ -177,13 +198,21 @@ export class SsrfBlockedError extends Error {
  */
 export async function guardedFetch(
   input: string,
-  init: RequestInit & { maxRedirects?: number } = {},
+  init: RequestInit & {
+    maxRedirects?: number;
+    /**
+     * See `guardUrl`. Applied to every hop, not just the first —
+     * otherwise a caller allowed to reach its own LAN host would still
+     * break the moment that host redirected anywhere.
+     */
+    allowPrivate?: boolean;
+  } = {},
 ): Promise<Response> {
   const maxRedirects = init.maxRedirects ?? 5;
   let current = input;
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    const verdict = await guardUrl(current);
+    const verdict = await guardUrl(current, { allowPrivate: init.allowPrivate });
     if (!verdict.ok) throw new SsrfBlockedError(verdict.reason);
 
     const res = await fetch(current, { ...init, redirect: "manual" });
