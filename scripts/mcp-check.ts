@@ -138,7 +138,7 @@ async function main() {
   const listed = await send("tools/list");
   const tools = ((listed.result as { tools?: { name: string; description: string }[] })?.tools ?? []);
   info(tools.map((t) => t.name).join(", "));
-  if (tools.length >= 9) ok(`${tools.length} tools advertised`);
+  if (tools.length >= 10) ok(`${tools.length} tools advertised`);
   else bad("too few tools", String(tools.length));
 
   // Every tool needs a description a model can route on. An unnamed or
@@ -291,6 +291,74 @@ async function main() {
       "INVENTED A RANK MOVEMENT",
       `reported ${String(row?.change)} places by subtracting a scrape from a GSC average`,
     );
+  }
+
+  section("Citation landscape — who gets cited instead of you");
+
+  const { aiVisibilityChecks } = await import("../src/db/schema");
+  await db.insert(aiVisibilityChecks).values([
+    // Grounded: the model searched. These count.
+    {
+      keywordId: kw.id,
+      provider: "perplexity",
+      prompt: "best handmade soap",
+      response: "…",
+      citations: ["https://reddit.com/r/soap/1", "https://reddit.com/r/soap/2"],
+      grounding: "live",
+    },
+    {
+      keywordId: kw.id,
+      provider: "google_ai_mode",
+      prompt: "handmade soap uk",
+      response: "…",
+      citations: ["https://reddit.com/x", "https://example.com/us"],
+      grounding: "live",
+    },
+    // Memory-only: the model answered from training. Must be excluded —
+    // it says nothing about what AI search cites today.
+    {
+      keywordId: kw.id,
+      provider: "openai",
+      prompt: "soap making",
+      response: "…",
+      citations: ["https://wikipedia.org/soap"],
+      grounding: "memory",
+    },
+  ]);
+
+  const land = payload(
+    await send("tools/call", {
+      name: "get_citation_landscape",
+      arguments: { clientId: client.id },
+    }),
+  );
+  const L = land.json as Record<string, unknown> | null;
+  if (L?.groundedAnswers === 2 && L?.memoryAnswersIgnored === 1) {
+    ok("counts only answers where the model searched", "2 grounded, 1 memory excluded");
+  } else {
+    bad("grounding not respected", JSON.stringify(L).slice(0, 140));
+  }
+
+  const comps = (L?.competitors ?? []) as { domain: string; answersCiting: number }[];
+  if (comps[0]?.domain === "reddit.com" && comps[0]?.answersCiting === 2) {
+    ok("ranks the most-cited domain", "reddit.com in 2 of 2 answers");
+  } else {
+    bad("competitor ranking wrong", JSON.stringify(comps).slice(0, 140));
+  }
+  if (!comps.some((c) => c.domain === "wikipedia.org")) {
+    ok("a memory-only citation never reaches the ranking");
+  } else {
+    bad("MEMORY CITATION COUNTED", "the ranking describes training data, not AI search");
+  }
+  if (!comps.some((c) => c.domain === "example.com") && L?.yourAnswersCiting === 1) {
+    ok("your own domain is reported separately, not as a competitor", "cited in 1 of 2");
+  } else {
+    bad("own-domain handling wrong", JSON.stringify(L).slice(0, 140));
+  }
+  if (L?.confidence === "low" && /too few/i.test(String(L?.note))) {
+    ok("labels a two-answer sample as too small to call", "no invented share of voice");
+  } else {
+    bad("SMALL SAMPLE PRESENTED AS A PATTERN", String(L?.note).slice(0, 90));
   }
 
   section("Writing — the agent's gates, not new ones");

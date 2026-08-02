@@ -37,6 +37,7 @@ import {
 
 import {
   getAiVisibility,
+  getCitationLandscape,
   getClientOverview,
   getKeywordRankings,
   getRecentAgentRuns,
@@ -120,6 +121,20 @@ const TOOLS = [
       required: ["clientId"],
     },
     handler: (a: { clientId: number; limit?: number }) => getAiVisibility(a),
+  },
+  {
+    name: "get_citation_landscape",
+    description:
+      "Which domains AI assistants cite for this site's tracked topics, ranked, with the site's own share. Answers 'who is being cited instead of me'. Counts only answers where the model actually searched the web, and states the sample size — a ranking drawn from three answers is labelled as such rather than presented as a share of voice.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        limit: { type: "number", description: "Checks to aggregate. Default 300." },
+      },
+      required: ["clientId"],
+    },
+    handler: (a: { clientId: number; limit?: number }) => getCitationLandscape(a),
   },
   {
     name: "list_agent_actions",

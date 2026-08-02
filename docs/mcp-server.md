@@ -54,7 +54,8 @@ the protocol to it against a throwaway database.
 | `get_client_overview` | Audit score, open issues by severity, keywords tracked, what's connected. |
 | `list_audit_issues` | Technical problems from the latest crawl, filterable by severity and type. |
 | `get_keyword_rankings` | Positions and movement over a window. |
-| `get_ai_visibility` | Whether AI assistants cite you, and who they cite instead. |
+| `get_ai_visibility` | Individual AI-assistant checks and their citations. |
+| `get_citation_landscape` | Which domains get cited for your topics, ranked, with your own share. "Who is being cited instead of me." |
 | `list_agent_actions` | What the agent changed, and whether it can still be undone. |
 | `get_recent_agent_runs` | Recent agent runs and their summaries. |
 
@@ -79,6 +80,14 @@ why — rather than a confident "up 6 places" that never happened. Audits
 and AI checks carry the same treatment: how old, where from, and for AI
 visibility whether the model actually *searched* or answered from
 training memory.
+
+The citation landscape applies the same rule harder. It counts **only**
+answers where the model searched the web, because a memory answer
+describes what that model absorbed in training — it is not evidence about
+what AI search cites today, and averaging the two produces a number that
+describes neither. It also states its sample size: a ranking drawn from
+three answers is labelled as too small to call, rather than presented as
+a share of voice.
 
 **It won't let an assistant edit your site directly.** There is no
 `set_title` tool. The only way to change anything is `run_agent`, which

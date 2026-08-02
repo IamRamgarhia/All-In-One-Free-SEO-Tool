@@ -337,6 +337,65 @@ export async function getAiVisibility(opts: {
   };
 }
 
+/**
+ * Who AI assistants cite for this site's topics, and how often it isn't
+ * the site itself.
+ *
+ * The question the dedicated GEO tools sell on. Grounded answers only —
+ * see ai-citation-landscape.ts for why mixing in model-memory answers
+ * produces a number that describes neither thing.
+ */
+export async function getCitationLandscape(opts: {
+  clientId: number;
+  limit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const kws = await db
+    .select({ id: keywords.id })
+    .from(keywords)
+    .where(eq(keywords.clientId, opts.clientId));
+  if (kws.length === 0) {
+    return {
+      ok: true,
+      data: {
+        note: "No keywords are tracked for this client, so no AI visibility checks exist to aggregate.",
+      },
+    };
+  }
+
+  const rows = await db
+    .select({
+      provider: aiVisibilityChecks.provider,
+      prompt: aiVisibilityChecks.prompt,
+      citations: aiVisibilityChecks.citations,
+      grounding: aiVisibilityChecks.grounding,
+    })
+    .from(aiVisibilityChecks)
+    .where(
+      inArray(
+        aiVisibilityChecks.keywordId,
+        kws.map((k) => k.id),
+      ),
+    )
+    .orderBy(desc(aiVisibilityChecks.id))
+    .limit(Math.min(opts.limit ?? 300, 1000));
+
+  const { summariseCitations } = await import("../ai-citation-landscape");
+  const landscape = summariseCitations(
+    rows.map((r) => ({
+      provider: r.provider,
+      prompt: r.prompt,
+      citations: r.citations,
+      grounding: r.grounding,
+    })),
+    client.url,
+  );
+
+  return { ok: true, data: landscape };
+}
+
 export async function listAgentActions(opts: {
   clientId: number;
   limit?: number;
