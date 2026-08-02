@@ -343,8 +343,23 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/v1/health)
           [ "$code" = "200" ] || { echo "health behind auth: $code"; exit 1; }
 
-          code=$(curl -s -o /dev/null -w '%{http_code}' -L http://localhost:3000/)
+          # Accept: text/html matters. Middleware deliberately answers a
+          # non-browser request with 401 JSON and only REDIRECTS to
+          # /login when the caller looks like a browser — that's what
+          # keeps the public API returning a usable 401 to a Bearer
+          # client instead of an HTML login page.
+          #
+          # curl defaults to `Accept: */*`, so without this header the
+          # check was asserting browser behaviour while sending an API
+          # request, and failing on an app that was behaving correctly.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -L \
+            -H 'accept: text/html' http://localhost:3000/)
           [ "$code" = "200" ] || { echo "login page not served: $code"; exit 1; }
+
+          # And the inverse, which is the property that actually matters:
+          # a non-browser caller must get 401 rather than an HTML page.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/)
+          [ "$code" = "401" ] || { echo "API-style request should 401, got: $code"; exit 1; }
 
       # The container refuses to start without APP_PASSWORD. Verify that
       # guard actually fires, or it's decoration.

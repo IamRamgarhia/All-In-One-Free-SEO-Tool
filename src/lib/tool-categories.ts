@@ -1,192 +1,245 @@
 /**
- * Tool category assignments. Source of truth for both the /tools index
- * page (which groups tools under section headers) and the sidebar
- * (future grouping work).
+ * How the tools are grouped on /tools.
  *
- * Categories are listed in the order users should typically reach for
- * them — most-used first.
+ * The previous taxonomy had eleven categories named after what a tool
+ * IS — "technical", "generators", "migration". Measured, the
+ * distribution was badly lopsided: 23 tools in "technical" (a dumping
+ * ground), 11 in "migration" (used a few times a year), and exactly 1
+ * in "local", which is not a category. Everything rendered at equal
+ * visual weight, so 99 tools competed with each other and the six
+ * genuinely-everyday ones won nothing.
+ *
+ * These categories are named after WHY someone opened the app. A
+ * freelancer doesn't think "I need a technical tool" — they think "a
+ * prospect asked why their traffic dropped". Five jobs cover almost
+ * every real session:
+ *
+ *   win        pitching, proving value, first look at a site
+ *   fix        something is broken and needs finding
+ *   improve    a specific page needs to be better
+ *   track      measuring, and turning that into something to send
+ *   ai         getting cited by AI search
+ *
+ * Everything genuinely occasional — migrations, one-off generators,
+ * niche specialties — goes to `occasional`, which the UI collapses.
+ * Those tools aren't worse; they're just not what today is about, and
+ * listing them beside the daily ones makes the daily ones harder to
+ * find.
  */
 
 export type ToolCategoryId =
-  | "everyday"
-  | "audit"
-  | "ai-geo"
-  | "content"
-  | "keywords"
-  | "backlinks"
-  | "technical"
-  | "generators"
-  | "migration"
-  | "local"
-  | "specialty";
+  | "win"
+  | "fix"
+  | "improve"
+  | "track"
+  | "ai"
+  | "occasional";
 
-export const CATEGORY_LABELS: Record<ToolCategoryId, { label: string; description: string }> = {
-  everyday: {
-    label: "Everyday essentials",
-    description: "Start here. Tools you'll use weekly.",
+export const CATEGORY_LABELS: Record<
+  ToolCategoryId,
+  { label: string; description: string }
+> = {
+  win: {
+    label: "Win the work",
+    description:
+      "Size up a site fast, and prove there's a problem worth paying to fix.",
   },
-  audit: {
-    label: "Audits & scoring",
-    description: "Full-page audits, GEO/SXO/E-E-A-T scoring, health checks.",
+  fix: {
+    label: "Find what's broken",
+    description:
+      "Diagnostics. Something's wrong and you need to know what, and where.",
   },
-  "ai-geo": {
-    label: "AI search & GEO (2026)",
-    description: "Get cited in ChatGPT / Perplexity / AI Overviews; manage AI bots.",
+  improve: {
+    label: "Improve a page",
+    description: "Make one page better — content, meta, schema, links.",
   },
-  content: {
-    label: "Content",
-    description: "Writing, briefs, grading, plagiarism + AI detection.",
+  track: {
+    label: "Track & report",
+    description: "Measure what's happening and turn it into something to send.",
   },
-  keywords: {
-    label: "Keywords & research",
-    description: "Research, intent, clusters, SERP features, search volume.",
+  ai: {
+    label: "Get found by AI",
+    description:
+      "Being cited in ChatGPT, Perplexity and AI Overviews — and controlling which bots read you.",
   },
-  backlinks: {
-    label: "Backlinks & outreach",
-    description: "Discovery, anchor profile, disavow, outreach personalization.",
-  },
-  technical: {
-    label: "Technical SEO",
-    description: "CWV, security headers, DNS, link graph, broken links, render checks.",
-  },
-  generators: {
-    label: "Generators (code / meta / images)",
-    description: "Plugin/HTML/snippet generators, meta-tag rewriter, OG / DALL-E images.",
-  },
-  migration: {
-    label: "Indexing, redirects, migration",
-    description: "Robots / sitemap / IndexNow / GSC coverage / hreflang / migration mapping.",
-  },
-  local: {
-    label: "Local SEO",
-    description: "Local Core Web Vitals + local-rank-grid tools.",
-  },
-  specialty: {
-    label: "Specialty / experimental",
-    description: "YouTube, Bing, browser agent, GitHub PRs, screenshot import.",
+  occasional: {
+    label: "Occasional",
+    description:
+      "Migrations, generators and specialist jobs. Useful when you need them, noise when you don't.",
   },
 };
 
-/** Explicit overrides per tool href. Everything not listed here falls
- * through to a heuristic mapper below. */
-const EXPLICIT: Record<string, ToolCategoryId> = {
-  // Everyday essentials — used most often
-  "/tools/health-check": "everyday",
-  "/tools/rank-where": "everyday",
-  "/tools/code-generator": "everyday",
-  "/tools/meta-tag-generator": "everyday",
-  "/tools/content-attack-brief": "everyday",
-  "/tools/serp-features": "everyday",
-
-  // Local SEO tools (workspace-level — per-client lives under /gbp/c/...)
-  "/tools/gbp-reply": "local",
-
-  // Audits & scoring
-  "/tools/eeat-audit": "audit",
-  "/tools/sxo": "audit",
-  "/tools/geo-score": "audit",
-  "/tools/content-grader": "audit",
-  "/tools/content-score": "audit",
-  "/tools/expert-panel": "audit",
-  "/tools/canonical-audit": "audit",
-  "/tools/youtube-audit": "audit",
-
-  // AI / GEO
-  "/tools/ai-overview": "ai-geo",
-  "/tools/ai-citation-tactics": "ai-geo",
-  "/tools/aio-passage": "ai-geo",
-  "/tools/person-schema": "ai-geo",
-  "/tools/reputation-abuse-risk": "ai-geo",
-  "/tools/llms-txt": "ai-geo",
-  "/tools/ai-slop": "ai-geo",
-  "/tools/reddit-research": "ai-geo",
-  "/tools/schema": "ai-geo",
-  "/tools/schema-validate": "ai-geo",
-  "/tools/ai-schema": "ai-geo",
-
-  // Content
-  "/tools/brief": "content",
-  "/tools/attack-briefs": "content",
-  "/tools/refresh": "content",
-  "/tools/plagiarism": "content",
-  "/tools/summarizer": "content",
-  "/tools/news-headline": "content",
-  "/tools/content-helpers": "content",
-  "/tools/trending": "content",
-
-  // Keywords & research
-  "/tools/keyword-difficulty": "keywords",
-  "/tools/search-volume": "keywords",
-  "/tools/intent-classifier": "keywords",
-  "/tools/cluster": "keywords",
-  "/tools/branded-split": "keywords",
-  "/tools/youtube": "keywords",
-  "/tools/serp-volatility": "keywords",
-  "/tools/cannibalization": "keywords",
-  "/tools/ads-funnel": "keywords",
-
-  // Backlinks & outreach
-  "/tools/backlink-discovery": "backlinks",
-  "/tools/anchor-distribution": "backlinks",
-  "/tools/disavow": "backlinks",
-  "/tools/outreach-personalize": "backlinks",
-
-  // Technical SEO
-  "/tools/local-cwv": "technical",
-  "/tools/security": "technical",
-  "/tools/headers": "technical",
-  "/tools/dns-whois": "technical",
-  "/tools/domain-overview": "technical",
-  "/tools/mobile-friendly": "technical",
-  "/tools/crux": "technical",
-  "/tools/crux-origin": "technical",
-  "/tools/perf-budget": "technical",
-  "/tools/render": "technical",
-  "/tools/wayback": "technical",
-  "/tools/uptime": "technical",
-  "/tools/wp-hack-scan": "technical",
-  "/tools/link-checker": "technical",
-  "/tools/soft-404": "technical",
-  "/tools/facet-trap": "technical",
-  "/tools/bulk-scan": "technical",
-  "/tools/auto-link": "technical",
-  "/tools/internal-linking": "technical",
-  "/tools/link-recommender": "technical",
-  "/tools/link-graph": "technical",
-  "/tools/pagerank": "technical",
-  "/tools/traffic-drop": "technical",
-
-  // Generators
-  "/tools/pixel-preview": "generators",
-  "/tools/social-preview": "generators",
-  "/tools/og-image": "generators",
-  "/tools/image-gen": "generators",
-  "/tools/bulk-alt": "generators",
-  "/tools/programmatic-seo": "generators",
-
-  // Indexing / redirects / migration
-  "/tools/hreflang": "migration",
-  "/tools/hreflang-gen": "migration",
-  "/tools/migration-map": "migration",
-  "/tools/migration-parity": "migration",
-  "/tools/redirects-bulk": "migration",
-  "/tools/redirects-manager": "migration",
-  "/tools/robots": "migration",
-  "/tools/robots-history": "migration",
-  "/tools/sitemap": "migration",
-  "/tools/indexnow": "migration",
-  "/tools/gsc-coverage": "migration",
-
-  // Specialty / experimental
-  "/tools/bing": "specialty",
-  "/tools/github-pr": "specialty",
-  "/tools/browser-agent": "specialty",
-  "/tools/screenshot-import": "specialty",
-  "/tools/utm-attribution": "specialty",
+/**
+ * Tools deliberately not shown in the grid.
+ *
+ * "Retired" means removed from the listing, NOT deleted — every route
+ * still works. Bookmarks, links inside old reports, and anything a user
+ * saved keep functioning; the tool just stops competing for attention
+ * with the one that replaced it.
+ *
+ * Each entry names what to use instead, so the decision is auditable
+ * and reversible by deleting one line.
+ */
+export const RETIRED: Record<string, { useInstead: string; why: string }> = {
+  "/tools/content-attack-brief": {
+    useInstead: "/tools/attack-briefs",
+    why: "Near-identical to Content Attack Briefs — same libraries, 33 lines against 194. Two entries for one job.",
+  },
+  "/tools/crux-origin": {
+    useInstead: "/tools/crux",
+    why: "Origin-versus-URL is a toggle inside a Core Web Vitals check, not a separate tool.",
+  },
+  "/tools/hreflang-gen": {
+    useInstead: "/tools/hreflang",
+    why: "Generating and validating hreflang is one task. Splitting them made users choose before they knew which they needed.",
+  },
+  "/tools/redirects-bulk": {
+    useInstead: "/tools/redirects-manager",
+    why: "The redirect manager already tests chains in bulk.",
+  },
+  "/tools/robots-history": {
+    useInstead: "/tools/robots",
+    why: "History belongs inside the robots.txt tool, next to the current file.",
+  },
+  "/tools/schema-validate": {
+    useInstead: "/tools/schema",
+    why: "Validating is what you do immediately after generating. One tool, two steps.",
+  },
+  "/tools/link-recommender": {
+    useInstead: "/tools/internal-linking",
+    why: "Overlapped internal linking and the auto-link suggester — three tools proposing internal links.",
+  },
+  "/tools/pixel-preview": {
+    useInstead: "/tools/social-preview",
+    why: "Social preview already renders how a link appears when shared.",
+  },
 };
 
-/** Resolve a tool href to its category. Falls back to "specialty" for
- * anything not explicitly listed (newly-added tools without a category yet). */
-export function categoryOf(href: string): ToolCategoryId {
-  return EXPLICIT[href] ?? "specialty";
+export function isRetired(href: string): boolean {
+  return href in RETIRED;
 }
+
+/**
+ * Every tool's category.
+ *
+ * Anything unlisted falls to `occasional` rather than a "specialty"
+ * bucket — the honest default for an unclassified tool is "not part of
+ * the daily loop", not "special".
+ */
+const EXPLICIT: Record<string, ToolCategoryId> = {
+  // --- Win the work -------------------------------------------------
+  "/tools/health-check": "win",
+  "/tools/domain-overview": "win",
+  "/tools/rank-where": "win",
+  "/tools/bulk-scan": "win",
+  "/tools/geo-score": "win",
+  "/tools/traffic-drop": "win",
+
+  // --- Find what's broken -------------------------------------------
+  "/tools/link-checker": "fix",
+  "/tools/redirects-manager": "fix",
+  "/tools/soft-404": "fix",
+  "/tools/canonical-audit": "fix",
+  "/tools/headers": "fix",
+  "/tools/security": "fix",
+  "/tools/mobile-friendly": "fix",
+  "/tools/render": "fix",
+  "/tools/crux": "fix",
+  "/tools/perf-budget": "fix",
+  "/tools/uptime": "fix",
+  "/tools/wp-hack-scan": "fix",
+  "/tools/facet-trap": "fix",
+  "/tools/robots": "fix",
+  "/tools/sitemap": "fix",
+
+  // --- Improve a page -----------------------------------------------
+  "/tools/content-grader": "improve",
+  "/tools/content-score": "improve",
+  "/tools/brief": "improve",
+  "/tools/meta-tag-generator": "improve",
+  "/tools/schema": "improve",
+  "/tools/internal-linking": "improve",
+  "/tools/auto-link": "improve",
+  "/tools/bulk-alt": "improve",
+  "/tools/refresh": "improve",
+  "/tools/summarizer": "improve",
+  "/tools/plagiarism": "improve",
+  "/tools/eeat-audit": "improve",
+  "/tools/sxo": "improve",
+  "/tools/social-preview": "improve",
+
+  // --- Track & report -----------------------------------------------
+  "/tools/search-volume": "track",
+  "/tools/cannibalization": "track",
+  "/tools/cluster": "track",
+  "/tools/intent-classifier": "track",
+  "/tools/keyword-difficulty": "track",
+  "/tools/serp-features": "track",
+  "/tools/serp-volatility": "track",
+  "/tools/branded-split": "track",
+  "/tools/gsc-coverage": "track",
+  "/tools/indexnow": "track",
+  "/tools/backlink-discovery": "track",
+  "/tools/anchor-distribution": "track",
+
+  // --- Get found by AI ----------------------------------------------
+  "/tools/ai-overview": "ai",
+  "/tools/ai-citation-tactics": "ai",
+  "/tools/aio-passage": "ai",
+  "/tools/llms-txt": "ai",
+  "/tools/ai-robots": "ai",
+  "/tools/ai-slop": "ai",
+  "/tools/ai-schema": "ai",
+  "/tools/reddit-research": "ai",
+  "/tools/reputation-abuse-risk": "ai",
+  "/tools/expert-panel": "ai",
+
+  // --- Occasional ---------------------------------------------------
+  // Genuinely useful, genuinely not daily. Collapsed by default.
+  "/tools/migration-map": "occasional",
+  "/tools/migration-parity": "occasional",
+  "/tools/hreflang": "occasional",
+  "/tools/programmatic-seo": "occasional",
+  "/tools/og-image": "occasional",
+  "/tools/image-gen": "occasional",
+  "/tools/code-generator": "occasional",
+  "/tools/github-pr": "occasional",
+  "/tools/browser-agent": "occasional",
+  "/tools/utm-attribution": "occasional",
+  "/tools/bing": "occasional",
+  "/tools/screenshot-import": "occasional",
+  "/tools/disavow": "occasional",
+  "/tools/outreach-personalize": "occasional",
+  "/tools/youtube": "occasional",
+  "/tools/youtube-audit": "occasional",
+  "/tools/news-headline": "occasional",
+  "/tools/person-schema": "occasional",
+  "/tools/gbp-reply": "occasional",
+  "/tools/dns-whois": "occasional",
+  "/tools/wayback": "occasional",
+  "/tools/link-graph": "occasional",
+  "/tools/pagerank": "occasional",
+  "/tools/local-cwv": "occasional",
+  "/tools/attack-briefs": "occasional",
+  "/tools/content-helpers": "occasional",
+  "/tools/trending": "occasional",
+  "/tools/ads-funnel": "occasional",
+  "/tools/external": "occasional",
+};
+
+export function categoryOf(href: string): ToolCategoryId {
+  return EXPLICIT[href] ?? "occasional";
+}
+
+/** Render order. The five jobs first, occasional last and collapsed. */
+export const CATEGORY_ORDER: ToolCategoryId[] = [
+  "win",
+  "fix",
+  "improve",
+  "track",
+  "ai",
+  "occasional",
+];
+
+/** Collapsed by default in the UI. */
+export const COLLAPSED_BY_DEFAULT: ToolCategoryId[] = ["occasional"];

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Activity,
   Bot,
+  ChevronDown,
   CalendarClock,
   Camera,
   Code2,
@@ -52,7 +53,10 @@ import { PageHeader } from "@/components/shell/page-header";
 import { useStoredState } from "@/components/use-stored-state";
 import {
   CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  COLLAPSED_BY_DEFAULT,
   categoryOf,
+  isRetired,
   type ToolCategoryId,
 } from "@/lib/tool-categories";
 
@@ -860,20 +864,10 @@ const accentMap: Record<string, string> = {
   rose: "bg-rose-500/15 text-rose-300 ring-rose-400/30",
 };
 
-// Render categories in this specific order — most-used first.
-const CATEGORY_ORDER: ToolCategoryId[] = [
-  "everyday",
-  "audit",
-  "ai-geo",
-  "content",
-  "keywords",
-  "backlinks",
-  "technical",
-  "generators",
-  "migration",
-  "local",
-  "specialty",
-];
+// CATEGORY_ORDER now lives in lib/tool-categories alongside the labels
+// and the assignments. It was defined here as a second list of the same
+// category ids — the pattern CLAUDE.md's fourth standing rule names, and
+// the two would have drifted the moment a category was added.
 
 type Tool = (typeof tools)[number];
 
@@ -909,6 +903,14 @@ export function ToolsGrid() {
     setPinned(next, serializePinned);
   }
 
+  // Which collapsed sections the user has opened. Deliberately NOT
+  // persisted: "Occasional" being closed is the default state we want on
+  // every visit, and remembering that someone once expanded it would
+  // slowly undo the whole point.
+  const [expanded, setExpanded] = useState<ReadonlySet<ToolCategoryId>>(
+    new Set(),
+  );
+
   const q = query.trim().toLowerCase();
   const filteredTools = useMemo(() => {
     if (!q) return tools;
@@ -924,9 +926,14 @@ export function ToolsGrid() {
     [pinned],
   );
 
-  // Bucket every (filtered) tool into its category.
+  // Bucket every (filtered) tool into its category, skipping retired
+  // ones. Retired means "superseded by a better tool for the same job",
+  // not deleted — the routes still work, so bookmarks and links inside
+  // old reports keep functioning. They just stop competing for
+  // attention with the tool that replaced them.
   const byCategory = new Map<ToolCategoryId, Tool[]>();
   for (const t of filteredTools) {
+    if (isRetired(t.href)) continue;
     const cat = categoryOf(t.href);
     const arr = byCategory.get(cat) ?? [];
     arr.push(t);
@@ -1032,6 +1039,16 @@ export function ToolsGrid() {
         const list = byCategory.get(cat);
         if (!list || list.length === 0) return null;
         const meta = CATEGORY_LABELS[cat];
+
+        // "Occasional" is collapsed until asked for. It holds the tools
+        // that are genuinely useful a few times a year — migrations,
+        // one-off generators — and showing them next to the daily ones
+        // is what made ninety-nine tools feel like a wall. Filtering
+        // expands everything, because then the user has told us what
+        // they're looking for.
+        const collapsible = COLLAPSED_BY_DEFAULT.includes(cat) && !q;
+        const open = !collapsible || expanded.has(cat);
+
         return (
           <section
             key={cat}
@@ -1039,26 +1056,54 @@ export function ToolsGrid() {
             className="scroll-mt-20 space-y-3"
           >
             <header className="space-y-0.5">
-              <h2 className="text-lg font-semibold tracking-tight">
-                {meta.label}
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  ({list.length})
-                </span>
-              </h2>
+              {collapsible ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpanded((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(cat)) next.delete(cat);
+                      else next.add(cat);
+                      return next;
+                    })
+                  }
+                  className="flex w-full items-center gap-2 text-left"
+                  aria-expanded={open}
+                >
+                  <h2 className="text-lg font-semibold tracking-tight">
+                    {meta.label}
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      ({list.length})
+                    </span>
+                  </h2>
+                  <ChevronDown
+                    className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                  />
+                </button>
+              ) : (
+                <h2 className="text-lg font-semibold tracking-tight">
+                  {meta.label}
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    ({list.length})
+                  </span>
+                </h2>
+              )}
               <p className="text-xs text-muted-foreground">
                 {meta.description}
               </p>
             </header>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {list.map((t) => (
-                <ToolCard
-                  key={t.href}
-                  tool={t}
-                  pinned={pinned.has(t.href)}
-                  onTogglePin={() => togglePin(t.href)}
-                />
-              ))}
-            </div>
+            {open && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {list.map((t) => (
+                  <ToolCard
+                    key={t.href}
+                    tool={t}
+                    pinned={pinned.has(t.href)}
+                    onTogglePin={() => togglePin(t.href)}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         );
       })}
