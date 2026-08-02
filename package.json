@@ -105,7 +105,9 @@
     "gen:social-preview": "tsx scripts/gen-social-preview.ts",
     "test:wp": "tsx scripts/wp-bridge-check.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "mcp": "tsx scripts/mcp-server.ts",
+    "test:mcp": "tsx scripts/mcp-check.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -120,6 +122,7 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@hello-pangea/dnd": "^18.0.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@resvg/resvg-js": "^2.6.2",
     "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",

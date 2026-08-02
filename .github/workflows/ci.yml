@@ -201,6 +201,21 @@ jobs:
       # NOT prove the PHP behaves as documented; that needs a real
       # WordPress. It does prove our side, which is where all four bugs
       # were.
+      # The MCP server, driven the way a real client drives it.
+      #
+      # Spawns it and speaks JSON-RPC over stdio, because the handlers
+      # can all be correct while the server fails to hand-shake or
+      # prints something to stdout that corrupts the stream — and the
+      # user just sees "server disconnected".
+      #
+      # The assertions that matter are about what it refuses to imply:
+      # a rank number without its source, or movement computed by
+      # subtracting a browser scrape from a Search Console average. That
+      # last one reports a six-place gain that never happened, and reads
+      # exactly like a real one.
+      - name: MCP server
+        run: pnpm exec tsx scripts/mcp-check.ts
+
       # The plugin's own PHP, actually executed.
       #
       # It never had been. Every check for the WordPress integration drove
