@@ -2125,3 +2125,50 @@ export const reportBatches = sqliteTable("report_batches", {
   error: text("error"),
 });
 export type ReportBatch = typeof reportBatches.$inferSelect;
+
+/**
+ * A prospect who ran the embeddable grader on an agency's site.
+ *
+ * The score and issue counts live here alongside the email on purpose.
+ * "Someone wants an audit" is a to-do; "someone with a 34/100 site and
+ * nine critical issues wants an audit" is a sales conversation with an
+ * opening line already written.
+ */
+export const graderLeads = sqliteTable("grader_leads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Always present — the grade runs first, the email is optional. */
+  url: text("url").notNull(),
+  email: text("email"),
+  name: text("name"),
+  score: integer("score"),
+  criticalCount: integer("critical_count").notNull().default(0),
+  highCount: integer("high_count").notNull().default(0),
+  /**
+   * The findings as graded. Lets an agency open a lead weeks later and
+   * see what was actually wrong, without re-crawling a site that has
+   * changed in the meantime.
+   */
+  findingsJson: text("findings_json", { mode: "json" }).$type<
+    { type: string; severity: string; message: string }[]
+  >(),
+  status: text("status", {
+    enum: ["new", "contacted", "won", "lost", "spam"],
+  })
+    .notNull()
+    .default("new"),
+  notes: text("notes"),
+  /** Which of the agency's pages the widget was embedded on. */
+  sourcePage: text("source_page"),
+  /**
+   * Truncated to a /24 (or /48 for IPv6) before storage — enough to spot
+   * one actor spamming the form, not a record of who visited an agency's
+   * marketing site. A privacy-first tool shouldn't accumulate full
+   * visitor IPs as a side effect of a lead form.
+   */
+  ipPrefix: text("ip_prefix"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  contactedAt: integer("contacted_at", { mode: "timestamp" }),
+});
+export type GraderLead = typeof graderLeads.$inferSelect;

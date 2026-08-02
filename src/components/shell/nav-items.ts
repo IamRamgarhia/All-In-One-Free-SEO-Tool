@@ -26,6 +26,7 @@ import {
   GraduationCap,
   History,
   ImageIcon,
+  Inbox,
   LayoutDashboard,
   Link2,
   ListChecks,
@@ -100,6 +101,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/morning", label: "Morning briefing", icon: Activity, guided: true },
       { href: "/digest", label: "Weekly digest", icon: Send },
       { href: "/grader", label: "Instant audit", icon: Sparkles, guided: true },
+      { href: "/leads", label: "Leads", icon: Inbox, guided: true },
       { href: "/agent", label: "AI agent", icon: Bot },
       // Guided, because "what is this thing doing to my sites while I'm
       // not looking" is a question a beginner needs answered more

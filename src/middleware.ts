@@ -124,6 +124,12 @@ const PUBLIC_PATHS = [
   "/api/v1",
   // Inbound webhooks. Authenticated by the token in the path.
   "/api/webhooks",
+  // The embeddable site grader. Public by definition — it lives in an
+  // iframe on the agency's marketing site and is aimed at strangers.
+  // It exposes no client data: it grades a URL the caller supplies and
+  // writes a lead row. SSRF is refused inside runAudit and the endpoint
+  // is rate-limited per IP prefix (see lib/grader-public.ts).
+  "/embed/grader",
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -164,6 +170,12 @@ function applyEmbedHeader(req: NextRequest): Headers {
   // product the agency is reselling. Handled here rather than in the
   // page because the layout renders before the page can say anything.
   if (req.nextUrl.pathname.startsWith("/portal/")) {
+    requestHeaders.set("x-embed", "1");
+  }
+  // Same for the public grader widget. It renders inside an iframe on
+  // somebody else's website; shipping the agency's navigation into that
+  // page would put a "Clients" link on a stranger's screen.
+  if (req.nextUrl.pathname.startsWith("/embed/")) {
     requestHeaders.set("x-embed", "1");
   }
   return requestHeaders;

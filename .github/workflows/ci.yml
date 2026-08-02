@@ -123,6 +123,22 @@ jobs:
           node scripts/migrate.cjs
           pnpm exec tsx scripts/agent-check.ts
 
+      # The public grader is the only endpoint anyone on the internet can
+      # reach AND that makes the server fetch a URL of their choosing.
+      # Both properties that make that safe — refusing internal addresses
+      # and rate limiting — fail silently.
+      #
+      # Runs against the action's core rather than over HTTP, deliberately:
+      # the first version of this check POSTed a plain form to the route,
+      # which a Next server action ignores, so every SSRF target "passed"
+      # because nothing had executed.
+      - name: Public grader safety
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/grader.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          pnpm exec tsx scripts/grader-ssrf-check.ts
+
       # Crawls example.com, so it needs the network. Kept here rather
       # than in the unit suite because the property being checked is that
       # a real crawl's page count survives into the database — a fixture
