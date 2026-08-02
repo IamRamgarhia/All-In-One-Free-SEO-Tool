@@ -29,6 +29,7 @@ import {
   findPostIdByUrl,
   getClientWpCreds,
   getPostSeo,
+  setPostSchema,
   setPostSeo,
   type WpCreds,
 } from "../wp-bridge";
@@ -60,6 +61,15 @@ export async function draftValue(
   action: PlannedAction,
   context: { siteName: string; pageTitle?: string | null; pageUrl: string },
 ): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
+  // Schema doesn't go through the prompt table. It has a purpose-built
+  // generator that reads the page and refuses to invent fields that
+  // aren't demonstrably there — which matters far more for structured
+  // data than for a title, because invented author names, prices or
+  // ratings in JSON-LD are a manual-action risk, not just bad copy.
+  if (action.kind === "write_schema") {
+    return draftSchema(action.targetUrl);
+  }
+
   const spec = DRAFT_SPECS[action.kind];
   if (!spec) return { ok: false, error: `No drafting rule for ${action.kind}` };
 
@@ -84,6 +94,58 @@ export async function draftValue(
   }
 
   return { ok: true, value: cleaned };
+}
+
+/**
+ * Produce JSON-LD for a page.
+ *
+ * Takes the highest-confidence suggestion only. The generator returns up
+ * to three, and picking between them is a judgement call — so an agent
+ * running unattended takes the first (the generator orders by fit) and
+ * the action is marked `needs_review` by the planner, meaning a human
+ * sees it before it ships unless the user has opted into full autopilot.
+ *
+ * Validates that it parses. A malformed JSON-LD block is worse than none
+ * — Google ignores it and the page looks like it has structured data
+ * when it doesn't, which is exactly the sort of silent wrongness that
+ * survives for months.
+ */
+async function draftSchema(
+  url: string,
+): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
+  const { generateSchemaFromUrl } = await import("../ai-schema-gen");
+  const result = await generateSchemaFromUrl({ url });
+
+  if (!result.ok) return { ok: false, error: result.error };
+  if (result.suggestions.length === 0) {
+    return {
+      ok: false,
+      error:
+        "No schema type fits this page. That's a legitimate answer — not every page qualifies for a rich result.",
+    };
+  }
+
+  const jsonLd = result.suggestions[0].jsonLd.trim();
+  try {
+    const parsed = JSON.parse(jsonLd);
+    if (!parsed || typeof parsed !== "object") throw new Error("not an object");
+    const ctx = (parsed as Record<string, unknown>)["@context"];
+    const type = (parsed as Record<string, unknown>)["@type"];
+    if (!ctx || !type) {
+      return {
+        ok: false,
+        error: "The generated schema is missing @context or @type.",
+      };
+    }
+  } catch {
+    return {
+      ok: false,
+      error:
+        "The generated schema isn't valid JSON. Refusing to write it — broken JSON-LD is worse than none, because the page looks marked up and isn't.",
+    };
+  }
+
+  return { ok: true, value: jsonLd };
 }
 
 const DRAFT_SPECS: Record<
@@ -248,6 +310,22 @@ export async function executeAction(opts: {
     appliedAt: new Date(),
   });
 
+  // Some writes can't be read back. `getPostSeo` returns the title and
+  // meta description but not the JSON-LD, so a schema write stops at
+  // "applied" — and the note says exactly that, rather than the
+  // cache-or-plugin explanation below, which would be a guess dressed
+  // as a diagnosis.
+  if (!isVerifiable(action.kind)) {
+    await db
+      .update(agentActions)
+      .set({
+        verifyNote:
+          "Written, but not read back — the WordPress bridge doesn't expose this field for reading yet, so we can't confirm it took effect. Check the page if it matters.",
+      })
+      .where(eq(agentActions.id, actionId));
+    return { status: "applied", actionId };
+  }
+
   // Rule 2: a 200 means accepted, not effective. An SEO plugin can
   // override the title; a cache can keep serving the old one. Read it
   // back before claiming success.
@@ -336,7 +414,28 @@ function readField(
 ): string | null {
   if (kind === "write_title") return seo.title ?? null;
   if (kind === "write_meta_description") return seo.metaDescription ?? null;
+  // Schema: empty string, not null, and the distinction is load-bearing.
+  //
+  // `getPostSeo` doesn't return the existing JSON-LD, so we can't read
+  // the previous value the way we do for a title. But the ONLY finding
+  // that triggers a schema write is `missing_schema` — the page has none
+  // by definition — so the previous state is "" and the undo is to write
+  // "" back, removing what we added.
+  //
+  // Returning null instead would trip the "no recorded undo" guard and
+  // refuse the write, or worse, record an un-undoable change.
+  //
+  // This reasoning does NOT extend to `invalid_schema`. If that ever
+  // becomes a trigger, the bridge must be able to read the existing
+  // markup first, or the agent would silently destroy hand-written
+  // structured data with no way back.
+  if (kind === "write_schema") return "";
   return null;
+}
+
+/** Can we confirm a write took effect by reading the page back? */
+function isVerifiable(kind: string): boolean {
+  return kind === "write_title" || kind === "write_meta_description";
 }
 
 async function writeField(
@@ -348,6 +447,14 @@ async function writeField(
   if (kind === "write_title") return setPostSeo(creds, postId, { title: value });
   if (kind === "write_meta_description")
     return setPostSeo(creds, postId, { metaDescription: value });
+  // wp-bridge has supported this since it was written. The agent claimed
+  // the capability (capability detection maps every WP write to the same
+  // connection), the planner planned schema work, and then this function
+  // refused it — so on any WordPress client with missing schema the agent
+  // planned an action that could never succeed. Capability detection
+  // exists precisely to stop that, and it was defeated by the executor
+  // not implementing what the bridge already did.
+  if (kind === "write_schema") return setPostSchema(creds, postId, value);
   return { ok: false, error: `The agent can't write ${kind} yet.` };
 }
 

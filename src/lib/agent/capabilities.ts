@@ -97,6 +97,25 @@ export async function detectCapabilities(
 
   for (const id of WRITE_CAPS) set(id, wpOk, wpError);
 
+  // Alt text is the exception, and saying so is the point.
+  //
+  // `setAttachmentAlt` takes a WordPress attachment id. An audit finding
+  // gives us a page URL and the image's src — the bridge has no endpoint
+  // that maps one to the other, so there is no way to reach the right
+  // attachment. Until the plugin exposes "list the images on this post
+  // with their attachment ids", this cannot be done.
+  //
+  // Reporting it as available (which it was, because every WP write
+  // shared one flag) meant the planner planned alt-text work on every
+  // WordPress client and the executor failed all of it. Capability
+  // detection exists to prevent exactly that, and a blanket flag
+  // defeated it.
+  set(
+    "write_image_alt",
+    false,
+    "The agent can find images with no alt text but can't write it back yet — the WordPress plugin doesn't expose which attachment an image on a page belongs to. Use the bulk alt-text tool meanwhile.",
+  );
+
   // --- Reading real performance data ---------------------------------
   set(
     "read_gsc",
