@@ -41,8 +41,22 @@ const section = (t: string) =>
 async function main() {
   const all = await db.select().from(clients).limit(1);
   if (all.length === 0) {
-    console.log("No clients in the database — add one and re-run.");
-    process.exit(0);
+    // Exit 1, not 0.
+    //
+    // This used to exit 0, which meant that on a fresh CI database the
+    // step went green having asserted nothing at all — a passing agent
+    // safety check for an agent that never ran. That is the third time
+    // in this project a check has certified code it didn't execute, and
+    // the pattern is always the same: an early return on "no data" that
+    // reads as success.
+    //
+    // Refusing to pass is the correct behaviour for a safety check.
+    // If there is nothing to check, that is a problem with the run, not
+    // a clean bill of health.
+    console.error(
+      "No clients in the database. This check has nothing to verify, which is a FAILURE, not a pass — seed a client and an audit first.",
+    );
+    process.exit(1);
   }
   const client = all[0];
   console.log(`Agent check against client #${client.id} (${client.name})\n`);

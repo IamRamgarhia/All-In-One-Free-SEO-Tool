@@ -143,13 +143,44 @@ async function main() {
     basedOnAt: row.basedOnAt,
   });
 
-  if (pdf.byteLength > 3000) {
-    ok("PDF rendered", `${(pdf.byteLength / 1024).toFixed(0)} KB`);
-  } else {
-    bad("PDF is suspiciously small", `${pdf.byteLength} bytes`);
-  }
   if (pdf.subarray(0, 4).toString() === "%PDF") ok("it is a real PDF");
   else bad("output isn't a PDF", pdf.subarray(0, 8).toString());
+
+  // Compare against an empty render rather than a byte threshold.
+  //
+  // This asserted `> 3000 bytes`, which passed against my database (13
+  // findings, 8 scope lines, 4 KB) and failed against CI's fixture (3
+  // findings, 2898 bytes) — for a PDF that was perfectly correct. A
+  // magic number calibrated to one dataset is a false failure waiting
+  // for whoever changes the fixture, and false failures get "fixed" by
+  // lowering the number until the check means nothing.
+  //
+  // What actually matters is that the content reached the page, and the
+  // honest way to check that is whether it made a difference.
+  const emptyRender = await generateProposalPdf({
+    prospectName: row.prospectName,
+    prospectUrl: row.prospectUrl,
+    title: row.title,
+    intro: null,
+    scope: [],
+    pricing: [],
+    currency: "GBP",
+    terms: null,
+    basedOnScore: null,
+    basedOnAt: null,
+  });
+
+  if (pdf.byteLength > emptyRender.byteLength) {
+    ok(
+      "the scope, pricing and terms reached the page",
+      `${pdf.byteLength} bytes vs ${emptyRender.byteLength} empty`,
+    );
+  } else {
+    bad(
+      "a filled proposal renders no larger than an empty one",
+      "the content is being dropped",
+    );
+  }
 
   // Currency formatting must survive a bad code rather than throwing —
   // a typo in a currency field should not break the document someone is

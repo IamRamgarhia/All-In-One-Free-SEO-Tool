@@ -121,6 +121,30 @@ jobs:
           export SEO_DB_PATH="${{ runner.temp }}/agent.db"
           export SEO_DATA_DIR="${{ runner.temp }}"
           node scripts/migrate.cjs
+          # Seed a client AND an audit with findings.
+          #
+          # Without these the script hits its "No clients — add one and
+          # re-run" path, exits 0, and the step goes green having
+          # asserted nothing. That is the third time in this project a
+          # check has passed on code it never executed, so the script
+          # itself now refuses to exit 0 on an empty database — this
+          # seed is what gives it something real to check.
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            const c=db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            const a=db.prepare(
+              'INSERT INTO audits (client_id, status, score, issues_count, pages_crawled, completed_at) VALUES (?,?,?,?,?,unixepoch())'
+            ).run(c.lastInsertRowid,'completed',42,3,1);
+            const ins=db.prepare(
+              'INSERT INTO audit_issues (audit_id, severity, type, url, message) VALUES (?,?,?,?,?)'
+            );
+            ins.run(a.lastInsertRowid,'high','missing_title','https://example.com/','No title tag');
+            ins.run(a.lastInsertRowid,'high','missing_meta_description','https://example.com/','No meta description');
+            ins.run(a.lastInsertRowid,'medium','missing_schema','https://example.com/','No structured data');
+            db.close();
+          "
           pnpm exec tsx scripts/agent-check.ts
 
       # A proposal is the one document a prospect keeps and holds you to.
