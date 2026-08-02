@@ -30,6 +30,7 @@ import { configuredProviders } from "@/lib/api-keys";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { setSetting } from "@/lib/settings-store";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -91,16 +92,20 @@ export default async function WelcomePage() {
       icon: Bot,
       title: "Add an AI provider (optional)",
       description:
-        "Turns audit findings into plain-English explanations and fixes, and unlocks chat, exec summaries and content tools. Gemini and Groq have free tiers.",
-      href: "/settings#ai",
+        "Turns audit findings into plain-English explanations and fixes, and unlocks chat, exec summaries and content tools. Gemini and Groq are free — about three minutes, with the steps written out.",
+      // Points at the guide rather than the settings form. A brand-new
+      // user sent straight to a "paste your API key" box still has to
+      // work out where the key comes from; the guide answers that first
+      // and then hands them on.
+      href: "/connect#ai",
     },
     {
       id: "google",
       icon: Plug,
       title: "Connect Google (GSC + GA4)",
       description:
-        "Optional but high-leverage. Real keyword data, organic traffic, conversion tracking. Each client picks its own properties.",
-      href: "/settings/google",
+        "Optional but high-leverage. Real ranking data instead of scraped, plus organic traffic and quick wins. Five minutes, free, steps included.",
+      href: "/connect#google",
     },
     {
       id: "keywords",
@@ -184,6 +189,23 @@ export default async function WelcomePage() {
           Skip for now and explore the dashboard →
         </button>
       </form>
+
+      {/* Six steps is enough for a checklist, but it isn't everything
+          that can be connected — Bing (backlinks and real keyword
+          volume), PageSpeed, WordPress and email all sit outside it.
+          One line so those stay findable without lengthening the list. */}
+      <p className="text-[12px] text-muted-foreground">
+        There are a few more optional connections — Bing for backlinks and
+        keyword volume, WordPress so the agent can apply fixes, email for
+        sending reports.{" "}
+        <Link
+          href="/connect"
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          See all of them, with setup guides
+        </Link>
+        .
+      </p>
 
       {doneCount === total && (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-[13px]">

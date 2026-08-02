@@ -4,6 +4,9 @@
 
 ### 🚀 The complete free SEO platform. 96 dedicated tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
 
+### Built for agencies and freelancers, specifically
+**Team accounts** with per-client access · **generate every client's report in one run**, then review before anything goes out · an **autonomous agent** that fixes what it finds and can undo any of it · an **embeddable audit widget** that turns your site into a lead source · **proposals** built from real audit findings.
+
 **Replace ₹25,000–₹65,000/month ($300–$770) of SEO subscriptions with one MIT-licensed free tool. Own your data. Works with free AI keys (Gemini, Groq) — no paid APIs required.**
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -242,14 +245,22 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Image-prompt generator for ad creatives
 
 ### 📑 Reports & client management
+✅ **Generate every client's report in one run** — pick clients, pick a template, one button  
+✅ **Review queue** — batches produce drafts. Nothing reaches a client until you've read it and approved it, and sending delivers the exact PDF you approved rather than a fresh render  
 ✅ White-label PDF reports with your branding (logo, color, footer)  
 ✅ AI-generated executive summary (formula: [Direction] + [Win] + [Priority])  
 ✅ Report templates (Executive, Detailed, Technical, Local, E-commerce, Custom)  
-✅ Scheduled monthly delivery via email  
-✅ Client portal with magic-link access (clients see live progress without PDF)  
+✅ Scheduled monthly delivery via email, signed with your agency's details  
+✅ Client portal with magic-link access — fully white-labelled, `noindex`, no app chrome  
 ✅ Invoice generator (₹INR + UPI / $USD) — 1-page A4, branded  
 ✅ Manual data inputs (outreach, links built, comments) integrated into reports  
 ✅ Work-completed-this-month auto-populated from completed tasks
+
+### 💼 Winning the work
+✅ **Embeddable audit widget** — one iframe on your site. Prospects grade their own domain, see what's wrong, and leave an email  
+✅ **Leads inbox** — every lead arrives with a score and the actual findings, so your first reply writes itself. One click turns a lead into a client  
+✅ **Proposal generator** — turns an audit into a document someone signs. Scope derived from real findings; you set the pricing  
+⚠️ Deliberately no traffic, ranking or revenue forecasts in proposals — a crawl can't support them, and a proposal is the one document a client keeps and holds you to
 
 ### 🛠️ Tasks & workflow
 ✅ Today / This week / This month views  
@@ -261,7 +272,13 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Time tracking per task  
 ✅ Comments + attachments + completion log
 
-### 🤖 Automations & daily agent
+### 🤖 Automations & the autonomous agent
+✅ **Autopilot** — the agent plans work from your audits, applies fixes, verifies them by re-reading the page, and turns everything it can't fix into tasks  
+✅ **Four autonomy levels**, defaulting to the cautious one: off · suggest only · fix the obvious things · full autopilot. "Suggest only" never touches a live site  
+✅ **Every change is reversible** — the previous value is read from the CMS before writing, and one click puts it back. If the previous value can't be read, the change doesn't happen  
+✅ **"Applied" and "verified" are different states** — a CMS accepting a change isn't the same as it taking effect, and the UI shows which  
+✅ Guardrails: changes-per-run, changes-per-day, and a cooldown so it can't thrash the same page  
+✅ Full audit trail — what it did, why, what it looked like before  
 ✅ **Daily agent runs ~17 automated jobs per client every day** — rank checks, audit deltas, content decay, backlink scans, GBP monitoring, alert generation  
 ✅ Workflow builder (drag-and-drop trigger → conditions → actions)  
 ✅ Pre-built workflow templates  
@@ -271,6 +288,8 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Notification rules (Slack / Discord / Teams / email)
 
 ### 🔌 Integrations
+✅ **One setup page** (`/connect`) — every connection in one place, with what each one gets you, what you lose without it, how long it takes, and step-by-step instructions written for someone who's never seen that vendor's console  
+✅ Nothing is required. The tool is fully usable with no keys at all  
 ✅ Google Search Console (free OAuth)  
 ✅ Google Analytics 4 (free OAuth)  
 ✅ Google Business Profile (free OAuth)  
