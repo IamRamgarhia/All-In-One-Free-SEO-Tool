@@ -3,7 +3,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import type { AiFailure } from "@/lib/ai-error";
 import { saveToolRun } from "@/lib/tool-runs";
 import {
   ADS_MASTER_SYSTEM_PROMPT,
@@ -90,7 +91,7 @@ export type AdsFunnelResult = {
 };
 
 export type AdsFunnelState =
-  | { ok: true; result: AdsFunnelResult; runId: number }
+  | { ok: true; result: AdsFunnelResult; runId: number; aiFailure?: AiFailure | null }
   | { ok: false; error: string };
 
 // ────────────────────────────────────────────────────────────────────
@@ -242,7 +243,7 @@ export async function generateAdsFunnel(
     // ignore — not load-bearing
   }
 
-  return { ok: true, result: parsed, runId };
+  return { ok: true, result: parsed, runId, aiFailure: lastAiFailure() };
 }
 
 // ────────────────────────────────────────────────────────────────────

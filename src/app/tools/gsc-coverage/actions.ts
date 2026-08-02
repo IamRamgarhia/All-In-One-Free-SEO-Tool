@@ -2,10 +2,11 @@
 
 import { inspectGscUrl, type UrlInspection } from "@/lib/google-oauth";
 import { saveToolRun } from "@/lib/tool-runs";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import type { AiFailure } from "@/lib/ai-error";
 
 export type CoverageState =
-  | { ok: true; site: string; rows: UrlInspection[]; summary: Record<string, number> }
+  | { ok: true; site: string; rows: UrlInspection[]; summary: Record<string, number>; aiFailure?: AiFailure | null }
   | { ok: false; error: string };
 
 const CONCURRENCY = 4;
@@ -77,7 +78,7 @@ export async function runCoverage(
     input: { site, urlCount: urls.length },
     result: { ok: true, site, rows, summary },
   }).catch(() => undefined);
-  return { ok: true, site, rows, summary };
+  return { ok: true, site, rows, summary, aiFailure: lastAiFailure() };
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -100,7 +101,7 @@ export type FixPlanItem = {
 };
 
 export type FixPlanState =
-  | { ok: true; items: FixPlanItem[] }
+  | { ok: true; items: FixPlanItem[]; aiFailure?: AiFailure | null }
   | { ok: false; error: string }
   | null;
 
@@ -141,7 +142,7 @@ export async function analyzeFixesForCoverage(
     );
   });
   if (needsFix.length === 0) {
-    return { ok: true, items: [] };
+    return { ok: true, items: [], aiFailure: lastAiFailure() };
   }
   const batch = needsFix.slice(0, 30);
 
@@ -230,6 +231,6 @@ analysis, internal-link to /pillar-page, target a long-tail keyword".`;
       error: "AI response wasn't valid JSON. Try again.",
     };
   }
-  return { ok: true, items: parsed.items.slice(0, 30) };
+  return { ok: true, items: parsed.items.slice(0, 30), aiFailure: lastAiFailure() };
 }
 

@@ -7,7 +7,8 @@ import {
   replyToGbpReview,
   type GbpReview,
 } from "@/lib/gbp-api";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import type { AiFailure } from "@/lib/ai-error";
 
 export type ReplyLocation = {
   /** "accounts/X/locations/Y" */
@@ -21,10 +22,10 @@ export type ReplyLocation = {
  * a handful of locations; this still works for multi-account setups
  * (franchise owners, etc).
  */
-export async function listReplyLocations(): Promise<{
-  ok: true;
-  locations: ReplyLocation[];
-} | { ok: false; error: string }> {
+export async function listReplyLocations(): Promise<
+  | { ok: true; locations: ReplyLocation[]; aiFailure?: AiFailure | null }
+  | { ok: false; error: string }
+> {
   try {
     const accounts = await listGbpAccounts();
     const out: ReplyLocation[] = [];
@@ -34,7 +35,7 @@ export async function listReplyLocations(): Promise<{
         out.push({ name: l.name, title: l.title || a.accountName });
       }
     }
-    return { ok: true, locations: out };
+    return { ok: true, locations: out, aiFailure: lastAiFailure() };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -54,7 +55,7 @@ export type ReviewWithDraft = GbpReview & {
 export async function fetchReviewsWithDrafts(
   locationName: string,
   businessName: string,
-): Promise<{ ok: true; reviews: ReviewWithDraft[] } | { ok: false; error: string }> {
+): Promise<{ ok: true; reviews: ReviewWithDraft[]; aiFailure?: AiFailure | null } | { ok: false; error: string }> {
   try {
     const reviews = await listGbpReviews({ locationName, pageSize: 50 });
     const out: ReviewWithDraft[] = [];
@@ -76,7 +77,7 @@ export async function fetchReviewsWithDrafts(
     for (const r of reviews.slice(20)) {
       out.push({ ...r, draft: null });
     }
-    return { ok: true, reviews: out };
+    return { ok: true, reviews: out, aiFailure: lastAiFailure() };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
@@ -125,7 +126,7 @@ Review text: ${opts.comment ?? "(left no text — star rating only)"}`;
 }
 
 export type SubmitReplyState =
-  | { ok: true; reviewId: string }
+  | { ok: true; reviewId: string; aiFailure?: AiFailure | null }
   | { ok: false; error: string }
   | null;
 
@@ -146,5 +147,5 @@ export async function submitReply(
   const r = await replyToGbpReview({ reviewName, comment });
   if (!r.ok) return { ok: false, error: r.error ?? "Reply failed." };
   const reviewId = reviewName.split("/").pop() ?? "";
-  return { ok: true, reviewId };
+  return { ok: true, reviewId, aiFailure: lastAiFailure() };
 }

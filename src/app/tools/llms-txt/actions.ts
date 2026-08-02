@@ -1,11 +1,12 @@
 "use server";
 
 import { fetchSiteMetadata } from "@/lib/site-metadata";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import type { AiFailure } from "@/lib/ai-error";
 import { saveToolRun } from "@/lib/tool-runs";
 
 export type GenerateLlmsResult =
-  | { ok: true; content: string }
+  | { ok: true; content: string; aiFailure?: AiFailure | null }
   | { ok: false; error: string };
 
 export type ValidateLlmsResult =
@@ -86,7 +87,7 @@ export async function generateLlmsTxt(opts: {
     input: { url: opts.url, hint: opts.hint },
     result: { ok: true, content },
   }).catch(() => undefined);
-  return { ok: true, content };
+  return { ok: true, content, aiFailure: lastAiFailure() };
 }
 
 export async function validateLlmsTxt(

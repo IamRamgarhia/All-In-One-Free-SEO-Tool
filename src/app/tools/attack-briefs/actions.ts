@@ -1,6 +1,7 @@
 "use server";
 
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import type { AiFailure } from "@/lib/ai-error";
 import { scanSerp } from "@/lib/serp-scanner";
 import { saveToolRun } from "@/lib/tool-runs";
 
@@ -21,7 +22,7 @@ export type AttackBrief = {
 };
 
 export type AttackState =
-  | { ok: true; briefs: AttackBrief[] }
+  | { ok: true; briefs: AttackBrief[]; aiFailure?: AiFailure | null }
   | { ok: false; error: string }
   | null;
 
@@ -178,5 +179,5 @@ Output JSON only with: { "requiredEeat": [...], "requiredSchema": [...], "intern
     input: { keywords, competitorDomain, country },
     result: { ok: true, briefs },
   }).catch(() => undefined);
-  return { ok: true, briefs };
+  return { ok: true, briefs, aiFailure: lastAiFailure() };
 }

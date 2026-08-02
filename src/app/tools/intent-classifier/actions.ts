@@ -1,6 +1,7 @@
 "use server";
 
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import type { AiFailure } from "@/lib/ai-error";
 import { saveToolRun } from "@/lib/tool-runs";
 
 export type IntentRow = {
@@ -11,7 +12,7 @@ export type IntentRow = {
 };
 
 export type IntentState =
-  | { ok: true; rows: IntentRow[] }
+  | { ok: true; rows: IntentRow[]; aiFailure?: AiFailure | null }
   | { ok: false; error: string };
 
 const SYSTEM = `You classify search-query intent. For each query, return ONE of:
@@ -129,7 +130,7 @@ export async function runClassify(
             input: { queries },
             result: { ok: true, rows },
           }).catch(() => undefined);
-          return { ok: true, rows };
+          return { ok: true, rows, aiFailure: lastAiFailure() };
         }
       } catch {
         // fall through to regex
@@ -145,5 +146,5 @@ export async function runClassify(
     input: { queries },
     result: { ok: true, rows },
   }).catch(() => undefined);
-  return { ok: true, rows };
+  return { ok: true, rows, aiFailure: lastAiFailure() };
 }

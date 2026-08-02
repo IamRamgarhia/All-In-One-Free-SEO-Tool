@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getActiveProvider, getApiKey, getOllamaUrl } from "./api-keys";
 import { getSetting } from "./settings-store";
 import { checkMonthlyCap, logAiCall } from "./ai-usage";
@@ -90,7 +91,57 @@ export type AiCallOptions = {
  */
 export async function callAI(opts: AiCallOptions): Promise<string | null> {
   const r = await callAIResult(opts);
+  if (!r.ok) recordAiFailure(r.failure);
   return r.ok ? r.text : null;
+}
+
+/**
+ * Per-request holder for the last AI failure.
+ *
+ * There are 65 `await callAI(...)` sites, almost all shaped like:
+ *
+ *     const text = await callAI({ ... });
+ *     if (text) { ...use it... }
+ *
+ * When it's null they skip silently — no error, no message, nothing to
+ * tell the user an AI step was even attempted. Rewriting all 65 to
+ * `callAIResult` and threading a failure object through each return type
+ * is the thorough fix and a very large diff across 52 files.
+ *
+ * This is the small one. `callAI` records why it failed, and any action
+ * can surface it by adding a single field to what it already returns:
+ *
+ *     return { ok: true, rows, aiFailure: lastAiFailure() };
+ *
+ * `cache()` scopes the holder to one request, so two users hitting
+ * different tools at the same time can't see each other's failure — the
+ * bug a module-level variable would have introduced.
+ */
+const failureHolder = cache((): { current: AiFailure | null } => ({
+  current: null,
+}));
+
+function recordAiFailure(failure: AiFailure): void {
+  try {
+    failureHolder().current = failure;
+  } catch {
+    // Outside a request scope (scheduler, scripts). Nothing to show a
+    // user there, and this must never break the caller.
+  }
+}
+
+/**
+ * Why the most recent `callAI` in this request failed, or null.
+ *
+ * Returns null when the call succeeded, so `aiFailure: lastAiFailure()`
+ * is safe to add unconditionally.
+ */
+export function lastAiFailure(): AiFailure | null {
+  try {
+    return failureHolder().current;
+  } catch {
+    return null;
+  }
 }
 
 /**

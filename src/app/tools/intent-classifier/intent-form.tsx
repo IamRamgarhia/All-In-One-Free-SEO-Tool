@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Compass, Loader2 } from "lucide-react";
+import { AiFailureNotice } from "@/components/ui/ai-failure-notice";
 import { runClassify, type IntentState } from "./actions";
 
 const TONE: Record<string, string> = {
@@ -58,6 +59,14 @@ export function IntentForm() {
         <p className="rounded-md bg-rose-500/10 px-3 py-2 text-xs text-rose-300 ring-1 ring-inset ring-rose-500/30">
           {state.error}
         </p>
+      )}
+
+      {/* The AI step failed but the tool still produced something — here,
+          a regex fallback classified the queries. Without this the user
+          gets the weaker result silently and has no idea a better one was
+          attempted, or why it didn't happen. */}
+      {state?.ok && state.aiFailure && (
+        <AiFailureNotice failure={state.aiFailure} />
       )}
 
       {state?.ok && state.rows.length > 0 && (

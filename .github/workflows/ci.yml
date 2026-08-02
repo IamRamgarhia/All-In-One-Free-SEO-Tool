@@ -365,12 +365,26 @@ jobs:
       # guard actually fires, or it's decoration.
       - name: Refuses to boot unauthenticated
         run: |
-          if docker run --rm --name seo-ci-noauth seo-tool:ci 2>&1 | tee /tmp/out; then
+          # Capture the exit status of `docker run` itself.
+          #
+          # This was `if docker run ... | tee /tmp/out; then` — which
+          # tests the exit status of the LAST command in the pipeline,
+          # i.e. tee. tee always succeeds, so the check reported "the
+          # guard did not fire" on a container that had just printed
+          # REFUSING TO START and exited non-zero. The guard was correct;
+          # the check was not.
+          set +e
+          docker run --rm --name seo-ci-noauth seo-tool:ci > /tmp/out 2>&1
+          status=$?
+          set -e
+          cat /tmp/out
+
+          if [ "$status" -eq 0 ]; then
             echo "started without APP_PASSWORD — the guard did not fire"
             exit 1
           fi
           grep -q "REFUSING TO START" /tmp/out || {
-            echo "failed for the wrong reason:"; cat /tmp/out; exit 1; }
+            echo "exited non-zero, but for the wrong reason:"; exit 1; }
 
       - name: Container logs on failure
         if: failure()
