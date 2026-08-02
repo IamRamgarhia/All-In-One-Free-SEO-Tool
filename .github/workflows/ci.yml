@@ -123,6 +123,24 @@ jobs:
           node scripts/migrate.cjs
           pnpm exec tsx scripts/agent-check.ts
 
+      # Crawls example.com, so it needs the network. Kept here rather
+      # than in the unit suite because the property being checked is that
+      # a real crawl's page count survives into the database — a fixture
+      # would only prove the fixture round-trips.
+      - name: Audit page-count check
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/audit.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            db.close();
+          "
+          pnpm exec tsx scripts/audit-pagecount-check.ts
+
       # Bulk reporting has one property that must never regress: a batch
       # produces DRAFTS. If it ever marks its own output approved, the
       # review step becomes decoration and reports go to clients unread —

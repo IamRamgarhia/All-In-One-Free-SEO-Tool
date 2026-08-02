@@ -99,6 +99,14 @@ export const audits = sqliteTable("audits", {
     .default("queued"),
   score: integer("score"),
   issuesCount: integer("issues_count").notNull().default(0),
+  /**
+   * How many pages the crawler actually visited.
+   *
+   * Null for audits that predate this column — they genuinely don't
+   * know, and showing nothing is more honest than back-filling a guess.
+   * See 0058_audit_pages_crawled.sql for what the UI was doing instead.
+   */
+  pagesCrawled: integer("pages_crawled"),
   startedAt: integer("started_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
   /** "crawler" (existing site-wide audit) | "ai_full" (AI single-page audit). */

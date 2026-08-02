@@ -305,6 +305,11 @@ export default async function DashboardPage() {
             value={latestScore ?? "—"}
             accent="emerald"
             icon={Sparkles}
+            // The one number on this row that isn't a count of our own
+            // rows. It's derived from what our crawler saw, so it can
+            // disagree with what Google last indexed — worth saying,
+            // because this is the figure that ends up in client reports.
+            source="crawl"
             hint={
               completedAudits.length > 0
                 ? `${completedAudits.length} completed`
