@@ -35,6 +35,7 @@ import {
   Megaphone,
   Network,
   Newspaper,
+  Plug,
   Receipt,
   ScanText,
   Search,
@@ -221,6 +222,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Account",
     pinned: true,
     items: [
+      { href: "/connect", label: "Connect accounts", icon: Plug, guided: true },
       { href: "/settings", label: "Settings", icon: Settings, guided: true },
       { href: "/learn", label: "Learn", icon: GraduationCap, guided: true },
       { href: "/knowledge", label: "Knowledge hub", icon: GraduationCap },

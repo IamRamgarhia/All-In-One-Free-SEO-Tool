@@ -18,6 +18,7 @@ import {
   ConnectGscNudge,
   RankSourceBadge,
 } from "@/components/ui/rank-source-badge";
+import { NeedsConnection } from "@/components/ui/needs-connection";
 import { RankSparkline } from "./rank-sparkline";
 
 const deviceTone: Record<string, string> = {
@@ -291,8 +292,12 @@ export default async function PerClientKeywordsPage({
             <CheckAllRanksButton />
           </header>
           {!client.gscProperty && (
-            <div className="border-b border-white/5 px-5 py-3">
+            <div className="space-y-2 border-b border-white/5 px-5 py-3">
               <ConnectGscNudge clientId={clientId} />
+              <NeedsConnection
+                id="google"
+                because="Rankings here come from loading search results in a browser."
+              />
             </div>
           )}
           <table className="w-full text-sm">

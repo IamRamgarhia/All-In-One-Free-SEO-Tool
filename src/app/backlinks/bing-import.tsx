@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Database, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NeedsConnection } from "@/components/ui/needs-connection";
 import { importBingBacklinksAction } from "./bing-actions";
 
 /**
@@ -44,18 +45,15 @@ export function BingBacklinkImport({
       </p>
 
       {!hasKey ? (
-        <p className="mt-3 rounded-md bg-white/5 px-3 py-2 text-xs text-muted-foreground">
-          No Bing API key yet. Get one free at{" "}
-          <a
-            href="https://www.bing.com/webmasters"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2"
-          >
-            bing.com/webmasters
-          </a>{" "}
-          → Settings → API access, then add it in Settings.
-        </p>
+        // Was hand-written and said "add it in Settings" — where the Bing
+        // key isn't. It lives on /tools/bing. Now sourced from the
+        // integrations catalog so the destination can't be wrong.
+        <div className="mt-3">
+          <NeedsConnection
+            id="bing"
+            because="You'll need a Bing Webmaster Tools key for this."
+          />
+        </div>
       ) : (
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button
