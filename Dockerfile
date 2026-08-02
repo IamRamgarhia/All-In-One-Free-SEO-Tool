@@ -84,6 +84,23 @@ ENV HOSTNAME=0.0.0.0
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 
+# Create /data and hand it to pwuser BEFORE dropping privileges.
+#
+# Without this the container cannot start at all:
+#
+#   SqliteError: unable to open database file
+#     at scripts/migrate.cjs — SQLITE_CANTOPEN
+#
+# When Docker initialises a named volume it copies ownership from the
+# directory that exists at that path in the IMAGE. `/data` didn't exist,
+# so Docker created it owned by root, and pwuser — who we switch to
+# below — has no write access. Every Docker install would have hit this
+# on first boot, which is the documented path for non-technical users.
+#
+# The image never built in CI before this branch, so nothing had ever
+# executed it. Found by pushing.
+RUN mkdir -p /data && chown -R pwuser:pwuser /data
+
 # Non-root user (Playwright image already provides 'pwuser')
 USER pwuser
 

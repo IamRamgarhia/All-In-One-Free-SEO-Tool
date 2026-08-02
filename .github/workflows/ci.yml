@@ -54,8 +54,13 @@ jobs:
       # warning nobody reads, and that is exactly how those two survived.
       # If a new one is genuinely fine, mark it — underscore-prefix an
       # intentionally-unused binding, or add a disable with the reason.
+      # `pnpm lint -- --max-warnings=0` does NOT work: pnpm forwards the
+      # flag positionally and eslint reads it as a file pattern, then
+      # fails with "No files matching the pattern --max-warnings=0".
+      # The step had never passed — this branch is the first time the
+      # workflow ran at all.
       - name: Lint
-        run: pnpm lint -- --max-warnings=0
+        run: pnpm exec eslint . --max-warnings=0
 
       - name: Test
         run: pnpm test
