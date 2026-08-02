@@ -151,6 +151,21 @@ function applyEmbedHeader(req: NextRequest): Headers {
   if (req.nextUrl.searchParams.get("embed") === "1") {
     requestHeaders.set("x-embed", "1");
   }
+  // The client portal gets the same treatment, always.
+  //
+  // The portal draws itself as a full-screen overlay, so it LOOKED
+  // right — but the app shell was still being rendered underneath it,
+  // and the agency's entire sidebar, including the product name and
+  // every internal nav link, was sitting in the HTML the client
+  // received. Invisible on screen, fully present to a screen reader,
+  // "view source", or anything scraping the page.
+  //
+  // For a white-labelled portal that is the whole ballgame: it names the
+  // product the agency is reselling. Handled here rather than in the
+  // page because the layout renders before the page can say anything.
+  if (req.nextUrl.pathname.startsWith("/portal/")) {
+    requestHeaders.set("x-embed", "1");
+  }
   return requestHeaders;
 }
 

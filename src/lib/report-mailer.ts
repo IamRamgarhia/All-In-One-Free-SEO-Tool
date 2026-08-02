@@ -5,6 +5,7 @@ import { generateReportPdf, type ReportTemplate } from "./report-generator";
 import { sendMail } from "./mailer";
 import { getSetting } from "./settings-store";
 import { logActivity } from "./activity";
+import { isWhiteLabelled, loadBrand } from "./brand";
 
 /**
  * Compute the next time this schedule should fire. We store it on the row
@@ -228,11 +229,35 @@ export async function sendReportEmail(opts: {
     year: "numeric",
   });
 
-  const subject = `${client.name} — SEO Report (${periodLabel})`;
+  // The email is the last thing between an agency and their client, and
+  // it was the least branded surface in the product: no agency name, no
+  // sign-off, no contact details. A report that arrives from nobody
+  // looks automated, which is the opposite of what an agency is
+  // charging for.
+  const brand = await loadBrand();
+  const agency = isWhiteLabelled(brand) ? brand.name!.trim() : null;
+
+  const subject = agency
+    ? `${client.name} — SEO report, ${periodLabel} (${agency})`
+    : `${client.name} — SEO Report (${periodLabel})`;
+
+  const signOff: string[] = [];
+  if (agency) {
+    signOff.push(``, `— ${agency}`);
+    // Only lines the user actually filled in. A signature with blank
+    // rows where a phone number should be looks worse than none.
+    if (brand.website) signOff.push(brand.website);
+    if (brand.email) signOff.push(brand.email);
+    if (brand.phone) signOff.push(brand.phone);
+  }
+  if (brand.footerText) signOff.push(``, brand.footerText);
+
   const text = [
     `Hi,`,
     ``,
-    `Attached is your SEO report for ${client.name} (${periodLabel}).`,
+    agency
+      ? `Attached is your SEO report for ${client.name} (${periodLabel}), from ${agency}.`
+      : `Attached is your SEO report for ${client.name} (${periodLabel}).`,
     ``,
     `Highlights inside:`,
     `· Health score with WoW delta`,
@@ -241,6 +266,7 @@ export async function sendReportEmail(opts: {
     `· Tasks completed and recommendations for next month`,
     ``,
     `Reply to this email if anything's unclear.`,
+    ...signOff,
   ].join("\n");
 
   const result = await sendMail({

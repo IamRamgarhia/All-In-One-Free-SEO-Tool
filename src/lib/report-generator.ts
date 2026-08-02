@@ -16,7 +16,6 @@ import {
   seoResources,
   tasks,
 } from "@/db/schema";
-import { getSetting } from "./settings-store";
 import { generateExecSummary } from "./ai-summary";
 import { ALGO_UPDATES } from "./algorithm-updates";
 import {
@@ -31,6 +30,7 @@ import {
   type GscKeyword,
   type Ga4DailyTraffic,
 } from "./google-data";
+import { loadBrand, type Brand } from "./brand";
 
 type Color = string;
 
@@ -56,13 +56,6 @@ let palette = { ...defaultPalette };
 // Real-world risk is low (single-user app, ~5s per report) but the bug
 // is real and the cost of fixing is a one-line mutex.
 let _generateLock: Promise<void> = Promise.resolve();
-
-type Brand = {
-  name: string | null;
-  color: string | null;
-  logoBuffer: Buffer | null;
-  logoMime: string | null;
-};
 
 /**
  * Fetch the client's own logo from the URL stored on the client record so the
@@ -101,32 +94,6 @@ async function loadClientLogo(
   }
 }
 
-async function loadBrand(): Promise<Brand> {
-  const [name, color, logoDataUrl] = await Promise.all([
-    getSetting<string>("brand.name"),
-    getSetting<string>("brand.color"),
-    getSetting<string>("brand.logo_data_url"),
-  ]);
-
-  let logoBuffer: Buffer | null = null;
-  let logoMime: string | null = null;
-  if (logoDataUrl) {
-    const m = logoDataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-    if (m) {
-      logoMime = m[1].toLowerCase();
-      // pdfkit only supports PNG and JPEG natively. SVG/WebP won't render.
-      if (logoMime === "image/png" || logoMime === "image/jpeg") {
-        try {
-          logoBuffer = Buffer.from(m[2], "base64");
-        } catch {
-          logoBuffer = null;
-        }
-      }
-    }
-  }
-
-  return { name, color, logoBuffer, logoMime };
-}
 
 const sevColor = {
   critical: palette.bad,
