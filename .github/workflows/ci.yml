@@ -20,9 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version:` here on purpose. package.json pins
+      # `packageManager: pnpm@10.34.5`, and pnpm/action-setup refuses to
+      # run when a version is specified in both places rather than
+      # picking one — it fails before installing anything, so the entire
+      # job dies at setup with nothing tested.
+      #
+      # The pin in package.json is the source of truth: it's what the
+      # Dockerfile and every contributor's corepack read, and having the
+      # workflow name a second version is how those two drift.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
