@@ -147,7 +147,13 @@ function stb_render_revisions(): void
     foreach (array_slice(array_reverse($revisions), 0, 30) as $r) {
         printf(
             '<tr><td>%s</td><td>%s</td><td>%s</td><td><code>%s</code> → <code>%s</code></td></tr>',
-            esc_html(date('Y-m-d H:i', $r['ts'])),
+            // wp_date, not date: revisions are timestamped with time(),
+            // and date() renders them in the SERVER's timezone. On the
+            // managed hosts most of these sites run on that is UTC, so
+            // a change made at 9am local read as 4am to the person who
+            // made it — in the one table they'd check to work out
+            // whether the tool had touched their site.
+            esc_html(wp_date('Y-m-d H:i', (int)$r['ts'])),
             esc_html($r['field']),
             esc_html($r['object']),
             esc_html(mb_substr((string)($r['old'] ?? ''), 0, 80)),
@@ -959,8 +965,20 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
         return new WP_REST_Response(['ok' => false, 'error' => 'Revision not found'], 404);
     }
 
-    [, $object_id_str] = explode(':', $found['object']);
-    $object_id = (int)$object_id_str;
+    // "post:123" / "attachment:456". Destructuring this without checking
+    // emits an undefined-index warning and then undoes against object 0
+    // if the option is ever malformed — hand-edited, half-written by a
+    // failed request, or migrated from an older format. Refuse instead:
+    // an undo that targets the wrong object is worse than one that
+    // doesn't run.
+    $bits = explode(':', (string)($found['object'] ?? ''), 2);
+    if (count($bits) !== 2 || !ctype_digit($bits[1])) {
+        return new WP_REST_Response(
+            ['ok' => false, 'error' => 'Revision refers to an object this plugin cannot identify'],
+            422,
+        );
+    }
+    $object_id = (int)$bits[1];
     $field = $found['field'];
     $previous = $found['old'];
 

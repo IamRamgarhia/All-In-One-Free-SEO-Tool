@@ -352,6 +352,12 @@ function current_user_can(string $cap): bool { return true; }
 function check_admin_referer(string $a, string $b): bool { return true; }
 function wp_nonce_field(string $a, string $b): void {}
 function is_singular(): bool { return true; }
+function wp_date(string $format, ?int $ts = null): string
+{
+    // Real wp_date renders in the site's timezone. Fixed to UTC here so
+    // the assertion doesn't depend on where the test runs.
+    return gmdate($format, $ts ?? time());
+}
 function get_the_ID(): int { return 101; }
 function __(string $s, string $domain = ''): string { return $s; }
 

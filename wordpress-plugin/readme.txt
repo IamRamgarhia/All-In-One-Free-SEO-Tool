@@ -153,6 +153,16 @@ The plugin doesn't collect or transmit any personal data. It exposes a REST endp
   PolyForm Noncommercial header was not GPL-compatible, so the plugin could
   never have been submitted to the WordPress.org directory.
 * Changed: `Stable tag` was still 0.2.1 while the plugin was 0.3.0.
+* Fixed: internal linking reported "already linked" for any phrase whose whole
+  text sat inside a tag — `<li>pricing</li>`, `<code>`, `<strong>`, a table
+  cell. A word appearing in a list anywhere on the page could therefore never
+  be linked, and the reason given was untrue. Detection now walks the markup
+  and answers on whether the phrase is genuinely inside an `<a>`.
+* Fixed: the revision table in wp-admin rendered timestamps in the server's
+  timezone rather than the site's — on managed hosts, usually UTC, so a change
+  made at 9am read as 4am.
+* Fixed: undo now refuses a revision whose object reference is unreadable
+  instead of undoing against object 0.
 * Docs: corrected "does not modify post content" — link insertion, added in
   0.3.0, does.
 

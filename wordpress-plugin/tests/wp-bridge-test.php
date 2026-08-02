@@ -430,6 +430,37 @@ if ($missingRev === 404) {
     bad('unknown revision handled wrongly', (string)$missingRev);
 }
 
+// A revision whose object reference is unusable must be refused, not
+// undone against object 0. Reachable if the option is hand-edited or
+// half-written by a failed request.
+WPState::$options['stb_revisions'][] = [
+    'rev_id' => 424242,
+    'ts' => time(),
+    'field' => 'title',
+    'object' => 'nonsense',
+    'old' => 'x',
+    'new' => 'y',
+];
+[, $malformed] = call('stb_rest_undo', req(['rev_id' => 424242]));
+if ($malformed === 422) {
+    ok('refuses a revision with an unusable object reference');
+} else {
+    bad('UNDID AGAINST AN UNKNOWN OBJECT', (string)$malformed);
+}
+
+// The admin revision table renders in the site's timezone, not the
+// server's — most managed hosts run UTC, so a change made at 9am local
+// read as 4am to the person who made it.
+$adminRendersWithWpDate = str_contains(
+    (string)file_get_contents(__DIR__ . '/../seo-tool-bridge.php'),
+    "wp_date('Y-m-d H:i'",
+);
+if ($adminRendersWithWpDate) {
+    ok('revision timestamps render in the site timezone');
+} else {
+    bad('revision timestamps use the server timezone');
+}
+
 // The bug that made undo dangerous on any busy site: ids came from
 // count($revs) + 1, and the log is capped at 500 — so past 500 changes
 // every revision was id 501, and undo restored the oldest of them.
