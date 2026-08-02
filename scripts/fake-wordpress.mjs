@@ -84,6 +84,36 @@ async function readBody(req) {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
+
+  // The public site. A real WordPress serves pages as well as the REST
+  // API, and parts of the tool read the page directly rather than going
+  // through the plugin — schema generation fetches the URL to work out
+  // what kind of page it is. Served before the auth check, because a
+  // visitor has no connection key.
+  if (!url.pathname.startsWith("/seo-tool/v1")) {
+    const post = [...state.posts.values()].find(
+      (p) => new URL(p.url).pathname === url.pathname,
+    );
+    if (!post) {
+      res.writeHead(404, { "content-type": "text/html" }).end("<h1>Not found</h1>");
+      return;
+    }
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>${post.title}</title>
+<meta name="description" content="${post.metaDescription}">
+${post.schema ? `<script type="application/ld+json">${post.schema}</script>` : ""}
+</head><body><article><h1>${post.title}</h1>
+${post.content}
+${[...state.attachments.values()].map((a) => `<img src="${a.src}" alt="${a.alt}" class="wp-image-${a.id}">`).join("\n")}
+</article></body></html>`;
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "content-length": Buffer.byteLength(html),
+    });
+    res.end(html);
+    return;
+  }
+
   const path = url.pathname.replace(/^\/seo-tool\/v1/, "");
 
   // The plugin authenticates on X-STB-Key. Enforced here so the client's
@@ -184,8 +214,16 @@ const server = createServer(async (req, res) => {
     }
     const body = await readBody(req);
     const raw = String(body.jsonld ?? "");
+    // Empty means remove, which is what undo replays — the tool records
+    // "" as the previous value because the only finding that triggers a
+    // schema write is "this page has none".
     if (raw === "") {
-      return json(res, 400, { ok: false, error: "jsonld required" });
+      if (post.schema === "") {
+        return json(res, 200, { ok: true, rev_id: null, note: "no change" });
+      }
+      const rev = record("schema", `post:${post.id}`, post.schema, "");
+      post.schema = "";
+      return json(res, 200, { ok: true, rev_id: rev, removed: true });
     }
     let decoded;
     try {
@@ -268,6 +306,23 @@ const server = createServer(async (req, res) => {
 
   if (path === "/revisions") {
     return json(res, 200, { revisions: state.revisions });
+  }
+
+  // Not a plugin route. Restores the site to its starting state so a
+  // test can run a second scenario without restarting the process —
+  // restarting on the same port races with the OS releasing it, and a
+  // new server that silently fails to bind leaves the OLD one answering,
+  // which looks exactly like a passing test.
+  if (path === "/reset") {
+    state.posts.get(101).title = "Hello world";
+    state.posts.get(101).metaDescription = "";
+    state.posts.get(101).content =
+      "<p>Some words about handmade soap and cold process.</p>";
+    state.posts.get(101).schema = "";
+    state.attachments.get(201).alt = "";
+    state.attachments.get(202).alt = "Existing alt text";
+    state.revisions.length = 0;
+    return json(res, 200, { ok: true });
   }
 
   // A route the 0.2.1 plugin wouldn't have, used to prove the client's

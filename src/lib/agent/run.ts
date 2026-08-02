@@ -15,6 +15,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  agentActions,
   agentRuns,
   auditIssues,
   audits,
@@ -31,7 +32,36 @@ import {
   type PlannedAction,
 } from "./planner";
 import { findPostIdByUrl, getClientWpCreds, getPostImages } from "../wp-bridge";
-import { draftValue, executeAction } from "./executor";
+import { draftValue, executeAction, requiresDraft } from "./executor";
+
+/**
+ * Record a change the agent decided not to make, and why.
+ *
+ * A refusal is a result. The most common one is the model returning
+ * copy that breaks a rule — a replacement title still over the display
+ * limit — and that is the agent working correctly. Counting it into
+ * `failed` and dropping it left the run log saying "2 couldn't be
+ * completed" with no way to find out which two or why.
+ */
+async function recordFailedDraft(opts: {
+  runId: number | null;
+  clientId: number;
+  action: PlannedAction;
+  error: string;
+}): Promise<void> {
+  await db.insert(agentActions).values({
+    runId: opts.runId,
+    clientId: opts.clientId,
+    kind: opts.action.kind,
+    targetUrl: opts.action.targetUrl,
+    targetRef: opts.action.targetRef ?? null,
+    reason: opts.action.reason,
+    risk: opts.action.risk,
+    beforeValue: opts.action.currentValue ?? null,
+    status: "failed",
+    error: opts.error,
+  });
+}
 
 export type AgentRunResult = {
   runId: number | null;
@@ -106,8 +136,13 @@ export async function runAgentForClient(opts: {
       // Anything that needs new wording needs a model. Without one we
       // can still tell the user what's wrong — which is what the task
       // pass below does — but we can't propose the replacement.
-      const needsDraft =
-        action.kind === "write_title" || action.kind === "write_meta_description";
+      //
+      // requiresDraft is asked rather than restated. This was an inline
+      // list of two kinds, and the two it omitted — alt text and schema
+      // — went straight to the executor with an empty value, wrote
+      // nothing, verified cleanly against the unchanged field, and were
+      // reported as fixed.
+      const needsDraft = requiresDraft(action.kind);
 
       if (needsDraft && !has(capabilities, "generate_text")) {
         skipped++;
@@ -123,6 +158,16 @@ export async function runAgentForClient(opts: {
         : ({ ok: true, value: "" } as const);
 
       if (!draft.ok) {
+        // Record the refusal. Counting it and moving on left the run
+        // saying "2 couldn't be completed" with nothing anywhere to say
+        // which two or why — so a user whose model kept returning
+        // over-length titles had no way to find that out.
+        await recordFailedDraft({
+          runId: run.id,
+          clientId: opts.clientId,
+          action,
+          error: draft.error,
+        });
         failed++;
         continue;
       }

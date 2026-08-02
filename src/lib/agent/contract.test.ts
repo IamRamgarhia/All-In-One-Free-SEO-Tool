@@ -1,5 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FIXABLE } from "./planner";
+
+vi.mock("../ai-call", () => ({ callAIResult: vi.fn() }));
+vi.mock("@/db/client", () => ({ db: {} }));
+vi.mock("../wp-bridge", () => ({
+  findPostIdByUrl: vi.fn(),
+  getClientWpCreds: vi.fn(),
+  getPostImages: vi.fn(),
+  getPostSeo: vi.fn(),
+  setAttachmentAlt: vi.fn(),
+  setPostSchema: vi.fn(),
+  setPostSeo: vi.fn(),
+}));
+
+const { requiresDraft } = await import("./executor");
 
 /**
  * The contract between planning and doing.
@@ -92,6 +106,28 @@ describe("plan/execute contract", () => {
         /missing|too_long|too long/i.test(type),
         `${type} is marked safe but isn't an absence or a measured limit — ` +
           `apply_safe would change it on a live site without asking.`,
+      ).toBe(true);
+    }
+  });
+
+  it("every executable kind needs a value drafted for it", () => {
+    // The bug this exists to prevent, which shipped and ran:
+    //
+    // run.ts decided what needed drafting from its own inline list of
+    // two kinds. Alt text and schema weren't on it, so they went to the
+    // executor with an empty string. Writing "" as alt text succeeded,
+    // the read-back matched — nothing had changed — and the action
+    // recorded itself as VERIFIED. Every image the agent "fixed" still
+    // had no alt text, and the finding was closed.
+    //
+    // Every kind the agent can apply means "put content here". None can
+    // be executed with nothing, so all of them must require a draft.
+    for (const kind of EXECUTABLE) {
+      expect(
+        requiresDraft(kind),
+        `${kind} can be executed but nothing drafts a value for it. It would ` +
+          `be written as an empty string, verify cleanly against the unchanged ` +
+          `field, and be reported to the user as fixed.`,
       ).toBe(true);
     }
   });

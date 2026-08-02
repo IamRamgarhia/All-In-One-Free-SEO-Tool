@@ -26,7 +26,7 @@ vi.mock("../wp-bridge", () => ({
   setPostSeo: vi.fn(),
 }));
 
-const { draftValue } = await import("./executor");
+const { draftValue, requiresDraft } = await import("./executor");
 
 const action = {
   kind: "write_title" as const,
@@ -144,11 +144,35 @@ describe("draftValue — meta descriptions", () => {
 
 describe("draftValue — unknown kinds", () => {
   it("refuses rather than guessing", async () => {
+    // A kind with no drafting path at all. This used to name
+    // write_schema, which passed for the wrong reason once schema got a
+    // generator — it failed on the mocked fetch, not on being unknown.
     const r = await draftValue(
-      { ...action, kind: "write_schema" as never },
+      { ...action, kind: "write_canonical" as never },
       context,
     );
     expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/no drafting rule/i);
+  });
+});
+
+describe("requiresDraft", () => {
+  // run.ts asks this instead of keeping its own list. Its list omitted
+  // alt text and schema, which were then executed with an empty string,
+  // verified against the field they hadn't changed, and reported fixed.
+  it("covers every kind the agent can write", () => {
+    for (const kind of [
+      "write_title",
+      "write_meta_description",
+      "write_image_alt",
+      "write_schema",
+    ]) {
+      expect(requiresDraft(kind), kind).toBe(true);
+    }
+  });
+
+  it("is false for a kind nothing can draft", () => {
+    expect(requiresDraft("write_canonical")).toBe(false);
   });
 });
 

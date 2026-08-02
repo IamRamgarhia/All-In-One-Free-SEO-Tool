@@ -204,6 +204,27 @@ jobs:
       - name: WordPress bridge checks
         run: pnpm exec tsx scripts/wp-bridge-check.ts
 
+      # The agent's write path, end to end.
+      #
+      # The check above proves the bridge client. This proves the loop
+      # that uses it: capability detection, planning, per-image
+      # expansion, drafting, validation, the write, the verification
+      # read-back and undo — against a real database, a stand-in CMS and
+      # a stand-in model. Agent safety checks (above) run at the default
+      # autonomy, which is suggest-only, so they never execute any of it.
+      #
+      # It found the worst bug in the agent so far: run.ts decided what
+      # needed drafting from an inline list of two kinds, so alt text and
+      # schema were executed with an empty string, verified cleanly
+      # against the field they hadn't changed, and were reported to the
+      # user as fixed.
+      #
+      # The scenario that matters most is the negative one — a model
+      # returning copy that breaks every rule, where the agent must write
+      # nothing at all.
+      - name: Agent write path, end to end
+        run: pnpm exec tsx scripts/agent-wp-check.ts
+
       # The public grader is the only endpoint anyone on the internet can
       # reach AND that makes the server fetch a URL of their choosing.
       # Both properties that make that safe — refusing internal addresses

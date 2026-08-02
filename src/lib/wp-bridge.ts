@@ -281,8 +281,11 @@ export async function setPostSchema(
  * Create a new WordPress post via the plugin. Used by the daily-automation
  * publish step when a blog_draft queue item is approved.
  *
- * Requires plugin v2.0+ which exposes `POST /wp-json/seo-tool/v1/posts`.
- * Older plugin versions return 404 here; caller treats that as "publisher
+ * Uses `POST /wp-json/seo-tool/v1/posts`, which the bridge plugin has
+ * had since 0.2.0. (This said "requires plugin v2.0+" — there has never
+ * been a 2.x; the plugin is on 0.3.x. Wrong version claims in this file
+ * have already caused one real bug, so it is worth being exact.)
+ * A plugin without the route 404s; the caller treats that as "publisher
  * not available" and the queue item stays approved for the user to copy
  * out manually.
  *

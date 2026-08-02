@@ -243,6 +243,23 @@ async function main() {
   if (!bogus.ok) ok("malformed JSON-LD is refused");
   else bad("MALFORMED JSON-LD WAS ACCEPTED");
 
+  // Undoing a schema write means removing the markup, because the only
+  // finding that triggers one is `missing_schema` — the page had none.
+  // executor.ts records "" as the previous value and revertAction writes
+  // it back, so an empty value MUST mean "remove it". If the plugin
+  // rejects it, the agent can add schema it can never take away, which
+  // breaks its own rule of never writing without a working undo.
+  const clear = await setPostSchema(creds, 101, "");
+  const afterClear = await getPostSchema(creds, 101);
+  if (clear.ok && afterClear.ok && afterClear.managedJsonLd === "") {
+    ok("an empty value removes the schema", "undo works");
+  } else {
+    bad(
+      "SCHEMA CANNOT BE UNDONE",
+      clear.ok ? "write said ok but markup is still there" : clear.error ?? "",
+    );
+  }
+
   section("Internal links — the one that edits article bodies");
   const linked = await insertInternalLinks(creds, 101, [
     { anchor: "handmade soap", url: "/shop/soap" },

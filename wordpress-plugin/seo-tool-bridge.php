@@ -291,12 +291,20 @@ function stb_rest_ping(): WP_REST_Response
         'plugin_version' => STB_VERSION,
         'wp_version' => get_bloginfo('version'),
         'site_url' => home_url(),
+        // What this plugin can actually do. `redirects` was listed here
+        // and true, and no redirect route has ever been registered —
+        // nothing read the field yet, so it was a lie waiting to be
+        // believed. Anything added here must have a route above it.
         'capabilities' => [
             'meta_titles' => true,
             'meta_descriptions' => true,
             'image_alt' => true,
             'schema' => true,
-            'redirects' => true,
+            'internal_links' => true,
+            'create_posts' => true,
+            'redirects' => false,
+            'canonical' => false,
+            'robots' => false,
         ],
     ]);
 }
@@ -425,9 +433,28 @@ function stb_rest_set_schema(WP_REST_Request $req): WP_REST_Response
     // string values (<, >, &), producing invalid JSON. Instead, validate
     // that the input is well-formed JSON via json_decode().
     $jsonld_raw = isset($body['jsonld']) ? (string)$body['jsonld'] : '';
+
+    // Empty means REMOVE the markup, and must not be an error.
+    //
+    // The only audit finding that triggers a schema write is
+    // missing_schema, so the previous value the SEO Tool records is
+    // always the empty string — and undo replays that previous value.
+    // Rejecting it meant the tool could add structured data to a page
+    // and then had no way to take it off again, while its own rule is
+    // that it never writes anything it can't undo.
+    //
+    // Deletes the meta rather than storing '' so the front-end filter
+    // that prints the <script> tag sees nothing at all.
     if ($jsonld_raw === '') {
-        return new WP_REST_Response(['ok' => false, 'error' => 'jsonld required'], 400);
+        $old = (string)get_post_meta($id, '_stb_schema_jsonld', true);
+        if ($old === '') {
+            return new WP_REST_Response(['ok' => true, 'rev_id' => null, 'note' => 'no change']);
+        }
+        delete_post_meta($id, '_stb_schema_jsonld');
+        $rev_id = stb_record_revision('schema', "post:$id", $old, '');
+        return new WP_REST_Response(['ok' => true, 'rev_id' => $rev_id, 'removed' => true]);
     }
+
     $decoded = json_decode($jsonld_raw, true);
     if ($decoded === null && strtolower(trim($jsonld_raw)) !== 'null') {
         return new WP_REST_Response(

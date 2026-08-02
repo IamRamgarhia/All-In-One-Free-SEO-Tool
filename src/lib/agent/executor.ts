@@ -59,6 +59,26 @@ const META_MAX = 155;
  * returns a plausible answer every time, including for sites that need
  * nothing done.
  */
+/**
+ * Does this kind need a value written for it before it can be applied?
+ *
+ * True for every kind the agent can execute — all four are "put content
+ * here", and there is no such thing as applying one with nothing.
+ *
+ * This exists because run.ts had its own inline list of two kinds, and
+ * the two it left out (alt text, schema) skipped drafting entirely and
+ * were executed with an empty string. Writing "" as alt text then
+ * verified perfectly — the read-back matched, because nothing had
+ * changed — so the agent reported images as fixed, closed the finding,
+ * and left every one of them without alt text.
+ *
+ * Derived from the drafting paths that actually exist rather than
+ * restated, so adding a kind can't silently skip drafting again.
+ */
+export function requiresDraft(kind: string): boolean {
+  return kind === "write_schema" || kind in DRAFT_SPECS;
+}
+
 export async function draftValue(
   action: PlannedAction,
   context: { siteName: string; pageTitle?: string | null; pageUrl: string },
@@ -266,6 +286,29 @@ export async function executeAction(opts: {
       beforeValue: action.currentValue ?? null,
     });
     return { status: action.risk === "safe" ? "queued" : "proposed", actionId: id };
+  }
+
+  // Nothing the agent applies is ever empty. Every kind it can execute
+  // means "put content here", so an empty value means the drafting step
+  // was skipped or returned nothing — and writing it is worse than doing
+  // nothing, because the write succeeds, the read-back matches (the
+  // field is unchanged), and the action records itself as verified. The
+  // user is told the page is fixed and it is not.
+  //
+  // This is a second line of defence behind requiresDraft(). The first
+  // line was a hand-maintained list, and it was wrong for two of the
+  // four kinds for as long as they have existed.
+  if (opts.newValue.trim() === "") {
+    const id = await insert({
+      status: "failed",
+      error:
+        "Nothing was drafted for this change, so there was nothing to write. This is a bug in the agent, not a problem with your site.",
+    });
+    return {
+      status: "failed",
+      actionId: id,
+      error: "No value to write.",
+    };
   }
 
   const creds = await getClientWpCreds(opts.clientId);

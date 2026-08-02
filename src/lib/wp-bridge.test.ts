@@ -166,6 +166,18 @@ describe("writing schema", () => {
     expect(body).not.toHaveProperty("jsonLd");
   });
 
+  it("sends an empty value through, because that's how undo removes markup", async () => {
+    // executor.ts records "" as the previous value for a schema write —
+    // the only finding that triggers one is missing_schema, so the page
+    // had none. revertAction replays that. If this were blocked client
+    // side, or rejected by the plugin, the agent could add structured
+    // data to a live page and never take it off.
+    respond({ ok: true, rev_id: 9, removed: true });
+    const r = await setPostSchema(creds, 101, "");
+    expect(r.ok).toBe(true);
+    expect(sentBody().jsonld).toBe("");
+  });
+
   it("surfaces the plugin's rejection of invalid JSON", async () => {
     respond({ ok: false, error: "jsonld must be valid JSON" }, 400);
     const r = await setPostSchema(creds, 101, "{not json");
