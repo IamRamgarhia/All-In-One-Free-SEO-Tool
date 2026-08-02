@@ -376,7 +376,12 @@ else {
         if (Get-Command corepack -ErrorAction SilentlyContinue) {
             Say "Enabling pnpm via corepack"
             corepack enable 2>$null 1>$null
-            corepack prepare pnpm@latest --activate 2>$null 1>$null
+            # No 'pnpm@latest': corepack honours the "packageManager"
+            # field in package.json, so this uses the exact pnpm the
+            # lockfile was resolved with. Floating to latest is how a
+            # build that works for one person fails for the next with an
+            # unrelated-looking install error.
+            $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
             if (Get-Command pnpm -ErrorAction SilentlyContinue) {
                 $pm = "pnpm"
             }

@@ -163,7 +163,7 @@ export function AnnotationsClient({
 
       {annotations.length === 0 ? (
         <p className="rounded-2xl border border-white/5 bg-card/40 px-5 py-12 text-center text-sm text-muted-foreground backdrop-blur-md">
-          No annotations yet. Add one above — they'll overlay on rank,
+          No annotations yet. Add one above — they&apos;ll overlay on rank,
           traffic, and CWV charts wherever the scope matches.
         </p>
       ) : (

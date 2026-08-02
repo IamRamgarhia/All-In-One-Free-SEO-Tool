@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { Loader2, Target } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { generateAttackBriefs, type AttackState } from "./actions";
@@ -12,10 +13,7 @@ export default function AttackBriefsPage() {
     generateAttackBriefs,
     null,
   );
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

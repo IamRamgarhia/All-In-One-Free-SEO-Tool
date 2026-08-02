@@ -31,14 +31,7 @@ import { PortfolioQuickWinsPanel } from "./portfolio-quick-wins-panel";
 import { MorningBriefing } from "./morning-briefing";
 import { AgencyWeekInReview } from "./agency-week";
 import { OnboardingChecklistPanel } from "./onboarding-checklist-panel";
-import {
-  tickPageMonitorRunner,
-  tickScheduleRunner,
-} from "@/lib/report-mailer";
-import { tickDailyAgent } from "@/lib/daily-agent";
-import { tickWeeklyDigestRunner } from "@/lib/weekly-digest";
-import { tickAutoBackup } from "@/lib/auto-backup";
-import { tickRetentionCleanup } from "@/lib/retention-cleanup";
+import { startScheduler, tickScheduler } from "@/lib/scheduler";
 import { redirect } from "next/navigation";
 import { getSetting } from "@/lib/settings-store";
 import { FreshnessBadge } from "@/components/ui/freshness-badge";
@@ -60,21 +53,24 @@ function greetingForHour(hour: number) {
 }
 
 export default async function DashboardPage() {
-  // Fire-and-forget schedulers — each has its own cooldown so they're
-  // no-ops on most renders. Failures don't block the dashboard.
+  // The background runners live in the scheduler now (src/lib/scheduler.ts),
+  // on a real interval, so they keep running whether or not anyone opens
+  // this page. Previously all six hung off exactly this spot, which meant
+  // rank checks, monitoring, alerts and scheduled reports quietly stopped
+  // the moment nobody loaded the dashboard.
   //
-  // Wrap each in try/catch in addition to .catch() because if the tick
-  // function itself THROWS synchronously (e.g. native module fails to
-  // load, DB binding missing on a half-built install), .catch() doesn't
-  // help — the throw escapes the await chain entirely and 500s the
-  // whole dashboard. The dashboard MUST always render so users can
-  // see what's wrong.
-  try { tickScheduleRunner().catch(() => {}); } catch {}
-  try { tickPageMonitorRunner().catch(() => {}); } catch {}
-  try { tickDailyAgent().catch(() => {}); } catch {}
-  try { tickWeeklyDigestRunner().catch(() => {}); } catch {}
-  try { tickAutoBackup().catch(() => {}); } catch {}
-  try { tickRetentionCleanup().catch(() => {}); } catch {}
+  // We still nudge it here: it costs nothing when everything is current,
+  // and it makes a just-restarted process catch up on this render rather
+  // than waiting for the next tick.
+  //
+  // try/catch AND .catch() because a synchronous throw (native module
+  // fails to load, DB binding missing on a half-built install) escapes
+  // the await chain entirely and would 500 the dashboard. The dashboard
+  // MUST always render so users can see what's wrong.
+  try {
+    startScheduler();
+    tickScheduler().catch(() => {});
+  } catch {}
 
   const [{ value: clientCount }] = await db
     .select({ value: count() })
@@ -186,20 +182,24 @@ export default async function DashboardPage() {
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
             {isFresh
-              ? "100+ SEO tools, daily-agent automation, audits, rank tracking, content writer, code generator — fully self-hosted, no monthly bill. Connect any AI provider and add your first client to unlock everything."
+              ? "Paste a URL and get a full technical audit in about a minute — no API keys, no signup, nothing to configure. Rank tracking, content tools and AI features are all here too, and you can turn them on once you've seen the audit."
               : "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills."}
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             {isFresh ? (
               <>
-                <Link href="/settings#ai" className={buttonVariants()}>
-                  Connect an AI provider
+                {/* Lead with the thing that produces a result, not the
+                    thing that asks for a credential. Audits need no AI
+                    key, so a first-time user can see real output before
+                    deciding whether to configure anything. */}
+                <Link href="/clients/new" className={buttonVariants()}>
+                  Add your first site
                 </Link>
                 <Link
-                  href="/clients/new"
+                  href="/settings#ai"
                   className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  Or add a client first
+                  Or connect an AI provider
                   <ArrowUpRight className="size-3.5" />
                 </Link>
               </>
@@ -305,6 +305,11 @@ export default async function DashboardPage() {
             value={latestScore ?? "—"}
             accent="emerald"
             icon={Sparkles}
+            // The one number on this row that isn't a count of our own
+            // rows. It's derived from what our crawler saw, so it can
+            // disagree with what Google last indexed — worth saying,
+            // because this is the figure that ends up in client reports.
+            source="crawl"
             hint={
               completedAudits.length > 0
                 ? `${completedAudits.length} completed`

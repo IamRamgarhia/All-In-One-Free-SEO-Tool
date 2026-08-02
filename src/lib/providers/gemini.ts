@@ -42,14 +42,23 @@ export type GeminiCallOpts = {
   timeoutMs: number;
   /** Where this call originated — surfaced in console.error logs. */
   caller?: string;
+  /**
+   * Optional sink for failure details. The function still returns
+   * `string | null` so existing call sites are untouched — but a caller
+   * that wants to tell the USER why (callAI) passes this and gets the
+   * status + body of the last attempt.
+   */
+  onFailure?: (status: number, body: string) => void;
 };
 
-const FALLBACK_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash-latest",
-  "gemini-1.5-flash",
-] as const;
+/**
+ * Tried in order when the requested model fails. Google retired the
+ * entire Gemini 1.5 family from the API in Sept 2025 and deprecated the
+ * `-latest` suffix, so the two 1.5 entries this list used to carry were
+ * guaranteed 404s — two extra round trips on the way to every failure,
+ * and a misleading "tried 4 models" in the logs.
+ */
+const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"] as const;
 
 export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
   // Build the Gemini contents payload once — reused across all retries.
@@ -68,6 +77,7 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
 
   const deadline = Date.now() + opts.timeoutMs;
   let lastError = "";
+  let lastStatus = 0;
 
   for (const model of tryList) {
     const remaining = deadline - Date.now();
@@ -107,6 +117,7 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
       }
       const errBody = (await res.text().catch(() => "")).slice(0, 240);
       lastError = `Gemini ${res.status} [${model}]: ${errBody || res.statusText}`;
+      lastStatus = res.status;
       // Key-level failures: no point trying other models with the same key
       if (res.status === 401 || res.status === 403) break;
       if (
@@ -123,6 +134,7 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
   }
 
   console.error(`[${opts.caller ?? "gemini"}] Gemini failed:`, lastError);
+  opts.onFailure?.(lastStatus, lastError);
   return null;
 }
 

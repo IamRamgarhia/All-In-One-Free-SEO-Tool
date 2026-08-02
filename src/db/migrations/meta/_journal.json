@@ -162,6 +162,69 @@
       "when": 1778000200000,
       "tag": "0022_per_client_google_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1785587254191,
+      "tag": "0053_realign_journal",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1785600578201,
+      "tag": "0054_users_and_teams",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1785603457611,
+      "tag": "0055_ranking_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1785604999856,
+      "tag": "0056_agent_autonomy",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "6",
+      "when": 1785606399966,
+      "tag": "0057_report_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1785638306654,
+      "tag": "0058_audit_pages_crawled",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1785647520250,
+      "tag": "0059_grader_leads",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "6",
+      "when": 1785649676236,
+      "tag": "0060_proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1785669233630,
+      "tag": "0061_agent_cms_revision",
+      "breakpoints": true
     }
   ]
 }

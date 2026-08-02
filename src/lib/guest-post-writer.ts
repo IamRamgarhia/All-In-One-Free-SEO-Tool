@@ -96,7 +96,6 @@ export async function writeGuestPost(
   if (!input.targetKeyword.trim())
     return { ok: false, error: "Target keyword is required." };
 
-  const style = site.style;
   const linkPolicy = describeLinkPolicy(site);
 
   const system = buildSystemPrompt(site, linkPolicy);

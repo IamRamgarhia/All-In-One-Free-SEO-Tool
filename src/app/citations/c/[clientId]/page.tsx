@@ -23,6 +23,7 @@ import { trackResource, deleteSubmission } from "@/app/link-building/actions";
 import { setStatusForm } from "@/app/citations/actions";
 import { citationsForCountry } from "@/lib/citations-data";
 import { ClientInfoCard } from "@/components/client-info-card";
+import { clientScope } from "@/lib/client-scope";
 
 const CITATION_CATEGORIES = [
   "local-citation",
@@ -63,6 +64,7 @@ export default async function PerClientCitationsPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const activeCategory = CITATION_CATEGORIES.includes(catParam ?? "")

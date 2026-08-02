@@ -30,6 +30,7 @@ import { configuredProviders } from "@/lib/api-keys";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { setSetting } from "@/lib/settings-store";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -61,38 +62,50 @@ export default async function WelcomePage() {
   ]);
 
   // Build the step list, then mark the first non-done one "active".
+  //
+  // Order matters. This used to open with "Connect an AI provider",
+  // which asked a brand-new user for a credential before showing them
+  // anything — backwards from the product's own principle of value
+  // before asking for anything. The audit engine needs no AI at all, so
+  // the first step is now something that produces a real result in a
+  // minute, and the AI key is offered afterwards as an upgrade to work
+  // the user has already seen.
   const raw: Omit<StepperStep, "status">[] = [
-    {
-      id: "ai",
-      icon: Bot,
-      title: "Connect an AI provider",
-      description:
-        "Free Gemini or Groq is plenty. Powers chat, executive summaries, content generation, OCR, AI visibility.",
-      href: "/settings#ai",
-    },
     {
       id: "client",
       icon: Users,
-      title: "Add your first client",
+      title: "Add your first site",
       description:
-        "Paste a URL — we'll auto-detect tech stack, niche, and generate a 30-day task plan.",
+        "Just paste a URL. We detect the tech stack and niche, and build a 30-day task plan. No account setup, no keys.",
       href: "/clients/new",
-    },
-    {
-      id: "google",
-      icon: Plug,
-      title: "Connect Google (GSC + GA4)",
-      description:
-        "Optional but high-leverage. Real keyword data, organic traffic, conversion tracking. Each client picks its own properties.",
-      href: "/settings/google",
     },
     {
       id: "audit",
       icon: ClipboardList,
       title: "Run your first audit",
       description:
-        "30 SEO checks, severity-classified, with one-click fixes via the WordPress bridge.",
+        "40+ checks, sorted by severity, in about a minute. This works with nothing else configured — it's the fastest way to see whether the tool is useful to you.",
       href: "/audits",
+    },
+    {
+      id: "ai",
+      icon: Bot,
+      title: "Add an AI provider (optional)",
+      description:
+        "Turns audit findings into plain-English explanations and fixes, and unlocks chat, exec summaries and content tools. Gemini and Groq are free — about three minutes, with the steps written out.",
+      // Points at the guide rather than the settings form. A brand-new
+      // user sent straight to a "paste your API key" box still has to
+      // work out where the key comes from; the guide answers that first
+      // and then hands them on.
+      href: "/connect#ai",
+    },
+    {
+      id: "google",
+      icon: Plug,
+      title: "Connect Google (GSC + GA4)",
+      description:
+        "Optional but high-leverage. Real ranking data instead of scraped, plus organic traffic and quick wins. Five minutes, free, steps included.",
+      href: "/connect#google",
     },
     {
       id: "keywords",
@@ -176,6 +189,23 @@ export default async function WelcomePage() {
           Skip for now and explore the dashboard →
         </button>
       </form>
+
+      {/* Six steps is enough for a checklist, but it isn't everything
+          that can be connected — Bing (backlinks and real keyword
+          volume), PageSpeed, WordPress and email all sit outside it.
+          One line so those stay findable without lengthening the list. */}
+      <p className="text-[12px] text-muted-foreground">
+        There are a few more optional connections — Bing for backlinks and
+        keyword volume, WordPress so the agent can apply fixes, email for
+        sending reports.{" "}
+        <Link
+          href="/connect"
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          See all of them, with setup guides
+        </Link>
+        .
+      </p>
 
       {doneCount === total && (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-[13px]">

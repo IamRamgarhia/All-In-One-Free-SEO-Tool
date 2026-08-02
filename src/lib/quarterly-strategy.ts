@@ -28,39 +28,7 @@ import {
   type GscKeyword,
 } from "./google-data";
 import { callAI } from "./ai-call";
-import { getSetting } from "./settings-store";
-
-type Brand = {
-  name: string | null;
-  color: string | null;
-  logoBuffer: Buffer | null;
-  logoMime: string | null;
-};
-
-async function loadBrand(): Promise<Brand> {
-  const [name, color, logoDataUrl] = await Promise.all([
-    getSetting<string>("brand.name"),
-    getSetting<string>("brand.color"),
-    getSetting<string>("brand.logo_data_url"),
-  ]);
-  let logoBuffer: Buffer | null = null;
-  let logoMime: string | null = null;
-  if (logoDataUrl) {
-    const m = logoDataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-    if (m) {
-      const mime = m[1].toLowerCase();
-      if (mime === "image/png" || mime === "image/jpeg") {
-        try {
-          logoBuffer = Buffer.from(m[2], "base64");
-          logoMime = mime;
-        } catch {
-          logoBuffer = null;
-        }
-      }
-    }
-  }
-  return { name, color, logoBuffer, logoMime };
-}
+import { loadBrand } from "./brand";
 
 async function loadClientLogo(
   logoUrl: string | null,

@@ -2,7 +2,10 @@
 
 # All-In-One Free SEO Tool — Open-Source Alternative to Ahrefs, Semrush, Moz &amp; SE Ranking
 
-### 🚀 The complete free SEO platform. 150+ tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
+### 🚀 The complete free SEO platform. 96 dedicated tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
+
+### Built for agencies and freelancers, specifically
+**Team accounts** with per-client access · **generate every client's report in one run**, then review before anything goes out · an **autonomous agent** that fixes what it finds and can undo any of it · an **embeddable audit widget** that turns your site into a lead source · **proposals** built from real audit findings.
 
 **Replace ₹25,000–₹65,000/month ($300–$770) of SEO subscriptions with one MIT-licensed free tool. Own your data. Works with free AI keys (Gemini, Groq) — no paid APIs required.**
 
@@ -55,7 +58,16 @@ A typical SEO professional pays **₹25,000-₹45,000 per month** ($300-$540) fo
 
 > *Prices accurate as of February 2026. Ahrefs / Semrush / Surfer publish official pricing on their sites — what you actually pay can be higher with add-ons (extra users, extra projects, AI credits).*
 
-> **You're not paying for the data.** Google gives away the same data through their free APIs (Search Console, Analytics, PageSpeed, Trends, autocomplete). Ahrefs and Semrush charge you ₹10,000+/month to repackage what's already free. This tool just connects directly to the free sources.
+> **Where this genuinely replaces them, and where it doesn't.**
+>
+> A lot of what those tools charge for *is* free data they repackage — Search Console, Analytics, PageSpeed, Trends and autocomplete are all Google APIs you can call yourself, and that's exactly what this does. Site audits, technical SEO, rank tracking, content tooling, reporting and client management are all fully covered here.
+>
+> Two things are **not** free data, and you should know that before you switch:
+>
+> - **Backlink index.** Ahrefs and Semrush operate their own web crawlers, and that index is the single biggest thing you pay them for. This tool uses Search Console's backlink data (your own sites only) plus Common Crawl — useful, but not a substitute for a commercial index. If backlink research is core to your work, keep a paid tool or pair this with the free Ahrefs Webmaster Tools.
+> - **Exact keyword search volumes.** There is no free source for real monthly volumes. This tool gives you a directional estimate from Trends, autocomplete and SERP signals, and shows you the raw inputs so you can judge it — it does not invent a number and present it as fact.
+>
+> Everything else, you can stop paying for.
 
 ---
 
@@ -92,7 +104,7 @@ Open <http://localhost:3000>. That's it.
 
 Every client gets a focused workspace with a 0-100 health score, today's priorities, daily-automation card, and one-click connections to Google Search Console + Analytics 4.
 
-### 150+ tools, organized by SEO discipline
+### 96 dedicated tools, organized by SEO discipline
 ![All Tools page showing 13 category filters — Audits & scoring, Reports, On-page, Schema, Indexing, Speed, Keywords & content, Backlinks & outreach, Local SEO, Competitors & brand, AI visibility, Imports & integrations — and a grid of tool cards including Full SEO health check, SERP feature tracker, Content attack brief, Meta tag generator, SEO code generator](docs/screenshots/03-all-tools.png)
 
 Filter by category or pin your favorites. Each tool is single-purpose and chainable — output of one feeds the next.
@@ -121,7 +133,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 
 ## 📦 Full feature list
 
-> **150+ tools across 14 SEO disciplines.** Every category an SEO professional needs, all in one self-hosted app.
+> **96 dedicated tools across 14 SEO disciplines.** Every category an SEO professional needs, all in one self-hosted app.
 
 ### 🔍 Site audits & technical SEO
 ✅ Full-site crawler with 30+ on-page checks  
@@ -233,14 +245,22 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Image-prompt generator for ad creatives
 
 ### 📑 Reports & client management
+✅ **Generate every client's report in one run** — pick clients, pick a template, one button  
+✅ **Review queue** — batches produce drafts. Nothing reaches a client until you've read it and approved it, and sending delivers the exact PDF you approved rather than a fresh render  
 ✅ White-label PDF reports with your branding (logo, color, footer)  
 ✅ AI-generated executive summary (formula: [Direction] + [Win] + [Priority])  
 ✅ Report templates (Executive, Detailed, Technical, Local, E-commerce, Custom)  
-✅ Scheduled monthly delivery via email  
-✅ Client portal with magic-link access (clients see live progress without PDF)  
+✅ Scheduled monthly delivery via email, signed with your agency's details  
+✅ Client portal with magic-link access — fully white-labelled, `noindex`, no app chrome  
 ✅ Invoice generator (₹INR + UPI / $USD) — 1-page A4, branded  
 ✅ Manual data inputs (outreach, links built, comments) integrated into reports  
 ✅ Work-completed-this-month auto-populated from completed tasks
+
+### 💼 Winning the work
+✅ **Embeddable audit widget** — one iframe on your site. Prospects grade their own domain, see what's wrong, and leave an email  
+✅ **Leads inbox** — every lead arrives with a score and the actual findings, so your first reply writes itself. One click turns a lead into a client  
+✅ **Proposal generator** — turns an audit into a document someone signs. Scope derived from real findings; you set the pricing  
+⚠️ Deliberately no traffic, ranking or revenue forecasts in proposals — a crawl can't support them, and a proposal is the one document a client keeps and holds you to
 
 ### 🛠️ Tasks & workflow
 ✅ Today / This week / This month views  
@@ -252,7 +272,13 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Time tracking per task  
 ✅ Comments + attachments + completion log
 
-### 🤖 Automations & daily agent
+### 🤖 Automations & the autonomous agent
+✅ **Autopilot** — the agent plans work from your audits, applies fixes, verifies them by re-reading the page, and turns everything it can't fix into tasks  
+✅ **Four autonomy levels**, defaulting to the cautious one: off · suggest only · fix the obvious things · full autopilot. "Suggest only" never touches a live site  
+✅ **Every change is reversible** — the previous value is read from the CMS before writing, and one click puts it back. If the previous value can't be read, the change doesn't happen  
+✅ **"Applied" and "verified" are different states** — a CMS accepting a change isn't the same as it taking effect, and the UI shows which  
+✅ Guardrails: changes-per-run, changes-per-day, and a cooldown so it can't thrash the same page  
+✅ Full audit trail — what it did, why, what it looked like before  
 ✅ **Daily agent runs ~17 automated jobs per client every day** — rank checks, audit deltas, content decay, backlink scans, GBP monitoring, alert generation  
 ✅ Workflow builder (drag-and-drop trigger → conditions → actions)  
 ✅ Pre-built workflow templates  
@@ -262,6 +288,8 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Notification rules (Slack / Discord / Teams / email)
 
 ### 🔌 Integrations
+✅ **One setup page** (`/connect`) — every connection in one place, with what each one gets you, what you lose without it, how long it takes, and step-by-step instructions written for someone who's never seen that vendor's console  
+✅ Nothing is required. The tool is fully usable with no keys at all  
 ✅ Google Search Console (free OAuth)  
 ✅ Google Analytics 4 (free OAuth)  
 ✅ Google Business Profile (free OAuth)  
@@ -293,12 +321,22 @@ Detected automatically via Wappalyzer + HTTP signatures. Recommendations adapt p
 ✅ Best-practices library citing Google's actual documentation  
 ✅ Google algorithm-update tracker (pulls from Search Status Dashboard)
 
+### 👥 Team (for agencies)
+✅ **Accounts are opt-in** — one person on one laptop needs none, and nothing changes for them  
+✅ Settings → Team: whoever registers first becomes the owner, everyone else joins by invite link  
+✅ Four roles — owner, manager, member, client viewer  
+✅ **Per-client access** — assign a member to three of your eighteen clients and that's all they see, everywhere: dashboard, tasks, reports, keywords. Typing another client's URL returns a 404, not a 403, so the roster itself stays private  
+✅ Deactivate rather than delete, so their name stays on the work they did  
+✅ Task completions, activity and tool runs record who did them  
+⚠️ Invite links are shown for you to copy, not emailed — no SMTP setup needed to add a second person
+
 ### 🔐 Privacy & data ownership
 ✅ **All data in a single SQLite file on your machine** — no cloud sync, no telemetry, no phone-home, no analytics  
 ✅ API keys + OAuth tokens encrypted at rest (AES-256-GCM)  
+✅ Passwords hashed with salted scrypt; sessions signed, 14-day expiry, revoked immediately on password change or deactivation  
 ✅ Backup = copy the install folder  
 ✅ Works fully offline with Ollama for AI  
-✅ Default-bind to localhost — LAN exposure is opt-in via `APP_PASSWORD`
+✅ Default-bind to localhost — LAN exposure is opt-in via `APP_PASSWORD` or real accounts
 
 ---
 
@@ -493,7 +531,7 @@ If this tool saves you a ₹10,000+/month Ahrefs subscription, the cheapest way 
 
 **DiceCodes builds full-stack web apps end-to-end — solo, no agency overhead.**
 
-This entire SEO platform (150+ tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
+This entire SEO platform (96 dedicated tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
 
 | What we build | Typical timeline |
 |---|---|

@@ -1,0 +1,464 @@
+name: CI
+
+# The repo shipped for months with `@hello-pangea/dnd` imported by
+# src/app/tasks/kanban-board.tsx but absent from package.json — so a
+# clean clone could not build and /tasks could not render. Nothing
+# caught it because nothing ever ran `pnpm install && pnpm build` from
+# scratch. That is this workflow's job.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `version:` here on purpose. package.json pins
+      # `packageManager: pnpm@10.34.5`, and pnpm/action-setup refuses to
+      # run when a version is specified in both places rather than
+      # picking one — it fails before installing anything, so the entire
+      # job dies at setup with nothing tested.
+      #
+      # The pin in package.json is the source of truth: it's what the
+      # Dockerfile and every contributor's corepack read, and having the
+      # workflow name a second version is how those two drift.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # --frozen-lockfile fails if package.json and pnpm-lock.yaml
+      # disagree, which is what an undeclared import looks like once
+      # someone adds it locally without committing the lockfile.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Hard gate, zero tolerance. The repo was at 75 errors + 93 warnings
+      # when CI was introduced; both are now at zero, and two of the
+      # "warnings" turned out to be real bugs hiding in the noise (an
+      # unfiltered client-scoped query, a transparent chart fill).
+      #
+      # --max-warnings=0 is the point: a warning nobody fails on is a
+      # warning nobody reads, and that is exactly how those two survived.
+      # If a new one is genuinely fine, mark it — underscore-prefix an
+      # intentionally-unused binding, or add a disable with the reason.
+      # `pnpm lint -- --max-warnings=0` does NOT work: pnpm forwards the
+      # flag positionally and eslint reads it as a file pattern, then
+      # fails with "No files matching the pattern --max-warnings=0".
+      # The step had never passed — this branch is the first time the
+      # workflow ran at all.
+      - name: Lint
+        run: pnpm exec eslint . --max-warnings=0
+
+      - name: Test
+        run: pnpm test
+
+      # Runs migrations against a scratch DB then builds. Catches both
+      # broken migrations and any module that fails to resolve.
+      - name: Build
+        run: pnpm build
+        env:
+          SEO_DB_PATH: ${{ runner.temp }}/ci.db
+
+      # E2E covers what unit tests structurally can't: whether a page
+      # actually renders in a browser. /tasks was importing a dependency
+      # that wasn't installed for months, and no amount of server-side
+      # testing would have caught it — the route 500'd only once React
+      # tried to render the component.
+      #
+      # Also guards the client-side state work (sidebar collapse, tool
+      # pinning, theme), where the server HTML is identical whether the
+      # behaviour works or not.
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E
+        run: pnpm test:e2e
+        env:
+          CI: "1"
+
+      # Load every page and report anything that doesn't render.
+      #
+      # E2E covers a handful of screens deliberately and well. This
+      # covers all 226 shallowly: does the page return 200 at all. That
+      # is the exact question nothing could answer when /tasks imported a
+      # package missing from package.json and 500'd for months —
+      # typecheck passed, the build passed, and the failure only happened
+      # when React tried to render.
+      #
+      # Runs against an empty database on purpose: every page must cope
+      # with having no data, which is the state every new install is in
+      # and the one least likely to have been clicked through.
+      - name: Route sweep (all pages render)
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/sweep.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          PORT=3200 pnpm start &
+          server=$!
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:3200/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          node scripts/route-sweep.mjs http://localhost:3200 "$SEO_DB_PATH"
+          status=$?
+          kill $server 2>/dev/null || true
+          exit $status
+
+      # The agent's safety properties, against a real database.
+      #
+      # Every one of them is silent when broken: an agent that ignores
+      # its own cooldown still produces a tidy run log, and one that
+      # "applies" a change without recording the previous value looks
+      # identical to one that did — until someone needs to undo it on a
+      # client's live website.
+      #
+      # The first version of this check reported 15/15 while the run was
+      # throwing, because it only asserted the summary was long enough to
+      # read. It now fails loudly on a crashed run.
+      - name: Agent safety checks
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/agent.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          # Seed a client AND an audit with findings.
+          #
+          # Without these the script hits its "No clients — add one and
+          # re-run" path, exits 0, and the step goes green having
+          # asserted nothing. That is the third time in this project a
+          # check has passed on code it never executed, so the script
+          # itself now refuses to exit 0 on an empty database — this
+          # seed is what gives it something real to check.
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            const c=db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            const a=db.prepare(
+              'INSERT INTO audits (client_id, status, score, issues_count, pages_crawled, completed_at) VALUES (?,?,?,?,?,unixepoch())'
+            ).run(c.lastInsertRowid,'completed',42,3,1);
+            const ins=db.prepare(
+              'INSERT INTO audit_issues (audit_id, severity, type, url, message) VALUES (?,?,?,?,?)'
+            );
+            ins.run(a.lastInsertRowid,'high','missing_title','https://example.com/','No title tag');
+            ins.run(a.lastInsertRowid,'high','missing_meta_description','https://example.com/','No meta description');
+            ins.run(a.lastInsertRowid,'medium','missing_schema','https://example.com/','No structured data');
+            db.close();
+          "
+          pnpm exec tsx scripts/agent-check.ts
+
+      # A proposal is the one document a prospect keeps and holds you to.
+      # The failure that matters isn't a crash — it's a scope line for
+      # work the site doesn't need, or a promise nothing supports. Both
+      # read as professional. This asserts the scope never claims more
+      # findings than the audit produced, and that pricing starts empty.
+      - name: Proposal checks
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/proposal.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            const c=db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            const a=db.prepare(
+              'INSERT INTO audits (client_id, status, score, issues_count, completed_at) VALUES (?,?,?,?,unixepoch())'
+            ).run(c.lastInsertRowid,'completed',42,2);
+            const ins=db.prepare(
+              'INSERT INTO audit_issues (audit_id, severity, type, url, message) VALUES (?,?,?,?,?)'
+            );
+            ins.run(a.lastInsertRowid,'high','missing_title','https://example.com/','No title tag');
+            ins.run(a.lastInsertRowid,'medium','missing_schema','https://example.com/','No structured data');
+            db.close();
+          "
+          pnpm exec tsx scripts/proposal-check.ts
+
+      # The agent's only path that changes someone's live website.
+      #
+      # It shipped talking to a WordPress plugin that nothing had ever
+      # called. Four field names disagreed across the JSON boundary and
+      # all four failed silently: /ping sends `plugin_version` and we read
+      # `version`, so alt-text capability could never open; the SEO and
+      # schema endpoints read snake_case keys we weren't sending, so
+      # WordPress accepted the write, changed nothing, and answered ok.
+      # TypeScript can't catch any of that — both sides are `string`.
+      #
+      # scripts/fake-wordpress.mjs implements the plugin's endpoints as
+      # the PHP is written, so the real client runs against them. It does
+      # NOT prove the PHP behaves as documented; that needs a real
+      # WordPress. It does prove our side, which is where all four bugs
+      # were.
+      # The MCP server, driven the way a real client drives it.
+      #
+      # Spawns it and speaks JSON-RPC over stdio, because the handlers
+      # can all be correct while the server fails to hand-shake or
+      # prints something to stdout that corrupts the stream — and the
+      # user just sees "server disconnected".
+      #
+      # The assertions that matter are about what it refuses to imply:
+      # a rank number without its source, or movement computed by
+      # subtracting a browser scrape from a Search Console average. That
+      # last one reports a six-place gain that never happened, and reads
+      # exactly like a real one.
+      - name: MCP server
+        run: pnpm exec tsx scripts/mcp-check.ts
+
+      # The plugin's own PHP, actually executed.
+      #
+      # It never had been. Every check for the WordPress integration drove
+      # the TypeScript client against a JavaScript stand-in, which caught
+      # five wire-format bugs and still missed the worst one: the plugin
+      # read `Authorization` while the tool sent `X-STB-Key`, so every
+      # request from the tool had returned 401 since the plugin's first
+      # release. The stand-in's auth had been copied from the client
+      # rather than from the PHP — a fake is only as correct as whoever
+      # read the original, which is the argument for running the original.
+      #
+      # Runners ship PHP, so this costs nothing. mbstring is needed for
+      # the link inserter's mb_* calls.
+      - name: WordPress plugin (PHP)
+        run: |
+          php -v
+          php -l wordpress-plugin/seo-tool-bridge.php
+          php -d extension=mbstring wordpress-plugin/tests/wp-bridge-test.php
+
+      - name: WordPress bridge checks
+        run: pnpm exec tsx scripts/wp-bridge-check.ts
+
+      # The agent's write path, end to end.
+      #
+      # The check above proves the bridge client. This proves the loop
+      # that uses it: capability detection, planning, per-image
+      # expansion, drafting, validation, the write, the verification
+      # read-back and undo — against a real database, a stand-in CMS and
+      # a stand-in model. Agent safety checks (above) run at the default
+      # autonomy, which is suggest-only, so they never execute any of it.
+      #
+      # It found the worst bug in the agent so far: run.ts decided what
+      # needed drafting from an inline list of two kinds, so alt text and
+      # schema were executed with an empty string, verified cleanly
+      # against the field they hadn't changed, and were reported to the
+      # user as fixed.
+      #
+      # The scenario that matters most is the negative one — a model
+      # returning copy that breaks every rule, where the agent must write
+      # nothing at all.
+      - name: Agent write path, end to end
+        run: pnpm exec tsx scripts/agent-wp-check.ts
+
+      # The public grader is the only endpoint anyone on the internet can
+      # reach AND that makes the server fetch a URL of their choosing.
+      # Both properties that make that safe — refusing internal addresses
+      # and rate limiting — fail silently.
+      #
+      # Runs against the action's core rather than over HTTP, deliberately:
+      # the first version of this check POSTed a plain form to the route,
+      # which a Next server action ignores, so every SSRF target "passed"
+      # because nothing had executed.
+      - name: Public grader safety
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/grader.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          pnpm exec tsx scripts/grader-ssrf-check.ts
+
+      # Crawls example.com, so it needs the network. Kept here rather
+      # than in the unit suite because the property being checked is that
+      # a real crawl's page count survives into the database — a fixture
+      # would only prove the fixture round-trips.
+      - name: Audit page-count check
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/audit.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            db.close();
+          "
+          pnpm exec tsx scripts/audit-pagecount-check.ts
+
+      # Bulk reporting has one property that must never regress: a batch
+      # produces DRAFTS. If it ever marks its own output approved, the
+      # review step becomes decoration and reports go to clients unread —
+      # and it would look completely normal from the outside, just with
+      # an empty review queue.
+      #
+      # Renders real PDFs, so it needs a database with a client in it.
+      - name: Report batch checks
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/reports.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            db.close();
+          "
+          pnpm exec tsx scripts/report-batch-check.ts
+
+      # The auth gate cannot be tested in-process. Middleware runs in the
+      # Edge sandbox and learns the auth mode from the Node runtime, and
+      # the first version of that handshake silently failed: registering
+      # the first owner issued a correct session and left every page
+      # reachable with no cookie at all, until someone restarted the
+      # server. Nothing above would have caught it — the unit tests were
+      # green, the build was green, and the bug only exists across the
+      # two runtimes.
+      #
+      # Needs its own database because it registers a permanent owner.
+      - name: Auth flow (real server, scratch DB)
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/auth.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          PORT=3100 pnpm start &
+          server=$!
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:3100/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          node scripts/auth-check.mjs http://localhost:3100 "$SEO_DB_PATH"
+          status=$?
+          kill $server 2>/dev/null || true
+          exit $status
+
+      - name: Upload E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Separate job, because the failure it catches has nothing to do with
+  # the one above.
+  #
+  # A user's install died at `RUN pnpm build` inside Docker while the
+  # same commit built fine natively. Three causes, none visible to the
+  # job above: pnpm-workspace.yaml wasn't COPYied into the deps stage,
+  # `corepack prepare pnpm@latest` floated the image onto a different
+  # pnpm than the lockfile, and `pnpm build` silently triggers an install
+  # that doesn't inherit --ignore-scripts.
+  #
+  # Docker is the documented install path for non-technical users. It
+  # needs its own gate.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: seo-tool:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Building isn't enough — the image also has to boot, run
+      # migrations against an empty volume, and serve. A container that
+      # builds and then crash-loops is the same outcome for the user.
+      - name: Boot the container and wait for health
+        run: |
+          docker run -d --name seo-ci \
+            -p 3000:3000 \
+            -e APP_PASSWORD=ci-smoke-test \
+            -v seo-ci-data:/data \
+            seo-tool:ci
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/v1/health > /dev/null 2>&1; then
+              echo "healthy after ${i}s"
+              exit 0
+            fi
+            if ! docker ps --filter name=seo-ci --filter status=running -q | grep -q .; then
+              echo "container exited early:"
+              docker logs seo-ci
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "never became healthy:"
+          docker logs seo-ci
+          exit 1
+
+      # The password gate must not block the endpoints that carry their
+      # own auth — that regression shipped once and made client portals
+      # and the public API unreachable on every real deployment.
+      - name: Password gate lets through what it should
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/v1/health)
+          [ "$code" = "200" ] || { echo "health behind auth: $code"; exit 1; }
+
+          # Accept: text/html matters. Middleware deliberately answers a
+          # non-browser request with 401 JSON and only REDIRECTS to
+          # /login when the caller looks like a browser — that's what
+          # keeps the public API returning a usable 401 to a Bearer
+          # client instead of an HTML login page.
+          #
+          # curl defaults to `Accept: */*`, so without this header the
+          # check was asserting browser behaviour while sending an API
+          # request, and failing on an app that was behaving correctly.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -L \
+            -H 'accept: text/html' http://localhost:3000/)
+          [ "$code" = "200" ] || { echo "login page not served: $code"; exit 1; }
+
+          # And the inverse, which is the property that actually matters:
+          # a non-browser caller must get 401 rather than an HTML page.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/)
+          [ "$code" = "401" ] || { echo "API-style request should 401, got: $code"; exit 1; }
+
+      # The container refuses to start without APP_PASSWORD. Verify that
+      # guard actually fires, or it's decoration.
+      - name: Refuses to boot unauthenticated
+        run: |
+          # Capture the exit status of `docker run` itself.
+          #
+          # This was `if docker run ... | tee /tmp/out; then` — which
+          # tests the exit status of the LAST command in the pipeline,
+          # i.e. tee. tee always succeeds, so the check reported "the
+          # guard did not fire" on a container that had just printed
+          # REFUSING TO START and exited non-zero. The guard was correct;
+          # the check was not.
+          set +e
+          docker run --rm --name seo-ci-noauth seo-tool:ci > /tmp/out 2>&1
+          status=$?
+          set -e
+          cat /tmp/out
+
+          if [ "$status" -eq 0 ]; then
+            echo "started without APP_PASSWORD — the guard did not fire"
+            exit 1
+          fi
+          grep -q "REFUSING TO START" /tmp/out || {
+            echo "exited non-zero, but for the wrong reason:"; exit 1; }
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs seo-ci || true

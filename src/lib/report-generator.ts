@@ -16,8 +16,8 @@ import {
   seoResources,
   tasks,
 } from "@/db/schema";
-import { getSetting } from "./settings-store";
 import { generateExecSummary } from "./ai-summary";
+import { ALGO_UPDATES } from "./algorithm-updates";
 import {
   captureClientSnapshot,
   loadSnapshotComparison,
@@ -30,6 +30,7 @@ import {
   type GscKeyword,
   type Ga4DailyTraffic,
 } from "./google-data";
+import { loadBrand, type Brand } from "./brand";
 
 type Color = string;
 
@@ -55,13 +56,6 @@ let palette = { ...defaultPalette };
 // Real-world risk is low (single-user app, ~5s per report) but the bug
 // is real and the cost of fixing is a one-line mutex.
 let _generateLock: Promise<void> = Promise.resolve();
-
-type Brand = {
-  name: string | null;
-  color: string | null;
-  logoBuffer: Buffer | null;
-  logoMime: string | null;
-};
 
 /**
  * Fetch the client's own logo from the URL stored on the client record so the
@@ -100,32 +94,6 @@ async function loadClientLogo(
   }
 }
 
-async function loadBrand(): Promise<Brand> {
-  const [name, color, logoDataUrl] = await Promise.all([
-    getSetting<string>("brand.name"),
-    getSetting<string>("brand.color"),
-    getSetting<string>("brand.logo_data_url"),
-  ]);
-
-  let logoBuffer: Buffer | null = null;
-  let logoMime: string | null = null;
-  if (logoDataUrl) {
-    const m = logoDataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-    if (m) {
-      logoMime = m[1].toLowerCase();
-      // pdfkit only supports PNG and JPEG natively. SVG/WebP won't render.
-      if (logoMime === "image/png" || logoMime === "image/jpeg") {
-        try {
-          logoBuffer = Buffer.from(m[2], "base64");
-        } catch {
-          logoBuffer = null;
-        }
-      }
-    }
-  }
-
-  return { name, color, logoBuffer, logoMime };
-}
 
 const sevColor = {
   critical: palette.bad,
@@ -1530,12 +1498,10 @@ function drawTrafficSparkline(
     const firstT = opts.dates[0].getTime();
     const lastT = opts.dates[opts.dates.length - 1].getTime();
     if (lastT > firstT) {
-      // Lazy require so the report-generator module graph isn't forced
-      // to pull algorithm-updates at import time.
-
-      const { ALGO_UPDATES } = require("./algorithm-updates") as {
-        ALGO_UPDATES: { date: string; endDate?: string; name: string }[];
-      };
+      // Was a lazy `require()` "so the module graph isn't forced to pull
+      // algorithm-updates at import time" — but that module is a static
+      // array with zero imports of its own, so the deferral saved
+      // nothing and cost a synchronous require inside a draw loop.
       for (const u of ALGO_UPDATES) {
         const startT = new Date(u.date + "T00:00:00Z").getTime();
         if (isNaN(startT)) continue;

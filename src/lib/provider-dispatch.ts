@@ -27,6 +27,8 @@
 
 import type { ActiveProvider, Provider } from "./api-keys";
 import { getApiKey, getOllamaUrl } from "./api-keys";
+import { defaultModelFor } from "./ai-model-presets";
+import { NO_KEY_STATUS, NO_OLLAMA_URL_STATUS } from "./ai-error";
 import { callGemini as sharedCallGemini } from "./providers/gemini";
 import { callAnthropic as sharedCallAnthropic } from "./providers/anthropic";
 import { callOpenAICompat as sharedCallOpenAICompat } from "./providers/openai-compat";
@@ -45,83 +47,66 @@ export type ProviderSpec = {
   endpoint?: string;
   /** Extra request headers. OpenRouter uses this for the required x-title. */
   extraHeaders?: Record<string, string>;
-  /**
-   * Sensible default model when the caller didn't pass modelOverride.
-   * Updated 2026-05 — Google deprecated -latest suffix; flash models renamed.
-   */
-  defaultModel: string;
 };
 
 export const PROVIDER_DISPATCH: Record<ActiveProvider, ProviderSpec> = {
   gemini: {
     id: "gemini",
     kind: "gemini",
-    defaultModel: "gemini-2.0-flash",
   },
   groq: {
     id: "groq",
     kind: "openai-compat",
     endpoint: "https://api.groq.com/openai/v1/chat/completions",
-    defaultModel: "llama-3.3-70b-versatile",
   },
   anthropic: {
     id: "anthropic",
     kind: "anthropic",
-    defaultModel: "claude-haiku-4-5-20251001",
   },
   openai: {
     id: "openai",
     kind: "openai-compat",
     endpoint: "https://api.openai.com/v1/chat/completions",
-    defaultModel: "gpt-4o-mini",
   },
   openrouter: {
     id: "openrouter",
     kind: "openai-compat",
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
     extraHeaders: { "x-title": "SEO Tool" },
-    defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
   },
   perplexity: {
     id: "perplexity",
     kind: "openai-compat",
     endpoint: "https://api.perplexity.ai/chat/completions",
-    defaultModel: "sonar",
   },
   ollama: {
     id: "ollama",
     kind: "ollama",
-    defaultModel: "llama3",
   },
   mistral: {
     id: "mistral",
     kind: "openai-compat",
     endpoint: "https://api.mistral.ai/v1/chat/completions",
-    defaultModel: "mistral-large-latest",
   },
   deepseek: {
     id: "deepseek",
     kind: "openai-compat",
     endpoint: "https://api.deepseek.com/v1/chat/completions",
-    defaultModel: "deepseek-chat",
   },
   cerebras: {
     id: "cerebras",
     kind: "openai-compat",
     endpoint: "https://api.cerebras.ai/v1/chat/completions",
-    defaultModel: "llama-3.3-70b",
   },
   together: {
     id: "together",
     kind: "openai-compat",
     endpoint: "https://api.together.xyz/v1/chat/completions",
-    defaultModel: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
   },
   github: {
     id: "github",
     kind: "openai-compat",
     endpoint: "https://models.inference.ai.azure.com/chat/completions",
-    defaultModel: "gpt-4o",
   },
 };
 
@@ -134,6 +119,12 @@ export type DispatchArgs = {
   timeoutMs: number;
   /** For logging / error attribution. Passed through to the shared callers. */
   caller?: string;
+  /**
+   * Receives the provider's status + body when a call fails, so the
+   * caller can tell the user WHY rather than rendering an empty box.
+   * See ai-error.ts for how these become user-facing sentences.
+   */
+  onFailure?: (status: number, body: string) => void;
 };
 
 /**
@@ -156,13 +147,16 @@ export async function dispatchProviderCall(
   const spec = PROVIDER_DISPATCH[providerId];
   if (!spec) return null;
 
-  const model = args.model?.trim() || spec.defaultModel;
+  const model = args.model?.trim() || defaultModelFor(providerId);
   const caller = args.caller ?? "provider-dispatch";
 
   switch (spec.kind) {
     case "gemini": {
       const apiKey = await getApiKey(providerId as Provider);
-      if (!apiKey) return null;
+      if (!apiKey) {
+        args.onFailure?.(NO_KEY_STATUS, "no api key configured");
+        return null;
+      }
       return sharedCallGemini({
         apiKey,
         model,
@@ -172,11 +166,15 @@ export async function dispatchProviderCall(
         temperature: args.temperature,
         timeoutMs: args.timeoutMs,
         caller,
+        onFailure: args.onFailure,
       });
     }
     case "anthropic": {
       const apiKey = await getApiKey(providerId as Provider);
-      if (!apiKey) return null;
+      if (!apiKey) {
+        args.onFailure?.(NO_KEY_STATUS, "no api key configured");
+        return null;
+      }
       return sharedCallAnthropic({
         apiKey,
         model,
@@ -186,12 +184,16 @@ export async function dispatchProviderCall(
         temperature: args.temperature,
         timeoutMs: args.timeoutMs,
         caller,
+        onFailure: args.onFailure,
       });
     }
     case "openai-compat": {
       if (!spec.endpoint) return null;
       const apiKey = await getApiKey(providerId as Provider);
-      if (!apiKey) return null;
+      if (!apiKey) {
+        args.onFailure?.(NO_KEY_STATUS, "no api key configured");
+        return null;
+      }
       return sharedCallOpenAICompat({
         endpoint: spec.endpoint,
         apiKey,
@@ -203,6 +205,7 @@ export async function dispatchProviderCall(
         timeoutMs: args.timeoutMs,
         extraHeaders: spec.extraHeaders,
         caller,
+        onFailure: args.onFailure,
       });
     }
     case "ollama": {
@@ -210,7 +213,10 @@ export async function dispatchProviderCall(
       // Guard: an empty Ollama URL would fetch `null/api/chat` and throw
       // inside the outer catch, giving the caller a mystery null with
       // no hint about what to configure.
-      if (!url) return null;
+      if (!url) {
+        args.onFailure?.(NO_OLLAMA_URL_STATUS, "no ollama url configured");
+        return null;
+      }
       return callOllamaDirect({
         url,
         model,
@@ -219,6 +225,7 @@ export async function dispatchProviderCall(
         maxTokens: args.maxTokens,
         temperature: args.temperature,
         timeoutMs: args.timeoutMs,
+        onFailure: args.onFailure,
       });
     }
   }
@@ -238,6 +245,7 @@ async function callOllamaDirect(args: {
   maxTokens: number;
   temperature: number;
   timeoutMs: number;
+  onFailure?: (status: number, body: string) => void;
 }): Promise<string | null> {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), args.timeoutMs);
@@ -259,12 +267,17 @@ async function callOllamaDirect(args: {
         ],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = (await res.text().catch(() => "")).slice(0, 240);
+      args.onFailure?.(res.status, body || res.statusText);
+      return null;
+    }
     const data = (await res.json()) as {
       message?: { content?: string };
     };
     return data.message?.content?.trim() ?? null;
-  } catch {
+  } catch (err) {
+    args.onFailure?.(0, (err as Error).message);
     return null;
   } finally {
     clearTimeout(t);
@@ -274,7 +287,10 @@ async function callOllamaDirect(args: {
 /**
  * Convenience: look up the default model for a provider. Callers that
  * want to log "which model actually ran" can use this before dispatch.
+ *
+ * Re-exported from ai-model-presets so the model the picker labels
+ * "default" is byte-for-byte the model dispatch sends when no override
+ * is set. These used to be two separate literals and drifted — the
+ * picker offered retired Gemini 1.5 ids while dispatch sent 2.0.
  */
-export function defaultModelFor(providerId: ActiveProvider): string {
-  return PROVIDER_DISPATCH[providerId]?.defaultModel ?? "";
-}
+export { defaultModelFor } from "./ai-model-presets";

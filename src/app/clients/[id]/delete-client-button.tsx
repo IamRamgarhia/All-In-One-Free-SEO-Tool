@@ -71,7 +71,7 @@ export function DeleteClientButton({
         Delete client…
       </Button>
       <p className="mt-2 text-xs text-muted-foreground">
-        Removes the client + everything attached to it. You'll get a clear
+        Removes the client + everything attached to it. You&apos;ll get a clear
         confirmation before anything is touched.
       </p>
 

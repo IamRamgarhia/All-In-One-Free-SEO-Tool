@@ -2,77 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
-import {
-  LayoutDashboard,
-  Users,
-  ListChecks,
-  ClipboardList,
-  Search,
-  FileText,
-  Network,
-  Sparkles,
-  Settings,
-  GraduationCap,
-  Link2,
-  Activity,
-  Send,
-  History,
-  Workflow,
-  Receipt,
-  ScanText,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Wand2,
-  Bot,
-  FileDown,
-  Gauge,
-  GitCompare,
-  MapPin,
-  Wrench,
-  Building,
-  Image as ImageIcon,
-  Layers,
-  Newspaper,
-  TrendingDown,
-  Flame,
-  GitMerge,
-  Magnet,
-  Megaphone,
-  Target,
-  Video,
-  Globe,
-  ChevronDown,
-  ChevronRight,
-  type LucideIcon,
-} from "lucide-react";
+import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
+import { useStoredState } from "@/components/use-stored-state";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  /**
-   * Items marked `guided: true` are visible in Guided mode (the default
-   * for new users). Items without the flag are Pro-only — they still
-   * exist and are reachable by direct URL or via /tools, but the
-   * sidebar hides them so beginners aren't drowning in 80 leaf nodes.
-   *
-   * The "Show all tools" footer toggle flips ui.mode from guided to pro
-   * (or back). Settings → UI mode is the explicit knob.
-   */
-  guided?: boolean;
-};
-
-type NavGroup = {
-  id: string;
-  title: string;
-  /** Pinned groups are always visible and not collapsible. */
-  pinned?: boolean;
-  /** Default-expanded if true; otherwise collapsed by default. */
-  defaultOpen?: boolean;
-  items: NavItem[];
-};
+/** Alias kept so the render code below reads unchanged. */
+const groups = NAV_GROUPS;
 
 /**
  * Per-group accent. Pre-baked Tailwind class strings so the JIT picks
@@ -189,157 +126,13 @@ const GROUP_ACCENTS: Record<string, GroupAccent> = {
   account: NEUTRAL_ACCENT,
 };
 
-/**
- * Sidebar nav after the Phase 2 tool-merge sweep. Tools that were
- * folded into a unified parent (SXO/GEO/E-E-A-T → Audits, Brand SERP /
- * Knowledge Panel / Author authority → Brand visibility, etc.) are
- * no longer listed here. Their URLs still work and they appear in
- * the All tools grid for discovery — they just don't take a sidebar
- * slot. Result: 50+ entries → 25 entries.
- */
-const groups: NavGroup[] = [
-  {
-    id: "essentials",
-    title: "Essentials",
-    pinned: true,
-    items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard, guided: true },
-      { href: "/welcome", label: "Get started", icon: Sparkles, guided: true },
-      { href: "/clients", label: "Clients", icon: Users, guided: true },
-      { href: "/seo-chat", label: "SEO chat", icon: Bot, guided: true },
-      { href: "/audits", label: "Audits", icon: ClipboardList, guided: true },
-      { href: "/tasks", label: "Tasks", icon: ListChecks, guided: true },
-      { href: "/tools", label: "All tools", icon: Wrench, guided: true },
-      { href: "/reports", label: "Reports", icon: FileDown, guided: true },
-    ],
-  },
-  {
-    id: "everyday",
-    title: "Everyday",
-    defaultOpen: false,
-    items: [
-      { href: "/morning", label: "Morning briefing", icon: Activity, guided: true },
-      { href: "/digest", label: "Weekly digest", icon: Send },
-      { href: "/grader", label: "Instant audit", icon: Sparkles, guided: true },
-      { href: "/agent", label: "AI agent", icon: Bot },
-      { href: "/capacity", label: "Capacity", icon: Gauge },
-      { href: "/activity", label: "Activity log", icon: History },
-    ],
-  },
-  {
-    id: "content",
-    title: "Content",
-    items: [
-      { href: "/content", label: "Content overview", icon: FileText, guided: true },
-      { href: "/content/calendar", label: "Content calendar", icon: FileText },
-      { href: "/blog", label: "AI blog writer", icon: Wand2, guided: true },
-      { href: "/content-decay", label: "Content health", icon: TrendingDown, guided: true },
-      { href: "/title-tests", label: "Title A/B tests", icon: Wand2 },
-      { href: "/meta-rewrite", label: "Meta rewrite batch", icon: Wand2 },
-    ],
-  },
-  {
-    id: "keywords",
-    title: "Keywords & ranks",
-    items: [
-      { href: "/keywords", label: "Tracked keywords", icon: Search, guided: true },
-      { href: "/cannibalization", label: "Cannibalization", icon: GitMerge },
-      { href: "/cwv", label: "Core Web Vitals", icon: Gauge },
-      { href: "/serp-scans", label: "SERP scans archive", icon: Globe },
-    ],
-  },
-  {
-    id: "paid-ads",
-    title: "Paid ads",
-    defaultOpen: true,
-    items: [
-      // The ⭐ marks this as the newest / most-recommended entry —
-      // matches the same treatment on /tools and the per-client launcher.
-      {
-        href: "/tools/ads-funnel",
-        label: "Ad Funnel Architect ⭐",
-        icon: Megaphone,
-      },
-      { href: "/tools/branded-split", label: "Branded vs non-branded", icon: Target },
-    ],
-  },
-  {
-    id: "backlinks",
-    title: "Backlinks & outreach",
-    items: [
-      { href: "/backlinks", label: "Backlinks", icon: Link2, guided: true },
-      { href: "/link-building", label: "Link building", icon: Link2 },
-      { href: "/outreach", label: "Outreach", icon: Send },
-      { href: "/broken-links", label: "Broken links", icon: Link2 },
-    ],
-  },
-  {
-    id: "local",
-    title: "Local SEO",
-    items: [
-      { href: "/gbp", label: "Google Business Profile", icon: Building, guided: true },
-      { href: "/citations", label: "Citations", icon: MapPin },
-      { href: "/local-rank", label: "Local rank tracker", icon: MapPin },
-      { href: "/local-grid", label: "Local rank heatmap", icon: MapPin },
-    ],
-  },
-  {
-    id: "competitors",
-    title: "Competitors & brand",
-    items: [
-      { href: "/competitors", label: "Competitors", icon: Network },
-      { href: "/brand-monitor", label: "Brand visibility", icon: Network },
-      { href: "/compare", label: "Site compare", icon: GitCompare },
-    ],
-  },
-  {
-    id: "ai-visibility",
-    title: "AI visibility",
-    items: [
-      { href: "/ai-visibility", label: "AI visibility tracker", icon: Sparkles },
-      { href: "/chats", label: "AI chat history", icon: Bot },
-    ],
-  },
-  {
-    id: "monitoring",
-    title: "Monitoring + history",
-    items: [
-      { href: "/monitor", label: "Page monitor", icon: Activity },
-      { href: "/snapshots", label: "Snapshots", icon: ImageIcon },
-      { href: "/history", label: "Tool run history", icon: History },
-      { href: "/algorithm-updates", label: "Algorithm updates", icon: History },
-      { href: "/news", label: "SEO news", icon: Newspaper },
-    ],
-  },
-  {
-    id: "imports",
-    title: "Imports",
-    items: [
-      { href: "/import", label: "Import (all sources)", icon: ScanText },
-    ],
-  },
-  {
-    id: "deliverables",
-    title: "Deliverables",
-    items: [
-      { href: "/reports/archive", label: "Report archive", icon: FileDown },
-      { href: "/automations", label: "Automations", icon: Workflow },
-      { href: "/invoices", label: "Invoices", icon: Receipt },
-    ],
-  },
-  {
-    id: "account",
-    title: "Account",
-    pinned: true,
-    items: [
-      { href: "/settings", label: "Settings", icon: Settings, guided: true },
-      { href: "/learn", label: "Learn", icon: GraduationCap, guided: true },
-      { href: "/knowledge", label: "Knowledge hub", icon: GraduationCap },
-    ],
-  },
-];
 
 const COLLAPSED_KEY = "seo:sidebar-collapsed";
+/** Stable identity — useSyncExternalStore needs a referentially stable fallback. */
+const EMPTY_GROUPS: Record<string, boolean> = {};
+const parseCollapsed = (raw: string) => raw === "1";
+const parseOpenGroups = (raw: string) =>
+  JSON.parse(raw) as Record<string, boolean>;
 const OPEN_GROUPS_KEY = "seo:sidebar-open-groups";
 
 function isActive(pathname: string, href: string) {
@@ -361,8 +154,24 @@ export function Sidebar({
   uiMode?: "guided" | "pro";
 } = {}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  // Both read from localStorage via useSyncExternalStore rather than
+  // useState + a hydrate effect. The old version rendered the server
+  // default, committed it to the DOM, then corrected itself — so a user
+  // who kept the sidebar collapsed watched it flash open and snap shut
+  // on every single page load.
+  const [collapsed, setCollapsedStored] = useStoredState<boolean>(
+    COLLAPSED_KEY,
+    false,
+    parseCollapsed,
+  );
+  const [storedOpenGroups, setStoredOpenGroups] = useStoredState<
+    Record<string, boolean>
+  >(OPEN_GROUPS_KEY, EMPTY_GROUPS, parseOpenGroups);
+  // Groups auto-opened because they contain the current route, layered
+  // over the stored preference. Kept separate so navigating somewhere
+  // doesn't silently rewrite what the user chose to leave collapsed.
+  const [routeOpened, setRouteOpened] = useState<Record<string, boolean>>({});
+  const openGroups = { ...storedOpenGroups, ...routeOpened };
   const unread = unreadByHref ?? {};
 
   // Apply the guided/pro filter. In guided mode every item must opt-in
@@ -375,57 +184,39 @@ export function Sidebar({
       : groups
           .map((g) => ({
             ...g,
-            items: g.items.filter((it) => it.guided),
+            items: g.items.filter((it: NavItem) => it.guided),
           }))
           .filter((g) => g.pinned || g.items.length > 0);
-
-  // Hydrate from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(COLLAPSED_KEY);
-      if (stored === "1") setCollapsed(true);
-    } catch {}
-    try {
-      const stored = window.localStorage.getItem(OPEN_GROUPS_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Record<string, boolean>;
-        setOpenGroups(parsed);
-      }
-    } catch {}
-  }, []);
 
   // Auto-open the group containing the current route — even if the user
   // had it collapsed — so navigation context is always visible. We
   // iterate the FULL groups list (not visibleGroups) because the active
   // route may live in a hidden-by-guided-mode group and we still want
   // to surface it when the user lands there via direct URL.
-  useEffect(() => {
-    for (const g of groups) {
-      if (g.items.some((it) => isActive(pathname, it.href))) {
-        setOpenGroups((prev) =>
-          prev[g.id] === true ? prev : { ...prev, [g.id]: true },
-        );
-      }
-    }
-  }, [pathname]);
+  // Derived during render rather than in an effect: which group holds
+  // the current route is a pure function of `pathname`, so computing it
+  // here saves the extra commit the effect version cost on every
+  // navigation. React restarts the render before touching the DOM.
+  const activeGroupId = groups.find((g) =>
+    g.items.some((it: NavItem) => isActive(pathname, it.href)),
+  )?.id;
+  if (activeGroupId && !routeOpened[activeGroupId]) {
+    setRouteOpened((prev) => ({ ...prev, [activeGroupId]: true }));
+  }
 
   function toggle() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
-      } catch {}
-      return next;
-    });
+    setCollapsedStored(!collapsed, (v) => (v ? "1" : "0"));
   }
 
   function toggleGroup(id: string) {
-    setOpenGroups((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
-      try {
-        window.localStorage.setItem(OPEN_GROUPS_KEY, JSON.stringify(next));
-      } catch {}
-      return next;
+    setStoredOpenGroups({ ...openGroups, [id]: !openGroups[id] }, JSON.stringify);
+    // Closing a route-opened group must clear the route override too,
+    // or the merge above would immediately re-open it.
+    setRouteOpened((prev) => {
+      if (!prev[id]) return prev;
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
     });
   }
 
@@ -465,7 +256,7 @@ export function Sidebar({
                 SEO Tool
               </div>
               <div className="mt-1 truncate text-xs text-sidebar-foreground/60">
-                v0.1 · local
+                v0.2 · local
               </div>
             </div>
             <button
@@ -585,7 +376,7 @@ export function Sidebar({
               )}
               {(isOpen || collapsed) && (
                 <ul className="mt-0.5">
-                  {group.items.map(({ href, label, icon: Icon }) => {
+                  {group.items.map(({ href, label, icon: Icon }: NavItem) => {
                     const active = isActive(pathname, href);
                     return (
                       <li key={href}>
@@ -708,7 +499,7 @@ export function Sidebar({
                 {uiMode === "guided" ? (
                   <PanelLeftOpen className="size-3.5" />
                 ) : (
-                  PanelLeftClose && <PanelLeftClose className="size-3.5" />
+                  <PanelLeftClose className="size-3.5" />
                 )}
                 <span>{uiMode === "guided" ? "Show all tools" : "Guided mode"}</span>
               </span>

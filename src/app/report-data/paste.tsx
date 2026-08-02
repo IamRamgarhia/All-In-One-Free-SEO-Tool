@@ -42,7 +42,7 @@ export function ReportDataPaste({
     null,
   );
   const [rawText, setRawText] = useState("");
-  const [_, startDelete] = useTransition();
+  const [, startDelete] = useTransition();
 
   return (
     <>

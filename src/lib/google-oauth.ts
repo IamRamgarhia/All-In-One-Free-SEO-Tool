@@ -360,12 +360,37 @@ export type GscQueryRow = {
   position: number;
 };
 
+export type GscDimension = "query" | "page" | "country" | "device" | "date";
+
+export type GscDimensionFilter = {
+  dimension: GscDimension;
+  operator?: "equals" | "contains" | "notContains" | "includingRegex";
+  expression: string;
+};
+
 export async function fetchGscPerformance(opts: {
   siteUrl: string;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
-  dimensions?: ("query" | "page" | "country" | "device" | "date")[];
+  dimensions?: GscDimension[];
   rowLimit?: number;
+  /**
+   * Server-side filters. Worth using rather than fetching everything and
+   * filtering locally: GSC caps a response at 25,000 rows, and a site
+   * with real traffic has far more queries than that, so local filtering
+   * silently misses anything past the cap.
+   */
+  dimensionFilterGroups?: { filters: GscDimensionFilter[] }[];
+  /**
+   * "final" (default) returns only fully-processed days. "all" includes
+   * the most recent day or two while Google is still aggregating them,
+   * flagged as fresh-but-incomplete.
+   *
+   * Rank tracking wants "final": a partial day reads as a sudden
+   * impression collapse, which looks exactly like a ranking disaster.
+   */
+  dataState?: "final" | "all";
+  startRow?: number;
   /** If set, prefer per-client OAuth tokens for this scoped client. */
   clientIdScope?: number;
 }): Promise<GscQueryRow[]> {
@@ -385,6 +410,11 @@ export async function fetchGscPerformance(opts: {
         endDate: opts.endDate,
         dimensions: opts.dimensions ?? ["query"],
         rowLimit: opts.rowLimit ?? 1000,
+        ...(opts.dimensionFilterGroups
+          ? { dimensionFilterGroups: opts.dimensionFilterGroups }
+          : {}),
+        ...(opts.dataState ? { dataState: opts.dataState } : {}),
+        ...(opts.startRow ? { startRow: opts.startRow } : {}),
       }),
     },
   );

@@ -3,6 +3,13 @@ import { db } from "@/db/client";
 import { workspaceSettings } from "@/db/schema";
 
 export type SettingKey =
+  /**
+   * Per-runner scheduler bookkeeping: `scheduler.<runner_id>.started_at`,
+   * `.finished_at`, `.last_error`. Open-ended because the runner list
+   * lives in scheduler.ts and shouldn't require editing this union every
+   * time a background job is added — the prefix keeps it namespaced.
+   */
+  | `scheduler.${string}`
   | "webhook.url"
   | "webhook.notify_on_audit_complete"
   | "webhook.notify_on_score_drop"
@@ -20,6 +27,10 @@ export type SettingKey =
   | "brand.phone"
   | "brand.footer_text"
   | "ui.mode"
+  /** "light" | "dark" | "system" — defaults to "system". */
+  | "ui.theme"
+  /** Autonomy level and guardrails for the agent. See lib/agent/autonomy.ts. */
+  | "agent.settings"
   | "api.openai"
   | "api.anthropic"
   | "api.gemini"
@@ -144,15 +155,54 @@ export type SettingKey =
   | "retention.last_summary"
   | "retention.last_error";
 
+/**
+ * True when the error is "the schema isn't there yet" rather than a
+ * real failure. Two situations produce it, and neither is a bug worth
+ * crashing over:
+ *
+ *   1. `next build` prerendering pages against a data.db that hasn't
+ *      been migrated. `pnpm build` runs the migrate hook first, but a
+ *      bare `next build` (or any tool that invokes Next directly)
+ *      doesn't — and the whole build died with
+ *      "SqliteError: no such table: workspace_settings", which reads
+ *      like a code fault rather than a missing setup step.
+ *   2. A half-finished install where migrations errored partway.
+ *
+ * In both cases the honest answer for a *settings read* is "no value
+ * set", not a 500. Writes still throw — silently discarding a save
+ * would be much worse than failing loudly.
+ */
+function isMissingSchemaError(err: unknown): boolean {
+  const msg = (err as Error)?.message ?? "";
+  return /no such table|no such column/i.test(msg);
+}
+
+let warnedMissingSchema = false;
+
 export async function getSetting<T = unknown>(
   key: SettingKey,
 ): Promise<T | null> {
-  const [row] = await db
-    .select()
-    .from(workspaceSettings)
-    .where(eq(workspaceSettings.key, key))
-    .limit(1);
-  return (row?.value as T | undefined) ?? null;
+  try {
+    const [row] = await db
+      .select()
+      .from(workspaceSettings)
+      .where(eq(workspaceSettings.key, key))
+      .limit(1);
+    return (row?.value as T | undefined) ?? null;
+  } catch (err) {
+    if (!isMissingSchemaError(err)) throw err;
+    // Warn once per process — a build prerendering 50 pages shouldn't
+    // print 50 identical warnings, but silence would hide a genuinely
+    // broken install.
+    if (!warnedMissingSchema) {
+      warnedMissingSchema = true;
+      console.warn(
+        "[settings] workspace_settings table is missing — reading defaults. " +
+          "Run `node scripts/migrate.cjs` (or `pnpm build`, which does it for you).",
+      );
+    }
+    return null;
+  }
 }
 
 export async function setSetting(

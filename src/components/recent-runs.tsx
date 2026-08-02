@@ -40,6 +40,8 @@ export function RecentRuns({
 
   useEffect(() => {
     let active = true;
+    // Sets the spinner immediately before an await; fetching during render isn't an option.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetchRecentRuns({ toolId, clientId, limit })
       .then((rows) => {

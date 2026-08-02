@@ -8,6 +8,7 @@ import { clients, keywords, keywordRankings } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { clusterKeywords } from "@/lib/keyword-cluster";
+import { clientScope } from "@/lib/client-scope";
 import { ClusterMap } from "./cluster-map";
 
 export default async function PerClientTopicClustersPage({
@@ -29,6 +30,7 @@ export default async function PerClientTopicClustersPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const tracked = await db

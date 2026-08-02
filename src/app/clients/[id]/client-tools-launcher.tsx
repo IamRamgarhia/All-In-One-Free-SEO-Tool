@@ -433,7 +433,7 @@ export function ClientToolsLauncher({
               Tools for this client
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Every tool below is pre-wired with this client's URL or
+              Every tool below is pre-wired with this client&apos;s URL or
               connected accounts. Tip: ⌘K opens search and jumps to any tool.
             </p>
           </div>

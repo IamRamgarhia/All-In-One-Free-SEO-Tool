@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { clients, cwvReports } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
+import { clientScope } from "@/lib/client-scope";
 import { CwvRunner, type CwvRow } from "./cwv-runner";
 
 export default async function PerClientCwvPage({
@@ -28,6 +29,7 @@ export default async function PerClientCwvPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const reports = (await db

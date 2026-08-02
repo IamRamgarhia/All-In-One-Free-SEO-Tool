@@ -16,6 +16,7 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { playbooks, type Playbook } from "@/lib/niche-templates";
+import { clientScope } from "@/lib/client-scope";
 import { ApplyPlaybookForm } from "./apply-form";
 
 const categoryIcon: Record<Playbook["category"], typeof Clock> = {
@@ -44,6 +45,7 @@ export default async function TasksTemplatesPage() {
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   return (

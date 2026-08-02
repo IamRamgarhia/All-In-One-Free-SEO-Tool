@@ -103,7 +103,10 @@ export async function findSoft404s(opts: {
 
 async function checkOne(
   url: string,
-  host: string,
+  // Reserved: soft-404 heuristics may need the host to spot
+  // "redirected to homepage" patterns. Kept in the signature so the
+  // call site stays readable.
+  _host: string,
 ): Promise<SoftFourOhFour | null> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT);

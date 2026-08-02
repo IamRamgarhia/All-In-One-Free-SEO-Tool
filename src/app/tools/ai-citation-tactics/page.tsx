@@ -90,7 +90,7 @@ export default function AiCitationTacticsPage() {
       </section>
 
       <div className="space-y-4">
-        {sorted.map((p, i) => {
+        {sorted.map((p) => {
           const isPriority = priorityIds.has(p.platform);
           return (
             <section

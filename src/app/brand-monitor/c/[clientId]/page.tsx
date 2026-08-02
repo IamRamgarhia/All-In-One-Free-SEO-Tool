@@ -16,6 +16,7 @@ import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { RunButton } from "./run-button";
 import { deleteMention } from "../../actions";
 import { markSectionSeen } from "@/lib/unread-counts";
+import { clientScope } from "@/lib/client-scope";
 import { SentimentChart, type SentimentBucket } from "./sentiment-chart";
 import { MentionToOutreachButton } from "./mention-to-outreach";
 
@@ -48,6 +49,7 @@ export default async function PerClientBrandMonitorPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const mentions = await db

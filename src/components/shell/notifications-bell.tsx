@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useStoredState } from "@/components/use-stored-state";
 import {
   Bell,
   CheckCircle2,
@@ -24,27 +25,27 @@ import {
 
 const LAST_SEEN_KEY = "seo-notifications-last-seen";
 
+function parseLastSeen(raw: string): number {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [lastSeenMs, setLastSeenMs] = useState<number>(0);
+  // Read straight from localStorage during render instead of correcting
+  // it in an effect. The old version briefly rendered lastSeen=0, which
+  // marks EVERY notification unread — so the bell flashed a full-count
+  // badge on load before settling to the real number.
+  const [lastSeenMs, setLastSeenStored] = useStoredState<number>(
+    LAST_SEEN_KEY,
+    0,
+    parseLastSeen,
+  );
   const popoverRef = useRef<HTMLDivElement>(null);
   // Guard against concurrent loads triggering setState loops.
   const inFlightRef = useRef(false);
-
-  // Initialise lastSeen from localStorage on mount.
-  useEffect(() => {
-    try {
-      const v = window.localStorage.getItem(LAST_SEEN_KEY);
-      if (v) {
-        const parsed = parseInt(v, 10);
-        if (Number.isFinite(parsed)) setLastSeenMs(parsed);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
 
   // Track whether the component is still mounted so async work that
   // finishes after unmount doesn't call setState on a dead component.
@@ -85,6 +86,8 @@ export function NotificationsBell() {
 
   // Initial load + 60s polling. Effects run AFTER render, never during it.
   useEffect(() => {
+    // Kicks off the async notification load; fetching during render isn't an option.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     const t = setInterval(() => {
       void load();
@@ -114,13 +117,10 @@ export function NotificationsBell() {
 
   const markAllRead = useCallback(() => {
     const now = Date.now();
-    setLastSeenMs((prev) => (prev >= now ? prev : now));
-    try {
-      window.localStorage.setItem(LAST_SEEN_KEY, String(now));
-    } catch {
-      // ignore
-    }
-  }, []);
+    // One call now writes storage AND updates state — previously those
+    // were two separate steps that could disagree if the write threw.
+    if (now > lastSeenMs) setLastSeenStored(now, String);
+  }, [lastSeenMs, setLastSeenStored]);
 
   const handleOpen = useCallback(() => {
     setOpen((prev) => !prev);
@@ -130,6 +130,8 @@ export function NotificationsBell() {
   // useEffect is the right place — render-phase side effects break in React 19.
   useEffect(() => {
     if (!open) return;
+    // Kicks off the async notification load; fetching during render isn't an option.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     const t = setTimeout(markAllRead, 1500);
     return () => clearTimeout(t);

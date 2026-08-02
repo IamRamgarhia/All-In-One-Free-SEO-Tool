@@ -1,7 +1,8 @@
 "use server";
 
 import { fetchSiteMetadata } from "@/lib/site-metadata";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import type { AiFailure } from "@/lib/ai-error";
 import { saveToolRun } from "@/lib/tool-runs";
 
 export type SchemaType =
@@ -14,7 +15,7 @@ export type SchemaType =
   | "Organization";
 
 export type GenerateSchemaResult =
-  | { ok: true; jsonld: string }
+  | { ok: true; jsonld: string; aiFailure?: AiFailure | null }
   | { ok: false; error: string };
 
 const SYSTEM = `You generate valid schema.org JSON-LD structured data.
@@ -94,7 +95,7 @@ export async function generateSchema(opts: {
       input: { type: opts.type, url: opts.url ?? null },
       result: { ok: true, jsonld },
     }).catch(() => undefined);
-    return { ok: true, jsonld };
+    return { ok: true, jsonld, aiFailure: lastAiFailure() };
   } catch {
     return { ok: false, error: "Model output wasn't valid JSON." };
   }

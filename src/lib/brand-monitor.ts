@@ -15,7 +15,7 @@
  * `monitorBrand()` directly.
  */
 
-import { eq, and, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { brandMentions, type NewBrandMention } from "@/db/schema";
 

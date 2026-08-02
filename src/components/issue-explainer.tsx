@@ -115,7 +115,7 @@ export function IssueExplainer({ issueType, url, defaultOpen = false }: Props) {
                 className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] text-blue-300 ring-1 ring-inset ring-blue-500/30 hover:bg-blue-500/20"
               >
                 <BookOpen className="size-2.5" />
-                Google's docs
+                Google&apos;s docs
                 <ExternalLink className="size-2.5" />
               </a>
             )}

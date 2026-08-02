@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import {
   Calendar,
   ChevronDown,
@@ -124,14 +124,17 @@ export function SchedulesEditor({
 
   // If the user switches to a kind where the current destination is no
   // longer valid, snap back to local.
-  useEffect(() => {
-    if (!allowedDestinations.includes(selectedDestination)) {
-      setSelectedDestination("local");
-    }
-    // allowedDestinations is a fresh array per render; depending on
-    // selectedKind is what we actually mean here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedKind]);
+  //
+  // Resolved during render rather than in an effect. Whether the current
+  // destination is still valid is a pure function of the two state
+  // values above, so there is nothing to synchronise after the fact —
+  // and the effect version let one frame commit with the dropdown
+  // showing a value that wasn't in its own option list before correcting
+  // itself. React discards this render and restarts before paint.
+  const destinationValid = allowedDestinations.includes(selectedDestination);
+  if (!destinationValid) {
+    setSelectedDestination("local");
+  }
 
   return (
     <div className="space-y-5">

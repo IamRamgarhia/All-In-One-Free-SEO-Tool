@@ -13,6 +13,9 @@ import { LogLinkForm } from "@/app/backlinks/log-link-form";
 import { setBacklinkStatus, deleteBacklink } from "@/app/backlinks/actions";
 import { ClientInfoCard } from "@/components/client-info-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { clientScope } from "@/lib/client-scope";
+import { BingBacklinkImport } from "@/app/backlinks/bing-import";
+import { getBingApiKey } from "@/lib/bing-webmaster";
 
 const statusTone: Record<string, string> = {
   active: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
@@ -55,6 +58,7 @@ export default async function PerClientBacklinksPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const rows = await db
@@ -115,6 +119,11 @@ export default async function PerClientBacklinksPage({
           businessType: client.businessType,
           shortDescription: client.description?.split(".")[0] ?? null,
         }}
+      />
+
+      <BingBacklinkImport
+        clientId={client.id}
+        hasKey={(await getBingApiKey()) !== null}
       />
 
       <LogLinkForm clientId={client.id} defaultTargetUrl={client.url} />

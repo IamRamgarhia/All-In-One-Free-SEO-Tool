@@ -189,6 +189,10 @@ export async function runAiSiteAudit(opts: {
         status: "completed",
         score,
         issuesCount: failing,
+        // The AI audit analyses one URL, by design — so the count is
+        // genuinely 1, not unknown. Recording it keeps the audit list
+        // from showing a blank next to a run that did complete.
+        pagesCrawled: 1,
         completedAt: new Date(),
         summary,
       })

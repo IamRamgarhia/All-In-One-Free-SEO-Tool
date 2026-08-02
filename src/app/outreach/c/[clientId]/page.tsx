@@ -19,6 +19,7 @@ import {
 import { getSmtpConfig } from "@/lib/mailer";
 import { ClientInfoCard } from "@/components/client-info-card";
 import { GmailScopeBanner } from "@/components/gmail-scope-banner";
+import { clientScope } from "@/lib/client-scope";
 
 const statusTone: Record<string, string> = {
   prospect: "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
@@ -49,6 +50,7 @@ export default async function PerClientOutreachPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const rows = await db

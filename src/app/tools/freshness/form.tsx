@@ -1,14 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  Check,
-  Copy,
-  Loader2,
-  AlertTriangle,
-  CircleCheck,
-  Info,
-} from "lucide-react";
+import { Copy, Loader2, AlertTriangle, CircleCheck, Info } from "lucide-react";
 import { runFreshnessAudit } from "./actions";
 import type { FreshnessAudit, FreshnessSignal } from "@/lib/freshness-check";
 

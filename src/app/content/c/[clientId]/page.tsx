@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { GenerateBriefForm } from "@/app/content/generate-form";
 import { deleteBrief, setBriefStatus } from "@/app/content/actions";
+import { clientScope } from "@/lib/client-scope";
 
 const statusTone: Record<string, string> = {
   idea: "bg-white/5 text-muted-foreground ring-white/10",
@@ -46,6 +47,7 @@ export default async function PerClientContentPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const briefs = await db

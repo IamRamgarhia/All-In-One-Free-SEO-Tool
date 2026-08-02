@@ -39,6 +39,8 @@ export function ComposeButton({
 
   useEffect(() => {
     if (state?.ok) {
+      // Closes the dialog and clears the form once the send action succeeds — a reaction to an event, not derivable state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen(false);
       setSubject("");
       setBody("");

@@ -1,0 +1,21 @@
+-- Store how many pages an audit actually crawled.
+--
+-- The crawler has always known this — `runAudit` returns `pagesCrawled`
+-- and the score is computed from it — but the number was thrown away
+-- once the run finished. So the audit page derived a replacement:
+--
+--   const distinctUrls = new Set(issues.map((i) => i.url));
+--   const pagesCrawled = distinctUrls.size;
+--
+-- That counts pages WITH FINDINGS, not pages crawled. A healthy 50-page
+-- site with problems on three pages reported "3 pages", and the better
+-- the site, the smaller the number got — so the figure moved in the
+-- opposite direction to the thing it appeared to measure. It never
+-- errored, and it looked entirely reasonable next to the score.
+--
+-- Nullable, because every existing audit genuinely doesn't know. Showing
+-- nothing is the honest answer for those; back-filling them with the
+-- distinct-URL count would just persist the wrong number into a column
+-- that claims to be right.
+
+ALTER TABLE audits ADD COLUMN pages_crawled INTEGER;

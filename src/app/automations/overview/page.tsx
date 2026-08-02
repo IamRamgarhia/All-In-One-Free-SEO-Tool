@@ -1,22 +1,7 @@
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Bot,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  Mail,
-  RefreshCw,
-  ScanLine,
-  Settings,
-  ShieldAlert,
-  Target,
-  TrendingDown,
-  Workflow,
-  Globe,
-  HandMetal,
-} from "lucide-react";
+import { ArrowLeft, Bot, Calendar, CheckCircle2, Clock, Mail, RefreshCw, ScanLine, ShieldAlert, Target, TrendingDown, Workflow, Globe, HandMetal } from "lucide-react";
 import { getSetting } from "@/lib/settings-store";
+import { SchedulerStatusPanel } from "./scheduler-status";
 import { PageHeader } from "@/components/shell/page-header";
 
 export const dynamic = "force-dynamic";
@@ -260,12 +245,14 @@ export default async function AutomationsOverviewPage() {
         accent="cyan"
       />
 
+      <SchedulerStatusPanel />
+
       <section className="glass-apple relative overflow-hidden rounded-2xl">
         <header className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
           <div>
             <h2 className="text-sm font-semibold">Automated by the tool</h2>
             <p className="text-[11px] text-muted-foreground">
-              These run on their own — you don't need to remember.
+              These run on their own — you don&apos;t need to remember.
             </p>
           </div>
           {lastDailyAgent && (
@@ -316,7 +303,7 @@ export default async function AutomationsOverviewPage() {
         <header className="border-b border-white/[0.06] px-5 py-3">
           <h2 className="text-sm font-semibold">Tasks that need you (with guides)</h2>
           <p className="text-[11px] text-muted-foreground">
-            For each: why it's manual, where you do it, and a numbered how-to.
+            For each: why it&apos;s manual, where you do it, and a numbered how-to.
           </p>
         </header>
         <ul className="divide-y divide-white/[0.06]">
@@ -330,7 +317,7 @@ export default async function AutomationsOverviewPage() {
                   <p className="text-sm font-medium">{g.title}</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="rounded-md bg-amber-500/5 p-2 text-[11px] ring-1 ring-inset ring-amber-500/20">
-                      <p className="font-medium text-amber-300">Why it's manual</p>
+                      <p className="font-medium text-amber-300">Why it&apos;s manual</p>
                       <p className="text-muted-foreground">{g.whyManual}</p>
                     </div>
                     <div className="rounded-md bg-emerald-500/5 p-2 text-[11px] ring-1 ring-inset ring-emerald-500/20">

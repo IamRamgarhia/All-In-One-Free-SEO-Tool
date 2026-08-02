@@ -5,13 +5,14 @@ import { db } from "@/db/client";
 import { clients, keywords, keywordRankings } from "@/db/schema";
 import { desc, eq, count, inArray } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 import {
   ClientToolGrid,
   type ClientToolCard,
 } from "@/components/shell/client-tool-grid";
 
 export default async function KeywordsIndexPage() {
-  const all = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  const all = await db.select().from(clients).where(await clientScope()).orderBy(desc(clients.createdAt));
 
   const cards: ClientToolCard[] = await Promise.all(
     all.map(async (c) => {

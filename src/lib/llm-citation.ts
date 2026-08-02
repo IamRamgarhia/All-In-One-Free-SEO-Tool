@@ -22,6 +22,47 @@ import { scrapeGoogleAiMode, scrapeCopilot } from "./ai-search-scrapers";
  */
 export type LlmProvider = Provider | "ollama" | "google_ai_mode" | "copilot";
 
+/**
+ * How a provider produced its answer. This is THE thing that decides
+ * whether a result means anything.
+ *
+ * A plain chat-completions call does not search the web. It answers
+ * from training data and will happily invent plausible-looking source
+ * URLs — which we were then parsing as "citations" and scoring. That
+ * made the headline AI-visibility number a measurement of what a model
+ * remembers, not of what AI search actually shows, and it silently
+ * over-reported: a model that hallucinated your URL counted as a win.
+ *
+ *   "live"     — real retrieval: the provider searched the web for this
+ *                answer and the citations are real fetched sources.
+ *   "memory"   — no retrieval. Reflects training data, months stale,
+ *                and any URLs in it are unverified.
+ */
+export type GroundingMode = "live" | "memory";
+
+export const PROVIDER_GROUNDING: Record<LlmProvider, GroundingMode> = {
+  // Native web search built into the sonar models.
+  perplexity: "live",
+  // Grounded below via the google_search tool.
+  gemini: "live",
+  // Grounded below via the web_search server tool.
+  anthropic: "live",
+  // Real products, driven through their web UI by the browser pool.
+  google_ai_mode: "live",
+  copilot: "live",
+  // Chat-completions only, no retrieval. Kept because they're free and
+  // still show what a model "believes" about a brand — but labelled.
+  openai: "memory",
+  openrouter: "memory",
+  groq: "memory",
+  ollama: "memory",
+  mistral: "memory",
+  deepseek: "memory",
+  cerebras: "memory",
+  together: "memory",
+  github: "memory",
+};
+
 export type CitationCheckResult = {
   provider: LlmProvider;
   prompt: string;
@@ -29,6 +70,12 @@ export type CitationCheckResult = {
   citations: string[]; // URLs or domains the LLM cited
   mentionsDomain: boolean;
   citationsForDomain: number;
+  /**
+   * Whether this answer came from live retrieval or model memory.
+   * Render it — a "memory" result is not evidence of AI-search
+   * visibility and must not be presented as though it were.
+   */
+  grounding: GroundingMode;
   error?: string;
 };
 
@@ -80,19 +127,80 @@ function countDomainMentions(text: string, domain: string): number {
 
 // ── Provider implementations ──────────────────────────────────────────────
 
-async function callAnthropic(
+/**
+ * Anthropic WITH the web_search server tool, so the answer reflects a
+ * real search rather than training data. Anthropic runs the search
+ * server-side and returns the sources it used, which we read as real
+ * citations instead of scraping URLs out of prose.
+ *
+ * Falls back to an ungrounded call if the tool isn't available to this
+ * key — the caller downgrades `grounding` to "memory" so the UI stays
+ * honest about what it measured.
+ */
+async function callAnthropicGrounded(
   apiKey: string,
   prompt: string,
-): Promise<string | null> {
-  return sharedCallAnthropic({
-    apiKey,
-    system: "",
-    messages: [{ role: "user", content: prompt }],
-    maxTokens: 1500,
-    temperature: 0.2,
-    timeoutMs: 30_000,
-    caller: "llm-citation",
-  });
+): Promise<{ text: string; citations: string[]; grounded: boolean } | null> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), 60_000);
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: c.signal,
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 1500,
+        tools: [{ type: "web_search_20260209", name: "web_search" }],
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        content?: {
+          type: string;
+          text?: string;
+          content?: { type: string; url?: string }[];
+        }[];
+      };
+      const text = (data.content ?? [])
+        .filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("")
+        .trim();
+      // Sources actually fetched during the search, not URLs the model
+      // wrote into prose.
+      const citations: string[] = [];
+      for (const block of data.content ?? []) {
+        if (block.type !== "web_search_tool_result") continue;
+        for (const r of block.content ?? []) {
+          if (r.url) citations.push(r.url);
+        }
+      }
+      if (text) return { text, citations, grounded: true };
+    }
+
+    // Tool unsupported on this key/plan — fall back, but say so.
+    const text = await sharedCallAnthropic({
+      apiKey,
+      system: "",
+      messages: [{ role: "user", content: prompt }],
+      maxTokens: 1500,
+      temperature: 0.2,
+      timeoutMs: 30_000,
+      caller: "llm-citation",
+    });
+    return text ? { text, citations: [], grounded: false } : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function callOpenAI(
@@ -112,19 +220,76 @@ async function callOpenAI(
   });
 }
 
-async function callGemini(
+/**
+ * Gemini WITH the google_search grounding tool.
+ *
+ * This is the one that matters most for AI visibility: grounded Gemini
+ * is what actually backs Google's AI surfaces, so an ungrounded call
+ * here was measuring the wrong system entirely. Grounded responses come
+ * back with `groundingMetadata`, which gives us the real source URLs
+ * rather than whatever the model typed.
+ */
+async function callGeminiGrounded(
   apiKey: string,
   prompt: string,
-): Promise<string | null> {
-  return sharedCallGemini({
-    apiKey,
-    system: "",
-    messages: [{ role: "user", content: prompt }],
-    maxTokens: 1500,
-    temperature: 0.2,
-    timeoutMs: 30_000,
-    caller: "llm-citation",
-  });
+): Promise<{ text: string; citations: string[]; grounded: boolean } | null> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), 60_000);
+  try {
+    const url =
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` +
+      `?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      signal: c.signal,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: { maxOutputTokens: 1500, temperature: 0.2 },
+      }),
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        candidates?: {
+          content?: { parts?: { text?: string }[] };
+          groundingMetadata?: {
+            groundingChunks?: { web?: { uri?: string; title?: string } }[];
+          };
+        }[];
+      };
+      const cand = data.candidates?.[0];
+      const text =
+        cand?.content?.parts
+          ?.map((p) => p.text ?? "")
+          .join("")
+          .trim() ?? "";
+      const citations = (cand?.groundingMetadata?.groundingChunks ?? [])
+        .map((ch) => ch.web?.uri)
+        .filter((u): u is string => Boolean(u));
+      if (text) {
+        // No grounding metadata means Gemini chose not to search for
+        // this query — the answer is from memory even though we asked.
+        return { text, citations, grounded: citations.length > 0 };
+      }
+    }
+
+    const text = await sharedCallGemini({
+      apiKey,
+      system: "",
+      messages: [{ role: "user", content: prompt }],
+      maxTokens: 1500,
+      temperature: 0.2,
+      timeoutMs: 30_000,
+      caller: "llm-citation",
+    });
+    return text ? { text, citations: [], grounded: false } : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function callPerplexity(
@@ -280,6 +445,9 @@ export async function checkOneProvider(
   let response: string | null = null;
   let nativeCitations: string[] = [];
   let error: string | undefined;
+  // Starts from the provider's declared capability, then downgrades if
+  // the grounded path didn't actually retrieve anything for this query.
+  let grounding: GroundingMode = PROVIDER_GROUNDING[provider] ?? "memory";
 
   try {
     if (provider === "ollama") {
@@ -299,7 +467,14 @@ export async function checkOneProvider(
     } else if (provider === "anthropic") {
       const key = await getApiKey("anthropic");
       if (!key) error = "No Anthropic API key configured";
-      else response = await callAnthropic(key, prompt);
+      else {
+        const r = await callAnthropicGrounded(key, prompt);
+        if (r) {
+          response = r.text;
+          nativeCitations = r.citations;
+          if (!r.grounded) grounding = "memory";
+        }
+      }
     } else if (provider === "openai") {
       const key = await getApiKey("openai");
       if (!key) error = "No OpenAI API key configured";
@@ -307,7 +482,14 @@ export async function checkOneProvider(
     } else if (provider === "gemini") {
       const key = await getApiKey("gemini");
       if (!key) error = "No Gemini API key configured";
-      else response = await callGemini(key, prompt);
+      else {
+        const r = await callGeminiGrounded(key, prompt);
+        if (r) {
+          response = r.text;
+          nativeCitations = r.citations;
+          if (!r.grounded) grounding = "memory";
+        }
+      }
     } else if (provider === "openrouter") {
       const key = await getApiKey("openrouter");
       if (!key) error = "No OpenRouter API key configured";
@@ -348,12 +530,16 @@ export async function checkOneProvider(
       citations: [],
       mentionsDomain: false,
       citationsForDomain: 0,
+      grounding,
       error: error ?? "No response from provider",
     };
   }
 
-  // Combine native citations + extracted URLs
-  const extractedUrls = extractUrls(response);
+  // Native citations are real fetched sources. URLs scraped out of prose
+  // are only trustworthy when the provider actually searched — an
+  // ungrounded model invents plausible URLs, and counting those was how
+  // a hallucinated mention became a reported "win".
+  const extractedUrls = grounding === "live" ? extractUrls(response) : [];
   const allCitationsArr = Array.from(
     new Set([...nativeCitations, ...extractedUrls]),
   );
@@ -375,6 +561,7 @@ export async function checkOneProvider(
     citations: allCitationsArr,
     mentionsDomain: mentionCount > 0,
     citationsForDomain,
+    grounding,
   };
 }
 

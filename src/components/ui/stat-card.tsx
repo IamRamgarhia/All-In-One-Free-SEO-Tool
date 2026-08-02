@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowRight, ArrowUp, type LucideIcon } from "lucide-react";
 import { CountUp } from "./count-up";
+import { DataSourceBadge, type DataSource } from "./data-source-badge";
 
 /**
  * shadcn-admin-style stat card.
@@ -22,6 +23,19 @@ type StatCardProps = {
   spark?: number[];
   className?: string;
   size?: "default" | "hero" | "compact";
+  /**
+   * Where the number came from.
+   *
+   * Optional, but the absence should be deliberate rather than
+   * forgotten: a card showing a count of rows in our own database
+   * doesn't need provenance, while one showing traffic or a score very
+   * much does. See components/ui/data-source-badge.tsx.
+   */
+  source?: DataSource;
+  /** The date the figure DESCRIBES, not when it was fetched. */
+  asOf?: string | Date | null;
+  /** Extra tooltip context, e.g. "across 1,204 impressions". */
+  sourceNote?: string;
 };
 
 const accentText: Record<Accent, string> = {
@@ -90,6 +104,9 @@ export function StatCard({
   spark,
   className,
   size = "default",
+  source,
+  asOf,
+  sourceNote,
 }: StatCardProps) {
   const padding = size === "hero" ? "p-6" : size === "compact" ? "p-3" : "p-6";
   const valueSize =
@@ -157,6 +174,9 @@ export function StatCard({
           </span>
         )}
         {hint && <span className="truncate">{hint}</span>}
+        {source && (
+          <DataSourceBadge source={source} asOf={asOf} note={sourceNote} />
+        )}
       </div>
       {spark && spark.length > 1 && (
         <div className="mt-3">

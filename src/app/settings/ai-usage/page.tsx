@@ -197,7 +197,7 @@ export default async function AiUsagePage() {
         </h2>
         <p className="text-xs text-muted-foreground">
           When the calendar-month total exceeds this cap, every callAI returns
-          null with a "cap reached" error. Useful as a runaway-loop seatbelt.
+          null with a &quot;cap reached&quot; error. Useful as a runaway-loop seatbelt.
           Leave blank for no cap.
         </p>
         <CapForm initial={String(cap ?? "")} />
@@ -394,5 +394,5 @@ function Stat({
     </div>
   );
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const _ = drizzleSql;

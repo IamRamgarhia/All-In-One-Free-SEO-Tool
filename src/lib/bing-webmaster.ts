@@ -155,3 +155,310 @@ export async function getBingUrlSubmissionQuota(opts: {
     return null;
   }
 }
+
+// =====================================================================
+// Backlinks
+// =====================================================================
+
+/**
+ * Backlinks from Bing Webmaster Tools.
+ *
+ * This is the most valuable free backlink source available to a
+ * self-hosted tool, and CLAUDE.md is blunt that backlinks are this
+ * project's weakest data: we don't have an index, Common Crawl
+ * extraction is thin, and the README says so plainly rather than
+ * implying parity with Ahrefs.
+ *
+ * Bing changes that materially for one specific case — a site the user
+ * has verified in Bing Webmaster Tools. Microsoft hands over their own
+ * link graph for it, free, with no quota worth worrying about. It is
+ * still only YOUR site's inbound links, so it does nothing for
+ * competitor analysis, but "what links to my client" is the question
+ * that actually gets asked in a monthly report.
+ *
+ * Response shapes are handled defensively. The Bing API returns its
+ * payload under `d`, sometimes as a bare array and sometimes wrapped in
+ * an object, and the casing of individual fields has moved over the
+ * years. Everything below tolerates both rather than throwing — a
+ * shape change should cost the user some rows, not the whole feature.
+ */
+
+export type BingLinkCount = {
+  /** A page on the user's site. */
+  url: string;
+  /** How many inbound links Bing knows about for it. */
+  count: number;
+};
+
+/**
+ * Pull a value regardless of which casing this endpoint used.
+ *
+ * The case-insensitive pass looks for a key that actually HAS a value,
+ * not merely the first key whose name matches. `find()` on the name
+ * alone stopped at `Url: undefined` and never reached `url: "y"` — so a
+ * payload carrying both casings, one of them empty, silently produced
+ * nothing. Caught by its own test.
+ */
+function pick(obj: Record<string, unknown>, ...names: string[]): unknown {
+  for (const n of names) {
+    if (obj[n] !== undefined && obj[n] !== null) return obj[n];
+    const target = n.toLowerCase();
+    for (const k of Object.keys(obj)) {
+      if (k.toLowerCase() !== target) continue;
+      if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+    }
+  }
+  return undefined;
+}
+
+/** `d` is sometimes an array and sometimes `{ Links: [...] }`. */
+function unwrap(d: unknown): unknown[] {
+  if (Array.isArray(d)) return d;
+  if (d && typeof d === "object") {
+    for (const key of ["Links", "links", "Results", "results"]) {
+      const v = (d as Record<string, unknown>)[key];
+      if (Array.isArray(v)) return v;
+    }
+  }
+  return [];
+}
+
+/**
+ * Which of the user's pages have inbound links, and how many.
+ *
+ * The entry point for an import: Bing won't hand over every link in one
+ * call, so we ask which pages are worth asking about and then fetch the
+ * details for the ones that matter.
+ */
+export async function getBingLinkCounts(opts: {
+  siteUrl: string;
+  page?: number;
+}): Promise<BingLinkCount[]> {
+  type R = { d: unknown };
+  const data = await bingFetch<R>("GetLinkCounts", {
+    siteUrl: opts.siteUrl,
+    page: opts.page ?? 0,
+  });
+
+  return unwrap(data.d)
+    .map((row) => {
+      const r = row as Record<string, unknown>;
+      const url = pick(r, "Url", "url", "TargetUrl");
+      const count = pick(r, "Count", "count", "LinkCount");
+      return {
+        url: typeof url === "string" ? url : "",
+        count: Number(count) || 0,
+      };
+    })
+    .filter((r) => r.url.length > 0);
+}
+
+export type BingInboundLink = {
+  /** The page linking TO the user's site. */
+  sourceUrl: string;
+  anchorText: string | null;
+};
+
+/**
+ * The individual pages linking to one URL on the user's site.
+ *
+ * `page` is Bing's zero-based pagination. Callers walk it until a call
+ * returns nothing.
+ */
+export async function getBingInboundLinks(opts: {
+  siteUrl: string;
+  /** A page on the user's site to get inbound links for. */
+  targetUrl: string;
+  page?: number;
+}): Promise<BingInboundLink[]> {
+  type R = { d: unknown };
+  const data = await bingFetch<R>("GetUrlLinks", {
+    siteUrl: opts.siteUrl,
+    link: opts.targetUrl,
+    page: opts.page ?? 0,
+  });
+
+  return unwrap(data.d)
+    .map((row) => {
+      const r = row as Record<string, unknown>;
+      const sourceUrl = pick(r, "Url", "url", "SourceUrl");
+      const anchor = pick(r, "AnchorText", "anchorText", "Anchor");
+      return {
+        sourceUrl: typeof sourceUrl === "string" ? sourceUrl : "",
+        anchorText:
+          typeof anchor === "string" && anchor.trim().length > 0
+            ? anchor.trim()
+            : null,
+      };
+    })
+    .filter((r) => r.sourceUrl.length > 0);
+}
+
+/** Exposed so the parsing can be fixture-tested without a network call. */
+export const __bingParsing = { pick, unwrap };
+
+// =====================================================================
+// Keyword volume
+// =====================================================================
+
+/**
+ * Real search volume, free.
+ *
+ * The obvious source for volume is Google Ads Keyword Planner, and it is
+ * a bad fit for this project: it needs an approved developer token, a
+ * Google Ads account, and — without active ad spend on that account —
+ * returns bucketed ranges like "1K–10K" rather than numbers. A
+ * free-first tool cannot put its keyword research behind an advertising
+ * account.
+ *
+ * Bing Webmaster Tools returns actual measured impression counts for the
+ * same API key already used for backlinks. No Ads account, no spend, no
+ * token application.
+ *
+ * The catch, which the UI states rather than hides: this is BING volume.
+ * Bing is a single-digit share of search in most markets, so the
+ * absolute numbers are far below Google's for the same term. What
+ * survives is the ordering — the terms people search more on Bing are
+ * broadly the terms people search more on Google — so it is sound for
+ * prioritising keywords and wrong for forecasting traffic. Presenting it
+ * as "search volume" without saying whose would be the exact kind of
+ * confident-but-misleading number this codebase keeps rooting out.
+ */
+
+export type BingKeywordVolume = {
+  query: string;
+  /** Impressions on Bing over the requested window. */
+  impressions: number;
+  /** Bing's own broad/phrase/exact classification, when given. */
+  matchType?: string | null;
+};
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Volume for one term.
+ *
+ * Bing wants an explicit date range and returns nothing without one.
+ * Defaults to the last 30 days, which is what a monthly figure means to
+ * anyone reading it.
+ */
+export async function getBingKeywordVolume(opts: {
+  query: string;
+  country?: string;
+  language?: string;
+  days?: number;
+}): Promise<BingKeywordVolume | null> {
+  const end = new Date();
+  const start = new Date(end.getTime() - (opts.days ?? 30) * 86_400_000);
+
+  try {
+    type R = { d: unknown };
+    const data = await bingFetch<R>("GetKeyword", {
+      q: opts.query,
+      country: (opts.country ?? "us").toLowerCase(),
+      language: (opts.language ?? "en-US").toLowerCase(),
+      startDate: isoDay(start),
+      endDate: isoDay(end),
+    });
+
+    // Single-object or single-element-array, depending on the endpoint's
+    // mood. Both have been observed in Microsoft's own examples.
+    const rows = Array.isArray(data.d) ? data.d : data.d ? [data.d] : [];
+    const first = rows[0] as Record<string, unknown> | undefined;
+    if (!first) return null;
+
+    const impressions = Number(
+      pick(first, "Impressions", "impressions", "Count") ?? 0,
+    );
+    if (!Number.isFinite(impressions)) return null;
+
+    return {
+      query: opts.query,
+      impressions,
+      matchType:
+        (pick(first, "MatchType", "matchType") as string | undefined) ?? null,
+    };
+  } catch {
+    // A term Bing has no data for is a normal outcome, not an error —
+    // and one failing lookup must not abort a research run.
+    return null;
+  }
+}
+
+/**
+ * Volume for many terms.
+ *
+ * Sequential and bounded on purpose: Bing gives no batch endpoint, and
+ * firing fifty concurrent requests at a free API is how a key gets
+ * throttled. Terms beyond the cap come back without volume rather than
+ * blocking the whole result — a keyword list with some volumes is more
+ * useful than a spinner.
+ */
+export async function getBingKeywordVolumes(opts: {
+  queries: string[];
+  country?: string;
+  language?: string;
+  max?: number;
+}): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!(await getBingApiKey())) return out;
+
+  for (const query of opts.queries.slice(0, opts.max ?? 25)) {
+    const v = await getBingKeywordVolume({
+      query,
+      country: opts.country,
+      language: opts.language,
+    });
+    if (v) out.set(query.toLowerCase(), v.impressions);
+  }
+  return out;
+}
+
+export type BingRelatedKeyword = {
+  query: string;
+  impressions: number;
+};
+
+/**
+ * Terms Bing considers related, WITH volume.
+ *
+ * More useful than autocomplete for research: autocomplete tells you
+ * what people start typing, this tells you what they actually searched
+ * and how often.
+ */
+export async function getBingRelatedKeywords(opts: {
+  query: string;
+  country?: string;
+  language?: string;
+  days?: number;
+}): Promise<BingRelatedKeyword[]> {
+  const end = new Date();
+  const start = new Date(end.getTime() - (opts.days ?? 30) * 86_400_000);
+
+  try {
+    type R = { d: unknown };
+    const data = await bingFetch<R>("GetRelatedKeywords", {
+      q: opts.query,
+      country: (opts.country ?? "us").toLowerCase(),
+      language: (opts.language ?? "en-US").toLowerCase(),
+      startDate: isoDay(start),
+      endDate: isoDay(end),
+    });
+
+    return unwrap(data.d)
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        const q = pick(r, "Query", "query", "Keyword");
+        const imp = Number(pick(r, "Impressions", "impressions", "Count") ?? 0);
+        return {
+          query: typeof q === "string" ? q : "",
+          impressions: Number.isFinite(imp) ? imp : 0,
+        };
+      })
+      .filter((r) => r.query.length > 0);
+  } catch {
+    return [];
+  }
+}

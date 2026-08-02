@@ -308,7 +308,11 @@ EOM
   elif command -v corepack >/dev/null 2>&1; then
     say "Enabling pnpm via corepack"
     corepack enable >/dev/null 2>&1 || true
-    corepack prepare pnpm@latest --activate >/dev/null 2>&1 || true
+    # No `pnpm@latest`: corepack honours the "packageManager" field in
+    # package.json, so this uses the exact pnpm the lockfile was resolved
+    # with. Floating to latest is how a build that works for one person
+    # fails for the next with an unrelated-looking install error.
+    export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
     if command -v pnpm >/dev/null 2>&1; then
       PM="pnpm"
     else

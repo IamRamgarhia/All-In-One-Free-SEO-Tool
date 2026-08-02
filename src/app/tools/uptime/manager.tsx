@@ -128,7 +128,7 @@ export function UptimeManager({ initial }: { initial: Row[] }) {
               Targets ({initial.length})
             </h3>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              7-day uptime + average latency. Hit "Ping all now" or wire into
+              7-day uptime + average latency. Hit &quot;Ping all now&quot; or wire into
               your scheduler for continuous monitoring.
             </p>
           </header>

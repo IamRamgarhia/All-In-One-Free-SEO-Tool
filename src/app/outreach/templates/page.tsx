@@ -7,6 +7,7 @@ import { clients, outreachTemplates } from "@/db/schema";
 import { asc, desc } from "drizzle-orm";
 import { PageHeader } from "@/components/shell/page-header";
 import { TEMPLATE_VARIABLES } from "@/lib/outreach";
+import { clientScope } from "@/lib/client-scope";
 import {
   deleteOutreachTemplate,
   seedDefaultTemplatesIfEmpty,
@@ -24,6 +25,7 @@ export default async function OutreachTemplatesPage() {
     db
       .select({ id: clients.id, name: clients.name })
       .from(clients)
+      .where(await clientScope())
       .orderBy(asc(clients.name)),
   ]);
 

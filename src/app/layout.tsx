@@ -14,6 +14,7 @@ import { QuickAddClientProvider } from "@/components/shell/quick-add-client-dial
 import { ShortcutsHelpHotkey } from "@/components/shell/shortcuts-help-hotkey";
 import { getUnreadCounts } from "@/lib/unread-counts";
 import { getUiMode } from "./settings/ui-actions";
+import { getThemePreference } from "./settings/theme-actions";
 import "./globals.css";
 
 // Inter is warmer + more readable at small sizes than Geist's precise grotesk.
@@ -77,14 +78,37 @@ export default async function RootLayout({
   // flash, no late hydration.
   const isEmbed = (await headers()).get("x-embed") === "1";
 
+  // Theme. `dark` used to be hardcoded here, which made the whole app
+  // dark-only with no toggle and no way to follow the OS preference —
+  // awkward in a bright office, and worse on the client-facing portal.
+  //
+  // "system" can only be resolved in the browser, so the class is
+  // applied by the inline script below before first paint. Explicit
+  // light/dark is resolved here on the server, which avoids the flash
+  // entirely for users who have chosen one.
+  const theme = await getThemePreference();
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
       data-ui-mode={uiMode}
+      data-theme={theme}
       data-embed={isEmbed ? "1" : undefined}
-      className={`dark ${sansFont.variable} ${monoFont.variable} h-full antialiased`}
+      className={`${theme === "dark" ? "dark" : ""} ${sansFont.variable} ${monoFont.variable} h-full antialiased`}
     >
+      <head>
+        {/*
+          Runs before first paint, so a "system" user never sees a
+          white flash before the dark class lands (or vice versa).
+          Deliberately tiny and dependency-free — it blocks rendering.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=document.documentElement.dataset.theme;if(t==="system"){var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d);}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="h-screen overflow-hidden bg-background text-foreground">
         <ConfirmDialogProvider>
           <QuickAddClientProvider>
@@ -99,7 +123,7 @@ export default async function RootLayout({
                 <div className="flex h-full">
                   <Sidebar unreadByHref={unreadByHref} uiMode={uiMode} />
                   <div className="flex h-full min-w-0 flex-1 flex-col">
-                    <TopBar unreadByHref={unreadByHref} />
+                    <TopBar unreadByHref={unreadByHref} theme={theme} />
                     <main className="flex-1 overflow-y-auto p-4 md:p-6">
                       {children}
                     </main>

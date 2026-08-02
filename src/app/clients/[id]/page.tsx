@@ -754,6 +754,12 @@ export default async function ClientDetailPage({
                 accent="amber"
                 icon={AlertCircle}
                 hint="From last audit"
+                // The other two cards on this row count rows in our own
+                // database and need no provenance. This one describes
+                // the client's website, which is a claim about the
+                // outside world and can be out of date.
+                source="crawl"
+                asOf={latestCompleted?.completedAt ?? null}
                 spark={issuesSpark.length >= 2 ? issuesSpark : undefined}
                 delta={
                   issuesDelta !== null

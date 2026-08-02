@@ -11,7 +11,7 @@
  *   - Cap on length (~60 lines) so it stays scan-friendly
  */
 
-import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   audits,
@@ -60,7 +60,6 @@ export type WeeklyDigest = {
 export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
   const now = new Date();
   const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const prevWeekStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
   const allClients = await db.select().from(clients);
   const rows: DigestRow[] = [];

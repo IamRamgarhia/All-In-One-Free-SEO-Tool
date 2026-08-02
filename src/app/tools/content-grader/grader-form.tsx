@@ -102,12 +102,7 @@ export function GraderForm() {
             <ScoreTile
               label="Term coverage"
               value={state.grade.breakdown.coverageScore}
-              max={50}
-            />
-            <ScoreTile
-              label="Density"
-              value={state.grade.breakdown.densityScore}
-              max={20}
+              max={70}
             />
           </section>
 
@@ -136,16 +131,24 @@ export function GraderForm() {
                 {state.grade.targetWordCount.max}
               </p>
             </div>
+            {/*
+              Shown as a measurement, not a target. There is no density
+              figure to hit — Google has said so repeatedly — so this
+              gives the number and flags only the one direction that is
+              a real problem. It used to display a min/ideal/max band and
+              award 20 points for landing in it, which told writers to
+              repeat a phrase in prose that didn't need it.
+            */}
             <div className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-2">
-              <h3 className="text-sm font-semibold">Keyword density</h3>
+              <h3 className="text-sm font-semibold">Keyword repetition</h3>
               <p className="text-2xl font-semibold tabular-nums">
                 {state.grade.keywordDensityPct.toFixed(2)}
                 <span className="text-sm text-muted-foreground">%</span>
               </p>
               <p className="text-[11px] text-muted-foreground">
-                Target: {state.grade.targetDensity.min}% ·{" "}
-                <strong>{state.grade.targetDensity.ideal}%</strong> ·{" "}
-                {state.grade.targetDensity.max}%
+                {state.grade.keywordDensityPct > 3.5
+                  ? "High enough to read as stuffed. Cut repetitions that don't earn their place."
+                  : "Not scored. There's no density target to hit — cover the topic well and this takes care of itself."}
               </p>
             </div>
           </section>

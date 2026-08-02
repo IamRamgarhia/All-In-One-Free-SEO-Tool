@@ -10,9 +10,10 @@ import {
   type ClientToolCard,
 } from "@/components/shell/client-tool-grid";
 import { GmailScopeBanner } from "@/components/gmail-scope-banner";
+import { clientScope } from "@/lib/client-scope";
 
 export default async function OutreachIndexPage() {
-  const all = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  const all = await db.select().from(clients).where(await clientScope()).orderBy(desc(clients.createdAt));
 
   const cards: ClientToolCard[] = await Promise.all(
     all.map(async (c) => {

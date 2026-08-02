@@ -99,6 +99,14 @@ export const audits = sqliteTable("audits", {
     .default("queued"),
   score: integer("score"),
   issuesCount: integer("issues_count").notNull().default(0),
+  /**
+   * How many pages the crawler actually visited.
+   *
+   * Null for audits that predate this column — they genuinely don't
+   * know, and showing nothing is more honest than back-filling a guess.
+   * See 0058_audit_pages_crawled.sql for what the UI was doing instead.
+   */
+  pagesCrawled: integer("pages_crawled"),
   startedAt: integer("started_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
   /** "crawler" (existing site-wide audit) | "ai_full" (AI single-page audit). */
@@ -174,6 +182,14 @@ export const tasks = sqliteTable("tasks", {
   source: text("source"),
   /** Identifier of the plan run that produced this task (date-stamp). */
   sourceRef: text("source_ref"),
+  /** Who owns this task. Null on solo installs and on every pre-accounts row. */
+  assignedUserId: integer("assigned_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  /** Who actually finished it — the input /capacity and reports needed. */
+  completedByUserId: integer("completed_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   ...timestamps,
 });
 
@@ -231,6 +247,19 @@ export const aiVisibilityChecks = sqliteTable("ai_visibility_checks", {
   prompt: text("prompt").notNull(),
   response: text("response").notNull(),
   citations: text("citations", { mode: "json" }).$type<string[]>(),
+  /**
+   * "live"   — the provider actually searched the web for this answer;
+   *            citations are real fetched sources.
+   * "memory" — a plain chat completion. Reflects training data, and any
+   *            URLs in the text are unverified model output.
+   *
+   * This distinction decides whether a row is evidence of AI-search
+   * visibility at all. Storing them identically meant a hallucinated
+   * mention counted the same as a real citation.
+   */
+  grounding: text("grounding", { enum: ["live", "memory"] })
+    .notNull()
+    .default("memory"),
   mentionsDomain: integer("mentions_domain", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -606,6 +635,10 @@ export const activityLog = sqliteTable("activity_log", {
   })
     .notNull()
     .default("info"),
+  /** Who did it. Null for scheduler-driven entries and solo installs. */
+  userId: integer("user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -757,7 +790,9 @@ export const backlinks = sqliteTable("backlinks", {
    * Tools CSV export (free for verified site owners, pairs cleanly with
    * our limited free-tier index).
    */
-  source: text("source", { enum: ["discovered", "manual", "ahrefs_wmt"] })
+  source: text("source", {
+    enum: ["discovered", "manual", "ahrefs_wmt", "bing_wmt"],
+  })
     .notNull()
     .default("discovered"),
   /** Method/strategy: outreach, guest_post, citation, broken_link, etc. */
@@ -812,6 +847,26 @@ export const keywordRankings = sqliteTable("keyword_rankings", {
   }).default(false),
   hasLocalPack: integer("has_local_pack", { mode: "boolean" }).default(false),
   paaCount: integer("paa_count").default(0),
+  /**
+   * Where the number came from. "scrape" is the historic default, so
+   * every pre-existing row reads correctly without a backfill.
+   *
+   * These are not interchangeable — see 0055_ranking_provenance.sql.
+   * "gsc" is an impression-weighted daily average from Google; "scrape"
+   * is a point-in-time position our IP was shown. Mixing them on a chart
+   * without saying which is which invents movement that never happened.
+   */
+  source: text("source", { enum: ["scrape", "gsc"] })
+    .notNull()
+    .default("scrape"),
+  /** GSC only: how many impressions the average rests on. */
+  impressions: integer("impressions"),
+  /**
+   * GSC only: the day the figure describes (YYYY-MM-DD), which is two to
+   * three days before we fetched it. Without this, freshness badges
+   * would say "just now" about data that is days old.
+   */
+  dataDate: text("data_date"),
 });
 
 export const gbpPlaybookCompletions = sqliteTable("gbp_playbook_completions", {
@@ -1503,6 +1558,10 @@ export const toolRuns = sqliteTable("tool_runs", {
   pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
   /** Optional free-form notes the user can add. */
   notes: text("notes"),
+  /** Who ran it. Null for scheduler runs and solo installs. */
+  userId: integer("user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -1618,6 +1677,26 @@ export const reportArchives = sqliteTable("report_archives", {
   dataSnapshot: text("data_snapshot", { mode: "json" }).$type<unknown>(),
   execSummary: text("exec_summary"),
   pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+  /**
+   * Where this report is in the review workflow.
+   *
+   * Defaults to "approved" so every report that predates the batch
+   * workflow reads correctly — each was generated deliberately by a
+   * human clicking a button, and treating them as unreviewed drafts
+   * would fill the review queue with history on first boot.
+   */
+  status: text("status", {
+    enum: ["draft", "approved", "sent", "failed", "rejected"],
+  })
+    .notNull()
+    .default("approved"),
+  batchId: integer("batch_id").references(() => reportBatches.id, {
+    onDelete: "set null",
+  }),
+  reviewedAt: integer("reviewed_at", { mode: "timestamp" }),
+  sentAt: integer("sent_at", { mode: "timestamp" }),
+  /** Why generation failed, kept beside the client it failed for. */
+  error: text("error"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -1838,3 +1917,325 @@ export const publishQueue = sqliteTable("publish_queue", {
 export type PublishQueueItem = typeof publishQueue.$inferSelect;
 export type NewPublishQueueItem = typeof publishQueue.$inferInsert;
 
+
+/**
+ * Accounts. Opt-in: an install with zero rows here keeps the original
+ * single-`APP_PASSWORD` behaviour, so no existing solo user is forced
+ * through a migration they didn't ask for. The moment someone registers,
+ * the app switches to real logins.
+ *
+ * Multi-USER, not multi-tenant — see 0054_users_and_teams.sql for why
+ * that distinction is deliberate.
+ */
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Stored lowercased; a `lower(email)` unique index is the backstop. */
+  email: text("email").notNull(),
+  /** scrypt, per-user salt. Never leaves the server. See src/lib/auth.ts. */
+  passwordHash: text("password_hash").notNull(),
+  name: text("name"),
+  role: text("role", {
+    enum: ["owner", "manager", "member", "viewer"],
+  })
+    .notNull()
+    .default("member"),
+  /** Deactivate rather than delete, so their attribution survives. */
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
+});
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Role = User["role"];
+
+/**
+ * Which clients a `member` or `viewer` may see. Owners and managers see
+ * everything and have no rows here — absence means unrestricted, which
+ * keeps the common case free of bookkeeping.
+ *
+ * The composite primary key and the `user_id` index live in
+ * 0054_users_and_teams.sql, not here. That's the convention throughout
+ * this file: no table declares its indexes to Drizzle, because the SQL
+ * files are hand-written and the generator has never emitted them. A
+ * table that broke the pattern would show up as a spurious diff the next
+ * time anyone runs `db:generate`.
+ */
+export const clientMembers = sqliteTable("client_members", {
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+/**
+ * Pending invitations. We store a hash of the invite token, not the
+ * token — same reasoning as passwords: a leaked database shouldn't hand
+ * anyone a working login link.
+ */
+export const userInvites = sqliteTable("user_invites", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull(),
+  role: text("role", {
+    enum: ["owner", "manager", "member", "viewer"],
+  })
+    .notNull()
+    .default("member"),
+  tokenHash: text("token_hash").notNull(),
+  invitedBy: integer("invited_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  acceptedAt: integer("accepted_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type UserInvite = typeof userInvites.$inferSelect;
+
+/**
+ * One cycle of the autonomous agent, per client.
+ *
+ * `mode` is stored rather than looked up because the autonomy setting
+ * can change, and a history that can't explain why it did what it did is
+ * not an audit trail. See 0056_agent_autonomy.sql.
+ */
+export const agentRuns = sqliteTable("agent_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "cascade",
+  }),
+  mode: text("mode", {
+    enum: ["suggest", "apply_safe", "apply_all"],
+  })
+    .notNull()
+    .default("suggest"),
+  trigger: text("trigger", { enum: ["scheduled", "manual"] })
+    .notNull()
+    .default("scheduled"),
+  startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+  planned: integer("planned").notNull().default(0),
+  applied: integer("applied").notNull().default(0),
+  queued: integer("queued").notNull().default(0),
+  skipped: integer("skipped").notNull().default(0),
+  failed: integer("failed").notNull().default(0),
+  /** Plain-language account of the cycle. Written by code, not an LLM. */
+  summary: text("summary"),
+  error: text("error"),
+});
+export type AgentRun = typeof agentRuns.$inferSelect;
+
+/**
+ * One thing the agent did, or proposed doing, to a live site.
+ *
+ * `beforeValue` is load-bearing: it is the undo. CLAUDE.md's rule for
+ * anything touching a CMS is preview → save previous version →
+ * one-click undo → opt-out, and without this column the third of those
+ * is impossible.
+ */
+export const agentActions = sqliteTable("agent_actions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: integer("run_id").references(() => agentRuns.id, {
+    onDelete: "cascade",
+  }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  targetUrl: text("target_url"),
+  /**
+   * The CMS's own id for the thing edited (e.g. a WordPress post id).
+   * Reverting uses this rather than re-resolving the URL, so an undo
+   * can't land on a different page than the edit did.
+   */
+  targetRef: text("target_ref"),
+  beforeValue: text("before_value"),
+  afterValue: text("after_value"),
+  reason: text("reason"),
+  /**
+   * "safe" means the problem is measurable and the fix is mechanical —
+   * a 102-character title is too long by a rule, not an opinion.
+   * "needs_review" means a human should look, however good the
+   * suggestion is.
+   */
+  risk: text("risk", { enum: ["safe", "needs_review"] })
+    .notNull()
+    .default("needs_review"),
+  status: text("status", {
+    enum: [
+      "proposed",
+      "queued",
+      "applied",
+      "verified",
+      "failed",
+      "reverted",
+      "skipped",
+    ],
+  })
+    .notNull()
+    .default("proposed"),
+  error: text("error"),
+  /**
+   * The CMS's own revision id for this change, when the CMS keeps one.
+   *
+   * Undo normally replays `beforeValue`. That works for a field — a
+   * title, a description — but not for an internal-link insertion,
+   * where the previous value is the whole article body. The WordPress
+   * plugin already stores that body and exposes `/undo/{rev_id}`, so
+   * for those actions this is the handle undo uses instead.
+   *
+   * Null for every other kind, and for any CMS that doesn't version
+   * writes.
+   */
+  cmsRevisionId: integer("cms_revision_id"),
+  appliedAt: integer("applied_at", { mode: "timestamp" }),
+  /** Set only after re-fetching the page and finding the change present. */
+  verifiedAt: integer("verified_at", { mode: "timestamp" }),
+  verifyNote: text("verify_note"),
+  revertedAt: integer("reverted_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type AgentAction = typeof agentActions.$inferSelect;
+export type NewAgentAction = typeof agentActions.$inferInsert;
+
+/**
+ * One "generate everyone's monthly report" run.
+ *
+ * Exists because generation is slow — the PDF renderer is behind a
+ * process-wide mutex, so eighteen clients is eighteen sequential
+ * renders — and a user staring at a spinner for four minutes needs to
+ * know it is working and which client it is on. Progress lives in the
+ * database rather than in memory so the page can be closed, reopened,
+ * or opened on a phone, and still show where the run got to.
+ */
+export const reportBatches = sqliteTable("report_batches", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** The period every report in the batch covers — set once, not per report. */
+  periodStart: integer("period_start", { mode: "timestamp" }),
+  periodEnd: integer("period_end", { mode: "timestamp" }),
+  template: text("template").notNull().default("detailed"),
+  status: text("status", { enum: ["running", "done", "failed"] })
+    .notNull()
+    .default("running"),
+  total: integer("total").notNull().default(0),
+  done: integer("done").notNull().default(0),
+  failed: integer("failed").notNull().default(0),
+  startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+  /** Lets the progress bar say "Acme Coffee (7 of 18)" rather than "39%". */
+  currentClientId: integer("current_client_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
+  error: text("error"),
+});
+export type ReportBatch = typeof reportBatches.$inferSelect;
+
+/**
+ * A prospect who ran the embeddable grader on an agency's site.
+ *
+ * The score and issue counts live here alongside the email on purpose.
+ * "Someone wants an audit" is a to-do; "someone with a 34/100 site and
+ * nine critical issues wants an audit" is a sales conversation with an
+ * opening line already written.
+ */
+export const graderLeads = sqliteTable("grader_leads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Always present — the grade runs first, the email is optional. */
+  url: text("url").notNull(),
+  email: text("email"),
+  name: text("name"),
+  score: integer("score"),
+  criticalCount: integer("critical_count").notNull().default(0),
+  highCount: integer("high_count").notNull().default(0),
+  /**
+   * The findings as graded. Lets an agency open a lead weeks later and
+   * see what was actually wrong, without re-crawling a site that has
+   * changed in the meantime.
+   */
+  findingsJson: text("findings_json", { mode: "json" }).$type<
+    { type: string; severity: string; message: string }[]
+  >(),
+  status: text("status", {
+    enum: ["new", "contacted", "won", "lost", "spam"],
+  })
+    .notNull()
+    .default("new"),
+  notes: text("notes"),
+  /** Which of the agency's pages the widget was embedded on. */
+  sourcePage: text("source_page"),
+  /**
+   * Truncated to a /24 (or /48 for IPv6) before storage — enough to spot
+   * one actor spamming the form, not a record of who visited an agency's
+   * marketing site. A privacy-first tool shouldn't accumulate full
+   * visitor IPs as a side effect of a lead form.
+   */
+  ipPrefix: text("ip_prefix"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  contactedAt: integer("contacted_at", { mode: "timestamp" }),
+});
+export type GraderLead = typeof graderLeads.$inferSelect;
+
+/**
+ * A proposal — the document that turns findings into signed work.
+ *
+ * Prospect details are denormalised on purpose. A proposal is something
+ * sent on a date, and it should still say what it said even if the
+ * client is later renamed or removed.
+ *
+ * Scope lines are derived from real audit findings; pricing is typed by
+ * the user. Nothing here forecasts traffic, rankings or revenue — see
+ * 0060_proposals.sql for why that restraint is the design rather than an
+ * omission.
+ */
+export const proposals = sqliteTable("proposals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
+  leadId: integer("lead_id").references(() => graderLeads.id, {
+    onDelete: "set null",
+  }),
+  prospectName: text("prospect_name").notNull(),
+  prospectUrl: text("prospect_url"),
+  prospectEmail: text("prospect_email"),
+  title: text("title").notNull(),
+  intro: text("intro"),
+  scopeJson: text("scope_json", { mode: "json" }).$type<
+    { label: string; detail: string; findings: number }[]
+  >(),
+  pricingJson: text("pricing_json", { mode: "json" }).$type<
+    { label: string; detail: string; amount: number }[]
+  >(),
+  currency: text("currency").notNull().default("USD"),
+  terms: text("terms"),
+  /** The audit this was built from, so the document can cite its basis. */
+  auditId: integer("audit_id").references(() => audits.id, {
+    onDelete: "set null",
+  }),
+  basedOnScore: integer("based_on_score"),
+  basedOnAt: integer("based_on_at", { mode: "timestamp" }),
+  status: text("status", {
+    enum: ["draft", "sent", "accepted", "declined"],
+  })
+    .notNull()
+    .default("draft"),
+  sentAt: integer("sent_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type Proposal = typeof proposals.$inferSelect;

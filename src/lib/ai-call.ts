@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getActiveProvider, getApiKey, getOllamaUrl } from "./api-keys";
 import { getSetting } from "./settings-store";
 import { checkMonthlyCap, logAiCall } from "./ai-usage";
@@ -15,6 +16,15 @@ function logPreview(text: string): string {
 }
 import { withAiPermit } from "./ai-semaphore";
 import { dispatchProviderCall, defaultModelFor } from "./provider-dispatch";
+import { estimateTokens } from "./ai-cost";
+import {
+  classifyProviderError,
+  emptyResponseFailure,
+  monthlyCapFailure,
+  noProviderFailure,
+  type AiFailure,
+  type AiResult,
+} from "./ai-error";
 
 export type AiFeatureName =
   | "exec_summary"
@@ -71,7 +81,74 @@ export type AiCallOptions = {
  *   - lowers temperature for deterministic answers (cheaper rerolls)
  *   - features that need length (blog writer) opt out via ignoreCreditSaver
  */
+/**
+ * Back-compat shim. Returns the text, or null on any failure.
+ *
+ * Prefer `callAIResult` for anything user-facing: this signature is
+ * exactly the problem the audit found — every failure mode (no key,
+ * retired model, spend cap, timeout, provider 500) collapsed into the
+ * same `null`, and all 68 call sites rendered the same empty box.
+ */
 export async function callAI(opts: AiCallOptions): Promise<string | null> {
+  const r = await callAIResult(opts);
+  if (!r.ok) recordAiFailure(r.failure);
+  return r.ok ? r.text : null;
+}
+
+/**
+ * Per-request holder for the last AI failure.
+ *
+ * There are 65 `await callAI(...)` sites, almost all shaped like:
+ *
+ *     const text = await callAI({ ... });
+ *     if (text) { ...use it... }
+ *
+ * When it's null they skip silently — no error, no message, nothing to
+ * tell the user an AI step was even attempted. Rewriting all 65 to
+ * `callAIResult` and threading a failure object through each return type
+ * is the thorough fix and a very large diff across 52 files.
+ *
+ * This is the small one. `callAI` records why it failed, and any action
+ * can surface it by adding a single field to what it already returns:
+ *
+ *     return { ok: true, rows, aiFailure: lastAiFailure() };
+ *
+ * `cache()` scopes the holder to one request, so two users hitting
+ * different tools at the same time can't see each other's failure — the
+ * bug a module-level variable would have introduced.
+ */
+const failureHolder = cache((): { current: AiFailure | null } => ({
+  current: null,
+}));
+
+function recordAiFailure(failure: AiFailure): void {
+  try {
+    failureHolder().current = failure;
+  } catch {
+    // Outside a request scope (scheduler, scripts). Nothing to show a
+    // user there, and this must never break the caller.
+  }
+}
+
+/**
+ * Why the most recent `callAI` in this request failed, or null.
+ *
+ * Returns null when the call succeeded, so `aiFailure: lastAiFailure()`
+ * is safe to add unconditionally.
+ */
+export function lastAiFailure(): AiFailure | null {
+  try {
+    return failureHolder().current;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The real entry point. Always resolves; on failure carries a reason
+ * code plus a sentence naming the fix and a link to the setting.
+ */
+export async function callAIResult(opts: AiCallOptions): Promise<AiResult> {
   // Per-call override takes precedence — but only if the user has a key
   // for it. Otherwise fall back to the workspace active provider.
   let active: import("./api-keys").ActiveProvider | null = null;
@@ -85,7 +162,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
     }
   }
   if (!active) active = await getActiveProvider();
-  if (!active) return null;
+  if (!active) return { ok: false, failure: noProviderFailure() };
 
   // Enforce monthly cap if set
   const cap = await checkMonthlyCap();
@@ -100,7 +177,7 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
       errorMsg: `Monthly AI cap of $${cap.capUsd?.toFixed(2)} reached.`,
       clientId: opts.clientId ?? null,
     });
-    return null;
+    return { ok: false, failure: monthlyCapFailure(cap.capUsd ?? null) };
   }
 
   let system = opts.system;
@@ -150,15 +227,6 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
     }
   }
 
-  // Re-pack — downstream provider helpers spread this onto their request
-  const packed: AiCallOptions = {
-    system,
-    user: safeUser,
-    maxTokens: max,
-    temperature,
-    timeoutMs,
-  };
-
   // Wrap dispatch with logging — each path returns (text, model)
   const start = Date.now();
   let model: string | null = null;
@@ -166,6 +234,11 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
   let errorMsg: string | undefined;
 
   const pickedModel = opts.modelOverride?.trim() || defaultModelFor(active);
+
+  // Captured by the dispatch layer when a provider rejects the call.
+  // Without this, a retired model id, a bad key, and a network blip all
+  // arrived at the UI as the same nothing.
+  let providerError: { status: number; body: string } | null = null;
 
   // Acquire one of the global AI permits. Caps workspace-wide
   // concurrency so the daily-agent's batch generations don't burst
@@ -187,6 +260,9 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
         temperature,
         timeoutMs,
         caller: "ai-call",
+        onFailure: (status, body) => {
+          providerError = { status, body };
+        },
       });
     } catch (err) {
       errorMsg = (err as Error).message;
@@ -194,20 +270,46 @@ export async function callAI(opts: AiCallOptions): Promise<string | null> {
     }
   });
 
-  // Log every call (success or failure) — async-fire, never block
+  // Resolve the failure BEFORE logging so ai_usage_log records the same
+  // human-readable reason the user was shown — makes Settings → AI usage
+  // a usable debugging surface instead of a wall of nulls.
+  const failure: AiFailure | null = text
+    ? null
+    : providerError
+      ? classifyProviderError(
+          (providerError as { status: number; body: string }).status,
+          (providerError as { status: number; body: string }).body,
+          { provider: active, model: pickedModel },
+        )
+      : errorMsg
+        ? classifyProviderError(0, errorMsg, {
+            provider: active,
+            model: pickedModel,
+          })
+        : emptyResponseFailure(active, pickedModel);
+
+  // Log every call (success or failure) — async-fire, never block.
+  //
+  // promptTokens is estimated from `opts.user` at full length, not the
+  // 300-char logging preview. Estimating from the preview under-counted
+  // prompt tokens by orders of magnitude, so spend tracking and the
+  // monthly cap were both computed from a number that had no relation
+  // to what was actually sent.
   void logAiCall({
     feature: opts.feature ?? "general",
     provider: active,
     model,
     promptText: logPreview(`${system}\n\n${opts.user}`),
+    promptTokens: estimateTokens(`${system}\n\n${safeUser}`),
     completionText: text,
     latencyMs: Date.now() - start,
     clientId: opts.clientId ?? null,
     status: text ? "ok" : "error",
-    errorMsg,
+    errorMsg: failure?.message ?? errorMsg,
   });
 
-  return text;
+  if (text) return { ok: true, text };
+  return { ok: false, failure: failure ?? emptyResponseFailure(active, pickedModel) };
 }
 
 // Provider-specific callers moved to src/lib/provider-dispatch.ts.

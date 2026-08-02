@@ -26,6 +26,51 @@ const nextConfig: NextConfig = {
   // running locally this is visual noise. Removed in production builds
   // automatically; this disables it in dev too.
   devIndicators: false,
+
+  /**
+   * Framing policy.
+   *
+   * The app set no frame headers at all, which meant any site could put
+   * /settings or /clients in an invisible iframe and trick a logged-in
+   * user into clicking things — classic clickjacking. It only became
+   * obvious while adding a page that genuinely SHOULD be framed.
+   *
+   * So: deny framing everywhere, then carve out the one route designed
+   * for it. `frame-ancestors *` on /embed is deliberate — an agency
+   * embeds the grader on their own marketing site and we have no way to
+   * know that hostname in advance. The route is safe to frame because it
+   * exposes no account data and carries no session-authenticated
+   * actions: it grades a URL the caller typed and writes a lead row.
+   */
+  async headers() {
+    return [
+      {
+        source: "/embed/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors *" },
+        ],
+      },
+      {
+        // Everything EXCEPT /embed. Next applies every matching rule, so
+        // a plain `/:path*` catch-all also hit the embed route and its
+        // X-Frame-Options: SAMEORIGIN won — the widget was served
+        // unframeable, which silently breaks the entire feature: the
+        // agency's iframe renders blank and nothing reports an error.
+        source: "/((?!embed/).*)",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self'",
+          },
+          // Not framing-related, but the same class of cheap header the
+          // app was missing entirely.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

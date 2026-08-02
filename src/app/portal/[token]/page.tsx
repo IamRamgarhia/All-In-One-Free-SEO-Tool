@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -14,9 +15,51 @@ import {
 import { db } from "@/db/client";
 import { audits, clients, tasks } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
-import { getSetting } from "@/lib/settings-store";
+import { displayName, loadBrand } from "@/lib/brand";
 import { SnapshotSparklines } from "@/components/snapshot-sparklines";
 import { PortalChat } from "./portal-chat";
+
+/**
+ * The browser tab is a white-label leak nobody notices until a client
+ * does. Every other surface on this page respects the agency's branding,
+ * and then the tab said "SEO Tool" — which tells the client exactly
+ * which product to go and buy directly.
+ *
+ * Overrides the root layout's metadata for this route only.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+
+  const [row] = await db
+    .select({ name: clients.name })
+    .from(clients)
+    .where(eq(clients.shareToken, token))
+    .limit(1);
+
+  const brand = await loadBrand();
+  const agency = displayName(brand);
+
+  // Client name first: this page is about them, and it's what they'll
+  // recognise in a row of tabs.
+  const title = row ? `${row.name} — SEO progress` : `${agency} — SEO progress`;
+
+  return {
+    title,
+    description: `SEO progress and current priorities, from ${agency}.`,
+    // Overriding `title` alone leaves the root layout's appleWebApp
+    // title in place, so a client who adds this to their iPhone home
+    // screen gets an icon labelled "SEO Tool".
+    appleWebApp: { capable: true, title: agency },
+    // Client portals are unlisted links, not public pages. Search
+    // engines indexing one would expose a client's data to anyone
+    // searching their name.
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function PortalPage({
   params,
@@ -68,9 +111,13 @@ export default async function PortalPage({
     )
     .slice(0, 5);
 
-  const brandName = await getSetting<string>("brand.name");
-  const brandColor = await getSetting<string>("brand.color");
-  const brandLogo = await getSetting<string>("brand.logo_data_url");
+  // One brand loader, shared with the PDF renderer and the quarterly
+  // strategy doc. Reading the three settings directly here was a fourth
+  // partial copy of the same logic.
+  const brand = await loadBrand();
+  const brandName = brand.name;
+  const brandColor = brand.color;
+  const brandLogo = brand.logoDataUrl;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
@@ -105,7 +152,7 @@ export default async function PortalPage({
                 Client portal
               </div>
               <div className="text-sm font-semibold">
-                {brandName ?? "SEO tool"}
+                {displayName(brand)}
               </div>
             </div>
           </div>

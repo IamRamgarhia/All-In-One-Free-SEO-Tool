@@ -15,6 +15,7 @@ import { db } from "@/db/client";
 import { clients, contentBriefs, type ContentBrief } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
+import { clientScope } from "@/lib/client-scope";
 
 const statusTone: Record<ContentBrief["status"], string> = {
   idea: "bg-white/5 text-muted-foreground ring-white/10",
@@ -68,6 +69,7 @@ export default async function ContentCalendarPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const today = new Date();

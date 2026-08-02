@@ -10,6 +10,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { toolRuns, type NewToolRun, type ToolRun } from "@/db/schema";
+import { currentUserId } from "./auth";
 
 export type ToolRunInput<TResult = unknown, TInput = Record<string, unknown>> = {
   toolId: string;
@@ -28,12 +29,75 @@ export async function saveToolRun<TResult, TInput = Record<string, unknown>>(
     label: run.label.slice(0, 200),
     inputJson: (run.input ?? null) as Record<string, unknown> | null,
     resultJson: run.result,
+    // Resolved here, not passed in — see the same note in activity.ts.
+    userId: await currentUserId(),
   };
   const [row] = await db
     .insert(toolRuns)
     .values(insert)
     .returning({ id: toolRuns.id });
   return row.id;
+}
+
+export type ToolUsage = {
+  toolId: string;
+  label: string;
+  runs: number;
+  lastRunAt: Date | null;
+};
+
+/**
+ * Which tools this workspace actually uses.
+ *
+ * /tools lists ~95 entries at identical visual weight, so a freelancer
+ * who reaches for the same six every week has to re-find them in a wall
+ * of equals every time. We already log every run — this turns that log
+ * into the ordering, without asking the user to curate favourites.
+ */
+export async function topToolsByUsage(limit = 8): Promise<ToolUsage[]> {
+  const rows = await db
+    .select({
+      toolId: toolRuns.toolId,
+      label: toolRuns.label,
+      createdAt: toolRuns.createdAt,
+    })
+    .from(toolRuns)
+    .orderBy(desc(toolRuns.createdAt))
+    // Bounded: usage ordering only needs recent history, and an
+    // unbounded scan on a long-lived install would read every row on
+    // every /tools render.
+    .limit(500);
+
+  const byTool = new Map<string, ToolUsage>();
+  for (const r of rows) {
+    const existing = byTool.get(r.toolId);
+    if (existing) {
+      existing.runs += 1;
+      continue;
+    }
+    // Rows are newest-first, so the first sighting carries the most
+    // recent label and timestamp.
+    byTool.set(r.toolId, {
+      toolId: r.toolId,
+      label: r.label,
+      runs: 1,
+      lastRunAt: r.createdAt ?? null,
+    });
+  }
+
+  return Array.from(byTool.values())
+    .sort((a, b) => b.runs - a.runs)
+    .slice(0, Math.max(1, limit));
+}
+
+/** Most recently used tools, one entry per tool. */
+export async function recentTools(limit = 6): Promise<ToolUsage[]> {
+  const all = await topToolsByUsage(200);
+  return all
+    .sort(
+      (a, b) => (b.lastRunAt?.getTime() ?? 0) - (a.lastRunAt?.getTime() ?? 0),
+    )
+    .slice(0, Math.max(1, limit));
 }
 
 export async function listToolRuns(opts: {

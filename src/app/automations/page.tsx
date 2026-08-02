@@ -22,6 +22,7 @@ import { NewAutomationForm } from "./new-form";
 import { WebhookTester } from "./webhook-tester";
 import { deleteAutomation, setAutomationEnabled } from "./actions";
 import { getSetting } from "@/lib/settings-store";
+import { clientScope } from "@/lib/client-scope";
 
 const triggerLabels: Record<string, { label: string; tone: string }> = {
   audit_completed: {
@@ -56,6 +57,7 @@ export default async function AutomationsPage() {
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(clients.name);
 
   const rows = await db
@@ -92,7 +94,7 @@ export default async function AutomationsPage() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500/10 px-3 py-2 text-xs font-medium text-cyan-300 ring-1 ring-inset ring-cyan-500/30 transition-colors hover:bg-cyan-500/20"
             >
               <Workflow className="size-3.5" />
-              What's automated
+              What&apos;s automated
             </Link>
             <Link
               href="/automations/templates"

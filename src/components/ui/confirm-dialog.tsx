@@ -79,7 +79,7 @@ export function ConfirmDialogProvider({
     return () => {
       externalOpen = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Close on Esc

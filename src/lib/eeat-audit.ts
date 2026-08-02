@@ -18,6 +18,7 @@
  */
 
 import { callAI } from "./ai-call";
+import { guardedFetch } from "./url-guard";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/1.0; +https://example.com/bot)";
@@ -357,10 +358,9 @@ async function fetchHtml(url: string): Promise<string | null> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 12_000);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       headers: { "user-agent": USER_AGENT, accept: "text/html" },
       signal: ac.signal,
-      redirect: "follow",
     });
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") ?? "";

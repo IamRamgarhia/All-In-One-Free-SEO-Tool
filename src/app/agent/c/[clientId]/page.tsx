@@ -8,6 +8,7 @@ import { clients, aiSuggestions } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
+import { clientScope } from "@/lib/client-scope";
 import {
   SuggestionsList,
   type SuggestionRow,
@@ -32,6 +33,7 @@ export default async function PerClientAgentPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const rows = await db

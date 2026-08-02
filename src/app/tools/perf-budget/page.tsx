@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import Link from "next/link";
 import { ArrowLeft, Gauge, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -26,10 +27,7 @@ export default function PerfBudgetPage() {
     null,
   );
   const [budget, setBudget] = useState(DEFAULTS);
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

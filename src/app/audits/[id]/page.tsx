@@ -16,6 +16,7 @@ import {
 import { db } from "@/db/client";
 import { audits, auditIssues, clients } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
+import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { Term } from "@/components/ui/term";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { FixWizard } from "@/components/fix-wizard";
@@ -187,9 +188,14 @@ export default async function AuditDetailPage({
     low: groupByType(sorted.filter((i) => i.severity === "low")),
   };
 
-  // Approximate pages crawled by counting distinct URLs across findings.
-  const distinctUrls = new Set(issues.map((i) => i.url));
-  const pagesCrawled = distinctUrls.size;
+  // How many pages the crawl actually visited, as recorded by the
+  // crawler. This used to be derived as `new Set(issues.map(i => i.url)).size`
+  // — the number of pages WITH FINDINGS — which meant a healthy 50-page
+  // site with three problem pages reported "3 pages", and the better the
+  // site got the smaller the number became. Null for audits that predate
+  // the column; the UI shows the affected-page count instead and says so.
+  const pagesCrawled = audit.pagesCrawled;
+  const pagesWithIssues = new Set(issues.map((i) => i.url)).size;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -250,12 +256,28 @@ export default async function AuditDetailPage({
                 Health score
               </div>
               <div className="text-sm font-medium">
-                {audit.issuesCount} issues across {pagesCrawled} page
-                {pagesCrawled === 1 ? "" : "s"}
+                {audit.issuesCount} issue{audit.issuesCount === 1 ? "" : "s"}
+                {pagesCrawled !== null
+                  ? ` across ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} crawled`
+                  : ` on ${pagesWithIssues} page${pagesWithIssues === 1 ? "" : "s"}`}
               </div>
               <div className="text-xs text-muted-foreground">
                 {audit.status === "completed" ? "Out of 100" : audit.status}
               </div>
+              {/* The number most likely to end up in front of a client,
+                  and the one whose basis is least obvious. It describes
+                  what our crawler saw on the pages it reached — not
+                  what Google has indexed, and not every page on the
+                  site. */}
+              <DataSourceBadge
+                source="crawl"
+                asOf={audit.completedAt}
+                note={
+                  pagesCrawled !== null
+                    ? `Based on the ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} we crawled.`
+                    : "This audit predates page-count tracking, so we can only show the pages that had findings — the crawl covered at least that many."
+                }
+              />
             </div>
           </div>
         </div>

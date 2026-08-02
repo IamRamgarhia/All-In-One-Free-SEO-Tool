@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import Link from "next/link";
 import { ArrowLeft, Gauge, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -9,7 +10,7 @@ import {
   type OriginSummaryState,
 } from "../crux/actions";
 import { RecentRuns } from "@/components/recent-runs";
-import { useEffect, useState } from "react";
+
 
 const THRESH: Record<string, { good: number; ni: number; unit: string }> = {
   lcp: { good: 2500, ni: 4000, unit: "ms" },
@@ -32,10 +33,7 @@ export default function CruxOriginSummaryPage() {
     OriginSummaryState,
     FormData
   >(runOriginSummary, null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

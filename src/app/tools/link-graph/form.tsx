@@ -1,14 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  AlertCircle,
-  ArrowRight,
-  ExternalLink,
-  Loader2,
-  Network,
-  Star,
-} from "lucide-react";
+import { AlertCircle, ArrowRight, ExternalLink, Loader2, Star } from "lucide-react";
 import { runLinkGraph, type LinkGraphState } from "./actions";
 
 export function LinkGraphForm() {

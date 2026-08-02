@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Dev-mode migration watcher. Runs alongside `next dev` so a new .sql
  * migration or schema change applied mid-session doesn't require the

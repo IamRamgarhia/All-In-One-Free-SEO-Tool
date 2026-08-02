@@ -175,6 +175,7 @@ export async function runAuditForClient(clientId: number) {
       status: "completed",
       score: result.score,
       issuesCount: result.findings.length,
+      pagesCrawled: result.pagesCrawled,
       completedAt: new Date(),
       updatedAt: new Date(),
     })

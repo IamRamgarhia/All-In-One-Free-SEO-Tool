@@ -52,6 +52,13 @@ data.db-shm
 data.db-wal
 data.db.bak
 data.db.bak-*
+# Anything at all that looks like a copy of the user's database. The
+# patterns above only covered the .bak naming the in-app backup uses; a
+# hand-made copy called data.db.backup-whatever slipped straight past
+# them and into `git add -A`.
+data.db*.backup*
+data.db-*.backup*
+*.db.backup*
 *.sqlite
 *.sqlite-*
 /data/
@@ -63,6 +70,9 @@ data.db.bak-*
 
 # OAuth refresh tokens / API-key encryption key — leakage = account compromise
 .seo-encryption-key
+# Signs session cookies. Committing it would let anyone who reads the
+# repo mint a valid session for any user id on any install built from it.
+.seo-session-secret
 
 # Per-instance runtime state
 .seo-port
@@ -106,3 +116,10 @@ dump.rdb
 # competitive analysis, pricing notes, validation outreach. Kept locally
 # for the maintainer + Claude Code to reference; never committed.
 CLAUDE.md
+.e2e/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

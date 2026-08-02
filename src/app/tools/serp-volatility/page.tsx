@@ -5,6 +5,7 @@ import { and, desc, gte, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients, keywords, keywordRankings } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
+import { clientScope } from "@/lib/client-scope";
 
 type Movement = {
   keywordId: number;
@@ -39,7 +40,7 @@ export default async function SerpVolatilityPage({
   since.setUTCDate(since.getUTCDate() - windowDays);
   since.setUTCHours(0, 0, 0, 0);
 
-  const allClients = await db.select().from(clients);
+  const allClients = await db.select().from(clients).where(await clientScope());
   const trackedKw = await db.select().from(keywords);
   const kwById = new Map(trackedKw.map((k) => [k.id, k]));
   const clientById = new Map(allClients.map((c) => [c.id, c]));

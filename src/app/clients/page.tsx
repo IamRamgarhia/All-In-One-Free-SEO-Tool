@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { ImportClientsButton } from "./import-form";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
+import { clientScope } from "@/lib/client-scope";
 
 const nicheLabels: Record<string, string> = {
   local: "Local",
@@ -29,7 +30,7 @@ const nicheTone: Record<string, string> = {
 };
 
 export default async function ClientsPage() {
-  const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  const rows = await db.select().from(clients).where(await clientScope()).orderBy(desc(clients.createdAt));
   const googleStatus = await getGoogleConnectionStatus();
 
   return (

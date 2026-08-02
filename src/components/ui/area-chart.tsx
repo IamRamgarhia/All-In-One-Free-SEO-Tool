@@ -10,6 +10,7 @@
  * data — so we keep the chart deliberately simple and bundle-friendly.
  */
 
+import { useId } from "react";
 import {
   Area,
   AreaChart as RechartsAreaChart,
@@ -64,6 +65,17 @@ export function AreaChart({
   height = 200,
   emptyHint = "Not enough data yet",
 }: Props) {
+  // Unique gradient ID so multiple charts on one page don't collide.
+  //
+  // useId, not Math.random(): the random version generated a different
+  // id on the server than on the client, so the SSR'd <linearGradient
+  // id> never matched the hydrated fill="url(#...)" — the area fill
+  // silently dropped to transparent on first paint. It also produced a
+  // fresh id on every re-render, orphaning the previous <defs> entry.
+  //
+  // Declared before the early return: hooks must run unconditionally.
+  const gradientId = `area-grad-${useId().replace(/:/g, "")}`;
+
   const fmt = (v: number) => formatNumber(v, formatValue);
   if (data.length < 2) {
     return (
@@ -75,9 +87,6 @@ export function AreaChart({
       </div>
     );
   }
-
-  // Unique gradient ID so multiple charts on one page don't collide
-  const gradientId = `area-grad-${Math.random().toString(36).slice(2, 8)}`;
 
   return (
     <div style={{ height }} className={colorClass}>

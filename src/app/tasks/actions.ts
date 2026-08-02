@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { clients, tasks } from "@/db/schema";
 import { logActivity } from "@/lib/activity";
+import { currentUserId } from "@/lib/auth";
 
 type Recur = "daily" | "weekly" | "monthly" | "quarterly";
 
@@ -32,9 +33,16 @@ export async function setTaskStatus(
     .limit(1);
   if (!existing) return;
 
+  // Record who finished it. Cleared when a task is reopened, so the
+  // column always means "who completed the state it's in now" rather
+  // than "who touched it once" — /capacity and the monthly report both
+  // read it as the former.
+  const completedByUserId =
+    status === "done" ? await currentUserId() : null;
+
   await db
     .update(tasks)
-    .set({ status, updatedAt: new Date() })
+    .set({ status, completedByUserId, updatedAt: new Date() })
     .where(eq(tasks.id, taskId));
 
   if (status === "done" && existing.status !== "done") {
@@ -239,7 +247,11 @@ export async function bulkSetTaskStatus(
   if (valid.length === 0) return;
   await db
     .update(tasks)
-    .set({ status, updatedAt: new Date() })
+    .set({
+      status,
+      completedByUserId: status === "done" ? await currentUserId() : null,
+      updatedAt: new Date(),
+    })
     .where(inArray(tasks.id, valid));
   revalidatePath("/tasks");
   revalidatePath("/");

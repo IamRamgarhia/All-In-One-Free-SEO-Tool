@@ -11,12 +11,14 @@ import {
 } from "@/components/shell/client-tool-grid";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
 import { markSectionSeen } from "@/lib/unread-counts";
+import { clientScope } from "@/lib/client-scope";
 
 export default async function AgentIndexPage() {
   await markSectionSeen("suggestions").catch(() => {});
   const all = await db
     .select()
     .from(clients)
+    .where(await clientScope())
     .orderBy(desc(clients.createdAt))
     .limit(500);
   const active = await getActiveProvider();

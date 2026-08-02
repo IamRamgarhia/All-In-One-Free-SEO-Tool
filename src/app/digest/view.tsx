@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useState } from "react";
 import { Check, Copy, Loader2, Mail, Power, PowerOff } from "lucide-react";
 import type { WeeklyDigest } from "@/lib/weekly-digest";
 import {

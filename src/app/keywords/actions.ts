@@ -17,7 +17,11 @@ export type ResearchActionResult =
         intent: "informational" | "commercial" | "transactional" | "navigational";
         wordCount: number;
         isLongTail: boolean;
+        /** Measured Bing impressions. Undefined = not looked up / no data. */
+        bingVolume?: number;
       }>;
+      /** Which provider supplied the volumes, or null if none were fetched. */
+      volumeSource: "bing" | null;
     }
   | { ok: false; error: string };
 
@@ -54,6 +58,7 @@ export async function researchAction(
       country: r.country,
       source: r.source,
       suggestions: r.suggestions,
+      volumeSource: r.volumeSource,
     };
   } catch (err) {
     return { ok: false, error: (err as Error).message };

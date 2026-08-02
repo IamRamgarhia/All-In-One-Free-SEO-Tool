@@ -16,7 +16,8 @@
  *   - extra token spend
  */
 
-import { callAI } from "./ai-call";
+import { callAIResult } from "./ai-call";
+import type { AiFailure } from "./ai-error";
 
 export type ExecSummaryDataPoint = {
   /** Short label, e.g. "Health score", "Organic sessions (28d)". */
@@ -37,6 +38,14 @@ export type ExecSummaryResult = {
   dataPoints: ExecSummaryDataPoint[];
   /** Whether the prose came from a real LLM call or the template fallback. */
   source: "ai" | "template";
+  /**
+   * Set when `source === "template"` because the AI call failed rather
+   * than because no provider is wanted. The template fallback is good
+   * — reports still generate — but silently swapping in a worse summary
+   * with no explanation meant users never learned their AI key had
+   * stopped working, and blamed the tool for flat prose.
+   */
+  aiFailure?: AiFailure | null;
 };
 
 export type ExecSummaryInput = {
@@ -75,7 +84,7 @@ export async function generateExecSummary(
   const userPrompt = buildUserPrompt(input);
   const dataPoints = collectDataPoints(input);
 
-  const result = await callAI({
+  const result = await callAIResult({
     system: SYSTEM_PROMPT,
     user: userPrompt,
     maxTokens: 500,
@@ -86,10 +95,20 @@ export async function generateExecSummary(
     ignoreCreditSaver: true,
   });
 
-  if (result && result.trim().length > 0) {
-    return { prose: result.trim(), dataPoints, source: "ai" };
+  if (result.ok && result.text.trim().length > 0) {
+    return { prose: result.text.trim(), dataPoints, source: "ai" };
   }
-  return { prose: templateSummary(input), dataPoints, source: "template" };
+  return {
+    prose: templateSummary(input),
+    dataPoints,
+    source: "template",
+    // "No provider configured" is a deliberate choice, not a fault —
+    // don't nag a user who never wanted AI in the first place.
+    aiFailure:
+      !result.ok && result.failure.reason !== "no_provider"
+        ? result.failure
+        : null,
+  };
 }
 
 /**

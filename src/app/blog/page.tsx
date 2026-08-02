@@ -13,9 +13,10 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
+import { clientScope } from "@/lib/client-scope";
 
 export default async function BlogIndexPage() {
-  const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
+  const rows = await db.select().from(clients).where(await clientScope()).orderBy(desc(clients.createdAt));
   const active = await getActiveProvider();
   const { byId } = await configuredProviders();
   const aiReady = Boolean(active && byId[active]);

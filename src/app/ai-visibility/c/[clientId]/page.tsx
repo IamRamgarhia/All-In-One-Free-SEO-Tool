@@ -14,6 +14,7 @@ import {
   CheckOneButton,
 } from "@/app/ai-visibility/check-buttons";
 import { BrowserModeAiToggle } from "@/app/ai-visibility/browser-mode-toggle";
+import { clientScope } from "@/lib/client-scope";
 
 const providerLabel: Record<string, string> = {
   openai: "ChatGPT",
@@ -46,6 +47,7 @@ export default async function PerClientAIVisibilityPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const { ids: configured } = await configuredProviders();
@@ -240,12 +242,31 @@ export default async function PerClientAIVisibilityPage({
                               key={c.id}
                               className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] ring-1 ring-inset ${
                                 c.mentionsDomain
-                                  ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30"
+                                  ? c.grounding === "live"
+                                    ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30"
+                                    : // A mention from an ungrounded model is
+                                      // not evidence of AI-search visibility —
+                                      // don't dress it up in the same green as
+                                      // a real cited result.
+                                      "bg-amber-500/10 text-amber-300 ring-amber-500/25"
                                   : "bg-white/5 text-muted-foreground ring-white/10"
                               }`}
-                              title={c.mentionsDomain ? "Mentioned" : "Not mentioned"}
+                              title={
+                                c.grounding === "live"
+                                  ? c.mentionsDomain
+                                    ? "Mentioned — from a live web search"
+                                    : "Not mentioned — from a live web search"
+                                  : c.mentionsDomain
+                                    ? "Mentioned, but this model answered from training data, not a live search. It is not proof you appear in AI search today."
+                                    : "Not mentioned. This model answered from training data, not a live search."
+                              }
                             >
                               {providerLabel[c.provider] ?? c.provider}
+                              {c.grounding !== "live" && (
+                                <span aria-hidden className="opacity-60">
+                                  ·mem
+                                </span>
+                              )}
                             </span>
                           ))}
                         </div>

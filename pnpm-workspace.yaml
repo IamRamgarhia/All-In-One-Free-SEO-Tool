@@ -1,3 +1,18 @@
-ignoredBuiltDependencies:
+# Packages whose install scripts are allowed to run.
+#
+# pnpm 11+ reads this file; pnpm 10 reads `pnpm.onlyBuiltDependencies` in
+# package.json. BOTH lists must stay in sync — if a native dep is missing
+# from either, that pnpm version silently skips its build and the module
+# fails at runtime with a confusing "Cannot find module ...node" error.
+#
+# The previous `ignoredBuiltDependencies` block here contradicted the
+# package.json allowlist: it told pnpm 11 to SKIP sharp's build while
+# package.json told pnpm 10 to RUN it. That is how installs ended up
+# half-built depending on which pnpm the user happened to have.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
+  - msw
   - sharp
+  - tesseract.js
   - unrs-resolver

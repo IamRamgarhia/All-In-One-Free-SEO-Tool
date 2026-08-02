@@ -23,6 +23,7 @@ import {
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { getSmtpConfig } from "@/lib/mailer";
+import { clientScope } from "@/lib/client-scope";
 import { SummaryPreview } from "./summary-preview";
 
 type Template =
@@ -155,6 +156,7 @@ export default async function PerClientReportsPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const [latest] = await db

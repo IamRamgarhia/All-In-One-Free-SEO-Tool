@@ -35,6 +35,14 @@ export type OpenAICompatCallOpts = {
   extraHeaders?: Record<string, string>;
   /** Origin tag for server-log debugging */
   caller?: string;
+  /**
+   * Optional sink for failure details. The function still returns
+   * `string | null`, so the existing call sites are untouched — but a
+   * caller that wants to tell the USER why (callAI) passes this and
+   * gets the status + response body instead of an undifferentiated
+   * null. Fires once, with the final attempt's outcome.
+   */
+  onFailure?: (status: number, body: string) => void;
 };
 
 /**
@@ -59,6 +67,7 @@ export async function callOpenAICompat(
     const result = await dispatchOpenAICompat(opts);
     if (result.ok) return result.text;
     if (attempt >= 1 || !RETRY_STATUSES.has(result.status)) {
+      opts.onFailure?.(result.status, result.body);
       return null;
     }
     attempt++;
@@ -68,7 +77,9 @@ export async function callOpenAICompat(
 
 async function dispatchOpenAICompat(
   opts: OpenAICompatCallOpts,
-): Promise<{ ok: true; text: string | null } | { ok: false; status: number }> {
+): Promise<
+  { ok: true; text: string | null } | { ok: false; status: number; body: string }
+> {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), opts.timeoutMs);
   try {
@@ -115,7 +126,7 @@ async function dispatchOpenAICompat(
       console.error(
         `[${opts.caller ?? "openai-compat"}] ${opts.model} ${res.status}: ${errBody || res.statusText}`,
       );
-      return { ok: false, status: res.status };
+      return { ok: false, status: res.status, body: errBody || res.statusText };
     }
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
@@ -130,7 +141,7 @@ async function dispatchOpenAICompat(
       (err as Error).message,
     );
     // Network / abort — treat as retryable (status 0 conventionally).
-    return { ok: false, status: 0 };
+    return { ok: false, status: 0, body: (err as Error).message };
   } finally {
     clearTimeout(t);
   }

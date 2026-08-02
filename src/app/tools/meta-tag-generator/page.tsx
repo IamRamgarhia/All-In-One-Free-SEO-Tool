@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
+import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import {
   Code2,
   Copy,
@@ -18,11 +19,8 @@ export default function MetaTagGeneratorPage() {
     generateMetaTags,
     null,
   );
-  const [refreshKey, setRefreshKey] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
-  useEffect(() => {
-    if (state?.ok) setRefreshKey((k) => k + 1);
-  }, [state]);
+  const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
   function copyHtml(opt: { title: string; description: string }, key: string) {
     const html = `<title>${opt.title.replace(/</g, "&lt;")}</title>\n<meta name="description" content="${opt.description.replace(/"/g, "&quot;")}">`;

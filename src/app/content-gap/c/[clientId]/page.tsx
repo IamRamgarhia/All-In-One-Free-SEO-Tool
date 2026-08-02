@@ -13,6 +13,7 @@ import { clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { analyzeContentGap } from "@/app/content-gap/actions";
+import { clientScope } from "@/lib/client-scope";
 
 export default async function PerClientContentGapPage({
   params,
@@ -33,6 +34,7 @@ export default async function PerClientContentGapPage({
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
+    .where(await clientScope())
     .orderBy(asc(clients.name));
 
   const result = await analyzeContentGap({ clientId });

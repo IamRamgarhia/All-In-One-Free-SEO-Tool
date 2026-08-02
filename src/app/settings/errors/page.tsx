@@ -70,7 +70,7 @@ export default async function ErrorsPage() {
           <h2 className="text-base font-semibold">No errors. Nice.</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             When something throws — a failed audit, a flaky AI provider, a JS
-            error in the browser — it shows up here. You'll see what
+            error in the browser — it shows up here. You&apos;ll see what
             happened, how often, when, and a copy-as-GitHub-issue button.
           </p>
         </section>

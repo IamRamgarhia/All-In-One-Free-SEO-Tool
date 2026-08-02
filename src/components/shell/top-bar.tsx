@@ -6,12 +6,16 @@ import { MobileNav } from "./mobile-nav";
 import { AiUsagePill } from "./ai-usage-pill";
 import { ProfileMenu } from "./profile-menu";
 import { NextStep } from "./next-step";
+import { ThemeToggle } from "./theme-toggle";
 import { getUiMode } from "@/app/settings/ui-actions";
+import type { ThemePreference } from "@/app/settings/theme-actions";
 
 export async function TopBar({
   unreadByHref,
+  theme = "system",
 }: {
   unreadByHref?: Record<string, number>;
+  theme?: ThemePreference;
 }) {
   const mode = await getUiMode();
   return (
@@ -22,6 +26,7 @@ export async function TopBar({
       <div className="ml-auto flex items-center gap-1">
         <AiUsagePill />
         <AddClientButton />
+        <ThemeToggle theme={theme} />
         <ModeToggle mode={mode} />
         <NotificationsBell />
         <ProfileMenu />

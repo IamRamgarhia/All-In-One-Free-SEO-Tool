@@ -136,6 +136,8 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
   // even when the dialog itself is dark.
   useEffect(() => {
     if (!deepLink) {
+      // Resets the QR while the async encoder runs for the new deep link.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQrDataUrl("");
       return;
     }

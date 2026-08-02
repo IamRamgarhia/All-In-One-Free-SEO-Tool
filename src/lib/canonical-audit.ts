@@ -15,6 +15,7 @@
  */
 
 import { crawlSite } from "./sitemap-generator";
+import { guardedFetch } from "./url-guard";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/1.0; +https://example.com/bot)";
@@ -239,10 +240,9 @@ async function fetchPageInfo(url: string): Promise<{
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       headers: { "user-agent": USER_AGENT, accept: "text/html" },
       signal: ac.signal,
-      redirect: "follow",
     });
     if (!res.ok) return null;
     const html = (await res.text()).slice(0, 600_000);
@@ -276,7 +276,7 @@ async function headStatus(url: string): Promise<number | null> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), HOP_TIMEOUT);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       method: "HEAD",
       headers: { "user-agent": USER_AGENT },
       signal: ac.signal,
