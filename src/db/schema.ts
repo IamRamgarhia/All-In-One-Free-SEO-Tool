@@ -790,7 +790,9 @@ export const backlinks = sqliteTable("backlinks", {
    * Tools CSV export (free for verified site owners, pairs cleanly with
    * our limited free-tier index).
    */
-  source: text("source", { enum: ["discovered", "manual", "ahrefs_wmt"] })
+  source: text("source", {
+    enum: ["discovered", "manual", "ahrefs_wmt", "bing_wmt"],
+  })
     .notNull()
     .default("discovered"),
   /** Method/strategy: outreach, guest_post, citation, broken_link, etc. */
