@@ -29,7 +29,15 @@ import { FIXABLE } from "./planner";
  * force a decision when someone adds a kind, not to auto-agree with
  * whatever the code happens to do.
  */
-const EXECUTABLE = new Set(["write_title", "write_meta_description", "write_schema"]);
+const EXECUTABLE = new Set([
+  "write_title",
+  "write_meta_description",
+  "write_schema",
+  // Plugin 0.3.0 supplies the attachment ids, and expandImageActions in
+  // run.ts turns one page finding into one action per image. Gated on
+  // the plugin version by capability detection.
+  "write_image_alt",
+]);
 
 /**
  * Kinds the planner may produce that the executor cannot yet perform,
@@ -37,10 +45,7 @@ const EXECUTABLE = new Set(["write_title", "write_meta_description", "write_sche
  * capability detection, so the planner filters it out before it reaches
  * the executor.
  */
-const KNOWN_UNBUILDABLE: Record<string, string> = {
-  write_image_alt:
-    "setAttachmentAlt needs a WordPress attachment id; the bridge can't map a page image to one yet.",
-};
+const KNOWN_UNBUILDABLE: Record<string, string> = {};
 
 describe("plan/execute contract", () => {
   it("every planned kind is either executable or explicitly not yet", () => {

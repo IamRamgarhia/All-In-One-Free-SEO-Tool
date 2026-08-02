@@ -120,12 +120,16 @@ export async function detectCapabilities(
   // recreate the plan-without-execute mismatch this flag exists to
   // prevent — the contract test in contract.test.ts would fail, by
   // design.
+  // Plugin 0.3.0 added `GET /post/{id}/images`, and `expandImageActions`
+  // in run.ts turns one page finding into one action per image. Both
+  // halves now exist, so this is available — but only against a plugin
+  // new enough to have the endpoint.
   set(
     "write_image_alt",
-    false,
-    hasPluginVersion(wpVersion, "0.3.0")
-      ? "The plugin can now list images with their IDs, but the agent still writes one value per page and alt text needs one per image. Use the bulk alt-text tool meanwhile."
-      : "The agent can find images with no alt text but can't write it back — this site's SEO Tool Bridge plugin is older than 0.3.0 and doesn't expose which attachment an image belongs to. Update the plugin.",
+    wpOk && hasPluginVersion(wpVersion, "0.3.0"),
+    wpOk
+      ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Alt text needs 0.3.0 or newer, which added the endpoint that maps an image on a page to its media-library entry. Update the plugin.`
+      : wpError,
   );
 
   // --- Reading real performance data ---------------------------------

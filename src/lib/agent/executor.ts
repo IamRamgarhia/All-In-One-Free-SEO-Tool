@@ -28,7 +28,9 @@ import { agentActions, type AgentAction } from "@/db/schema";
 import {
   findPostIdByUrl,
   getClientWpCreds,
+  getPostImages,
   getPostSeo,
+  setAttachmentAlt,
   setPostSchema,
   setPostSeo,
   type WpCreds,
@@ -173,6 +175,26 @@ Rules:
       return null;
     },
   },
+  write_image_alt: {
+    system: `You write alt text for images. Output ONLY the alt text — no quotes, no explanation, no "image of".
+
+Rules:
+- Under 125 characters. Screen readers cut off around there.
+- Describe what is IN the image, for someone who cannot see it.
+- You are given the filename and the page it appears on, and nothing else. Do NOT invent details you cannot know — no colours, no counts, no facial expressions, no text-in-image. If the filename is uninformative, describe the image's role on the page instead.
+- Never start with "Image of", "Picture of" or "Photo of" — screen readers already announce it as an image.
+- No keyword stuffing. Alt text is an accessibility feature first.`,
+    user: (a, c) =>
+      `Page: ${c.pageUrl}\nPage title: ${c.pageTitle ?? "(unknown)"}\nSite: ${c.siteName}\nImage file: ${a.imageSrc ?? "(unknown)"}\n\nWrite the alt text.`,
+    validate: (v) => {
+      if (v.length > 125)
+        return `The alt text is ${v.length} characters; screen readers cut off around 125.`;
+      if (v.length < 5) return "The alt text is too short to describe anything.";
+      if (/^(image|picture|photo|graphic) of\b/i.test(v))
+        return `Starts with "${v.split(" ").slice(0, 2).join(" ")}" — screen readers already announce it as an image.`;
+      return null;
+    },
+  },
   write_meta_description: {
     system: `You write meta descriptions for search results. Output ONLY the description — no quotes, no explanation.
 
@@ -253,6 +275,74 @@ export async function executeAction(opts: {
       error: "No usable WordPress credentials for this client.",
     });
     return { status: "failed", actionId: id, error: "No WordPress credentials." };
+  }
+
+  // Alt text targets an ATTACHMENT, not the page. `expandImageActions`
+  // in run.ts has already resolved which one, so there's no URL to look
+  // up and no post SEO to read — the whole post-resolution path below
+  // would be answering the wrong question.
+  //
+  // The undo story is clean here: these actions are only created for
+  // images whose alt is empty, re-checked at expansion time, so the
+  // previous value is "" and undoing writes "" back.
+  if (action.kind === "write_image_alt") {
+    if (!action.targetRef) {
+      const id = await insert({
+        status: "failed",
+        error: "No attachment id — this action wasn't expanded properly.",
+      });
+      return { status: "failed", actionId: id, error: "No attachment id." };
+    }
+
+    const attachmentId = Number(action.targetRef);
+    const write = await setAttachmentAlt(creds, attachmentId, opts.newValue);
+    if (!write.ok) {
+      const id = await insert({
+        status: "failed",
+        targetRef: action.targetRef,
+        beforeValue: action.currentValue ?? "",
+        error: write.error ?? "The CMS rejected the alt text.",
+      });
+      return { status: "failed", actionId: id, error: write.error };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: action.targetRef,
+      beforeValue: action.currentValue ?? "",
+      appliedAt: new Date(),
+    });
+
+    // Verified by reading the attachment back — the images endpoint
+    // reports each one's current alt. Costs a request per image, and is
+    // the difference between "we sent it" and "it's there".
+    const postId = await findPostIdByUrl(creds, action.targetUrl);
+    if (postId !== null) {
+      const check = await getPostImages(creds, postId);
+      if (check.ok) {
+        const image = check.images.find((i) => i.attachmentId === attachmentId);
+        if (image && image.alt === opts.newValue) {
+          await db
+            .update(agentActions)
+            .set({
+              status: "verified",
+              verifiedAt: new Date(),
+              verifyNote: "Read back from the media library and confirmed.",
+            })
+            .where(eq(agentActions.id, actionId));
+          return { status: "verified", actionId };
+        }
+      }
+    }
+
+    await db
+      .update(agentActions)
+      .set({
+        verifyNote:
+          "Written, but reading it back didn't confirm it. An SEO or media plugin may be managing alt text separately.",
+      })
+      .where(eq(agentActions.id, actionId));
+    return { status: "applied", actionId };
   }
 
   const postId = await findPostIdByUrl(creds, action.targetUrl);
@@ -392,12 +482,24 @@ export async function revertAction(
   const creds = await getClientWpCreds(action.clientId);
   if (!creds) return { ok: false, error: "No usable WordPress credentials." };
 
-  const write = await writeField(
-    creds,
-    Number(action.targetRef),
-    action.kind,
-    action.beforeValue,
-  );
+  // Alt text branches here too. `targetRef` is an ATTACHMENT id for
+  // these actions, so routing it through writeField — which treats
+  // targetRef as a post id — would write to whatever post happens to
+  // share that number. Undo landing on an unrelated page is worse than
+  // no undo, because the user believes it worked.
+  const write =
+    action.kind === "write_image_alt"
+      ? await setAttachmentAlt(
+          creds,
+          Number(action.targetRef),
+          action.beforeValue,
+        )
+      : await writeField(
+          creds,
+          Number(action.targetRef),
+          action.kind,
+          action.beforeValue,
+        );
   if (!write.ok) return { ok: false, error: write.error ?? "The CMS rejected the undo." };
 
   await db
@@ -455,6 +557,9 @@ async function writeField(
   // exists precisely to stop that, and it was defeated by the executor
   // not implementing what the bridge already did.
   if (kind === "write_schema") return setPostSchema(creds, postId, value);
+  // Alt text never reaches here — it has its own branch in executeAction
+  // and in revertAction, because it targets an attachment rather than a
+  // post and postId would be the wrong id entirely.
   return { ok: false, error: `The agent can't write ${kind} yet.` };
 }
 

@@ -19,7 +19,10 @@ vi.mock("@/db/client", () => ({ db: {} }));
 vi.mock("../wp-bridge", () => ({
   findPostIdByUrl: vi.fn(),
   getClientWpCreds: vi.fn(),
+  getPostImages: vi.fn(),
   getPostSeo: vi.fn(),
+  setAttachmentAlt: vi.fn(),
+  setPostSchema: vi.fn(),
   setPostSeo: vi.fn(),
 }));
 
@@ -146,5 +149,51 @@ describe("draftValue — unknown kinds", () => {
       context,
     );
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("draftValue — alt text", () => {
+  const altAction = {
+    ...action,
+    kind: "write_image_alt" as const,
+    currentValue: "",
+    imageSrc: "https://example.com/wp-content/uploads/handmade-soap-bars.jpg",
+    reason: "This image has no alt text.",
+  };
+
+  it("accepts a plain description", async () => {
+    reply("Bars of handmade soap stacked on a wooden shelf");
+    const r = await draftValue(altAction, context);
+    expect(r.ok).toBe(true);
+  });
+
+  it("refuses one too long for a screen reader", async () => {
+    reply("A".repeat(200));
+    const r = await draftValue(altAction, context);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/125/);
+  });
+
+  it('refuses "Image of…", which screen readers already announce', async () => {
+    // The single most common alt-text mistake. A screen reader says
+    // "image" before reading the text, so "Image of a soap bar" becomes
+    // "image, image of a soap bar".
+    for (const prefix of ["Image of", "Photo of", "Picture of"]) {
+      reply(`${prefix} soap bars on a shelf`);
+      const r = await draftValue(altAction, context);
+      expect(r.ok, prefix).toBe(false);
+    }
+  });
+
+  it("refuses something too short to describe anything", async () => {
+    reply("soap");
+    expect((await draftValue(altAction, context)).ok).toBe(false);
+  });
+
+  it("passes the filename to the model, since that's all we have", async () => {
+    reply("Bars of handmade soap on a wooden shelf");
+    await draftValue(altAction, context);
+    const prompt = callAIResult.mock.calls[0]?.[0] as { user: string };
+    expect(prompt.user).toContain("handmade-soap-bars.jpg");
   });
 });

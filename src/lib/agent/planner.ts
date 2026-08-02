@@ -43,6 +43,18 @@ export type PlannedAction = {
   /** The audit issue this came from, when it came from one. */
   issueId?: number;
   currentValue?: string | null;
+  /**
+   * The CMS's own id for the thing being edited, when it isn't the page.
+   *
+   * Alt text is the reason this exists. A finding says "this page has
+   * images with no alt text", but alt text is written per attachment,
+   * not per page — so one finding expands into one action per image,
+   * each carrying the attachment id it will write to. See
+   * `expandImageActions` in run.ts.
+   */
+  targetRef?: string;
+  /** For alt-text actions: the image being described. */
+  imageSrc?: string;
 };
 
 export type PlannableKind =

@@ -25,7 +25,12 @@ import {
 import { logActivity } from "../activity";
 import { getAgentSettings, willAutoApply, type AgentSettings } from "./autonomy";
 import { detectCapabilities, has } from "./capabilities";
-import { planForClient, type PlanOutcome } from "./planner";
+import {
+  planForClient,
+  type PlanOutcome,
+  type PlannedAction,
+} from "./planner";
+import { findPostIdByUrl, getClientWpCreds, getPostImages } from "../wp-bridge";
 import { draftValue, executeAction } from "./executor";
 
 export type AgentRunResult = {
@@ -80,6 +85,17 @@ export async function runAgentForClient(opts: {
       capabilities,
       settings,
     });
+
+    // Alt text is written per attachment, not per page, so one finding
+    // becomes one action per image. Done here rather than in the planner
+    // because it needs CMS credentials and a network call, and the
+    // planner is deliberately pure — it reads findings and decides, it
+    // doesn't talk to anyone's website.
+    plan.actions = await expandImageActions(
+      opts.clientId,
+      plan.actions,
+      settings.maxActionsPerRun,
+    );
 
     let applied = 0;
     let queued = 0;
@@ -426,4 +442,70 @@ export async function runAgentForAllClients(
     );
   }
   return results;
+}
+
+/**
+ * Turn "this page has images with no alt text" into one action per image.
+ *
+ * The audit reports per page; WordPress writes alt text per attachment.
+ * Without this expansion the agent would have one action, one value, and
+ * no way to say which of five images it applied to.
+ *
+ * Kept out of the planner on purpose. The planner reads findings and
+ * decides — it never touches anyone's website. This needs credentials
+ * and a network call per page, so it belongs on the execution side of
+ * that line.
+ *
+ * Bounded by the same per-run cap as everything else: a gallery page
+ * with sixty un-alt-texted images must not turn one planned action into
+ * sixty writes and blow through the blast-radius limit the user set.
+ */
+async function expandImageActions(
+  clientId: number,
+  actions: PlannedAction[],
+  maxActions: number,
+): Promise<PlannedAction[]> {
+  const imageActions = actions.filter((a) => a.kind === "write_image_alt");
+  if (imageActions.length === 0) return actions;
+
+  const others = actions.filter((a) => a.kind !== "write_image_alt");
+  const creds = await getClientWpCreds(clientId);
+  // No credentials means capability detection should already have
+  // filtered these out. Drop them rather than carry actions that would
+  // certainly fail.
+  if (!creds) return others;
+
+  const expanded: PlannedAction[] = [];
+  const budget = Math.max(0, maxActions - others.length);
+
+  for (const action of imageActions) {
+    if (expanded.length >= budget) break;
+
+    const postId = await findPostIdByUrl(creds, action.targetUrl);
+    if (postId === null) continue;
+
+    const result = await getPostImages(creds, postId);
+    if (!result.ok) continue;
+
+    for (const image of result.images) {
+      if (expanded.length >= budget) break;
+      // Only images we can actually reach, and only ones that need it.
+      // Re-checking `alt` here rather than trusting the audit matters:
+      // the crawl may be hours old and someone may have fixed these by
+      // hand this morning.
+      if (!image.fixable || image.attachmentId === null) continue;
+      if (image.alt.trim().length > 0) continue;
+
+      expanded.push({
+        ...action,
+        targetRef: String(image.attachmentId),
+        imageSrc: image.src,
+        currentValue: "",
+        reason:
+          "This image has no alt text, so it's invisible to screen readers and to image search.",
+      });
+    }
+  }
+
+  return [...others, ...expanded];
 }
