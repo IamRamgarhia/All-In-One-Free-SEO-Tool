@@ -2,8 +2,8 @@
 /**
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/SEO-Tool
- * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.2.1
+ * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, internal links, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
+ * Version: 0.3.0
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('STB_VERSION', '0.2.1');
+define('STB_VERSION', '0.3.0');
 define('STB_OPTION_KEY', 'stb_connection_key');
 define('STB_OPTION_REVISIONS', 'stb_revisions');
 define('STB_REST_NAMESPACE', 'seo-tool/v1');
@@ -109,13 +109,17 @@ function stb_render_admin_page(): void
             <li>Read + write the post / page / product title</li>
             <li>Read + write the meta description (Yoast / Rank Math / All in One SEO compatible — writes to all three so it sticks regardless of which is active)</li>
             <li>Read + write image alt text in the Media Library</li>
-            <li>Inject JSON-LD schema markup into &lt;head&gt; on singular pages</li>
+            <li>List the images on a post with their attachment IDs — this is what lets the SEO Tool actually fix missing alt text, rather than only report it</li>
+            <li>Read + write JSON-LD schema markup, injected into &lt;head&gt; on singular pages</li>
+            <li>Insert internal links into post content, first match only, never inside an existing link, heading or code block</li>
             <li>List + look up posts by URL (used by the SEO Tool's one-click fix flow)</li>
             <li>Create new posts (draft or published) — used by the daily AI agent</li>
-            <li>Full revision log with one-click undo on every change</li>
+            <li>Full revision log with one-click undo on every change, including a whole-body restore for content edits</li>
         </ul>
         <p style="color: #666; font-size: 12px;">
-            Redirects + robots.txt management are <em>coming in 0.3.0</em>.
+            Redirects + robots.txt management are not here yet. Internal linking
+            edits post content — if you'd rather it didn't, leave the SEO Tool's
+            autonomy on &ldquo;suggest only&rdquo; and approve each change yourself.
         </p>
 
         <h2>Recent changes</h2>
@@ -183,9 +187,49 @@ add_action('rest_api_init', function () {
         'args' => ['id' => ['validate_callback' => 'is_numeric']],
     ]);
 
+    // GET added in 0.3.0. Without a read, the SEO Tool could only write
+    // schema to pages that had none — writing to a page with existing
+    // markup would destroy hand-written structured data with no way back,
+    // so the tool refused to try. Reading first makes updates safe.
     register_rest_route(STB_REST_NAMESPACE, '/post/(?P<id>\d+)/schema', [
+        [
+            'methods'  => 'GET',
+            'callback' => 'stb_rest_get_schema',
+            'permission_callback' => 'stb_check_key',
+            'args' => ['id' => ['validate_callback' => 'is_numeric']],
+        ],
+        [
+            'methods'  => 'POST',
+            'callback' => 'stb_rest_set_schema',
+            'permission_callback' => 'stb_check_key',
+            'args' => ['id' => ['validate_callback' => 'is_numeric']],
+        ],
+    ]);
+
+    // 0.3.0 — the images on a post, WITH their attachment ids.
+    //
+    // /attachment/{id}/alt has always existed, but nothing could work out
+    // which attachment an image on a page belonged to: an audit finding
+    // gives a page URL and an <img src>, not an id. So the SEO Tool could
+    // find images missing alt text and never fix one. This closes that.
+    register_rest_route(STB_REST_NAMESPACE, '/post/(?P<id>\d+)/images', [
+        'methods'  => 'GET',
+        'callback' => 'stb_rest_list_post_images',
+        'permission_callback' => 'stb_check_key',
+        'args' => ['id' => ['validate_callback' => 'is_numeric']],
+    ]);
+
+    // 0.3.0 — insert internal links into post content.
+    //
+    // This is the only endpoint that edits the post BODY rather than a
+    // metadata field, which makes it a different risk class: a bad write
+    // damages the article itself. Three guards, all in the handler:
+    // anchors are matched only in visible text (never inside an existing
+    // tag or link), the first occurrence only, and the whole prior
+    // post_content is stored as the revision so undo is exact.
+    register_rest_route(STB_REST_NAMESPACE, '/post/(?P<id>\d+)/links', [
         'methods'  => 'POST',
-        'callback' => 'stb_rest_set_schema',
+        'callback' => 'stb_rest_insert_links',
         'permission_callback' => 'stb_check_key',
         'args' => ['id' => ['validate_callback' => 'is_numeric']],
     ]);
@@ -405,6 +449,287 @@ function stb_rest_set_schema(WP_REST_Request $req): WP_REST_Response
     return new WP_REST_Response(['ok' => true, 'rev_id' => $rev_id]);
 }
 
+/**
+ * Read the JSON-LD we previously wrote for a post.
+ *
+ * Returns only markup this plugin manages — schema output by Yoast,
+ * Rank Math or a theme is deliberately NOT reported, because the SEO
+ * Tool uses this to decide whether it may overwrite, and claiming
+ * ownership of another plugin's markup would let it destroy that.
+ *
+ * An empty string means "we have written none", not "this page has
+ * none". The distinction matters and the field name says so.
+ */
+function stb_rest_get_schema(WP_REST_Request $req): WP_REST_Response
+{
+    $id = (int)$req['id'];
+    if (!get_post($id)) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'No such post'], 404);
+    }
+    return new WP_REST_Response([
+        'ok' => true,
+        'managedJsonLd' => (string)get_post_meta($id, '_stb_schema_jsonld', true),
+    ]);
+}
+
+/**
+ * Every image on a post, with the attachment id needed to set alt text.
+ *
+ * Two sources, because neither is complete on its own: the media library
+ * knows about attachments uploaded to the post, and the content itself
+ * knows about images inserted from elsewhere. WordPress marks the latter
+ * with a `wp-image-{id}` class, which is how we recover the id for an
+ * image the post doesn't "own".
+ *
+ * Images we can't resolve to an attachment are returned with a null id
+ * and reported honestly rather than dropped — the SEO Tool shows them as
+ * "found, can't fix automatically" instead of pretending they don't
+ * exist.
+ */
+function stb_rest_list_post_images(WP_REST_Request $req): WP_REST_Response
+{
+    $id = (int)$req['id'];
+    $post = get_post($id);
+    if (!$post) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'No such post'], 404);
+    }
+
+    $images = [];
+    $seen = [];
+
+    $add = function (?int $att_id, string $src) use (&$images, &$seen) {
+        $key = $att_id ? "id:$att_id" : "src:$src";
+        if (isset($seen[$key])) {
+            return;
+        }
+        $seen[$key] = true;
+        $images[] = [
+            'attachmentId' => $att_id,
+            'src' => $src,
+            'alt' => $att_id
+                ? (string)get_post_meta($att_id, '_wp_attachment_image_alt', true)
+                : '',
+            // The tool needs to know an id-less image is unfixable rather
+            // than merely un-alt-texted.
+            'fixable' => $att_id !== null,
+        ];
+    };
+
+    // Featured image first — it's the one most likely to be missing alt
+    // text and the most visible when it is.
+    $thumb_id = (int)get_post_thumbnail_id($id);
+    if ($thumb_id > 0) {
+        $add($thumb_id, (string)wp_get_attachment_url($thumb_id));
+    }
+
+    // Attachments uploaded to this post.
+    foreach (get_attached_media('image', $id) as $att) {
+        $add((int)$att->ID, (string)wp_get_attachment_url($att->ID));
+    }
+
+    // Images in the content, including ones from the media library that
+    // were never "attached" to this post.
+    if (preg_match_all('/<img[^>]+>/i', (string)$post->post_content, $tags)) {
+        foreach ($tags[0] as $tag) {
+            if (!preg_match('/\ssrc=["\']([^"\']+)["\']/i', $tag, $m)) {
+                continue;
+            }
+            $src = $m[1];
+            $att_id = null;
+            if (preg_match('/wp-image-(\d+)/', $tag, $cm)) {
+                $att_id = (int)$cm[1];
+            } else {
+                $guess = attachment_url_to_postid($src);
+                if ($guess > 0) {
+                    $att_id = $guess;
+                }
+            }
+            $add($att_id, $src);
+        }
+    }
+
+    return new WP_REST_Response(['ok' => true, 'images' => $images]);
+}
+
+/**
+ * Insert internal links into a post's body.
+ *
+ * The only endpoint here that edits post_content rather than a metadata
+ * field, and it is treated accordingly. A bad write damages the article,
+ * not a tag — so:
+ *
+ *  - Anchors are matched in VISIBLE TEXT ONLY. The content is split on
+ *    tags and only the text between them is searched, so an anchor can
+ *    never be matched inside an attribute, a URL, a script, or the text
+ *    of an existing link. Naive str_replace on HTML would happily turn
+ *    `<a href="/x">pricing</a>` into nested anchors and corrupt the
+ *    markup.
+ *  - First occurrence only, once per anchor. Linking every mention of a
+ *    word is the behaviour that gets auto-linking plugins uninstalled.
+ *  - Skips anchors already linked anywhere in the post, so re-running
+ *    can't stack links on the same phrase.
+ *  - The ENTIRE previous post_content is stored as the revision, so undo
+ *    restores the article exactly rather than trying to unpick edits.
+ */
+function stb_rest_insert_links(WP_REST_Request $req): WP_REST_Response
+{
+    $id = (int)$req['id'];
+    $post = get_post($id);
+    if (!$post) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'No such post'], 404);
+    }
+
+    $body = $req->get_json_params() ?: [];
+    $links = isset($body['links']) && is_array($body['links']) ? $body['links'] : [];
+    if (!$links) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'links required'], 400);
+    }
+    // A cap the caller cannot exceed. Ten new links in one pass is
+    // already a lot for one article; more reads as spam to a person and
+    // to Google.
+    if (count($links) > 10) {
+        $links = array_slice($links, 0, 10);
+    }
+
+    $original = (string)$post->post_content;
+    $content = $original;
+    $inserted = [];
+    $skipped = [];
+
+    foreach ($links as $link) {
+        $anchor = trim((string)($link['anchor'] ?? ''));
+        $url = trim((string)($link['url'] ?? ''));
+        if ($anchor === '' || $url === '') {
+            continue;
+        }
+        // Only same-site URLs. This endpoint exists for internal linking;
+        // letting it write arbitrary external hrefs would turn a
+        // connection key into a link-injection vector.
+        if (!stb_is_internal_url($url)) {
+            $skipped[] = ['anchor' => $anchor, 'reason' => 'not an internal URL'];
+            continue;
+        }
+        if (mb_strlen($anchor) < 3 || mb_strlen($anchor) > 80) {
+            $skipped[] = ['anchor' => $anchor, 'reason' => 'anchor length'];
+            continue;
+        }
+        // Already linked somewhere in the post — leave it alone.
+        if (stripos($content, '>' . $anchor . '<') !== false
+            || preg_match('/<a[^>]*>[^<]*' . preg_quote($anchor, '/') . '/i', $content)) {
+            $skipped[] = ['anchor' => $anchor, 'reason' => 'already linked'];
+            continue;
+        }
+
+        $replaced = stb_link_first_text_occurrence($content, $anchor, $url);
+        if ($replaced === null) {
+            $skipped[] = ['anchor' => $anchor, 'reason' => 'anchor not found in visible text'];
+            continue;
+        }
+        $content = $replaced;
+        $inserted[] = ['anchor' => $anchor, 'url' => $url];
+    }
+
+    if (!$inserted) {
+        return new WP_REST_Response([
+            'ok' => true,
+            'inserted' => [],
+            'skipped' => $skipped,
+            'changed' => false,
+        ]);
+    }
+
+    $res = wp_update_post(['ID' => $id, 'post_content' => $content], true);
+    if (is_wp_error($res)) {
+        return new WP_REST_Response(
+            ['ok' => false, 'error' => $res->get_error_message()],
+            500,
+        );
+    }
+
+    // Whole-body revision. Undo restores the article exactly.
+    $rev_id = stb_record_revision('content', "post:$id", $original, $content);
+
+    return new WP_REST_Response([
+        'ok' => true,
+        'inserted' => $inserted,
+        'skipped' => $skipped,
+        'changed' => true,
+        'rev_id' => $rev_id,
+    ]);
+}
+
+/** Same-host check. Relative paths are internal by definition. */
+function stb_is_internal_url(string $url): bool
+{
+    if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+        return true;
+    }
+    $host = parse_url($url, PHP_URL_HOST);
+    if (!$host) {
+        return false;
+    }
+    $home = parse_url(home_url(), PHP_URL_HOST);
+    return strtolower($host) === strtolower((string)$home);
+}
+
+/**
+ * Link the first occurrence of $anchor that appears in visible text.
+ *
+ * Walks the content splitting on tags, so only the text BETWEEN tags is
+ * eligible. Skips anything inside <a>, <script>, <style>, <code>, <pre>
+ * — linking a word inside a code sample is worse than not linking it.
+ *
+ * Returns the new content, or null if the anchor never appears in
+ * eligible text.
+ */
+function stb_link_first_text_occurrence(string $content, string $anchor, string $url): ?string
+{
+    $parts = preg_split('/(<[^>]+>)/', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if ($parts === false) {
+        return null;
+    }
+
+    $skip_depth = 0;
+    $skip_tags = ['a', 'script', 'style', 'code', 'pre', 'h1', 'h2', 'h3'];
+
+    foreach ($parts as $i => $part) {
+        if ($part === '') {
+            continue;
+        }
+        if ($part[0] === '<') {
+            if (preg_match('/^<\s*(\/?)\s*([a-z0-9]+)/i', $part, $m)) {
+                $tag = strtolower($m[2]);
+                if (in_array($tag, $skip_tags, true)) {
+                    $skip_depth += $m[1] === '/' ? -1 : 1;
+                    if ($skip_depth < 0) {
+                        $skip_depth = 0;
+                    }
+                }
+            }
+            continue;
+        }
+        if ($skip_depth > 0) {
+            continue;
+        }
+
+        $pos = mb_stripos($part, $anchor);
+        if ($pos === false) {
+            continue;
+        }
+
+        // Preserve the casing actually used in the text.
+        $matched = mb_substr($part, $pos, mb_strlen($anchor));
+        $replacement = '<a href="' . esc_url($url) . '">' . esc_html($matched) . '</a>';
+        $parts[$i] = mb_substr($part, 0, $pos)
+            . $replacement
+            . mb_substr($part, $pos + mb_strlen($anchor));
+
+        return implode('', $parts);
+    }
+
+    return null;
+}
+
 // Hook our schema into <head> on relevant pages
 add_action('wp_head', function () {
     if (is_singular()) {
@@ -492,6 +817,23 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
             break;
         case 'schema':
             update_post_meta($object_id, '_stb_schema_jsonld', (string)$previous);
+            break;
+        case 'content':
+            // Whole-body restore. The link inserter stores the entire
+            // previous post_content rather than a diff precisely so this
+            // is a straight put-it-back, with no attempt to unpick
+            // individual edits — the article returns to exactly what it
+            // was, including any hand edits made in the same revision.
+            $restored = wp_update_post(
+                ['ID' => $object_id, 'post_content' => (string)$previous],
+                true,
+            );
+            if (is_wp_error($restored)) {
+                return new WP_REST_Response(
+                    ['ok' => false, 'error' => $restored->get_error_message()],
+                    500,
+                );
+            }
             break;
         default:
             return new WP_REST_Response(['ok' => false, 'error' => 'Unsupported field'], 400);

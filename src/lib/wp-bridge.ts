@@ -278,3 +278,134 @@ export async function findPostIdByUrl(
     return null;
   }
 }
+
+// =====================================================================
+// Plugin 0.3.0 — images, schema read, internal links
+// =====================================================================
+
+export type WpPostImage = {
+  attachmentId: number | null;
+  src: string;
+  alt: string;
+  /** False when we can't resolve an attachment id — alt text is unfixable. */
+  fixable: boolean;
+};
+
+/**
+ * Images on a post, with the attachment ids needed to write alt text.
+ *
+ * The missing link, literally. `setAttachmentAlt` has always existed but
+ * takes an attachment id, and an audit finding gives a page URL and an
+ * `<img src>`. Nothing mapped one to the other, so the agent could find
+ * images with no alt text and never fix a single one.
+ *
+ * Returns [] against a plugin older than 0.3.0 rather than throwing —
+ * the endpoint simply won't exist, and a user who hasn't updated should
+ * see "can't do this yet", not an error.
+ */
+export async function getPostImages(
+  creds: WpCreds,
+  postId: number,
+): Promise<{ ok: true; images: WpPostImage[] } | { ok: false; error: string }> {
+  type R = { ok?: boolean; images?: WpPostImage[] };
+  const r = await wpFetch<R>(creds, `/post/${postId}/images`, { method: "GET" });
+  if (!r.ok) {
+    if (r.status === 404) {
+      return {
+        ok: false,
+        error:
+          "This site's SEO Tool Bridge plugin is older than 0.3.0 and can't list images. Update the plugin to let the agent fix alt text.",
+      };
+    }
+    return { ok: false, error: r.error };
+  }
+  return { ok: true, images: r.data.images ?? [] };
+}
+
+/**
+ * The JSON-LD this plugin previously wrote for a post.
+ *
+ * Only markup the plugin manages — schema from Yoast, Rank Math or a
+ * theme is deliberately not reported, because this is used to decide
+ * whether the agent may overwrite. Claiming ownership of another
+ * plugin's markup would let the agent destroy it.
+ */
+export async function getPostSchema(
+  creds: WpCreds,
+  postId: number,
+): Promise<{ ok: true; managedJsonLd: string } | { ok: false; error: string }> {
+  type R = { ok?: boolean; managedJsonLd?: string };
+  const r = await wpFetch<R>(creds, `/post/${postId}/schema`, { method: "GET" });
+  if (!r.ok) {
+    if (r.status === 404) {
+      return {
+        ok: false,
+        error:
+          "This site's plugin is older than 0.3.0 and can't report existing schema.",
+      };
+    }
+    return { ok: false, error: r.error };
+  }
+  return { ok: true, managedJsonLd: r.data.managedJsonLd ?? "" };
+}
+
+export type InsertedLink = { anchor: string; url: string };
+export type SkippedLink = { anchor: string; reason: string };
+
+/**
+ * Insert internal links into a post's body.
+ *
+ * The only write in this file that touches post CONTENT rather than a
+ * metadata field, which is a different risk class: a bad write damages
+ * the article, not a tag. The plugin enforces the guards (visible text
+ * only, first occurrence, never inside an existing link or heading or
+ * code block, same-site URLs only) and stores the entire previous body
+ * so undo is exact.
+ *
+ * `changed: false` with a populated `skipped` is a normal outcome — it
+ * means every anchor was already linked or wasn't found in visible text.
+ * That is information, not failure.
+ */
+export async function insertInternalLinks(
+  creds: WpCreds,
+  postId: number,
+  links: { anchor: string; url: string }[],
+): Promise<
+  | {
+      ok: true;
+      changed: boolean;
+      inserted: InsertedLink[];
+      skipped: SkippedLink[];
+      revId?: number;
+    }
+  | { ok: false; error: string }
+> {
+  type R = {
+    ok?: boolean;
+    changed?: boolean;
+    inserted?: InsertedLink[];
+    skipped?: SkippedLink[];
+    rev_id?: number;
+  };
+  const r = await wpFetch<R>(creds, `/post/${postId}/links`, {
+    method: "POST",
+    body: JSON.stringify({ links }),
+  });
+  if (!r.ok) {
+    if (r.status === 404) {
+      return {
+        ok: false,
+        error:
+          "This site's SEO Tool Bridge plugin is older than 0.3.0 and can't insert links. Update the plugin first.",
+      };
+    }
+    return { ok: false, error: r.error };
+  }
+  return {
+    ok: true,
+    changed: Boolean(r.data.changed),
+    inserted: r.data.inserted ?? [],
+    skipped: r.data.skipped ?? [],
+    revId: r.data.rev_id,
+  };
+}

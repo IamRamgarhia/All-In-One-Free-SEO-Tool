@@ -78,6 +78,7 @@ export async function detectCapabilities(
   // being broken rather than the connection being stale.
   let wpOk = false;
   let wpError: string | undefined;
+  let wpVersion: string | null = null;
   if (client?.wpEndpoint) {
     const creds = await getClientWpCreds(clientId);
     if (!creds) {
@@ -86,6 +87,7 @@ export async function detectCapabilities(
     } else {
       const ping = await pingWpBridge(creds);
       wpOk = ping.ok;
+      wpVersion = ping.version ?? null;
       if (!ping.ok) {
         wpError = `The WordPress plugin didn't respond (${ping.error ?? "no reason given"}). Check the site is up and the key is still valid.`;
       }
@@ -110,10 +112,20 @@ export async function detectCapabilities(
   // WordPress client and the executor failed all of it. Capability
   // detection exists to prevent exactly that, and a blanket flag
   // defeated it.
+  //
+  // Plugin 0.3.0 added `GET /post/{id}/images`, which finally supplies
+  // the attachment ids. What's still missing is on our side: the
+  // executor writes ONE value to ONE post, and alt text is N images per
+  // page. That needs a per-image action model, and half-wiring it would
+  // recreate the plan-without-execute mismatch this flag exists to
+  // prevent — the contract test in contract.test.ts would fail, by
+  // design.
   set(
     "write_image_alt",
     false,
-    "The agent can find images with no alt text but can't write it back yet — the WordPress plugin doesn't expose which attachment an image on a page belongs to. Use the bulk alt-text tool meanwhile.",
+    hasPluginVersion(wpVersion, "0.3.0")
+      ? "The plugin can now list images with their IDs, but the agent still writes one value per page and alt text needs one per image. Use the bulk alt-text tool meanwhile."
+      : "The agent can find images with no alt text but can't write it back — this site's SEO Tool Bridge plugin is older than 0.3.0 and doesn't expose which attachment an image belongs to. Update the plugin.",
   );
 
   // --- Reading real performance data ---------------------------------
@@ -153,4 +165,37 @@ export async function detectCapabilities(
 
 export function has(caps: ClientCapabilities, id: CapabilityId): boolean {
   return caps.byId[id]?.available === true;
+}
+
+/**
+ * Is the site's bridge plugin at least this version?
+ *
+ * Plain numeric comparison on dot-separated parts. Returns false when
+ * the version is unknown, so a missing or unparseable version is
+ * treated as "too old" — the safe direction. Claiming a capability the
+ * plugin doesn't have produces a failed write on someone's live site;
+ * claiming one it does have produces a message telling them to update,
+ * which is merely annoying.
+ */
+export function hasPluginVersion(
+  actual: string | null | undefined,
+  required: string,
+): boolean {
+  if (!actual) return false;
+  const parse = (v: string) =>
+    v
+      .trim()
+      .split(".")
+      .map((p) => Number.parseInt(p, 10));
+  const a = parse(actual);
+  const b = parse(required);
+  if (a.some(Number.isNaN)) return false;
+
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x > y) return true;
+    if (x < y) return false;
+  }
+  return true;
 }
