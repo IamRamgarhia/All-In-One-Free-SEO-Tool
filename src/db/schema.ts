@@ -2172,3 +2172,57 @@ export const graderLeads = sqliteTable("grader_leads", {
   contactedAt: integer("contacted_at", { mode: "timestamp" }),
 });
 export type GraderLead = typeof graderLeads.$inferSelect;
+
+/**
+ * A proposal — the document that turns findings into signed work.
+ *
+ * Prospect details are denormalised on purpose. A proposal is something
+ * sent on a date, and it should still say what it said even if the
+ * client is later renamed or removed.
+ *
+ * Scope lines are derived from real audit findings; pricing is typed by
+ * the user. Nothing here forecasts traffic, rankings or revenue — see
+ * 0060_proposals.sql for why that restraint is the design rather than an
+ * omission.
+ */
+export const proposals = sqliteTable("proposals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
+  leadId: integer("lead_id").references(() => graderLeads.id, {
+    onDelete: "set null",
+  }),
+  prospectName: text("prospect_name").notNull(),
+  prospectUrl: text("prospect_url"),
+  prospectEmail: text("prospect_email"),
+  title: text("title").notNull(),
+  intro: text("intro"),
+  scopeJson: text("scope_json", { mode: "json" }).$type<
+    { label: string; detail: string; findings: number }[]
+  >(),
+  pricingJson: text("pricing_json", { mode: "json" }).$type<
+    { label: string; detail: string; amount: number }[]
+  >(),
+  currency: text("currency").notNull().default("USD"),
+  terms: text("terms"),
+  /** The audit this was built from, so the document can cite its basis. */
+  auditId: integer("audit_id").references(() => audits.id, {
+    onDelete: "set null",
+  }),
+  basedOnScore: integer("based_on_score"),
+  basedOnAt: integer("based_on_at", { mode: "timestamp" }),
+  status: text("status", {
+    enum: ["draft", "sent", "accepted", "declined"],
+  })
+    .notNull()
+    .default("draft"),
+  sentAt: integer("sent_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type Proposal = typeof proposals.$inferSelect;

@@ -123,6 +123,33 @@ jobs:
           node scripts/migrate.cjs
           pnpm exec tsx scripts/agent-check.ts
 
+      # A proposal is the one document a prospect keeps and holds you to.
+      # The failure that matters isn't a crash — it's a scope line for
+      # work the site doesn't need, or a promise nothing supports. Both
+      # read as professional. This asserts the scope never claims more
+      # findings than the audit produced, and that pricing starts empty.
+      - name: Proposal checks
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/proposal.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          node -e "
+            const D=require('better-sqlite3');
+            const db=new D(process.env.SEO_DB_PATH);
+            const c=db.prepare('INSERT INTO clients (name, url) VALUES (?, ?)')
+              .run('CI Test Client','https://example.com');
+            const a=db.prepare(
+              'INSERT INTO audits (client_id, status, score, issues_count, completed_at) VALUES (?,?,?,?,unixepoch())'
+            ).run(c.lastInsertRowid,'completed',42,2);
+            const ins=db.prepare(
+              'INSERT INTO audit_issues (audit_id, severity, type, url, message) VALUES (?,?,?,?,?)'
+            );
+            ins.run(a.lastInsertRowid,'high','missing_title','https://example.com/','No title tag');
+            ins.run(a.lastInsertRowid,'medium','missing_schema','https://example.com/','No structured data');
+            db.close();
+          "
+          pnpm exec tsx scripts/proposal-check.ts
+
       # The public grader is the only endpoint anyone on the internet can
       # reach AND that makes the server fetch a URL of their choosing.
       # Both properties that make that safe — refusing internal addresses
