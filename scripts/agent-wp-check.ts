@@ -463,7 +463,10 @@ function finish() {
       "CMS and the model. Does NOT prove the WordPress PHP or any real model\n" +
       "behaves as assumed — both still need the real thing.",
   );
-  process.exit(fail > 0 ? 1 : 0);
+  // See wp-bridge-check.ts: exiting mid-socket-close trips a libuv
+  // assertion on Windows and reports a crash for a run that passed.
+  process.exitCode = fail > 0 ? 1 : 0;
+  setTimeout(() => process.exit(process.exitCode ?? 0), 2000).unref();
 }
 
 main().catch((e) => {

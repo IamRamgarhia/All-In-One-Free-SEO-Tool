@@ -126,7 +126,14 @@ async function main() {
 function finish() {
   console.log("\n" + "=".repeat(70));
   console.log(`${pass} passed, ${fail} failed`);
-  process.exit(fail > 0 ? 1 : 0);
+  // Set the code and let Node drain rather than calling process.exit().
+  //
+  // On Windows, exiting while fetch's keep-alive sockets are still
+  // closing trips a libuv assertion, and the process dies with
+  // 0xC0000409 — so a run where every assertion passed reported a crash
+  // to whatever was reading the exit code. A check that lies about its
+  // own result is the one thing this file exists to prevent.
+  process.exitCode = fail > 0 ? 1 : 0;
 }
 
 main().catch((e) => {

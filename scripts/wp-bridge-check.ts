@@ -330,7 +330,14 @@ function finish() {
   console.log(
     "\nProves our client and action model. Does NOT prove the PHP behaves\nas documented — that needs a real WordPress.",
   );
-  process.exit(fail > 0 ? 1 : 0);
+  // Set the code and let Node drain. Calling process.exit() while
+  // fetch's keep-alive sockets are still closing trips a libuv assertion
+  // on Windows, and the process dies with 0xC0000409 — so a run where
+  // every assertion passed reports a crash to whatever reads the exit
+  // code. The unref'd timer is the backstop: it can't hold the loop open
+  // by itself, but it fires if something else is still holding it.
+  process.exitCode = fail > 0 ? 1 : 0;
+  setTimeout(() => process.exit(process.exitCode ?? 0), 2000).unref();
 }
 
 main().catch((e) => {
