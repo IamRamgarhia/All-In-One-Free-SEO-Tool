@@ -186,6 +186,11 @@ export async function runAgentForClient(opts: {
 
       if (outcome.status === "verified" || outcome.status === "applied") applied++;
       else if (outcome.status === "queued" || outcome.status === "proposed") queued++;
+      // "Nothing to do here after all" is not a failure. The page was
+      // left alone on purpose — usually the phrase was already linked —
+      // and reporting that as failed would inflate the failure count
+      // with correct behaviour, which is how people learn to ignore it.
+      else if (outcome.status === "skipped") skipped++;
       else failed++;
     }
 

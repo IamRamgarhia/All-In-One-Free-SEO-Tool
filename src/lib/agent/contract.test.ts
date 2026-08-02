@@ -51,6 +51,10 @@ const EXECUTABLE = new Set([
   // run.ts turns one page finding into one action per image. Gated on
   // the plugin version by capability detection.
   "write_image_alt",
+  // Not driven by an audit finding — an orphan page is invisible to any
+  // per-page check, because the problem is the absence of a link on a
+  // different page. planInternalLinks in planner.ts produces these.
+  "write_internal_links",
 ]);
 
 /**
@@ -130,6 +134,16 @@ describe("plan/execute contract", () => {
           `field, and be reported to the user as fixed.`,
       ).toBe(true);
     }
+  });
+
+  it("internal links are executable and need a value drafted", () => {
+    // The pair that has to stay in step. A kind the planner can emit
+    // but the executor can't perform produces a run that looks busy and
+    // changes nothing; a kind that skips drafting gets executed with an
+    // empty string, which is how alt text and schema came to report
+    // themselves as fixed while writing nothing.
+    expect(EXECUTABLE.has("write_internal_links")).toBe(true);
+    expect(requiresDraft("write_internal_links")).toBe(true);
   });
 
   it("schema is a judgement call, not a safe auto-apply", () => {

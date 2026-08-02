@@ -505,3 +505,46 @@ export async function insertInternalLinks(
     revId: r.data.rev_id,
   };
 }
+
+/**
+ * Ask WordPress to undo one of its own recorded changes.
+ *
+ * Every other undo in this codebase replays a value we saved before
+ * writing. That can't work for an internal-link insertion: the previous
+ * value is the whole article body, and keeping a copy of every edited
+ * article just in case someone presses undo is the wrong trade. The
+ * plugin already stores it, so this hands the job back.
+ *
+ * The plugin's revision log is capped at the most recent 500 changes, so
+ * a genuinely old revision can fall off the end. That is reported as
+ * what it is rather than as a failure the user could act on — there is
+ * nothing to retry.
+ */
+export async function undoRevision(
+  creds: WpCreds,
+  revId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await wpFetch<{ ok?: boolean; undone_rev_id?: number }>(
+    creds,
+    `/undo/${revId}`,
+    { method: "POST" },
+  );
+  if (!r.ok) {
+    if (r.status === 404) {
+      return {
+        ok: false,
+        error:
+          "WordPress no longer has a record of that change, so it can't be undone automatically. The plugin keeps the last 500 changes. You can restore the page from its WordPress revision history instead.",
+      };
+    }
+    if (r.status === 422) {
+      return {
+        ok: false,
+        error:
+          "WordPress couldn't tell which page that change belongs to, so it refused to undo it rather than risk editing the wrong one.",
+      };
+    }
+    return { ok: false, error: r.error };
+  }
+  return { ok: true };
+}

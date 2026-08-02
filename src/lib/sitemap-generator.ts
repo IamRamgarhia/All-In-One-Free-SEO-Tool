@@ -19,6 +19,21 @@ export type CrawlOptions = {
   excludePatterns?: RegExp[];
   /** Respect robots.txt disallow rules. Default true. */
   respectRobots?: boolean;
+  /**
+   * Extra URLs to crawl, queued alongside the start URL.
+   *
+   * A link-following crawl can only reach pages something links to,
+   * which makes it structurally blind to exactly the pages worth
+   * knowing about: an orphan has no inbound links, so it is never
+   * discovered, so it never appears in the results, so no analysis
+   * built on those results can report it. Feeding the sitemap in as
+   * seeds is what makes orphans findable at all.
+   *
+   * Seeded at depth 0, deduplicated against the start URL and each
+   * other, and still subject to maxPages, robots.txt and the host
+   * check — a seed can't take the crawl off-site.
+   */
+  seedUrls?: string[];
 };
 
 export type CrawlPage = {
@@ -71,6 +86,23 @@ export async function crawlSite(opts: CrawlOptions): Promise<{
   const queue: { url: string; depth: number }[] = [
     { url: startUrl.toString(), depth: 0 },
   ];
+
+  // Seeds join the queue at depth 0. Same-host only: a sitemap is
+  // caller-supplied data and a hostile or simply wrong one must not be
+  // able to send the crawler somewhere else.
+  for (const seed of opts.seedUrls ?? []) {
+    let u: URL;
+    try {
+      u = new URL(seed, startUrl);
+    } catch {
+      continue;
+    }
+    if (u.hostname !== host) continue;
+    const norm = normalize(u.toString());
+    if (seen.has(norm)) continue;
+    seen.add(norm);
+    queue.push({ url: u.toString(), depth: 0 });
+  }
 
   // Concurrency: 16 unless robots.txt asked for a Crawl-delay, in which
   // case we drop to 4 to actually respect the host's wishes.

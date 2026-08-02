@@ -461,6 +461,33 @@ if ($adminRendersWithWpDate) {
     bad('revision timestamps use the server timezone');
 }
 
+// Undoing a body edit. This is how the SEO Tool reverses an internal
+// link: it doesn't keep a copy of the article, it stores the revision id
+// and asks WordPress to put the article back. Nothing called /undo until
+// internal linking existed, so this path had never run.
+WPState::$options['stb_revisions'] = [];
+$before = '<p>We use the cold process soap method for every batch.</p>';
+WPState::$posts[101]['post_content'] = $before;
+
+[$ins] = call('stb_rest_insert_links', req(['id' => 101], [
+    'links' => [['anchor' => 'cold process soap', 'url' => '/cold-process-soap']],
+]));
+if (($ins['changed'] ?? false) === true && !empty($ins['rev_id'])) {
+    ok('a body edit records a revision id', 'rev ' . $ins['rev_id']);
+} else {
+    bad('NO REVISION ID FOR A BODY EDIT', json_encode($ins));
+}
+
+[$undoBody, $undoBodyStatus] = call('stb_rest_undo', req(['rev_id' => $ins['rev_id']]));
+if ($undoBodyStatus === 200 && WPState::$posts[101]['post_content'] === $before) {
+    ok('undo restores the article byte for byte');
+} else {
+    bad(
+        'UNDO DID NOT RESTORE THE ARTICLE',
+        substr(WPState::$posts[101]['post_content'], 0, 90),
+    );
+}
+
 // The bug that made undo dangerous on any busy site: ids came from
 // count($revs) + 1, and the log is capped at 500 — so past 500 changes
 // every revision was id 501, and undo restored the oldest of them.

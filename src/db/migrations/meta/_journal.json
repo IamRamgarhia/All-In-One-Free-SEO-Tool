@@ -218,6 +218,13 @@
       "when": 1785649676236,
       "tag": "0060_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1785669233630,
+      "tag": "0061_agent_cms_revision",
+      "breakpoints": true
     }
   ]
 }

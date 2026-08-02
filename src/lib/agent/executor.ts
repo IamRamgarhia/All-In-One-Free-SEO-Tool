@@ -30,16 +30,26 @@ import {
   getClientWpCreds,
   getPostImages,
   getPostSeo,
+  insertInternalLinks,
   setAttachmentAlt,
   setPostSchema,
   setPostSeo,
+  undoRevision,
   type WpCreds,
 } from "../wp-bridge";
 import { callAIResult } from "../ai-call";
+import { guardedFetch } from "../url-guard";
 import type { PlannedAction } from "./planner";
 
 export type ExecuteOutcome = {
-  status: "verified" | "applied" | "failed" | "queued" | "proposed";
+  /**
+   * "skipped" means we looked, and there was correctly nothing to do —
+   * the phrase was already linked, someone got there first. It is not a
+   * failure, and counting it as one would teach users to ignore the
+   * agent's failures, which is the last thing a tool that edits live
+   * sites can afford.
+   */
+  status: "verified" | "applied" | "failed" | "queued" | "proposed" | "skipped";
   actionId: number;
   error?: string;
 };
@@ -76,13 +86,33 @@ const META_MAX = 155;
  * restated, so adding a kind can't silently skip drafting again.
  */
 export function requiresDraft(kind: string): boolean {
-  return kind === "write_schema" || kind in DRAFT_SPECS;
+  return (
+    kind === "write_schema" ||
+    kind === "write_internal_links" ||
+    kind in DRAFT_SPECS
+  );
 }
 
 export async function draftValue(
   action: PlannedAction,
   context: { siteName: string; pageTitle?: string | null; pageUrl: string },
 ): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
+  // Internal links are decided by the planner, not written by a model.
+  // The orphan page, the page to link it from, and the anchor phrase
+  // are all computable — see anchor-text.ts. Drafting here is just
+  // carrying that decision through the pipeline in the shape the
+  // executor expects, and refusing if it somehow arrived empty.
+  if (action.kind === "write_internal_links") {
+    const links = action.links ?? [];
+    if (links.length === 0) {
+      return {
+        ok: false,
+        error: "No links were chosen for this page, so there is nothing to insert.",
+      };
+    }
+    return { ok: true, value: JSON.stringify(links) };
+  }
+
   // Schema doesn't go through the prompt table. It has a purpose-built
   // generator that reads the page and refuses to invent fields that
   // aren't demonstrably there — which matters far more for structured
@@ -320,6 +350,93 @@ export async function executeAction(opts: {
     return { status: "failed", actionId: id, error: "No WordPress credentials." };
   }
 
+  // Internal links edit the article BODY, which makes them the only
+  // action here whose undo can't replay a saved value — the value is
+  // the whole post. WordPress already keeps it, so we store its
+  // revision id and hand undo back to the CMS. See `cmsRevisionId` in
+  // the schema and `undoRevision` in wp-bridge.
+  if (action.kind === "write_internal_links") {
+    let links: { anchor: string; url: string }[];
+    try {
+      links = JSON.parse(opts.newValue);
+    } catch {
+      const id = await insert({
+        status: "failed",
+        error: "The links for this page couldn't be read back. This is a bug in the agent.",
+      });
+      return { status: "failed", actionId: id, error: "Malformed links payload." };
+    }
+
+    const postId = await findPostIdByUrl(creds, action.targetUrl);
+    if (postId === null) {
+      const id = await insert({
+        status: "failed",
+        error: "Couldn't find this page in WordPress, so there was nothing to edit.",
+      });
+      return { status: "failed", actionId: id, error: "Page not found in the CMS." };
+    }
+
+    const res = await insertInternalLinks(creds, postId, links);
+    if (!res.ok) {
+      const id = await insert({
+        status: "failed",
+        targetRef: String(postId),
+        error: res.error,
+      });
+      return { status: "failed", actionId: id, error: res.error };
+    }
+
+    // Nothing changed, and that is a normal answer rather than a
+    // failure. The usual cause is the phrase already being linked —
+    // someone got there first, by hand or in an earlier run. Recording
+    // it as "failed" would teach users to ignore the agent's failures,
+    // which is the last thing a tool that edits live sites wants.
+    if (!res.changed) {
+      const why = res.skipped[0]?.reason ?? "the phrase wasn't found in the page's visible text";
+      const id = await insert({
+        status: "skipped",
+        targetRef: String(postId),
+        error: `No link was added — ${why}. The page was left exactly as it was.`,
+      });
+      return { status: "skipped", actionId: id };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: String(postId),
+      cmsRevisionId: res.revId ?? null,
+      appliedAt: new Date(),
+    });
+
+    // Verify from the published page, not from the API's own answer.
+    // The plugin reporting "inserted" only means it wrote to the
+    // database; a caching layer or a theme that rebuilds content can
+    // still mean visitors never see it.
+    const anchor = res.inserted[0]?.anchor ?? links[0].anchor;
+    const target = res.inserted[0]?.url ?? links[0].url;
+    const live = await linkIsLive(action.targetUrl, anchor, target);
+    if (live) {
+      await db
+        .update(agentActions)
+        .set({
+          status: "verified",
+          verifiedAt: new Date(),
+          verifyNote: `Loaded the page and found "${anchor}" linking to ${target}.`,
+        })
+        .where(eq(agentActions.id, actionId));
+      return { status: "verified", actionId };
+    }
+
+    await db
+      .update(agentActions)
+      .set({
+        verifyNote:
+          "WordPress accepted the link, but loading the page didn't show it. A caching plugin or CDN may still be serving the old version.",
+      })
+      .where(eq(agentActions.id, actionId));
+    return { status: "applied", actionId };
+  }
+
   // Alt text targets an ATTACHMENT, not the page. `expandImageActions`
   // in run.ts has already resolved which one, so there's no URL to look
   // up and no post SEO to read — the whole post-resolution path below
@@ -494,6 +611,57 @@ export async function executeAction(opts: {
  * can change between the edit and the undo, and an undo that lands on a
  * different page than the edit did is worse than no undo at all.
  */
+/**
+ * Load the published page and check the link is really there.
+ *
+ * "The API said ok" and "a visitor can see it" are different claims, and
+ * the whole reason actions have a `verified` status distinct from
+ * `applied` is that this codebase keeps finding places where the first
+ * was reported as the second.
+ *
+ * Matches the anchor inside an <a> pointing at the target, tolerating
+ * the relative/absolute mismatch that WordPress introduces — we send
+ * "/shop/soap" and the rendered page may show the full URL.
+ */
+async function linkIsLive(
+  pageUrl: string,
+  anchor: string,
+  target: string,
+): Promise<boolean> {
+  try {
+    // guardedFetch refuses private addresses, which is right for a URL
+    // a stranger supplied to the public grader and wrong for a page on
+    // the client's own site that this tool just crawled. The same
+    // documented opt-in that lets a self-hoster connect to WordPress in
+    // their compose stack lets us read the page back afterwards —
+    // otherwise every write to a LAN site would report "we couldn't
+    // confirm it", which is worse than useless: it's a warning about
+    // nothing, on every single change.
+    const res =
+      process.env.SEO_ALLOW_PRIVATE_WP_ENDPOINT === "1"
+        ? await fetch(pageUrl, { redirect: "follow" })
+        : await guardedFetch(pageUrl, { redirect: "follow" });
+    if (!res.ok) return false;
+    const html = (await res.text()).slice(0, 400_000);
+
+    let path = target;
+    try {
+      path = new URL(target, pageUrl).pathname;
+    } catch {
+      // Relative already, or unparseable — compare as given.
+    }
+
+    const anchorPattern = anchor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(
+      `<a[^>]+href=["'][^"']*${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^"']*["'][^>]*>[^<]*${anchorPattern}`,
+      "i",
+    );
+    return re.test(html);
+  } catch {
+    return false;
+  }
+}
+
 export async function revertAction(
   actionId: number,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -511,6 +679,31 @@ export async function revertAction(
       error: "That change was never applied to the site, so there's nothing to undo.",
     };
   }
+  const creds = await getClientWpCreds(action.clientId);
+  if (!creds) return { ok: false, error: "No usable WordPress credentials." };
+
+  // Internal links are undone by the CMS, not by us. The previous value
+  // is the whole article body, which WordPress already stored when it
+  // made the change — so `beforeValue` is deliberately null here and
+  // the checks below would reject a perfectly undoable action.
+  if (action.kind === "write_internal_links") {
+    if (action.cmsRevisionId === null) {
+      return {
+        ok: false,
+        error:
+          "No WordPress revision was recorded for this change, so it can't be undone automatically. You can restore the page from its WordPress revision history.",
+      };
+    }
+    const undone = await undoRevision(creds, action.cmsRevisionId);
+    if (!undone.ok) return { ok: false, error: undone.error };
+
+    await db
+      .update(agentActions)
+      .set({ status: "reverted", revertedAt: new Date() })
+      .where(eq(agentActions.id, actionId));
+    return { ok: true };
+  }
+
   if (action.beforeValue === null) {
     return {
       ok: false,
@@ -521,9 +714,6 @@ export async function revertAction(
   if (!action.targetRef) {
     return { ok: false, error: "No page reference stored for this change." };
   }
-
-  const creds = await getClientWpCreds(action.clientId);
-  if (!creds) return { ok: false, error: "No usable WordPress credentials." };
 
   // Alt text branches here too. `targetRef` is an ATTACHMENT id for
   // these actions, so routing it through writeField — which treats

@@ -2082,6 +2082,19 @@ export const agentActions = sqliteTable("agent_actions", {
     .notNull()
     .default("proposed"),
   error: text("error"),
+  /**
+   * The CMS's own revision id for this change, when the CMS keeps one.
+   *
+   * Undo normally replays `beforeValue`. That works for a field — a
+   * title, a description — but not for an internal-link insertion,
+   * where the previous value is the whole article body. The WordPress
+   * plugin already stores that body and exposes `/undo/{rev_id}`, so
+   * for those actions this is the handle undo uses instead.
+   *
+   * Null for every other kind, and for any CMS that doesn't version
+   * writes.
+   */
+  cmsRevisionId: integer("cms_revision_id"),
   appliedAt: integer("applied_at", { mode: "timestamp" }),
   /** Set only after re-fetching the page and finding the change present. */
   verifiedAt: integer("verified_at", { mode: "timestamp" }),

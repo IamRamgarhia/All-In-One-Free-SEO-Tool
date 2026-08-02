@@ -34,21 +34,79 @@ import { createServer } from "node:http";
 const PORT = Number(process.argv[2] ?? 8787);
 const KEY = "fake-bridge-key";
 
-/** Mutable in-memory site. Reset per process. */
-const state = {
-  posts: new Map([
+const base = () => `http://localhost:${PORT}`;
+
+/**
+ * The initial site.
+ *
+ * Four pages, wired so that one of them — /cold-process-soap — is a
+ * genuine orphan: it is in the sitemap and nothing links to it. That is
+ * what an orphan actually is on a real site, and it's the case the
+ * agent's internal-linking pass exists to fix.
+ *
+ * /hello-world is the page that should link to it: it's the closest in
+ * topic, and it contains the phrase "cold process soap" in its body
+ * text, so there is something to turn into a link.
+ */
+function initialPosts() {
+  return new Map([
+    [
+      100,
+      {
+        id: 100,
+        url: `${base()}/`,
+        title: "Dice Soap Co",
+        metaDescription: "Handmade soap from Yorkshire.",
+        content:
+          `<p>Welcome. Read our <a href="${base()}/hello-world">soap making notes</a> ` +
+          `or the <a href="${base()}/about">about page</a>.</p>`,
+        schema: "",
+      },
+    ],
     [
       101,
       {
         id: 101,
-        url: "http://localhost:" + PORT + "/hello-world",
+        url: `${base()}/hello-world`,
         title: "Hello world",
         metaDescription: "",
-        content: "<p>Some words about handmade soap and cold process.</p>",
+        content:
+          "<p>Some words about handmade soap and cold process soap, which " +
+          "takes six weeks to cure before it is ready to sell.</p>" +
+          `<p>See also our <a href="${base()}/about">about page</a>.</p>`,
         schema: "",
       },
     ],
-  ]),
+    [
+      102,
+      {
+        id: 102,
+        url: `${base()}/about`,
+        title: "About us",
+        metaDescription: "Who we are.",
+        content:
+          `<p>We have made soap since 2019. Read the <a href="${base()}/hello-world">notes</a>.</p>`,
+        schema: "",
+      },
+    ],
+    [
+      103,
+      {
+        id: 103,
+        url: `${base()}/cold-process-soap`,
+        title: "Cold Process Soap Making",
+        metaDescription: "How cold process soap is made.",
+        // The orphan. In the sitemap, linked from nowhere.
+        content: "<p>Cold process soap making, step by step.</p>",
+        schema: "",
+      },
+    ],
+  ]);
+}
+
+/** Mutable in-memory site. Reset per process, or via /reset. */
+const state = {
+  posts: initialPosts(),
   attachments: new Map([
     [201, { id: 201, src: "/uploads/soap-bars.jpg", alt: "" }],
     [202, { id: 202, src: "/uploads/lavender.jpg", alt: "Existing alt text" }],
@@ -57,7 +115,11 @@ const state = {
 };
 
 function record(field, object, oldV, newV) {
-  const rev_id = state.revisions.length + 1;
+  // Monotonic from the highest id ever issued, matching the fixed
+  // stb_record_revision. It used to be revisions.length + 1 here too —
+  // the same bug, and it matters more now that undo is BY id.
+  const highest = state.revisions.reduce((m, r) => Math.max(m, r.rev_id), 0);
+  const rev_id = highest + 1;
   state.revisions.push({ rev_id, field, object, old: oldV, new: newV });
   return rev_id;
 }
@@ -91,6 +153,33 @@ const server = createServer(async (req, res) => {
   // what kind of page it is. Served before the auth check, because a
   // visitor has no connection key.
   if (!url.pathname.startsWith("/seo-tool/v1")) {
+    // A crawler that only follows links can never reach an orphan —
+    // that's what makes it an orphan. Real sites expose them through
+    // the sitemap, so this one does too.
+    if (url.pathname === "/sitemap.xml") {
+      const xml =
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+        [...state.posts.values()]
+          .map((p) => `  <url><loc>${p.url}</loc></url>`)
+          .join("\n") +
+        "\n</urlset>";
+      res.writeHead(200, {
+        "content-type": "application/xml",
+        "content-length": Buffer.byteLength(xml),
+      });
+      res.end(xml);
+      return;
+    }
+    if (url.pathname === "/robots.txt") {
+      const txt = `User-agent: *\nAllow: /\nSitemap: ${base()}/sitemap.xml\n`;
+      res.writeHead(200, {
+        "content-type": "text/plain",
+        "content-length": Buffer.byteLength(txt),
+      });
+      res.end(txt);
+      return;
+    }
+
     const post = [...state.posts.values()].find(
       (p) => new URL(p.url).pathname === url.pathname,
     );
@@ -305,10 +394,19 @@ ${[...state.attachments.values()].map((a) => `<img src="${a.src}" alt="${a.alt}"
 
   if (path === "/find") {
     const target = url.searchParams.get("url") ?? "";
+    // Exact path match, like url_to_postid. This used `includes`, which
+    // was fine with one post and wrong the moment a homepage existed:
+    // every path contains "/", so every lookup resolved to the
+    // homepage, and the agent wrote every fix to the wrong page.
+    let targetPath;
+    try {
+      targetPath = new URL(target).pathname.replace(/\/+$/, "") || "/";
+    } catch {
+      return json(res, 400, { error: "url required" });
+    }
     for (const p of state.posts.values()) {
-      if (target.includes(new URL(p.url).pathname)) {
-        return json(res, 200, { id: p.id });
-      }
+      const p1 = new URL(p.url).pathname.replace(/\/+$/, "") || "/";
+      if (p1 === targetPath) return json(res, 200, { id: p.id });
     }
     return json(res, 404, { error: "not found" });
   }
@@ -323,15 +421,40 @@ ${[...state.attachments.values()].map((a) => `<img src="${a.src}" alt="${a.alt}"
   // new server that silently fails to bind leaves the OLD one answering,
   // which looks exactly like a passing test.
   if (path === "/reset") {
-    state.posts.get(101).title = "Hello world";
-    state.posts.get(101).metaDescription = "";
-    state.posts.get(101).content =
-      "<p>Some words about handmade soap and cold process.</p>";
-    state.posts.get(101).schema = "";
+    state.posts = initialPosts();
     state.attachments.get(201).alt = "";
     state.attachments.get(202).alt = "Existing alt text";
     state.revisions.length = 0;
     return json(res, 200, { ok: true });
+  }
+
+  // Undo, mirroring stb_rest_undo. Nothing called this until internal
+  // links, whose previous value is the whole article body — too big to
+  // keep a copy of on our side, and already stored here.
+  if ((m = path.match(/^\/undo\/(\d+)$/))) {
+    const revId = Number(m[1]);
+    const rev = state.revisions.find((r) => r.rev_id === revId);
+    if (!rev) return json(res, 404, { ok: false, error: "Revision not found" });
+
+    const bits = String(rev.object).split(":");
+    if (bits.length !== 2 || !/^\d+$/.test(bits[1])) {
+      return json(res, 422, {
+        ok: false,
+        error: "Revision refers to an object this plugin cannot identify",
+      });
+    }
+    const objectId = Number(bits[1]);
+
+    if (rev.field === "title") state.posts.get(objectId).title = rev.old;
+    else if (rev.field === "meta_description")
+      state.posts.get(objectId).metaDescription = rev.old;
+    else if (rev.field === "alt") state.attachments.get(objectId).alt = rev.old;
+    else if (rev.field === "schema") state.posts.get(objectId).schema = rev.old;
+    else if (rev.field === "content") state.posts.get(objectId).content = rev.old;
+    else return json(res, 400, { ok: false, error: "Unsupported field" });
+
+    record(rev.field, rev.object, rev.new, rev.old);
+    return json(res, 200, { ok: true, undone_rev_id: revId });
   }
 
   // A route the 0.2.1 plugin wouldn't have, used to prove the client's

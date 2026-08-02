@@ -25,6 +25,7 @@ export type CapabilityId =
   | "write_meta_description"
   | "write_image_alt"
   | "write_schema"
+  | "write_internal_links"
   | "read_gsc"
   | "generate_text";
 
@@ -49,6 +50,7 @@ const WRITE_CAPS: CapabilityId[] = [
   "write_meta_description",
   "write_image_alt",
   "write_schema",
+  "write_internal_links",
 ];
 
 export async function detectCapabilities(
@@ -99,36 +101,37 @@ export async function detectCapabilities(
 
   for (const id of WRITE_CAPS) set(id, wpOk, wpError);
 
-  // Alt text is the exception, and saying so is the point.
+  // Two capabilities need more than a connection: they need a plugin new
+  // enough to have the endpoint they depend on.
   //
-  // `setAttachmentAlt` takes a WordPress attachment id. An audit finding
-  // gives us a page URL and the image's src — the bridge has no endpoint
-  // that maps one to the other, so there is no way to reach the right
-  // attachment. Until the plugin exposes "list the images on this post
-  // with their attachment ids", this cannot be done.
-  //
-  // Reporting it as available (which it was, because every WP write
-  // shared one flag) meant the planner planned alt-text work on every
-  // WordPress client and the executor failed all of it. Capability
-  // detection exists to prevent exactly that, and a blanket flag
-  // defeated it.
-  //
-  // Plugin 0.3.0 added `GET /post/{id}/images`, which finally supplies
-  // the attachment ids. What's still missing is on our side: the
-  // executor writes ONE value to ONE post, and alt text is N images per
-  // page. That needs a per-image action model, and half-wiring it would
-  // recreate the plan-without-execute mismatch this flag exists to
-  // prevent — the contract test in contract.test.ts would fail, by
-  // design.
-  // Plugin 0.3.0 added `GET /post/{id}/images`, and `expandImageActions`
-  // in run.ts turns one page finding into one action per image. Both
-  // halves now exist, so this is available — but only against a plugin
-  // new enough to have the endpoint.
+  // This used to be one flag for every WordPress write, which meant the
+  // planner planned alt-text work on every WordPress client and the
+  // executor failed all of it. Capability detection exists to prevent
+  // exactly that, and a blanket flag defeated it.
+
+  // Plugin 0.3.0 added `GET /post/{id}/images`, which supplies the
+  // attachment ids; `expandImageActions` in run.ts turns one page
+  // finding into one action per image. Both halves exist now.
   set(
     "write_image_alt",
     wpOk && hasPluginVersion(wpVersion, "0.3.0"),
     wpOk
       ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Alt text needs 0.3.0 or newer, which added the endpoint that maps an image on a page to its media-library entry. Update the plugin.`
+      : wpError,
+  );
+
+  // Plugin 0.3.0 added `POST /post/{id}/links`. This is the only write
+  // that edits the article body rather than a metadata field, and the
+  // guards that make it safe — visible text only, first occurrence,
+  // never inside an existing link or heading or code block, and a
+  // whole-body revision so undo is exact — all live in the plugin. An
+  // older plugin has no endpoint and no revision, so there would be
+  // nothing to undo.
+  set(
+    "write_internal_links",
+    wpOk && hasPluginVersion(wpVersion, "0.3.0"),
+    wpOk
+      ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Internal linking needs 0.3.0 or newer, which added the endpoint that inserts links safely and records the previous version of the article. Update the plugin.`
       : wpError,
   );
 

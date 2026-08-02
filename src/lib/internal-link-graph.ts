@@ -25,7 +25,24 @@ export type LinkAnalysis = {
   /** For each orphan: top-3 source pages by content similarity. */
   suggestions: {
     orphanUrl: string;
-    candidates: { url: string; score: number; titleSnippet: string }[];
+    candidates: {
+      url: string;
+      score: number;
+      titleSnippet: string;
+      /**
+       * The candidate's markup, truncated.
+       *
+       * Carried through so a caller choosing anchor text doesn't have
+       * to fetch the page a second time — the crawl above already has
+       * it, and re-fetching a handful of pages we just downloaded is
+       * both slower and a second place to get URL handling wrong.
+       *
+       * Only on suggestion candidates, never on every crawled page:
+       * this is capped at three per orphan, so the memory stays
+       * bounded on the small VPS this is meant to run on.
+       */
+      html: string;
+    }[];
   }[];
   totalLinks: number;
 };
@@ -53,17 +70,84 @@ const STOP_WORDS = new Set([
   "also", "each", "other", "same", "own", "those", "us", "etc",
 ]);
 
+/**
+ * URLs listed in the site's sitemap, for use as crawl seeds.
+ *
+ * Without these, orphan detection here could never work — and didn't.
+ * A link-following crawl only reaches pages something links to, so a
+ * page with no inbound links was never fetched, never appeared in
+ * `pages`, and therefore never appeared in `orphans` either. The list
+ * was reliably empty, and the tool built on it reported "no orphan
+ * pages" on every site it was ever pointed at.
+ *
+ * Best-effort: a site with no sitemap simply falls back to the old
+ * link-following behaviour, which is no worse than before.
+ */
+async function sitemapUrls(origin: string): Promise<string[]> {
+  const candidates = [`${origin}/sitemap.xml`];
+
+  // robots.txt is where a site declares a sitemap somewhere unusual —
+  // WordPress with Yoast, for instance, uses /sitemap_index.xml.
+  try {
+    const res = await fetch(`${origin}/robots.txt`, {
+      headers: { "user-agent": USER_AGENT },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const txt = (await res.text()).slice(0, 100_000);
+      for (const line of txt.matchAll(/^\s*Sitemap:\s*(\S+)/gim)) {
+        candidates.push(line[1]);
+      }
+    }
+  } catch {
+    // No robots.txt is normal.
+  }
+
+  const found = new Set<string>();
+  for (const sm of candidates.slice(0, 5)) {
+    try {
+      const res = await fetch(sm, {
+        headers: { "user-agent": USER_AGENT },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) continue;
+      const xml = (await res.text()).slice(0, 2_000_000);
+      for (const m of xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)) {
+        found.add(m[1]);
+        // A sitemap index points at more sitemaps. One level deep is
+        // enough for the sites this tool is for, and stops a malformed
+        // or hostile sitemap turning into an unbounded fetch loop.
+        if (found.size > 500) break;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return [...found];
+}
+
 export async function analyseInternalLinks(opts: {
   startUrl: string;
   maxPages?: number;
 }): Promise<LinkAnalysis> {
   const maxPages = Math.min(opts.maxPages ?? 150, 200);
 
+  let origin = "";
+  try {
+    origin = new URL(opts.startUrl).origin;
+  } catch {
+    // Handled by the host check below.
+  }
+  const seedUrls = origin ? await sitemapUrls(origin) : [];
+
   const { pages: crawled } = await crawlSite({
     startUrl: opts.startUrl,
     maxPages,
     maxDepth: 4,
     respectRobots: true,
+    // Without the sitemap as seeds, an orphan is never fetched and so
+    // can never be reported as one.
+    seedUrls,
   });
 
   let host = "";
@@ -82,7 +166,7 @@ export async function analyseInternalLinks(opts: {
   // Fetch each page's HTML to get title + text + outbound links
   const pageData = new Map<
     string,
-    { title: string; text: string; outboundUrls: string[] }
+    { title: string; text: string; html: string; outboundUrls: string[] }
   >();
   for (let i = 0; i < crawled.length; i += 6) {
     const batch = crawled.slice(i, i + 6).filter((p) => p.isHtml);
@@ -148,7 +232,12 @@ export async function analyseInternalLinks(opts: {
 
   const suggestions = orphans.slice(0, 25).map((orphan) => {
     const orphanVec = tfidfVector(docs.get(orphan.url) ?? new Map(), idf);
-    const candidates: { url: string; score: number; titleSnippet: string }[] = [];
+    const candidates: {
+      url: string;
+      score: number;
+      titleSnippet: string;
+      html: string;
+    }[] = [];
     for (const [url, tf] of docs) {
       if (url === orphan.url) continue;
       const vec = tfidfVector(tf, idf);
@@ -157,6 +246,7 @@ export async function analyseInternalLinks(opts: {
         url,
         score,
         titleSnippet: pageData.get(url)?.title.slice(0, 80) ?? "",
+        html: pageData.get(url)?.html ?? "",
       });
     }
     candidates.sort((a, b) => b.score - a.score);
@@ -178,7 +268,12 @@ export async function analyseInternalLinks(opts: {
 async function fetchPageContent(
   url: string,
   host: string,
-): Promise<{ title: string; text: string; outboundUrls: string[] } | null> {
+): Promise<{
+  title: string;
+  text: string;
+  html: string;
+  outboundUrls: string[];
+} | null> {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), 12_000);
   try {
@@ -228,7 +323,14 @@ async function fetchPageContent(
       }
     }
 
-    return { title: title.slice(0, 200), text, outboundUrls };
+    // Truncated: enough to find an anchor phrase in an article, far
+    // less than holding whole pages for a 60-page crawl in memory.
+    return {
+      title: title.slice(0, 200),
+      text,
+      html: html.slice(0, 200_000),
+      outboundUrls,
+    };
   } catch {
     return null;
   } finally {

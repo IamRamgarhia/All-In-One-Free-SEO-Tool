@@ -316,10 +316,14 @@ async function main() {
     bad("refusals were not reported", "a silent skip reads as 'nothing to do'");
   }
 
-  const rejected = await db
+  const allRows = await db
     .select()
     .from(agentActions)
     .where(eq(agentActions.clientId, client.id));
+
+  // Only failures need a reason. A `proposed` row is the agent working
+  // correctly — see below.
+  const rejected = allRows.filter((a) => a.status === "failed");
   const withReason = rejected.filter((a) => a.error && a.error.length > 10);
   if (rejected.length > 0 && withReason.length === rejected.length) {
     ok("every refusal says why", withReason[0].error?.slice(0, 58) ?? "");
@@ -327,6 +331,25 @@ async function main() {
     bad("no action rows at all", "a refusal that leaves no trace is invisible");
   } else {
     bad("some refusals recorded no reason");
+  }
+
+  // Internal linking edits the article body, so it is `needs_review` and
+  // apply_safe must NOT write it — it goes to a human instead. This is
+  // the safety property that makes the default autonomy level safe to
+  // leave on for a site whose content someone cares about.
+  const bodyEdits = allRows.filter((a) => a.kind === "write_internal_links");
+  if (bodyEdits.length > 0 && bodyEdits.every((a) => a.status === "proposed")) {
+    ok(
+      "at apply_safe, a body edit is queued for review rather than written",
+      `${bodyEdits.length} proposed`,
+    );
+  } else if (bodyEdits.length === 0) {
+    info("no body edits were planned in this run");
+  } else {
+    bad(
+      "A BODY EDIT WAS APPLIED AT apply_safe",
+      bodyEdits.map((a) => a.status).join(","),
+    );
   }
 
   section("A model that behaves — the agent must write, verify, and be able to undo");
@@ -341,6 +364,17 @@ async function main() {
     .update(auditIssues)
     .set({ status: "new" })
     .where(eq(auditIssues.auditId, audit.id));
+
+  // apply_all, not apply_safe.
+  //
+  // Internal linking is deliberately `needs_review` — it edits the
+  // article body, so at apply_safe it is queued for a human and nothing
+  // is written. That is the right default, and it means the write path
+  // can only be exercised at the top autonomy level. The risk level
+  // itself is pinned in contract.test.ts so raising it here can't
+  // quietly become raising it everywhere.
+  await setAgentSettings({ level: "apply_all", maxActionsPerRun: 8 });
+  info('autonomy raised to "apply_all" — body edits apply without review');
 
   const goodRun = await runAgentForClient({
     clientId: client.id,
@@ -405,12 +439,63 @@ async function main() {
     bad("no alt-text actions were produced", "expansion didn't run");
   }
 
-  // Every applied change must record what was there before, or undo is a
-  // button that can't work.
+  section("Internal links — the orphan page");
+
+  const linkActions = actions.filter((a) => a.kind === "write_internal_links");
+  if (linkActions.length > 0) {
+    ok("the agent found an orphan and planned a link to it", `${linkActions.length}`);
+  } else {
+    bad(
+      "NO ORPHAN WAS FOUND",
+      "/cold-process-soap is in the sitemap and linked from nowhere",
+    );
+  }
+
+  // The link must be in the article body on the live page, not merely
+  // accepted by the API.
+  const linkedPage = await fetch(`http://localhost:${WP_PORT}/hello-world`);
+  const linkedHtml = await linkedPage.text();
+  if (/<a[^>]+href="[^"]*cold-process-soap"[^>]*>/i.test(linkedHtml)) {
+    ok("the link is live on the page", "not just accepted by the API");
+  } else {
+    bad("THE LINK IS NOT ON THE PAGE", linkedHtml.slice(0, 120));
+  }
+
+  // The anchor must be words that were already on the page. Inventing
+  // text and inserting it into someone's article is the thing this must
+  // never do.
+  const anchorMatch = linkedHtml.match(
+    /<a[^>]+href="[^"]*cold-process-soap"[^>]*>([^<]+)<\/a>/i,
+  );
+  if (anchorMatch) {
+    const anchor = anchorMatch[1];
+    info(`anchor: "${anchor}"`);
+    if (/cold process soap/i.test(anchor)) {
+      ok("the anchor is text that was already in the article");
+    } else {
+      bad("UNEXPECTED ANCHOR", anchor);
+    }
+  }
+
+  for (const a of linkActions) {
+    if (a.cmsRevisionId !== null) {
+      ok("the WordPress revision id was stored", `rev ${a.cmsRevisionId}`);
+    } else {
+      bad("NO REVISION ID STORED", "undo would have nothing to work with");
+    }
+  }
+
+  // Every applied change must record enough to undo it. There are two
+  // mechanisms: replay the previous value, or ask the CMS to restore
+  // its own revision. A body edit can only use the second.
   const applied = actions.filter(
     (a) => a.status === "applied" || a.status === "verified",
   );
-  const undoable = applied.filter((a) => a.beforeValue !== null && a.targetRef);
+  const undoable = applied.filter((a) =>
+    a.kind === "write_internal_links"
+      ? a.cmsRevisionId !== null
+      : a.beforeValue !== null && a.targetRef,
+  );
   if (applied.length > 0 && undoable.length === applied.length) {
     ok("every applied change recorded enough to undo it", `${undoable.length}`);
   } else {
@@ -434,6 +519,24 @@ async function main() {
     ok("every applied change was undone", `${reverted}`);
   } else {
     bad("SOME UNDOS FAILED", revertFailed.join(" | ").slice(0, 150));
+  }
+
+  // Undoing a body edit goes through the CMS's own revision, not a
+  // value we saved. If it doesn't work, the agent has edited someone's
+  // article with no way back.
+  const afterUndo = await fetch(`http://localhost:${WP_PORT}/hello-world`);
+  const afterUndoHtml = await afterUndo.text();
+  if (linkActions.length > 0) {
+    if (!/href="[^"]*cold-process-soap"/i.test(afterUndoHtml)) {
+      ok("the inserted link is gone from the article");
+    } else {
+      bad("THE LINK SURVIVED UNDO", "the article was left edited");
+    }
+    if (/handmade soap and cold process soap/i.test(afterUndoHtml)) {
+      ok("the original sentence is intact", "restored, not just stripped");
+    } else {
+      bad("THE ARTICLE TEXT WAS NOT RESTORED");
+    }
   }
 
   const seoReverted = await wpGet("/post/101/seo");
