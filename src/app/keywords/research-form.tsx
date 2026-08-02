@@ -168,6 +168,17 @@ export function ResearchForm({
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 From {state.source} · {state.country}
+                {state.volumeSource === "bing" && (
+                  <>
+                    {" · "}
+                    <span
+                      title="Measured impressions on Bing over the last 30 days — a real number, not an estimate. Bing is a small share of search, so Google's volume for the same term is typically much higher. Use these to decide what to work on first, not to forecast traffic."
+                      className="cursor-help underline decoration-dotted underline-offset-2"
+                    >
+                      volumes from Bing
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </header>
@@ -179,6 +190,15 @@ export function ResearchForm({
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="font-medium">{s.query}</span>
+                  {s.bingVolume !== undefined && (
+                    <span
+                      title={`${s.bingVolume.toLocaleString()} impressions on Bing in the last 30 days. Google's figure for this term is typically far higher — the ordering is the useful part, not the absolute number.`}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-emerald-300 ring-1 ring-inset ring-emerald-500/25"
+                    >
+                      {s.bingVolume.toLocaleString()}
+                      <span className="opacity-70">/mo on Bing</span>
+                    </span>
+                  )}
                   <Term term={s.intent}>
                     <span
                       className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${intentTone[s.intent]} no-underline`}

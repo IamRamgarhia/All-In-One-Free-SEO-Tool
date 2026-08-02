@@ -296,3 +296,169 @@ export async function getBingInboundLinks(opts: {
 
 /** Exposed so the parsing can be fixture-tested without a network call. */
 export const __bingParsing = { pick, unwrap };
+
+// =====================================================================
+// Keyword volume
+// =====================================================================
+
+/**
+ * Real search volume, free.
+ *
+ * The obvious source for volume is Google Ads Keyword Planner, and it is
+ * a bad fit for this project: it needs an approved developer token, a
+ * Google Ads account, and — without active ad spend on that account —
+ * returns bucketed ranges like "1K–10K" rather than numbers. A
+ * free-first tool cannot put its keyword research behind an advertising
+ * account.
+ *
+ * Bing Webmaster Tools returns actual measured impression counts for the
+ * same API key already used for backlinks. No Ads account, no spend, no
+ * token application.
+ *
+ * The catch, which the UI states rather than hides: this is BING volume.
+ * Bing is a single-digit share of search in most markets, so the
+ * absolute numbers are far below Google's for the same term. What
+ * survives is the ordering — the terms people search more on Bing are
+ * broadly the terms people search more on Google — so it is sound for
+ * prioritising keywords and wrong for forecasting traffic. Presenting it
+ * as "search volume" without saying whose would be the exact kind of
+ * confident-but-misleading number this codebase keeps rooting out.
+ */
+
+export type BingKeywordVolume = {
+  query: string;
+  /** Impressions on Bing over the requested window. */
+  impressions: number;
+  /** Bing's own broad/phrase/exact classification, when given. */
+  matchType?: string | null;
+};
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Volume for one term.
+ *
+ * Bing wants an explicit date range and returns nothing without one.
+ * Defaults to the last 30 days, which is what a monthly figure means to
+ * anyone reading it.
+ */
+export async function getBingKeywordVolume(opts: {
+  query: string;
+  country?: string;
+  language?: string;
+  days?: number;
+}): Promise<BingKeywordVolume | null> {
+  const end = new Date();
+  const start = new Date(end.getTime() - (opts.days ?? 30) * 86_400_000);
+
+  try {
+    type R = { d: unknown };
+    const data = await bingFetch<R>("GetKeyword", {
+      q: opts.query,
+      country: (opts.country ?? "us").toLowerCase(),
+      language: (opts.language ?? "en-US").toLowerCase(),
+      startDate: isoDay(start),
+      endDate: isoDay(end),
+    });
+
+    // Single-object or single-element-array, depending on the endpoint's
+    // mood. Both have been observed in Microsoft's own examples.
+    const rows = Array.isArray(data.d) ? data.d : data.d ? [data.d] : [];
+    const first = rows[0] as Record<string, unknown> | undefined;
+    if (!first) return null;
+
+    const impressions = Number(
+      pick(first, "Impressions", "impressions", "Count") ?? 0,
+    );
+    if (!Number.isFinite(impressions)) return null;
+
+    return {
+      query: opts.query,
+      impressions,
+      matchType:
+        (pick(first, "MatchType", "matchType") as string | undefined) ?? null,
+    };
+  } catch {
+    // A term Bing has no data for is a normal outcome, not an error —
+    // and one failing lookup must not abort a research run.
+    return null;
+  }
+}
+
+/**
+ * Volume for many terms.
+ *
+ * Sequential and bounded on purpose: Bing gives no batch endpoint, and
+ * firing fifty concurrent requests at a free API is how a key gets
+ * throttled. Terms beyond the cap come back without volume rather than
+ * blocking the whole result — a keyword list with some volumes is more
+ * useful than a spinner.
+ */
+export async function getBingKeywordVolumes(opts: {
+  queries: string[];
+  country?: string;
+  language?: string;
+  max?: number;
+}): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!(await getBingApiKey())) return out;
+
+  for (const query of opts.queries.slice(0, opts.max ?? 25)) {
+    const v = await getBingKeywordVolume({
+      query,
+      country: opts.country,
+      language: opts.language,
+    });
+    if (v) out.set(query.toLowerCase(), v.impressions);
+  }
+  return out;
+}
+
+export type BingRelatedKeyword = {
+  query: string;
+  impressions: number;
+};
+
+/**
+ * Terms Bing considers related, WITH volume.
+ *
+ * More useful than autocomplete for research: autocomplete tells you
+ * what people start typing, this tells you what they actually searched
+ * and how often.
+ */
+export async function getBingRelatedKeywords(opts: {
+  query: string;
+  country?: string;
+  language?: string;
+  days?: number;
+}): Promise<BingRelatedKeyword[]> {
+  const end = new Date();
+  const start = new Date(end.getTime() - (opts.days ?? 30) * 86_400_000);
+
+  try {
+    type R = { d: unknown };
+    const data = await bingFetch<R>("GetRelatedKeywords", {
+      q: opts.query,
+      country: (opts.country ?? "us").toLowerCase(),
+      language: (opts.language ?? "en-US").toLowerCase(),
+      startDate: isoDay(start),
+      endDate: isoDay(end),
+    });
+
+    return unwrap(data.d)
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        const q = pick(r, "Query", "query", "Keyword");
+        const imp = Number(pick(r, "Impressions", "impressions", "Count") ?? 0);
+        return {
+          query: typeof q === "string" ? q : "",
+          impressions: Number.isFinite(imp) ? imp : 0,
+        };
+      })
+      .filter((r) => r.query.length > 0);
+  } catch {
+    return [];
+  }
+}

@@ -5,9 +5,25 @@ export type KeywordSuggestion = {
   intent: Intent;
   wordCount: number;
   isLongTail: boolean;
+  /**
+   * Measured impressions on BING over the last 30 days.
+   *
+   * Named for its source rather than called `volume`, deliberately. Bing
+   * is a single-digit share of search in most markets, so this number is
+   * far below Google's for the same term. The ORDERING largely holds,
+   * which makes it sound for deciding what to work on and wrong for
+   * forecasting traffic. A field called `volume` would invite exactly
+   * the second use.
+   *
+   * Undefined means we didn't look or Bing had nothing — never guessed.
+   */
+  bingVolume?: number;
 };
 
 export type KeywordSource = "google" | "youtube" | "reddit" | "wikipedia";
+
+/** Where volume figures came from, or null if none were fetched. */
+export type VolumeSource = "bing" | null;
 
 export type ResearchResult = {
   seed: string;
@@ -15,6 +31,7 @@ export type ResearchResult = {
   source: KeywordSource;
   fetchedAt: Date;
   suggestions: KeywordSuggestion[];
+  volumeSource: VolumeSource;
 };
 
 const transactionalPatterns =
@@ -198,6 +215,10 @@ export async function researchKeywords(
     expand?: boolean;
     mode?: ExpansionMode;
     source?: KeywordSource;
+    /** Skip the volume lookup. Defaults to fetching it when a key exists. */
+    withVolume?: boolean;
+    /** How many terms to look up. One request each — see the note below. */
+    volumeLimit?: number;
   } = {},
 ): Promise<ResearchResult> {
   const country = options.country ?? "US";
@@ -277,11 +298,49 @@ export async function researchKeywords(
     };
   });
 
+  // Attach real measured volume where we can get it for free.
+  //
+  // Autocomplete tells you what people start typing; it says nothing
+  // about how many. Without a volume signal the only way to rank a list
+  // of 200 suggestions is word count, which is not a priority order.
+  //
+  // Bing Webmaster Tools gives actual impression counts for the same
+  // free API key used elsewhere in this app — no Google Ads account, no
+  // spend requirement, no developer token. It is Bing's volume, not
+  // Google's, and everything downstream labels it as such.
+  //
+  // Bounded and best-effort: Bing has no batch endpoint, so this is one
+  // request per term. A research run with some volumes beats a spinner,
+  // so the cap is small and missing values stay undefined rather than
+  // being guessed at.
+  let volumeSource: VolumeSource = null;
+  if (options.withVolume !== false) {
+    try {
+      const { getBingKeywordVolumes } = await import("./bing-webmaster");
+      const volumes = await getBingKeywordVolumes({
+        queries: suggestions.map((s) => s.query),
+        country,
+        max: options.volumeLimit ?? 25,
+      });
+      if (volumes.size > 0) {
+        volumeSource = "bing";
+        for (const s of suggestions) {
+          const v = volumes.get(s.query.toLowerCase());
+          if (v !== undefined) s.bingVolume = v;
+        }
+      }
+    } catch {
+      // No key, or Bing had a bad minute. Research still works — it just
+      // works the way it did before this existed.
+    }
+  }
+
   return {
     seed: cleanedSeed,
     country,
     source,
     fetchedAt: new Date(),
     suggestions,
+    volumeSource,
   };
 }
