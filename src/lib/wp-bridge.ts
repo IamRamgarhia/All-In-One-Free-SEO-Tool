@@ -114,6 +114,20 @@ async function wpFetch<T>(
     });
     if (!res.ok) {
       const body = await res.text();
+      // A 401 here almost always means an out-of-date plugin rather than
+      // a wrong key. Bridge plugins before 0.4.0 only read the
+      // `Authorization` header while this client has only ever sent
+      // `X-STB-Key`, so every request failed however correct the key
+      // was — and "401" on its own sends people to re-copy a key that
+      // was never the problem.
+      if (res.status === 401) {
+        return {
+          ok: false,
+          status: 401,
+          error:
+            "WordPress rejected the connection key. If the SEO Tool Bridge plugin on that site is older than 0.4.0, update it — earlier versions couldn't read the header this tool sends, so the key never got through. Otherwise re-copy the key from Tools → SEO Tool Bridge.",
+        };
+      }
       return {
         ok: false,
         status: res.status,

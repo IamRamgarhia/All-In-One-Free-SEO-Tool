@@ -114,15 +114,23 @@ async function main() {
   ok("ping", `plugin ${ping.version}`);
 
   if (hasPluginVersion(ping.version, "0.3.0")) {
-    ok("version gate accepts 0.3.0");
+    ok("version gate accepts a current plugin", `${ping.version} >= 0.3.0`);
   } else {
-    bad("version gate rejected a 0.3.0 plugin");
+    bad("version gate rejected a current plugin", ping.version ?? "no version");
   }
 
   section("Auth is actually enforced");
+  // The fake accepts either header, matching stb_check_key. That the
+  // client's header is the one the PHP reads is asserted in the PHP's
+  // own suite — this fake was written from the client here, and that is
+  // exactly how the header mismatch survived 45 passing assertions.
   const wrongKey = await pingWpBridge({ ...creds, key: "wrong" });
   if (!wrongKey.ok) ok("a bad key is rejected");
   else bad("A BAD KEY WAS ACCEPTED", "the header isn't being checked");
+
+  const emptyKey = await pingWpBridge({ ...creds, key: "" });
+  if (!emptyKey.ok) ok("an empty key is rejected");
+  else bad("AN EMPTY KEY WAS ACCEPTED");
 
   section("Resolve a URL to a post");
   const postId = await findPostIdByUrl(

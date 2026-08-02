@@ -116,16 +116,25 @@ ${[...state.attachments.values()].map((a) => `<img src="${a.src}" alt="${a.alt}"
 
   const path = url.pathname.replace(/^\/seo-tool\/v1/, "");
 
-  // The plugin authenticates on X-STB-Key. Enforced here so the client's
-  // header handling is exercised rather than assumed.
-  if (req.headers["x-stb-key"] !== KEY) {
+  // Authentication, copied from stb_check_key — which accepts EITHER
+  // header, and as of 0.4.0 actually accepts the one the tool sends.
+  //
+  // This is the one place the fake was written from the client instead
+  // of from the PHP, and it hid the worst bug in the plugin: the PHP
+  // read only `Authorization`, the tool sent only `X-STB-Key`, so every
+  // real request 401'd while 45 assertions here passed. Copy the PHP.
+  const bearer = /^Bearer\s+/i.test(req.headers.authorization ?? "")
+    ? (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "").trim()
+    : "";
+  const custom = (req.headers["x-stb-key"] ?? "").trim();
+  if (custom !== KEY && bearer !== KEY) {
     return json(res, 401, { ok: false, error: "bad key" });
   }
 
   if (path === "/ping") {
     return json(res, 200, {
       ok: true,
-      plugin_version: "0.3.0",
+      plugin_version: "0.4.0",
       wp_version: "6.7",
       site_url: `http://localhost:${PORT}`,
       capabilities: {

@@ -201,6 +201,25 @@ jobs:
       # NOT prove the PHP behaves as documented; that needs a real
       # WordPress. It does prove our side, which is where all four bugs
       # were.
+      # The plugin's own PHP, actually executed.
+      #
+      # It never had been. Every check for the WordPress integration drove
+      # the TypeScript client against a JavaScript stand-in, which caught
+      # five wire-format bugs and still missed the worst one: the plugin
+      # read `Authorization` while the tool sent `X-STB-Key`, so every
+      # request from the tool had returned 401 since the plugin's first
+      # release. The stand-in's auth had been copied from the client
+      # rather than from the PHP — a fake is only as correct as whoever
+      # read the original, which is the argument for running the original.
+      #
+      # Runners ship PHP, so this costs nothing. mbstring is needed for
+      # the link inserter's mb_* calls.
+      - name: WordPress plugin (PHP)
+        run: |
+          php -v
+          php -l wordpress-plugin/seo-tool-bridge.php
+          php -d extension=mbstring wordpress-plugin/tests/wp-bridge-test.php
+
       - name: WordPress bridge checks
         run: pnpm exec tsx scripts/wp-bridge-check.ts
 

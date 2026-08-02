@@ -4,9 +4,9 @@ Tags: seo, ai, automation, meta tags, schema, yoast, rank math
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 0.2.1
-License: PolyForm Noncommercial 1.0.0
-License URI: https://polyformproject.org/licenses/noncommercial/1.0.0/
+Stable tag: 0.4.0
+License: MIT
+License URI: https://opensource.org/licenses/MIT
 
 Connects your WordPress site to the self-hosted SEO Tool by DiceCodes so AI-generated SEO fixes can be applied with one click.
 
@@ -28,14 +28,30 @@ Every change is logged with the previous value, and one-click undo works on any 
 
 = What it does NOT do =
 
-* Send any data anywhere on its own — only responds to requests authenticated with your unique Bearer-token connection key
-* Modify post content (only metadata + structural fixes)
+* Send any data anywhere on its own — only responds to requests authenticated with your connection key
 * Track users or collect analytics
 * Phone home in any way
 
+= What it changes in your post content =
+
+Everything above edits metadata — titles, descriptions, alt text, schema — except one thing. Since 0.3.0 the plugin can insert internal links into a post's body, which is the only feature that rewrites the article itself.
+
+It is deliberately conservative: anchors are matched in visible text only (never inside an existing link, heading, or code block), the first occurrence only, once per phrase, and same-site URLs only. The entire previous body is saved, so undo restores the article exactly.
+
+If you would rather it never touched your content, leave the SEO Tool's autonomy on "suggest only" and approve each change yourself.
+
+(Earlier versions of this readme said the plugin does not modify post content. That stopped being true in 0.3.0.)
+
 = How the auth works =
 
-A 48-character random connection key is generated when you activate the plugin. The SEO Tool sends this as a Bearer token (`Authorization: Bearer <key>`) on every request. The plugin verifies with `hash_equals()` (timing-safe). Anyone without the key gets `401 Unauthorized` from every endpoint except the WP admin UI.
+A 48-character random connection key is generated when you activate the plugin. Send it in either header:
+
+    X-STB-Key: <key>
+    Authorization: Bearer <key>
+
+The SEO Tool uses `X-STB-Key`, which is also the one to prefer if you're calling the API yourself: Apache with mod_php often strips `Authorization` before PHP can read it unless the site owner adds a rewrite rule.
+
+The plugin verifies with `hash_equals()` (timing-safe). Anyone without the key gets `401 Unauthorized` from every endpoint except the WP admin UI.
 
 You can regenerate the key at any time from `Tools → SEO Tool Bridge → Regenerate key`. The old key stops working immediately.
 
@@ -74,8 +90,9 @@ If you see "Failed to connect to WordPress bridge":
 
 1. Check the REST endpoint URL matches exactly what the plugin shows in Tools → SEO Tool Bridge
 2. Check your hosting doesn't block `/wp-json/` requests (some security plugins do — whitelist `seo-tool/v1` namespace)
-3. Test the endpoint manually: `curl -H "Authorization: Bearer YOUR_KEY" https://yoursite.com/wp-json/seo-tool/v1/ping`
-4. Should return JSON with `"ok":true`
+3. Test the endpoint manually: `curl -H "X-STB-Key: YOUR_KEY" https://yoursite.com/wp-json/seo-tool/v1/ping`
+4. Should return JSON with `"ok":true` and your `plugin_version`
+5. If that returns 401 and you are on 0.3.0 or older, upgrade — before 0.4.0 the plugin only read the `Authorization` header while the SEO Tool only ever sent `X-STB-Key`, so every request failed no matter how correct the key was
 
 == Frequently Asked Questions ==
 
@@ -113,7 +130,46 @@ The plugin doesn't collect or transmit any personal data. It exposes a REST endp
 
 == Changelog ==
 
-= 0.2.1 (current) =
+= 0.4.0 (current) =
+* Fixed (Critical): authentication accepted only `Authorization: Bearer`, while
+  the SEO Tool has only ever sent `X-STB-Key`. Every request from the tool
+  returned 401, for every endpoint, in every version of this plugin — and a 401
+  reads as a wrong key, which is what anyone debugging it would have chased.
+  Both headers are now accepted; `X-STB-Key` is preferred because Apache with
+  mod_php frequently strips `Authorization` before PHP sees it.
+* Fixed: revision ids were `count($revisions) + 1`, and the log is capped at the
+  most recent 500 — so past 500 changes every new revision was id 501. Undo
+  found the oldest 501 and restored a value from hundreds of edits ago to a live
+  site, reporting success. Ids are now monotonic.
+* Fixed: an empty `jsonld` is now how you REMOVE schema, instead of a 400. Undo
+  of "schema added" replays the previous value, which is always empty — so the
+  SEO Tool could add structured data to a page and never take it off.
+* Fixed: the literal JSON `null` was accepted as schema and printed
+  `<script type="application/ld+json">null</script>` into the page. Non-object
+  JSON (a bare number or string) is refused for the same reason.
+* Fixed: `/ping` advertised a `redirects` capability that has never had a route.
+  Capabilities now match reality, and `canonical`/`robots` are declared false.
+* Changed: License to MIT, matching the main project's LICENSE. The old
+  PolyForm Noncommercial header was not GPL-compatible, so the plugin could
+  never have been submitted to the WordPress.org directory.
+* Changed: `Stable tag` was still 0.2.1 while the plugin was 0.3.0.
+* Docs: corrected "does not modify post content" — link insertion, added in
+  0.3.0, does.
+
+= 0.3.0 =
+* Added: `GET /post/{id}/images` — every image on a post with its attachment id.
+  `/attachment/{id}/alt` had always existed, but nothing could map an image on a
+  page to its media-library entry, so the SEO Tool could find images missing alt
+  text and never fix one.
+* Added: `GET /post/{id}/schema` — read the JSON-LD this plugin manages, so an
+  update can check before overwriting instead of destroying existing markup.
+  Deliberately does not report schema from Yoast, Rank Math or your theme.
+* Added: `POST /post/{id}/links` — insert internal links into post content.
+  Visible text only, first occurrence, never inside an existing link, heading or
+  code block, same-site URLs only, whole-body revision so undo is exact.
+* Added: `content` case in the undo handler, for the above.
+
+= 0.2.1 =
 * SECURITY (Critical): XSS — JSON-LD output was interpolated unescaped into the
   &lt;script&gt; block, allowing a bridge-key holder to inject arbitrary JS into
   every visitor's session via a `</script>` payload. Output now escapes
@@ -134,6 +190,9 @@ The plugin doesn't collect or transmit any personal data. It exposes a REST endp
 * Initial release: title, meta description, alt text, schema markup, revision log + undo
 
 == Upgrade Notice ==
+
+= 0.4.0 =
+Upgrade immediately. Before this release the plugin never accepted a single request from the SEO Tool — it read the wrong header, so every call returned 401 regardless of the key. Also fixes undo restoring the wrong value on sites with more than 500 logged changes. No breaking changes; the previously documented `Authorization: Bearer` header still works.
 
 = 0.2.0 =
 Important bug fix: GET on `/post/{id}/seo` was broken in 0.1.0 due to duplicate route registration. Upgrade to fix one-click "read current SEO" in the SEO Tool. No breaking changes.

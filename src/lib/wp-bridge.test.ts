@@ -186,6 +186,21 @@ describe("writing schema", () => {
   });
 });
 
+describe("a 401 from the plugin", () => {
+  it("points at the plugin version, not just at the key", async () => {
+    // Bridge plugins before 0.4.0 read only `Authorization` while this
+    // client only ever sent `X-STB-Key`, so every request 401'd no
+    // matter how correct the key was. A bare "401" sends people to
+    // re-copy a key that was never the problem.
+    respond({ code: "rest_forbidden" }, 401);
+    const r = await getPostSeo(creds, 101);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/0\.4\.0/);
+    expect(r.error).toMatch(/update/i);
+  });
+});
+
 describe("alt text", () => {
   it("sends `alt`", async () => {
     respond({ ok: true, rev_id: 3 });
