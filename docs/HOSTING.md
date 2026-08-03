@@ -78,14 +78,94 @@ managed Postgres database — easier but more expensive (~$75/mo).
 
 ---
 
-## Self-hosted on your own computer
+## Self-hosted on your own computer — £0, and the most private
 
-Use the README's Docker option. The tool runs entirely on `localhost:3000`.
-This is the most private setup — no data leaves your machine unless you
-explicitly connect Google APIs or an external AI provider.
+Use the README's Docker option. The tool runs entirely on
+`localhost:3000`. No data leaves your machine unless you explicitly
+connect Google APIs or an external AI provider.
 
-Costs: $0. Caveats: only accessible from your machine unless you expose
-the port (ngrok / Tailscale / your router's port forward).
+Costs: nothing. The catch is that it's only reachable from that machine,
+and only while it's switched on.
+
+### Reaching it from your phone, still free
+
+**Cloudflare Tunnel** is the simplest way, needs no open ports on your
+router, and gives you HTTPS:
+
+```bash
+# One-time: install cloudflared, then
+cloudflared tunnel --url http://localhost:3000
+```
+
+That prints a public `*.trycloudflare.com` URL. For something permanent,
+create a named tunnel and point a domain at it — still free.
+
+**Tailscale** is the alternative if you'd rather it stay private: your
+devices see the tool, the public internet never does.
+
+**Set `APP_PASSWORD` before you expose it either way.** A tunnel makes
+your install reachable by anyone who learns the URL, and without a
+password they can use it.
+
+Good for: personal SEO, one or two client sites, anyone who'd rather own
+their data outright. The limitation is real though — scheduled audits,
+rank checks and the daily agent only run while your computer is awake.
+If you want the automation to actually be automatic, you need something
+that stays on.
+
+---
+
+## Genuinely free, always on
+
+**Oracle Cloud Always Free** is the only major cloud with a free tier
+that fits this tool: up to 4 ARM cores and 24 GB RAM, a persistent disk,
+and no expiry. That is far more than this needs — a 1 GB VPS runs it
+fine.
+
+Install Docker on the instance and follow the Hetzner steps above; they
+are identical from that point. Open port 443, put Cloudflare in front,
+set `APP_PASSWORD`.
+
+Two honest caveats: ARM capacity in popular regions is often
+unavailable, so you may have to retry or pick a quieter region; and
+Oracle's signup asks for a card for identity even on the free tier.
+
+**Railway** gives $5 of monthly credit, which this tool will roughly
+consume — expect a small bill rather than free. **Render** runs Docker
+with a real free tier, but persistent disks are a paid add-on, and
+without one your database is wiped on every deploy. **Fly.io no longer
+has a free tier** as of 2026 — new accounts get a short trial, then
+roughly $2-5/month.
+
+---
+
+## Vercel + Supabase / Neon — why this doesn't work
+
+Worth stating plainly, because it's the obvious thing to try and it
+would waste an afternoon.
+
+**Vercel can't run this.** Not a configuration problem — four separate
+blockers:
+
+1. **The database is a file.** `better-sqlite3` opens `data.db` in WAL
+   mode on local disk. Vercel's filesystem is ephemeral and each request
+   may hit a different container, so your data would vanish between
+   requests.
+2. **Playwright.** Rank checks, SERP scraping and GBP scraping drive a
+   real headless Chromium. It doesn't fit in a serverless function.
+3. **The scheduler needs a process that stays alive.** Audits, rank
+   checks, monitoring and the daily agent are started from
+   `instrumentation.ts` at boot. Serverless has no always-on process, so
+   nothing would ever run on a schedule — which is most of the point.
+4. **`output: "standalone"`** builds a self-contained server for a
+   container, not Vercel's runtime.
+
+**Supabase and Neon are PostgreSQL**, and this app is SQLite — see
+"When to migrate to PostgreSQL" below for what that actually costs. They
+are excellent databases; they're just not a drop-in here.
+
+If you want it hosted and free, use Oracle Cloud Always Free. If you want
+it hosted and effortless, a $5 VPS is the shortest path.
 
 ---
 
@@ -112,10 +192,22 @@ Stay on SQLite while:
 - You're the only user, OR
 - You have <50 active users with <30 concurrent requests at peak.
 
-Migrate to PostgreSQL when:
+Consider PostgreSQL when:
 - You see `SQLITE_BUSY` errors in production logs.
 - Daily-agent runs take >30 minutes (writes are queuing).
 - You want to run 2+ app instances behind a load balancer.
 
-Drizzle ORM supports both. The migration is a `DATABASE_URL` env var + the
-drizzle config swap — about 1 day of work.
+**It is not a config swap.** This page used to say "a `DATABASE_URL` env
+var + the drizzle config swap — about 1 day of work". That was wrong, and
+measured rather than guessed:
+
+- **72** tables are declared with `sqliteTable` from `drizzle-orm/sqlite-core`
+- **42 of 62** migrations use SQLite-only SQL — `AUTOINCREMENT`,
+  `unixepoch()`, `PRAGMA`
+- `src/db/client.ts` opens a `better-sqlite3` handle and sets WAL mode
+- Drizzle's SQLite and Postgres builders are different modules with
+  different types, so the schema file is a rewrite, not an edit
+
+Drizzle does support both, and the *shape* of the schema carries over.
+But this is a port measured in weeks, not a day. Nobody has done it, so
+treat any estimate — including this one — as an estimate.
