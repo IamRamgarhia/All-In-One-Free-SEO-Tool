@@ -2,7 +2,7 @@
 
 # All-In-One Free SEO Tool — Open-Source Alternative to Ahrefs, Semrush, Moz &amp; SE Ranking
 
-### 🚀 The complete free SEO platform. 96 dedicated tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
+### 🚀 The complete free SEO platform. 99 dedicated tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
 
 ### Built for agencies and freelancers, specifically
 **Team accounts** with per-client access · **generate every client's report in one run**, then review before anything goes out · an **autonomous agent** that fixes what it finds and can undo any of it · an **embeddable audit widget** that turns your site into a lead source · **proposals** built from real audit findings.
@@ -93,6 +93,44 @@ docker compose up -d
 
 Open <http://localhost:3000>. That's it.
 
+### 💻 Running it on your own PC (free, and the most private)
+
+The commands above are the whole thing — the tool runs at
+`localhost:3000` and your data never leaves the machine. A single
+`data.db` file holds everything; backing up means copying the folder.
+
+Two things worth knowing:
+
+- **It only runs while your computer is on.** Scheduled audits, rank
+  checks and the daily agent stop when you shut down. Fine for personal
+  SEO; not fine if you want the automation to be automatic.
+- **Reaching it from your phone** takes one command and stays free —
+  `cloudflared tunnel --url http://localhost:3000` gives you an HTTPS
+  URL with no router changes. **Set `APP_PASSWORD` first**, or anyone
+  with the link can use your install.
+
+Fully offline is supported too: install [Ollama](https://ollama.com/) for
+local AI, and everything except SERP scraping and Google APIs works with
+no internet at all.
+
+### ☁️ Running it online for free
+
+**[Oracle Cloud Always Free](docs/HOSTING.md)** is the one major cloud
+whose free tier genuinely fits: a persistent disk, no expiry, and far
+more RAM than this needs. Install Docker and follow the same steps.
+
+A **$5/month VPS** (Hetzner CX11) is the shortest path if you'd rather
+not fight for free ARM capacity. Full walkthroughs for Hetzner, Oracle,
+Railway, Hostinger and DigitalOcean are in
+**[docs/HOSTING.md](docs/HOSTING.md)**.
+
+> **Vercel + Supabase or Neon won't work** — worth saying plainly,
+> because it's the obvious thing to try. The database is a local SQLite
+> file, rank checking drives a real headless browser, and the scheduler
+> needs a process that stays alive; none of those survive a serverless
+> runtime, and Supabase and Neon are PostgreSQL while this is SQLite.
+> [The full reasoning is here.](docs/HOSTING.md#vercel--supabase--neon--why-this-doesnt-work)
+
 ---
 
 ## 📸 Screenshots
@@ -104,7 +142,7 @@ Open <http://localhost:3000>. That's it.
 
 Every client gets a focused workspace with a 0-100 health score, today's priorities, daily-automation card, and one-click connections to Google Search Console + Analytics 4.
 
-### 96 dedicated tools, organized by SEO discipline
+### 99 dedicated tools, organized by SEO discipline
 ![All Tools page showing 13 category filters — Audits & scoring, Reports, On-page, Schema, Indexing, Speed, Keywords & content, Backlinks & outreach, Local SEO, Competitors & brand, AI visibility, Imports & integrations — and a grid of tool cards including Full SEO health check, SERP feature tracker, Content attack brief, Meta tag generator, SEO code generator](docs/screenshots/03-all-tools.png)
 
 Filter by category or pin your favorites. Each tool is single-purpose and chainable — output of one feeds the next.
@@ -133,7 +171,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 
 ## 📦 Full feature list
 
-> **96 dedicated tools across 14 SEO disciplines.** Every category an SEO professional needs, all in one self-hosted app.
+> **99 dedicated tools across 14 SEO disciplines.** Every category an SEO professional needs, all in one self-hosted app.
 
 ### 🔍 Site audits & technical SEO
 ✅ Full-site crawler with 30+ on-page checks  
@@ -213,7 +251,9 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 > Google AI Overviews now appear on **47% of commercial queries** ([Semrush AI Overview study, 2025](https://www.semrush.com/blog/google-ai-overviews-study/)). Gartner projects a **25% organic-traffic drop by 2028** ([Gartner 2024 prediction](https://www.gartner.com/en/newsroom/press-releases/2024-02-19-gartner-predicts-search-engine-volume-will-drop-25-percent-by-2026-due-to-ai-chatbots-and-other-virtual-agents)). Most SEO tools haven't caught up. This one has.
 
 ✅ LLM mention tracker — weekly checks across ChatGPT, Perplexity, Claude, Gemini, Google AI Overviews  
-✅ Citation analysis — when not cited, see who is (Reddit, Wikipedia, industry pubs)  
+✅ **Citation landscape** — the domains getting cited for your topics, ranked, with your own share. The question the paid GEO tools sell on: *who is being cited instead of me*  
+✅ **Counts only answers where the model actually searched the web.** Every check records whether it searched or answered from training memory, and memory answers are excluded — they describe what a model absorbed months ago, not what AI search cites today. Most tools in this category don't draw the distinction  
+✅ **Says when the sample is too small.** A ranking built from three answers is labelled as such, not presented as a share of voice  
 ✅ Reddit monitoring for brand + competitor mentions  
 ✅ AI-bot crawl tracking from server logs (GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot frequency)  
 ✅ `llms.txt` manager (generate, validate, monitor — emerging web standard)  
@@ -277,6 +317,8 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ **Four autonomy levels**, defaulting to the cautious one: off · suggest only · fix the obvious things · full autopilot. "Suggest only" never touches a live site  
 ✅ **Every change is reversible** — the previous value is read from the CMS before writing, and one click puts it back. If the previous value can't be read, the change doesn't happen  
 ✅ **"Applied" and "verified" are different states** — a CMS accepting a change isn't the same as it taking effect, and the UI shows which  
+✅ **Five things it fixes on its own**: page titles · meta descriptions · image alt text (one action per image, not per page) · schema markup · **internal links to orphan pages**  
+✅ **Orphan-page linking** — finds pages nothing on your site links to, picks the most relevant existing page, and links it using a phrase already in that article. No model invents the anchor text, so it can't write words you didn't. Body edits need review unless you turn autonomy all the way up  
 ✅ Guardrails: changes-per-run, changes-per-day, and a cooldown so it can't thrash the same page  
 ✅ Full audit trail — what it did, why, what it looked like before  
 ✅ **Daily agent runs ~17 automated jobs per client every day** — rank checks, audit deltas, content decay, backlink scans, GBP monitoring, alert generation  
@@ -286,6 +328,13 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Custom monitors (brand mentions, SERP feature changes)  
 ✅ Webhook endpoints (incoming + outgoing)  
 ✅ Notification rules (Slack / Discord / Teams / email)
+
+### 🧩 Use it from Claude, Cursor, or any MCP client
+✅ **Built-in MCP server** — point Claude Code, Claude Desktop or Cursor at your install and ask questions in plain English against your own data ([setup](docs/mcp-server.md))  
+✅ **Ten tools**, backed by the joined history — crawl findings, rank movements, AI citations and every change the agent made, in one place. Most SEO MCP servers wrap a single API; "why did this page drop last month" needs all of it  
+✅ **It can act, and undo** — `run_agent` respects your autonomy setting exactly as the scheduler does, so at the default nothing is written to a live site  
+✅ **Numbers arrive with their provenance.** A Search Console average and a browser scrape are different measurements, so movement between them is reported as *not comparable* rather than as a confident "up 6 places" that never happened  
+✅ stdio only — no port, nothing listening, runs as whoever owns the database file  
 
 ### 🔌 Integrations
 ✅ **One setup page** (`/connect`) — every connection in one place, with what each one gets you, what you lose without it, how long it takes, and step-by-step instructions written for someone who's never seen that vendor's console  
@@ -531,7 +580,7 @@ If this tool saves you a ₹10,000+/month Ahrefs subscription, the cheapest way 
 
 **DiceCodes builds full-stack web apps end-to-end — solo, no agency overhead.**
 
-This entire SEO platform (96 dedicated tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
+This entire SEO platform (99 dedicated tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
 
 | What we build | Typical timeline |
 |---|---|
