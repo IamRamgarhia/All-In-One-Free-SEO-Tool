@@ -554,14 +554,50 @@ if [ "$HAS_DOCKER" != "1" ]; then
 
   chmod +x "$DIR/SEO Tool.command" 2>/dev/null || true
 
+  # Put it on the Desktop, so the install folder never has to be opened.
+  #
+  # That folder holds package.json, a lockfile, tsconfig and everything
+  # else a Node project needs — none of which is the user's business.
+  # One icon on the Desktop means they never see the rest.
+  if [ -d "$DESKTOP" ] && [ -f "$DIR/SEO Tool.command" ]; then
+    OS_NAME="$(uname -s)"
+    if [ "$OS_NAME" = "Darwin" ]; then
+      # A symlink shows the real icon and always follows the install,
+      # unlike a copy which goes stale the moment the tool updates.
+      ln -sf "$DIR/SEO Tool.command" "$DESKTOP/SEO Tool.command" 2>/dev/null \
+        && echo "Added 'SEO Tool' to your Desktop"
+    else
+      # Linux wants a .desktop entry; a bare symlink isn't clickable in
+      # most file managers.
+      cat > "$DESKTOP/SEO-Tool.desktop" <<DESKTOP_ENTRY
+[Desktop Entry]
+Type=Application
+Name=SEO Tool
+Comment=Open the SEO Tool control panel
+Exec=bash "$DIR/SEO Tool.command"
+Path=$DIR
+Icon=$DIR/public/icon.ico
+Terminal=true
+Categories=Development;Utility;
+DESKTOP_ENTRY
+      chmod +x "$DESKTOP/SEO-Tool.desktop" 2>/dev/null || true
+      # GNOME 42+ refuses to launch a .desktop file it doesn't trust.
+      gio set "$DESKTOP/SEO-Tool.desktop" metadata::trusted true 2>/dev/null || true
+      echo "Added 'SEO Tool' to your Desktop"
+    fi
+  fi
+
   if [ -d "$DESKTOP" ]; then
+    # NOTE: "SEO-Tool.desktop" and "SEO Tool.command" are NOT in this
+    # list. They are what the block above just created on the Desktop,
+    # and this sweep runs afterwards — leaving them here deleted the new
+    # shortcut every single install, so "add it to the Desktop" would
+    # have silently done nothing.
     for legacy_desktop in \
       "Start-SEO-Tool.desktop" \
       "Stop-SEO-Tool.desktop" \
-      "SEO-Tool.desktop" \
       "Start SEO Tool.command" \
       "Stop SEO Tool.command" \
-      "SEO Tool.command" \
       "SEO Tool.html" \
       "SEO Tool.hta" \
       "SEO-Tool-Welcome.txt"; do

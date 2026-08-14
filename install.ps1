@@ -753,18 +753,37 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
             }
         }
 
-        # Also drop a Start Menu shortcut so Windows search ("SEO Tool"
-        # -> Enter) finds the app. Points at the launcher folder's
-        # friendly wrapper rather than bin\START.cmd directly — the
-        # wrapper sets cwd correctly and the shortcut name matches
-        # what users will see in the launcher folder.
+        # A Desktop shortcut, so the install folder never has to be
+        # opened. This is the point: the folder contains package.json,
+        # tsconfig.json, a lockfile and everything else a Node project
+        # needs, and none of it is any of the user's business. Give them
+        # one icon on the Desktop and they never see the rest.
+        #
+        # The loop above deletes any old "SEO Tool.lnk" first, so this
+        # replaces rather than duplicates.
+        $entry = Join-Path $dir "SEO Tool.cmd"
+        if ((Test-Path $desktop) -and (Test-Path $entry)) {
+            $scPath = Join-Path $desktop "SEO Tool.lnk"
+            $sc = $wshShell.CreateShortcut($scPath)
+            $sc.TargetPath = $entry
+            $sc.WorkingDirectory = $dir
+            $sc.Description = "Open the SEO Tool control panel"
+            if ($iconPath) { $sc.IconLocation = $iconPath }
+            $sc.Save()
+            Say "Added 'SEO Tool' to your Desktop"
+        }
+
+        # Start Menu too, so Windows search ("SEO Tool" -> Enter) finds
+        # it. Targets SEO Tool.cmd — this used to point at
+        # launcher\Start SEO Tool.cmd, a folder that no longer exists,
+        # which would have made every new install ship a dead shortcut.
         $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
-        if (Test-Path $startMenu) {
+        if ((Test-Path $startMenu) -and (Test-Path $entry)) {
             $menuPath = Join-Path $startMenu "SEO Tool.lnk"
             $menuSc = $wshShell.CreateShortcut($menuPath)
-            $menuSc.TargetPath = Join-Path $dir "launcher\Start SEO Tool.cmd"
+            $menuSc.TargetPath = $entry
             $menuSc.WorkingDirectory = $dir
-            $menuSc.Description = "Start the SEO Tool (DiceCodes)"
+            $menuSc.Description = "Open the SEO Tool control panel"
             if ($iconPath) { $menuSc.IconLocation = $iconPath }
             $menuSc.Save()
             Say "Created Start Menu shortcut: $menuPath"
