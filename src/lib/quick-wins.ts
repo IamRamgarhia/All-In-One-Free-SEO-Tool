@@ -39,15 +39,15 @@ const QUICK_WIN_TYPES: Record<
     title: (_msg, url) => `Write a meta description for ${pathOf(url)}`,
     minutes: 10,
   },
-  title_too_long: {
+  long_title: {
     title: (_msg, url) => `Trim the title on ${pathOf(url)} to under 60 chars`,
     minutes: 10,
   },
-  title_too_short: {
+  short_title: {
     title: (_msg, url) => `Lengthen the title on ${pathOf(url)} (currently <30 chars)`,
     minutes: 10,
   },
-  meta_description_too_long: {
+  long_meta_description: {
     title: (_msg, url) => `Trim the meta description on ${pathOf(url)} to ~155 chars`,
     minutes: 10,
   },
@@ -55,11 +55,12 @@ const QUICK_WIN_TYPES: Record<
     title: (_msg, url) => `Add an H1 heading to ${pathOf(url)}`,
     minutes: 10,
   },
-  multiple_h1: {
-    title: (_msg, url) => `Reduce ${pathOf(url)} to a single H1`,
-    minutes: 10,
-  },
-  missing_alt_text: {
+  // multiple_h1 removed deliberately. "Use only one H1" is listed in
+  // CLAUDE.md §3.7 as advice this tool will not repeat — multiple H1s
+  // are valid in HTML5 and Google has said so. The crawler never
+  // emitted it, so this quick win could never fire anyway; it was
+  // telling nobody to do the wrong thing.
+  missing_image_alt: {
     title: (_msg, url) => `Add alt text to images on ${pathOf(url)}`,
     minutes: 15,
   },
@@ -67,19 +68,18 @@ const QUICK_WIN_TYPES: Record<
     title: (_msg, url) => `Add a canonical tag to ${pathOf(url)}`,
     minutes: 5,
   },
-  no_sitemap: {
+  missing_sitemap: {
     title: () => `Create and submit a sitemap.xml`,
     minutes: 15,
   },
-  invalid_sitemap: {
-    title: () => `Fix the sitemap.xml — currently invalid`,
-    minutes: 20,
-  },
-  no_robots: {
+  // invalid_sitemap removed: the crawler has no such check, so this
+  // never fired. If a sitemap-validity check is added, add the quick win
+  // back under whatever name the crawler actually emits.
+  missing_robots_txt: {
     title: () => `Add a robots.txt file`,
     minutes: 5,
   },
-  invalid_robots: {
+  invalid_robots_txt: {
     title: () => `Fix the invalid robots.txt directives`,
     minutes: 15,
   },

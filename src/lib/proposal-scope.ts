@@ -74,13 +74,13 @@ const WORK_ITEMS: {
       "missing_title",
       "short_title",
       "long_title",
-      "title_too_long",
-      "title_too_short",
+      
+      
       "duplicate_title",
       "missing_meta_description",
       "short_meta_description",
       "long_meta_description",
-      "meta_description_too_long",
+      
       "duplicate_meta_description",
     ],
   },
@@ -88,7 +88,7 @@ const WORK_ITEMS: {
     label: "Correct heading structure",
     detail:
       "Pages with no H1 or a heading order that doesn't describe the content. Affects how clearly both readers and search engines understand each page.",
-    types: ["missing_h1", "multiple_h1", "heading_order", "h1_matches_title"],
+    types: ["missing_h1",  "heading_order", "h1_matches_title"],
   },
   {
     label: "Add structured data",
@@ -101,7 +101,7 @@ const WORK_ITEMS: {
     detail:
       "Images with no alt text, oversized files, or formats that slow pages down. Covers accessibility and image search as well as speed.",
     types: [
-      "missing_alt_text",
+      
       "missing_image_alt",
       "large_image",
       "oversized_image",
@@ -164,8 +164,7 @@ const WORK_ITEMS: {
       "XML sitemap coverage and the internal links that route authority between pages. Often the cheapest gain on a site that already has content.",
     types: [
       "missing_sitemap",
-      "invalid_sitemap",
-      "orphan_page",
+      "orphan_pages",
       "deep_page",
       "few_internal_links",
     ],
