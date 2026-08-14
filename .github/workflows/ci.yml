@@ -201,6 +201,20 @@ jobs:
       # NOT prove the PHP behaves as documented; that needs a real
       # WordPress. It does prove our side, which is where all four bugs
       # were.
+      # The first thing anyone does: add a site, run an audit.
+      #
+      # This path had the worst bug in the product and nothing covered
+      # it. An interrupted audit left its row "running"; from then on
+      # every click of "Run audit" returned silently for a full hour,
+      # and the audit page had no branch for "running" so it rendered an
+      # empty shell. Nothing threw. The report was "it just stops in
+      # this place and doesn't go anywhere".
+      #
+      # The assertions are about a click always doing something the user
+      # can see, so "returned normally" is what fails here.
+      - name: First run — add a site and audit it
+        run: pnpm exec tsx scripts/first-run-check.ts
+
       # The MCP server, driven the way a real client drives it.
       #
       # Spawns it and speaks JSON-RPC over stdio, because the handlers
