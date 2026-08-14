@@ -703,22 +703,30 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
         #       can't reliably execute the .hta from a click — Chrome
         #       just downloads it. Removed in favour of the .hta direct.
         #   (b) Desktop — old .lnk shortcuts + welcome.txt
-        # After this pass at the install root:
-        #   <install>\SEO Tool.hta         ← the one Windows entry point
-        #                                    (double-click directly in
-        #                                    File Explorer — no browser
-        #                                    involved)
-        #   <install>\launcher\            ← Start/Stop .cmd / .command wrappers
-        # After this pass the install root will have exactly two
-        # user-facing entry files:
-        #   "Start SEO Tool (Windows).hta"     ← Windows users
-        #   "Start SEO Tool (Mac).command"     ← Mac users
-        # Plus the launcher/ folder for power-user wrappers.
+        # ONE thing to double-click, per platform:
+        #
+        #   <install>\SEO Tool.cmd        ← Windows
+        #   <install>\SEO Tool.command    ← macOS / Linux
+        #
+        # Both open the control panel in the browser, which has buttons
+        # for install, start, stop, update and backup. The list below
+        # sweeps up earlier installs, which shipped seven separate entry
+        # points plus a launcher/ folder with four more — users could
+        # not reasonably tell which one to click.
+        #
+        # "SEO Tool.cmd" is deliberately NOT in this list: it is the new
+        # entry point, and deleting it here would remove the only file
+        # the user is meant to open.
         foreach ($rootLegacy in @(
             "Start SEO Tool.cmd",
             "Stop SEO Tool.cmd",
             "Start SEO Tool.command",
             "Stop SEO Tool.command",
+            "Start SEO Tool (Windows).hta",
+            "Start SEO Tool (Mac).command",
+            "COLLECT-LOGS.cmd",
+            "COLLECT-LOGS.sh",
+            "START-HERE.txt",
             "SEO Tool.html",
             "SEO Tool.hta"
         )) {
@@ -726,6 +734,10 @@ if ((Test-Path $desktop) -and (-not $hasDocker)) {
             if (Test-Path $p) {
                 Remove-Item $p -Force -ErrorAction SilentlyContinue
             }
+        }
+        $legacyLauncherDir = Join-Path $dir "launcher"
+        if (Test-Path $legacyLauncherDir) {
+            Remove-Item $legacyLauncherDir -Recurse -Force -ErrorAction SilentlyContinue
         }
         foreach ($legacy in @(
             "Start SEO Tool.lnk",

@@ -522,31 +522,37 @@ fi
 # Stop buttons with live status — cleaner desktop, fewer files to
 # explain, same one-click experience.
 if [ "$HAS_DOCKER" != "1" ]; then
-  # The repo ships executable launchers under <install>/launcher/.
   # ZIP-based installs strip +x — re-add it.
   chmod +x "$DIR/bin/START.sh" "$DIR/bin/STOP.sh" "$DIR/bin/seo.sh" 2>/dev/null || true
-  chmod +x "$DIR/launcher/Start SEO Tool.command" "$DIR/launcher/Stop SEO Tool.command" 2>/dev/null || true
 
-  # Sweep up files left behind by EARLIER installs (root-level Start/Stop
-  # wrappers + old SEO Tool.html browser launcher). After this pass:
-  #   <install>/SEO Tool.hta      ← THE one Windows entry point
-  #                                  (double-click in File Explorer)
-  #   <install>/launcher/         ← Start/Stop wrappers (.cmd / .command)
-  # After this pass the install root will have two user-facing entries:
-  #   "Start SEO Tool (Windows).hta"     ← Windows users
-  #   "Start SEO Tool (Mac).command"     ← Mac users
-  # Plus the launcher/ folder for power-user wrappers.
+  # ONE thing to double-click, per platform:
+  #
+  #   <install>/SEO Tool.cmd        ← Windows
+  #   <install>/SEO Tool.command    ← macOS / Linux
+  #
+  # Both open the control panel in the browser, which has buttons for
+  # install, start, stop, update and backup. Everything below is swept
+  # up from earlier installs that shipped seven separate entry points —
+  # a .hta, two per-platform Start files, two COLLECT-LOGS scripts, a
+  # START-HERE.txt and a launcher/ folder with four more. Users
+  # reasonably could not tell which one to click.
   for legacy_root in \
     "Start SEO Tool.cmd" \
     "Stop SEO Tool.cmd" \
     "Start SEO Tool.command" \
     "Stop SEO Tool.command" \
+    "Start SEO Tool (Windows).hta" \
+    "Start SEO Tool (Mac).command" \
+    "COLLECT-LOGS.cmd" \
+    "COLLECT-LOGS.sh" \
+    "START-HERE.txt" \
     "SEO Tool.html" \
     "SEO Tool.hta"; do
     [ -f "$DIR/$legacy_root" ] && rm -f "$DIR/$legacy_root"
   done
-  # New entry files need +x on macOS / Linux
-  chmod +x "$DIR/Start SEO Tool (Mac).command" 2>/dev/null || true
+  rm -rf "$DIR/launcher" 2>/dev/null || true
+
+  chmod +x "$DIR/SEO Tool.command" 2>/dev/null || true
 
   if [ -d "$DESKTOP" ]; then
     for legacy_desktop in \

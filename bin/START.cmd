@@ -53,7 +53,7 @@ if %errorlevel%==0 (
 REM ---- 2b. First-run self-bootstrap.
 REM     Runs ONCE on a freshly-extracted ZIP that's never had the
 REM     installer run. Detects missing node_modules / .next / playwright
-REM     and sets them up so double-clicking "Start SEO Tool (Windows).hta"
+REM     and sets them up so double-clicking "SEO Tool.cmd"
 REM     on a brand-new PC just works.
 REM
 REM     We use Direct console output (not redirected) so the user SEES

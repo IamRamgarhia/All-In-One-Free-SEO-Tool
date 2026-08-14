@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SEO Tool — control panel</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --ink: #14171f; --muted: #5b6472;
+    --line: #e3e6ec; --accent: #2563eb; --ok: #067647; --warn: #a15c07;
+    --bad: #b42318; --code-bg: #0f1420; --code-ink: #d7dbe4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --card: #171a21; --ink: #eef1f6; --muted: #9aa3b2;
+      --line: #262b35; --accent: #6ea8fe; --ok: #4ade80; --warn: #fbbf24;
+      --bad: #f87171; --code-bg: #0a0d14; --code-ink: #c9d1e0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 32px 20px 64px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border-radius: 10px; padding: 11px 16px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); transition: filter .15s;
+  }
+  button:hover:not(:disabled) { filter: brightness(0.97); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--muted); }
+  .dot.warn { background: var(--warn); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
+  dt { color: var(--muted); } dd { margin: 0; }
+  #log {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 10px;
+    padding: 14px; font: 12.5px/1.5 ui-monospace, "SF Mono", Consolas, monospace;
+    white-space: pre-wrap; word-break: break-word; max-height: 340px;
+    overflow-y: auto; margin-top: 12px;
+  }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .banner {
+    border-radius: 10px; padding: 12px 14px; font-size: 14px; margin-bottom: 16px;
+    border: 1px solid var(--line);
+  }
+  .banner.bad { border-color: var(--bad); color: var(--bad); }
+  a { color: var(--accent); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SEO Tool</h1>
+  <p class="sub">Everything you need to run it, in one place. Leave the black terminal window open — closing it closes this.</p>
+
+  <div id="nodeWarn" class="banner bad hidden"></div>
+
+  <div class="card">
+    <div class="status"><span id="dot" class="dot off"></span><strong id="statusText">Checking…</strong></div>
+    <dl id="facts"></dl>
+    <div class="row" id="actions" style="margin-top:16px"></div>
+    <p class="hint" id="hint"></p>
+  </div>
+
+  <div class="card">
+    <h2>Looking after your data</h2>
+    <div class="row">
+      <button onclick="run('backup')" id="btnBackup">Back up now</button>
+      <button onclick="run('doctor')" id="btnLogs">Collect info for support</button>
+    </div>
+    <p class="hint">
+      Everything lives in one <code>data.db</code> file. To move this tool to
+      another computer: back up, copy the whole folder across, and press
+      <em>Install</em> there. Your clients, audits and settings come with it.
+    </p>
+  </div>
+
+  <div class="card" id="logCard" style="display:none">
+    <h2 id="logTitle">Working…</h2>
+    <div id="log"></div>
+  </div>
+
+  <p class="hint">
+    Prefer the command line? Everything here maps to a script in
+    <code>package.json</code>. This panel just runs them for you.
+  </p>
+</div>
+
+<script>
+let logCursor = 0, polling = null, lastBusy = null;
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+async function refresh() {
+  let s;
+  try { s = await api("/api/state"); }
+  catch { document.getElementById("statusText").textContent = "Control panel stopped — reopen the launcher."; return; }
+
+  const dot = document.getElementById("dot");
+  const txt = document.getElementById("statusText");
+  const actions = document.getElementById("actions");
+  const hint = document.getElementById("hint");
+
+  // Node is the one thing this panel can't install for you.
+  const warn = document.getElementById("nodeWarn");
+  const major = Number(String(s.nodeVersion).split(".")[0]);
+  if (major < 20) {
+    warn.classList.remove("hidden");
+    warn.innerHTML = 'This needs Node 20 or newer — you have ' + esc(s.nodeVersion) +
+      '. <a href="https://nodejs.org" target="_blank" rel="noreferrer">Install it from nodejs.org</a>, then reopen this panel.';
+  } else {
+    warn.classList.add("hidden");
+  }
+
+  document.getElementById("facts").innerHTML =
+    '<dt>Version</dt><dd>' + esc(s.version) + '</dd>' +
+    '<dt>Your data</dt><dd>' + (s.hasData ? esc(s.dataSizeMb) + ' MB' : 'nothing saved yet') + '</dd>' +
+    '<dt>Backups</dt><dd>' + (s.backupsMb ? esc(s.backupsMb) + ' MB' : 'none yet') + '</dd>' +
+    '<dt>Folder</dt><dd><code>' + esc(s.root) + '</code></dd>';
+
+  const busy = Boolean(s.busy);
+  let buttons = "";
+
+  if (!s.installed || !s.built) {
+    dot.className = "dot warn";
+    txt.textContent = "Not installed yet";
+    hint.textContent = "One press. It downloads what's needed and builds the app — a few minutes the first time.";
+    buttons = '<button class="primary" onclick="run(\'install\')">Install</button>';
+  } else if (s.running) {
+    dot.className = "dot on";
+    txt.textContent = "Running";
+    hint.textContent = "";
+    buttons =
+      '<button class="primary" onclick="openApp(' + s.appPort + ')">Open the app</button>' +
+      '<button onclick="run(\'stop\')">Stop</button>' +
+      '<button onclick="run(\'update\')">Update to latest</button>';
+  } else {
+    dot.className = "dot off";
+    txt.textContent = "Installed, not running";
+    hint.textContent = "";
+    buttons =
+      '<button class="primary" onclick="run(\'start\')">Start the app</button>' +
+      '<button onclick="run(\'update\')">Update to latest</button>';
+  }
+  actions.innerHTML = buttons;
+
+  for (const b of document.querySelectorAll("button")) {
+    if (busy) b.disabled = true;
+  }
+
+  // A task that just finished should refresh the buttons.
+  if (lastBusy && !busy) { logCursor = 0; }
+  lastBusy = s.busy;
+}
+
+async function run(task) {
+  document.getElementById("logCard").style.display = "block";
+  document.getElementById("logTitle").textContent =
+    ({ install: "Installing…", update: "Updating…", start: "Starting…",
+       stop: "Stopping…", backup: "Backing up…", doctor: "Collecting…" })[task] || "Working…";
+  document.getElementById("log").textContent = "";
+  logCursor = 0;
+  for (const b of document.querySelectorAll("button")) b.disabled = true;
+  await api("/api/run/" + task, { method: "POST" });
+  if (!polling) polling = setInterval(pollLog, 700);
+  refresh();
+}
+
+async function pollLog() {
+  const d = await api("/api/log?since=" + logCursor);
+  if (d.lines && d.lines.length) {
+    const el = document.getElementById("log");
+    el.textContent += d.lines.join("\n") + "\n";
+    el.scrollTop = el.scrollHeight;
+    logCursor = d.next;
+  }
+  if (d.done) {
+    clearInterval(polling); polling = null;
+    document.getElementById("logTitle").textContent =
+      d.ok ? "Done" : "Didn't finish — see below";
+    refresh();
+  }
+}
+
+function openApp(port) { window.open("http://localhost:" + port, "_blank"); }
+
+refresh();
+setInterval(() => { if (!polling) refresh(); }, 3000);
+</script>
+</body>
+</html>
