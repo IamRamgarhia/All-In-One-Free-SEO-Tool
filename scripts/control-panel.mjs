@@ -47,10 +47,11 @@ import {
   readFileSync,
   readdirSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { platform } from "node:os";
+import { homedir, platform } from "node:os";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -220,13 +221,104 @@ function runBin(name) {
     : runStep("bash", [script]);
 }
 
+/**
+ * Put a shortcut on the Desktop, so there is exactly one way to reopen
+ * this and it isn't "find the folder you unzipped".
+ *
+ * install.ps1 and install.sh already do this, but only for people who
+ * ran the one-line installer. Anyone who downloaded the zip from GitHub
+ * and double-clicked the launcher got nothing — so "how do I start it
+ * again?" had two different answers depending on how you arrived. It
+ * has one now.
+ *
+ * Best-effort: a failure here is not worth failing an install over, so
+ * it says what happened and moves on.
+ */
+async function addDesktopShortcut() {
+  const desktop = join(homedir(), "Desktop");
+  if (!existsSync(desktop)) {
+    log("No Desktop folder found — skipping the shortcut.");
+    return true;
+  }
+
+  try {
+    if (IS_WINDOWS) {
+      const target = join(ROOT, "SEO Tool.cmd");
+      const link = join(desktop, "SEO Tool.lnk");
+      const icon = join(ROOT, "public", "icon.ico");
+      // WScript.Shell via PowerShell — the only way to write a real
+      // .lnk without a native module.
+      const ps = [
+        "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:SEO_LINK)",
+        "$s.TargetPath = $env:SEO_TARGET",
+        "$s.WorkingDirectory = $env:SEO_ROOT",
+        "$s.Description = 'Open the SEO Tool control panel'",
+        "if (Test-Path $env:SEO_ICON) { $s.IconLocation = $env:SEO_ICON }",
+        "$s.Save()",
+      ].join("; ");
+      const ok = await runStep(
+        "powershell",
+        ["-NoProfile", "-NonInteractive", "-Command", ps],
+        { env: { SEO_LINK: link, SEO_TARGET: target, SEO_ROOT: ROOT, SEO_ICON: icon } },
+      );
+      if (ok) log(`\nAdded "SEO Tool" to your Desktop.`);
+      return ok;
+    }
+
+    const target = join(ROOT, "SEO Tool.command");
+    if (platform() === "darwin") {
+      // A symlink, not a copy: it keeps pointing at the real launcher
+      // after an update, where a copy would go stale.
+      await runStep("ln", ["-sf", target, join(desktop, "SEO Tool.command")]);
+      log(`\nAdded "SEO Tool" to your Desktop.`);
+      return true;
+    }
+
+    // Linux file managers won't launch a bare symlink; they want a
+    // .desktop entry, and GNOME won't run one it doesn't trust.
+    const entry = join(desktop, "SEO-Tool.desktop");
+    writeFileSync(
+      entry,
+      [
+        "[Desktop Entry]",
+        "Type=Application",
+        "Name=SEO Tool",
+        "Comment=Open the SEO Tool control panel",
+        `Exec=bash "${target}"`,
+        `Path=${ROOT}`,
+        `Icon=${join(ROOT, "public", "icon.ico")}`,
+        "Terminal=true",
+        "Categories=Development;Utility;",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await runStep("chmod", ["+x", entry]);
+    await runStep("gio", ["set", entry, "metadata::trusted", "true"]);
+    log(`\nAdded "SEO Tool" to your Desktop.`);
+    return true;
+  } catch (e) {
+    log(`\nCouldn't add the Desktop shortcut: ${e.message}`);
+    log("Not a problem — reopen this by double-clicking the launcher in");
+    log(ROOT);
+    return true;
+  }
+}
+
 const TASKS = {
   // START.* installs, builds and starts, in that order, skipping
   // whatever is already done. So "Install" and "Start" are the same
   // script — the difference is only what the user is told to expect.
-  install: () => runBin("START"),
+  install: async () => {
+    const ok = await runBin("START");
+    // Only on success: a Desktop icon pointing at a half-built install
+    // is worse than none.
+    if (ok) await addDesktopShortcut();
+    return ok;
+  },
   start: () => runBin("START"),
   stop: () => runBin("STOP"),
+  shortcut: () => addDesktopShortcut(),
 
   update: async () => {
     if (!(await which("git"))) {

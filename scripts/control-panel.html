@@ -80,8 +80,13 @@
     <h2>Looking after your data</h2>
     <div class="row">
       <button onclick="run('backup')" id="btnBackup">Back up now</button>
+      <button onclick="run('shortcut')" id="btnShortcut">Add to Desktop</button>
       <button onclick="run('doctor')" id="btnLogs">Collect info for support</button>
     </div>
+    <p class="hint">
+      Installing adds the Desktop icon for you. The button is here in case
+      you delete it, or moved the folder.
+    </p>
     <p class="hint">
       Everything lives in one <code>data.db</code> file. To move this tool to
       another computer: back up, copy the whole folder across, and press
@@ -178,7 +183,7 @@ async function run(task) {
   document.getElementById("logCard").style.display = "block";
   document.getElementById("logTitle").textContent =
     ({ install: "Installing…", update: "Updating…", start: "Starting…",
-       stop: "Stopping…", backup: "Backing up…", doctor: "Collecting…" })[task] || "Working…";
+       stop: "Stopping…", backup: "Backing up…", doctor: "Collecting…", shortcut: "Adding shortcut…" })[task] || "Working…";
   document.getElementById("log").textContent = "";
   logCursor = 0;
   for (const b of document.querySelectorAll("button")) b.disabled = true;
