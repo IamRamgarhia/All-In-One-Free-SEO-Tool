@@ -105,7 +105,7 @@ const FIXABLE: Record<
     reason:
       "This page has no meta description, so Google writes its own from whatever text it finds. Giving it one is the cheapest click-through win there is.",
   },
-  meta_description_too_long: {
+  long_meta_description: {
     kind: "write_meta_description",
     capability: "write_meta_description",
     weight: 70,
@@ -113,7 +113,7 @@ const FIXABLE: Record<
     reason:
       "The description is long enough to get cut off mid-sentence in search results.",
   },
-  title_too_long: {
+  long_title: {
     kind: "write_title",
     capability: "write_title",
     weight: 90,
@@ -121,7 +121,7 @@ const FIXABLE: Record<
     reason:
       "The title is too long to display in full, so searchers see it truncated with an ellipsis.",
   },
-  title_too_short: {
+  short_title: {
     kind: "write_title",
     capability: "write_title",
     weight: 60,
@@ -138,7 +138,7 @@ const FIXABLE: Record<
     risk: "safe",
     reason: "This page has no title tag at all.",
   },
-  missing_alt_text: {
+  missing_image_alt: {
     kind: "write_image_alt",
     capability: "write_image_alt",
     weight: 50,

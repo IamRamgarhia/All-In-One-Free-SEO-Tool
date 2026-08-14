@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +12,7 @@ import {
   ClipboardList,
   ExternalLink,
   Info,
+  Loader2,
 } from "lucide-react";
 import { db } from "@/db/client";
 import { audits, auditIssues, clients } from "@/db/schema";
@@ -103,8 +104,24 @@ export default async function AuditDetailPage({
   const auditId = Number(id);
   if (!Number.isFinite(auditId)) notFound();
 
+  // `stalledSeconds` is computed by SQLite rather than with Date.now()
+  // in the component. Two reasons: React 19's purity rule correctly
+  // refuses an impure call during render, and the database is already
+  // the authority on when this row started — asking it for the age too
+  // means one clock instead of two.
   const [audit] = await db
-    .select()
+    .select({
+      id: audits.id,
+      clientId: audits.clientId,
+      status: audits.status,
+      score: audits.score,
+      issuesCount: audits.issuesCount,
+      pagesCrawled: audits.pagesCrawled,
+      startedAt: audits.startedAt,
+      completedAt: audits.completedAt,
+      createdAt: audits.createdAt,
+      ageSeconds: sql<number>`unixepoch() - unixepoch(${audits.startedAt})`,
+    })
     .from(audits)
     .where(eq(audits.id, auditId))
     .limit(1);
@@ -116,6 +133,12 @@ export default async function AuditDetailPage({
     .where(eq(clients.id, audit.clientId))
     .limit(1);
   if (!client) notFound();
+
+  // Nothing reports progress mid-crawl, so age is the only signal we
+  // have for "this stopped" versus "this is still going". Kept in step
+  // with STALLED_AFTER_MS in src/app/audits/actions.ts, which is what
+  // decides whether a new run takes over from this one.
+  const isStalled = audit.status === "running" && (audit.ageSeconds ?? 0) > 600;
 
   const allIssues = await db
     .select()
@@ -542,6 +565,58 @@ export default async function AuditDetailPage({
         </div>
       )}
 
+      {/*
+        The running state. This page had branches for "completed" and
+        "failed" and nothing for "running", so an audit in progress —
+        or one left stuck by a restart — rendered an empty shell: no
+        issues, no "all clear", no error. The user's own words for it
+        were "it just stops in this place and doesn't go anywhere".
+
+        Auto-refreshes, because an audit finishing is not something the
+        user can trigger and a page that never updates looks broken.
+      */}
+      {audit.status === "running" && (
+        <div className="relative overflow-hidden rounded-2xl border border-sky-500/20 bg-sky-500/5 px-6 py-12 text-center backdrop-blur-md">
+          <meta httpEquiv="refresh" content="10" />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 size-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl" />
+          <div className="relative mx-auto flex max-w-md flex-col items-center gap-3">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-sky-500/15 ring-1 ring-sky-400/30">
+              <Loader2 className="size-6 animate-spin text-sky-300" />
+            </div>
+            <h2 className="text-lg font-semibold">Audit in progress</h2>
+            <p className="text-sm text-muted-foreground">
+              Crawling {client?.url ?? "the site"} and running its checks. Most
+              sites take 30–60 seconds; a large one with JavaScript rendering
+              can take a few minutes.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              This page refreshes itself — you can leave it open, or come back
+              later. The audit keeps running either way.
+            </p>
+            {isStalled && (
+              <div className="mt-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-left">
+                <p className="text-sm font-medium text-amber-200">
+                  This one has been running for a while
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Audits that take more than ten minutes have usually been
+                  interrupted — a restart, or the tab being closed mid-crawl.
+                  Running a new audit from the client page will take over from
+                  it rather than waiting.
+                </p>
+                <Link
+                  href={`/clients/${audit.clientId}`}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-200 hover:underline"
+                >
+                  Go to the client page
+                  <ArrowUpRight className="size-3" />
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {audit.status === "failed" && (
         <div className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-rose-500/5 px-6 py-12 text-center backdrop-blur-md">
           <div className="pointer-events-none absolute left-1/2 top-1/2 size-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-rose-500/10 blur-3xl" />
@@ -552,8 +627,16 @@ export default async function AuditDetailPage({
             <h2 className="text-lg font-semibold">Audit failed</h2>
             <p className="text-sm text-muted-foreground">
               The site may have been unreachable. Try running it again from the
-              client page.
+              client page — the error is usually a DNS failure, a firewall, or
+              the site being down at the time.
             </p>
+            <Link
+              href={`/clients/${audit.clientId}`}
+              className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-rose-200 hover:underline"
+            >
+              Back to the client
+              <ArrowUpRight className="size-3" />
+            </Link>
           </div>
         </div>
       )}

@@ -123,3 +123,8 @@ CLAUDE.md
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Backups made by the control panel. These are copies of data.db and
+# contain everything — clients, audits, and encrypted API keys. They
+# must never be committed.
+backups/

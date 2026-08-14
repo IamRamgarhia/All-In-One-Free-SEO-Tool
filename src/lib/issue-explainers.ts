@@ -48,7 +48,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
           }
         : { label: "Google Search Console", href: "https://search.google.com/search-console" },
   },
-  title_too_long: {
+  long_title: {
     whatIsIt:
       "Your <title> is longer than ~60 characters and Google is likely truncating it in search results.",
     whyItMatters:
@@ -62,7 +62,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     googleDoc:
       "https://developers.google.com/search/docs/appearance/title-link",
   },
-  title_too_short: {
+  short_title: {
     whatIsIt:
       "Your <title> is fewer than ~30 characters and isn't using the space Google gives you.",
     whyItMatters:
@@ -88,7 +88,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     googleDoc:
       "https://developers.google.com/search/docs/appearance/snippet#meta-descriptions",
   },
-  meta_description_too_long: {
+  long_meta_description: {
     whatIsIt:
       "Your meta description exceeds ~160 characters and Google is cutting it off mid-sentence.",
     whyItMatters:
@@ -100,34 +100,24 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     ],
     confidence: "definitely",
   },
-  missing_h1: {
-    whatIsIt:
-      "This page has no <h1> heading. The H1 tells Google AND users what the page is about.",
-    whyItMatters:
-      "Pages without an H1 rank weaker because Google relies more on title + content guessing. Accessibility tools also break.",
-    howToFix: [
-      "Add a single <h1> at the top of the main content area.",
-      "Match it to user intent for the target keyword.",
-      "Differ from the <title> by 10-20 characters for variety.",
-    ],
-    confidence: "definitely",
-    googleDoc:
-      "https://developers.google.com/search/docs/fundamentals/seo-starter-guide#headings",
-  },
-  multiple_h1: {
-    whatIsIt:
-      "This page has more than one <h1> tag. While HTML5 technically allows this, it weakens topical clarity.",
-    whyItMatters:
-      "Multiple H1s split the page's primary topic signal. Google says it's OK but most ranked pages have exactly one.",
-    howToFix: [
-      "Keep the most important H1 — usually the page title.",
-      "Convert the rest to H2 or H3 based on hierarchy.",
-    ],
-    confidence: "probably",
-    googleDoc:
-      "https://developers.google.com/search/docs/fundamentals/seo-starter-guide#headings",
-  },
-  missing_alt: {
+  // missing_h1 lives further down, in the page-structure group.
+  //
+  // The version that used to be here advised adding "a single <h1>" and
+  // making it "differ from the <title> by 10-20 characters for
+  // variety". The first repeats the one-H1 rule that CLAUDE.md §3.7
+  // rejects; the second is a number nobody has ever justified. The
+  // replacement says what the check actually found — no H1 at all — and
+  // notes that more than one is valid.
+  // The multiple_h1 explainer was removed rather than re-keyed.
+  //
+  // It told users to reduce a page to one H1, which CLAUDE.md §3.7
+  // names as advice this tool will not repeat: multiple H1s are valid
+  // in HTML5 and Google has said so explicitly. Its own text conceded
+  // "Google says it's OK" and then advised the change anyway, on the
+  // grounds that "most ranked pages have exactly one" — which is a
+  // correlation, not a reason. The crawler has no such check, so this
+  // never displayed; it was wrong advice that happened to be invisible.
+  missing_image_alt: {
     whatIsIt:
       "Images on this page have no alt attribute. Alt text describes images for screen readers AND Google's image search.",
     whyItMatters:
@@ -180,7 +170,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     googleDoc:
       "https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls",
   },
-  conflicting_canonical: {
+  non_self_canonical: {
     whatIsIt:
       "The canonical tag points to a different URL than the one being crawled, creating ambiguity.",
     whyItMatters:
@@ -280,7 +270,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     ],
     confidence: "probably",
   },
-  noindex: {
+  noindex_set: {
     whatIsIt:
       "This page has a 'noindex' robots directive — Google has been told not to include it in search results.",
     whyItMatters:
@@ -324,7 +314,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     ],
     confidence: "probably",
   },
-  no_internal_links: {
+  orphan_pages: {
     whatIsIt:
       "No other page on the site links to this page.",
     whyItMatters:
@@ -336,7 +326,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     ],
     confidence: "probably",
   },
-  missing_hreflang: {
+  inconsistent_hreflang: {
     whatIsIt:
       "This international site has language/region variants but no hreflang tags connecting them.",
     whyItMatters:
@@ -350,7 +340,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
     googleDoc:
       "https://developers.google.com/search/docs/specialty/international/localized-versions",
   },
-  http_not_https: {
+  no_https: {
     whatIsIt:
       "This URL is served over HTTP, not HTTPS.",
     whyItMatters:
@@ -361,6 +351,458 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
       "Update internal links to HTTPS.",
     ],
     confidence: "definitely",
+  },
+
+  // ===================================================================
+  // Everything below was added because 34 of the crawler's 52 finding
+  // types had no explainer at all. The issue card rendered the problem
+  // and nothing about what to do with it — the component returned null
+  // for an unknown type, so the absence was invisible.
+  // ===================================================================
+
+  // --- Crawl and response ---------------------------------------------
+
+  bad_status: {
+    whatIsIt:
+      "The server answered with an error code (4xx or 5xx) instead of the page.",
+    whyItMatters:
+      "Google drops pages that keep returning errors, and any links pointing at them are wasted. A 5xx also means real visitors saw nothing.",
+    howToFix: [
+      "Open the URL yourself — a 404 means it moved or was deleted, a 500 means the server is failing.",
+      "If the page moved, add a 301 redirect to the new URL rather than leaving a 404.",
+      "If it was deleted on purpose, that's fine — remove the internal links pointing at it.",
+      "If it's a 5xx, check your server error log; this is a site problem, not an SEO one.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/http-network-errors",
+  },
+  fetch_failed: {
+    whatIsIt:
+      "We couldn't load this URL at all — the connection timed out, DNS failed, or the certificate was rejected.",
+    whyItMatters:
+      "If our crawler can't reach it, Googlebot probably can't either, and a page Google can't fetch cannot rank.",
+    howToFix: [
+      "Try the URL in a browser. If it loads for you, the problem may be a firewall or bot protection blocking crawlers.",
+      "Check the SSL certificate hasn't expired — that's the most common cause.",
+      "If you use Cloudflare or similar, check whether its bot-fighting mode is blocking non-browser requests.",
+    ],
+    confidence: "definitely",
+  },
+  blocked_url: {
+    whatIsIt:
+      "This tool refused to fetch the URL because it points at a private or internal address.",
+    whyItMatters:
+      "Not an SEO problem — it's a safety guard. A public search engine couldn't reach this address either, so a site on one isn't publicly indexable.",
+    howToFix: [
+      "If you're auditing a site on your own machine or LAN, that's expected — see the hosting docs for the opt-in that allows it.",
+      "If this is meant to be a public site, check the domain resolves to a public IP.",
+    ],
+    confidence: "definitely",
+  },
+  slow_response: {
+    whatIsIt:
+      "The server took more than two seconds to start sending this page.",
+    whyItMatters:
+      "This is server thinking time, before any rendering starts — it delays everything that follows, and Core Web Vitals inherits the whole delay.",
+    howToFix: [
+      "Turn on page caching so repeat requests skip the database entirely.",
+      "Check for slow database queries on the page — this is usually one query, not the whole stack.",
+      "Put a CDN in front so visitors far from your server aren't paying for the distance.",
+    ],
+    confidence: "definitely",
+    googleDoc: "https://web.dev/articles/ttfb",
+  },
+  crawl_delay_applied: {
+    whatIsIt:
+      "Your robots.txt asks crawlers to wait between requests, so this audit ran slower and may have covered fewer pages.",
+    whyItMatters:
+      "Informational. A long Crawl-delay also slows Googlebot, which means changes take longer to be noticed — worth checking it's deliberate.",
+    howToFix: [
+      "Open robots.txt and look for the Crawl-delay line.",
+      "Unless your server is genuinely struggling, you can usually remove it. Google ignores it anyway; Bing and others don't.",
+    ],
+    confidence: "test",
+  },
+  soft_404: {
+    whatIsIt:
+      "The page returns a success code but the content says it's missing — an empty results page, or a 'not found' message served as 200.",
+    whyItMatters:
+      "Google treats these as errors regardless of the status code, and spends crawl budget rediscovering them. It also means visitors land on a dead end that looks live.",
+    howToFix: [
+      "Return a real 404 status for pages that don't exist.",
+      "If the page should exist, fix whatever leaves it empty.",
+      "For empty search or category pages, return content — related items, or a useful message — rather than nothing.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/http-network-errors#soft-404-errors",
+  },
+
+  // --- Indexing and canonicals ----------------------------------------
+
+  xrobots_noindex: {
+    whatIsIt:
+      "The server sends an X-Robots-Tag header telling search engines not to index this page.",
+    whyItMatters:
+      "Same effect as a noindex meta tag, but invisible in the page source — which is why it is so often set by accident and never noticed.",
+    howToFix: [
+      "Check your server config (nginx, Apache) and any CDN rules for an X-Robots-Tag header.",
+      "If the page should be indexed, remove the header for that path.",
+      "Staging environments often set this site-wide; make sure it didn't follow you to production.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag",
+  },
+  invalid_canonical: {
+    whatIsIt:
+      "The canonical tag on this page points somewhere that isn't a usable URL.",
+    whyItMatters:
+      "A broken canonical is worse than none: Google may ignore it, or follow it and drop this page from the index in favour of something that doesn't exist.",
+    howToFix: [
+      "Use an absolute URL — https://example.com/page, not /page.",
+      "Check the URL actually loads and returns a 200.",
+      "If a plugin generates it, look for a misconfigured site-URL setting.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls",
+  },
+  canonical_chain: {
+    whatIsIt:
+      "This page's canonical points at a page whose canonical points somewhere else again.",
+    whyItMatters:
+      "Google follows one hop reliably and gets vaguer after that. Chains usually mean two plugins are both writing canonicals and disagreeing.",
+    howToFix: [
+      "Point every page's canonical directly at the final destination.",
+      "If two SEO plugins are active, turn canonical output off in one.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls",
+  },
+
+  // --- robots.txt and sitemaps ----------------------------------------
+
+  missing_robots_txt: {
+    whatIsIt: "There's no robots.txt file at the root of the site.",
+    whyItMatters:
+      "Not fatal — crawlers assume everything is allowed. It matters mainly because robots.txt is where you point crawlers at your sitemap.",
+    howToFix: [
+      "Create /robots.txt with `User-agent: *` and `Allow: /`.",
+      "Add a `Sitemap:` line with the full URL of your sitemap.",
+      "Don't block CSS or JavaScript — Google needs them to render the page as a visitor sees it.",
+    ],
+    confidence: "probably",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/robots/intro",
+  },
+  invalid_robots_txt: {
+    whatIsIt:
+      "robots.txt exists but has lines that don't parse as valid directives.",
+    whyItMatters:
+      "Crawlers skip lines they can't read. A typo'd Disallow may be silently ignored — or worse, a valid one may block more than you intended.",
+    howToFix: [
+      "Check each line is a recognised directive: User-agent, Allow, Disallow, Sitemap, Crawl-delay.",
+      "Every Allow/Disallow must sit under a User-agent line.",
+      "Paste it into our robots.txt tool, or Search Console's tester, to see how a crawler reads it.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt",
+  },
+  missing_sitemap: {
+    whatIsIt: "No XML sitemap was found at the usual locations.",
+    whyItMatters:
+      "A sitemap is how you tell Google about pages nothing links to. Without one, anything not reachable by following links may never be discovered.",
+    howToFix: [
+      "Generate one — most CMSs and SEO plugins do it automatically.",
+      "Reference it in robots.txt with a `Sitemap:` line.",
+      "Submit it in Search Console so you can see what Google does with it.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview",
+  },
+  missing_ai_crawler_policy: {
+    whatIsIt:
+      "robots.txt says nothing about AI crawlers like GPTBot, ClaudeBot or PerplexityBot.",
+    whyItMatters:
+      "This is a decision, not a defect. Silence means they may crawl you — good if you want to be cited in AI answers, bad if you don't want your content used for training.",
+    howToFix: [
+      "Decide first: do you want to appear in AI-assistant answers?",
+      "To be cited, allow the search-time bots (OAI-SearchBot, PerplexityBot) even if you block training bots (GPTBot, ClaudeBot).",
+      "Use our robots.txt AI-policy builder to generate the rules.",
+    ],
+    confidence: "test",
+  },
+  partial_ai_crawler_policy: {
+    whatIsIt:
+      "Your robots.txt names some AI crawlers but not others, which usually means the list was written once and not revisited.",
+    whyItMatters:
+      "Bots not named fall through to your default rule, so your actual policy may not be what you think — often blocking the ones that would cite you while allowing the ones that train on you.",
+    howToFix: [
+      "List the major AI crawlers explicitly rather than relying on the default.",
+      "Keep the distinction clear: training bots and search-time bots are different decisions.",
+    ],
+    confidence: "test",
+  },
+
+  // --- Page structure --------------------------------------------------
+
+  missing_h1: {
+    whatIsIt: "This page has no <h1> heading.",
+    whyItMatters:
+      "The H1 is the clearest statement of what a page is about, for readers and for search engines. Note this is about having none — more than one H1 is valid HTML5 and not a problem.",
+    howToFix: [
+      "Add an <h1> that says what this specific page covers.",
+      "It should describe the page, not the site — the site name belongs in the header.",
+      "Don't hide it with CSS to make a design work; a hidden H1 helps nobody.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/appearance/structured-data/article",
+  },
+  heading_order: {
+    whatIsIt:
+      "Headings skip levels — an H3 directly after an H1, for example, with no H2 between.",
+    whyItMatters:
+      "Screen-reader users navigate by heading level, and a skipped level breaks that. The SEO effect is small; the accessibility effect is real.",
+    howToFix: [
+      "Step down one level at a time: H1, then H2, then H3.",
+      "If a heading was chosen for its size, use CSS for that instead.",
+    ],
+    confidence: "probably",
+  },
+  missing_lang: {
+    whatIsIt: "The <html> tag has no lang attribute.",
+    whyItMatters:
+      "Screen readers use it to pick a pronunciation, and browsers use it to offer translation. Without it, an English page may be read aloud in the wrong accent.",
+    howToFix: [
+      'Add lang to the html tag: <html lang="en"> — or "en-GB", "hi", "es" as appropriate.',
+      "If the page is genuinely multilingual, set the main language here and mark exceptions inline.",
+    ],
+    confidence: "definitely",
+  },
+  weak_anchor_text: {
+    whatIsIt:
+      'Links on this page use text like "click here", "read more" or a bare URL.',
+    whyItMatters:
+      "Anchor text tells both readers and search engines what to expect. A screen-reader user listing the links on a page hears \"click here\" eight times and learns nothing.",
+    howToFix: [
+      "Describe the destination: \"read the 2026 pricing guide\" rather than \"read more\".",
+      "Keep it natural — this is about being descriptive, not about stuffing keywords in.",
+    ],
+    confidence: "probably",
+  },
+  // --- Social and metadata --------------------------------------------
+
+  short_meta_description: {
+    whatIsIt:
+      "The meta description is much shorter than the space search results give you.",
+    whyItMatters:
+      "Not a ranking factor, but it is the sales pitch under your title. A short one leaves room unused, and Google may replace it with page text it picks itself.",
+    howToFix: [
+      "Aim for roughly 120-155 characters.",
+      "Say what the visitor gets from this page, and give them a reason to click.",
+      "Write one per page — a repeated description is worse than a short one.",
+    ],
+    confidence: "probably",
+    googleDoc:
+      "https://developers.google.com/search/docs/appearance/snippet",
+  },
+  missing_og_tags: {
+    whatIsIt:
+      "No Open Graph tags, so social platforms have to guess how to display this page when it's shared.",
+    whyItMatters:
+      "Without them a shared link shows whatever text and image the platform finds first, which is often a logo and a navigation menu. Shares get far fewer clicks.",
+    howToFix: [
+      "Add og:title, og:description, og:image and og:url in the <head>.",
+      "Use an image around 1200x630 — smaller ones get cropped badly.",
+      "Test with the sharing debugger for whichever platform matters to you.",
+    ],
+    confidence: "probably",
+  },
+  missing_twitter_card: {
+    whatIsIt: "No Twitter/X card tags on this page.",
+    whyItMatters:
+      "X falls back to Open Graph tags when these are absent, so if you have those this is minor. Without either, shared links render as bare text.",
+    howToFix: [
+      'Add <meta name="twitter:card" content="summary_large_image">.',
+      "If your Open Graph tags are already set, that's usually enough.",
+    ],
+    confidence: "test",
+  },
+  missing_favicon: {
+    whatIsIt: "No favicon was found.",
+    whyItMatters:
+      "Google shows a favicon next to your result on mobile. Without one you get a generic globe, which looks unfinished next to competitors.",
+    howToFix: [
+      "Add a favicon at /favicon.ico, and a larger PNG via a <link rel=\"icon\"> tag.",
+      "Make it legible at 16x16 — a full logo usually isn't.",
+    ],
+    confidence: "probably",
+    googleDoc:
+      "https://developers.google.com/search/docs/appearance/favicon-in-search",
+  },
+  article_missing_author: {
+    whatIsIt:
+      "This looks like an article but its structured data names no author.",
+    whyItMatters:
+      "Google's guidance on helpful content asks who wrote something and why they're worth reading. An unattributed article gives no answer.",
+    howToFix: [
+      "Add an author to the Article schema, with a link to a page about them.",
+      "Give the author a real byline on the page too, not just in the markup.",
+      "Machine-generated content with an invented author is worse than none.",
+    ],
+    confidence: "probably",
+    googleDoc:
+      "https://developers.google.com/search/docs/appearance/structured-data/article",
+  },
+
+  // --- Mobile and rendering -------------------------------------------
+
+  missing_viewport: {
+    whatIsIt: "No viewport meta tag, so mobile browsers render the desktop layout and zoom out.",
+    whyItMatters:
+      "Text ends up unreadably small on a phone. Most traffic is mobile, and this is the single tag that decides whether the page is usable there.",
+    howToFix: [
+      'Add <meta name="viewport" content="width=device-width, initial-scale=1"> to the <head>.',
+      "Then check the page on an actual phone — the tag alone doesn't make a fixed-width layout responsive.",
+    ],
+    confidence: "definitely",
+  },
+  viewport_blocks_zoom: {
+    whatIsIt:
+      "The viewport tag disables pinch-zoom, with user-scalable=no or a maximum-scale.",
+    whyItMatters:
+      "It stops anyone with less than perfect eyesight from enlarging your text. This is an accessibility failure under WCAG, and it is almost never necessary.",
+    howToFix: [
+      "Remove user-scalable=no and any maximum-scale from the viewport tag.",
+      "If it was added to stop a layout breaking on zoom, fix the layout instead.",
+    ],
+    confidence: "definitely",
+  },
+  js_rendered_only: {
+    whatIsIt:
+      "The page's content only appears after JavaScript runs — the raw HTML is close to empty.",
+    whyItMatters:
+      "Google does render JavaScript, but on a delay and not for every page. Anything essential that only exists after render may be missed or indexed late.",
+    howToFix: [
+      "Server-render or pre-render the important content — title, headings, body text, links.",
+      "Make sure internal links are real <a href> elements, not click handlers, or crawlers can't follow them.",
+      "Check what Google actually sees with the URL Inspection tool in Search Console.",
+    ],
+    confidence: "probably",
+    googleDoc:
+      "https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics",
+  },
+  render_blocking_scripts: {
+    whatIsIt:
+      "Scripts in the <head> without defer or async stop the page rendering until they finish downloading.",
+    whyItMatters:
+      "The visitor stares at a blank screen for as long as those files take. It's one of the most common causes of a slow Largest Contentful Paint.",
+    howToFix: [
+      "Add defer to scripts that don't need to run before the page draws — that's most of them.",
+      "Move analytics and chat widgets to load after the page is interactive.",
+      "Inline only the small amount of CSS needed for what's visible first.",
+    ],
+    confidence: "definitely",
+    googleDoc: "https://web.dev/articles/render-blocking-resources",
+  },
+  heavy_html_payload: {
+    whatIsIt: "The HTML document itself is unusually large.",
+    whyItMatters:
+      "Every visitor downloads and parses all of it before anything appears. On a phone connection a large document is felt immediately.",
+    howToFix: [
+      "Look for inlined base64 images — those belong in files the browser can cache.",
+      "Check for a page builder shipping unused markup, or a huge inline JSON blob.",
+      "Paginate very long listings rather than rendering everything at once.",
+    ],
+    confidence: "probably",
+  },
+
+  // --- Images -----------------------------------------------------------
+
+  image_missing_dimensions: {
+    whatIsIt: "Images have no width and height attributes.",
+    whyItMatters:
+      "Without them the browser can't reserve space, so the page jumps as images load. That's Cumulative Layout Shift, and it's a Core Web Vital.",
+    howToFix: [
+      "Add width and height attributes matching the image's real dimensions.",
+      "CSS can still resize it — the attributes only tell the browser the aspect ratio in advance.",
+      "Most frameworks' image components do this for you.",
+    ],
+    confidence: "definitely",
+    googleDoc: "https://web.dev/articles/cls",
+  },
+  no_lazy_loading: {
+    whatIsIt:
+      "Images below the fold load immediately instead of when the visitor scrolls to them.",
+    whyItMatters:
+      "The browser spends bandwidth on images nobody has scrolled to yet, delaying the ones they can see.",
+    howToFix: [
+      'Add loading="lazy" to images below the fold.',
+      'Do NOT lazy-load your main above-the-fold image — that delays it and makes Largest Contentful Paint worse.',
+    ],
+    confidence: "definitely",
+    googleDoc: "https://web.dev/articles/browser-level-image-lazy-loading",
+  },
+  old_image_formats: {
+    whatIsIt: "Images are served as JPEG or PNG rather than WebP or AVIF.",
+    whyItMatters:
+      "Modern formats are typically 25-50% smaller at the same visual quality. On an image-heavy page that is the single biggest speed win available.",
+    howToFix: [
+      "Convert to WebP — supported everywhere that matters now.",
+      "Serve a JPEG fallback via <picture> if you support very old browsers.",
+      "Most CMS plugins and CDNs can convert automatically on upload.",
+    ],
+    confidence: "probably",
+  },
+
+  // --- Security ---------------------------------------------------------
+
+  mixed_content: {
+    whatIsIt:
+      "An HTTPS page loads some resources — images, scripts, stylesheets — over plain HTTP.",
+    whyItMatters:
+      "Browsers block or warn on this, so parts of the page may silently not load. It also removes the padlock, which visitors do notice.",
+    howToFix: [
+      "Change http:// to https:// in the offending URLs.",
+      "Check hard-coded links in themes and templates — that's the usual source.",
+      "For WordPress, a search-replace across the database usually clears it in one pass.",
+    ],
+    confidence: "definitely",
+  },
+  missing_security_headers: {
+    whatIsIt:
+      "Common security headers are absent — things like Strict-Transport-Security and X-Content-Type-Options.",
+    whyItMatters:
+      "Not a ranking factor. It matters because these headers close off real attacks cheaply, and because security reviews and enterprise buyers check for them.",
+    howToFix: [
+      "Add Strict-Transport-Security once you're confident HTTPS works everywhere.",
+      "Add X-Content-Type-Options: nosniff and a Referrer-Policy.",
+      "Add a Content-Security-Policy last — it's the one most likely to break a page, so test in report-only mode first.",
+    ],
+    confidence: "probably",
+  },
+
+  // --- International ----------------------------------------------------
+
+  hreflang_not_reciprocal: {
+    whatIsIt:
+      "This page points at a language alternative that doesn't point back at it.",
+    whyItMatters:
+      "Google requires hreflang to be mutual. A one-way declaration is ignored, so the language targeting you set up quietly does nothing.",
+    howToFix: [
+      "Every page in a language group must list every other page in the group, including itself.",
+      "Use absolute URLs throughout.",
+      "Add an x-default for visitors whose language you don't cover.",
+    ],
+    confidence: "definitely",
+    googleDoc:
+      "https://developers.google.com/search/docs/specialty/international/localized-versions",
   },
 };
 

@@ -72,18 +72,14 @@ export async function applyFixViaWp(opts: {
   if (
     issueType === "missing_title" ||
     issueType === "short_title" ||
-    issueType === "long_title" ||
-    issueType === "title_too_short" ||
-    issueType === "title_too_long"
+    issueType === "long_title"
   ) {
     field = "title";
     result = await setPostSeo(creds, postId, { title: newValue });
   } else if (
     issueType === "missing_meta_description" ||
     issueType === "short_meta_description" ||
-    issueType === "long_meta_description" ||
-    issueType === "meta_description_too_short" ||
-    issueType === "meta_description_too_long"
+    issueType === "long_meta_description"
   ) {
     field = "metaDescription";
     result = await setPostSeo(creds, postId, { metaDescription: newValue });

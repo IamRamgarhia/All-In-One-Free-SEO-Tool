@@ -104,10 +104,16 @@ describe("plan/execute contract", () => {
   it("safe fixes are only the measurable ones", () => {
     // "safe" decides whether apply_safe writes without asking. It must
     // mean "wrong by a rule", never "probably better".
+    //
+    // The pattern matches an absence (`missing_…`) or a measured length
+    // (`long_…` / `short_…`). It used to look for `too_long`, which was
+    // the agent's own name for a finding the crawler calls `long_title`
+    // — the drift that meant the agent could never plan those fixes at
+    // all. See audit-finding-types.ts.
     for (const [type, spec] of Object.entries(FIXABLE)) {
       if (spec.risk !== "safe") continue;
       expect(
-        /missing|too_long|too long/i.test(type),
+        /^missing_|^long_|^short_/i.test(type),
         `${type} is marked safe but isn't an absence or a measured limit — ` +
           `apply_safe would change it on a live site without asking.`,
       ).toBe(true);

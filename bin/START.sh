@@ -46,7 +46,7 @@ fi
 # ---- 2b. First-run self-bootstrap.
 # Runs ONCE on a freshly-extracted ZIP that's never been installed.
 # Detects missing node_modules / .next / playwright and installs them
-# so double-clicking "Start SEO Tool (Mac).command" on a brand-new
+# so double-clicking "SEO Tool.command" on a brand-new
 # machine just works. ~5 min total on first run; no-op thereafter.
 FIRST_RUN_BOOTSTRAP=0
 [ ! -d "node_modules" ] && FIRST_RUN_BOOTSTRAP=1

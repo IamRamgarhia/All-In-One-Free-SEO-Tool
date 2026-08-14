@@ -187,8 +187,38 @@ async function getBrowser(): Promise<Browser> {
       };
       browserPromise = chromium.launch(opts);
     }
+
+    // A failed launch must not be cached.
+    //
+    // `browserPromise` is only cleared by the `disconnected` handler
+    // below, and that handler is attached after a SUCCESSFUL launch. So
+    // when a launch rejected — Chromium not downloaded on a fresh
+    // install being the common case — the rejected promise stayed in
+    // this variable and every later call re-awaited the same rejection.
+    // One failure poisoned rank checking, SERP scraping, screenshots and
+    // PDF rendering for the whole process lifetime, all reporting the
+    // original error, so it read as "this tool is broken" rather than
+    // "run playwright install".
+    browserPromise.catch(() => {
+      browserPromise = null;
+    });
   }
-  cachedBrowser = await browserPromise;
+
+  try {
+    cachedBrowser = await browserPromise;
+  } catch (err) {
+    const message = (err as Error).message ?? String(err);
+    // Playwright's own wording here is good but buried in a stack. Say
+    // the fix on the first line, because this is the most likely error
+    // anyone hits on a fresh install.
+    if (/executable doesn't exist|please run the following command/i.test(message)) {
+      throw new Error(
+        "The headless browser isn't installed yet. Run `npx playwright install chromium` in the tool's folder, then try again. " +
+          "(Rank checks, SERP scraping and screenshots need it; audits and content tools don't.)",
+      );
+    }
+    throw err;
+  }
   // If browser ever disconnects, clear the cache so next call re-launches.
   cachedBrowser.on("disconnected", () => {
     cachedBrowser = null;

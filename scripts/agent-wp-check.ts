@@ -214,7 +214,7 @@ async function main() {
     {
       auditId: audit.id,
       severity: "medium",
-      type: "missing_alt_text",
+      type: "missing_image_alt",
       url: pageUrl,
       message: "Images without alt text",
     },

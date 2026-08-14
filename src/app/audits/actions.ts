@@ -23,22 +23,46 @@ export async function runAuditForClient(clientId: number) {
 
   if (!client) return;
 
-  // Concurrency guard: if a "running" audit already exists for this
-  // client AND it was started in the last hour, skip — the user double-
-  // clicked or two tabs are racing. Older "running" rows are treated
-  // as orphans (the daily-agent sweeper marks them failed).
-  const ONE_HOUR_MS = 60 * 60 * 1000;
+  // Concurrency guard.
+  //
+  // This used to `return` silently when an audit was already running,
+  // with a one-hour window. That produced the worst first-run
+  // experience in the product: a user adds their site, the audit gets
+  // interrupted (a restart, a navigation, a slow site), the row is left
+  // "running" — and from then on every click of "Run audit" does
+  // absolutely nothing, with no message, for a full hour. Reproduced in
+  // 3ms: one click, no new audit row, no error, no feedback.
+  //
+  // Two changes. A genuinely in-flight audit now sends the user to it,
+  // so clicking Run shows them the audit that is already running
+  // instead of appearing to do nothing. And a stalled one is taken over
+  // rather than blocking: nothing reports progress mid-crawl, so an
+  // audit still "running" after this long is dead, and making a person
+  // wait an hour to retry is not a guard, it's a lockout.
+  const STALLED_AFTER_MS = 10 * 60 * 1000;
   const [inFlight] = await db
     .select({ id: audits.id, startedAt: audits.startedAt })
     .from(audits)
     .where(and(eq(audits.clientId, clientId), eq(audits.status, "running")))
     .orderBy(desc(audits.startedAt))
     .limit(1);
-  if (
-    inFlight?.startedAt &&
-    Date.now() - inFlight.startedAt.getTime() < ONE_HOUR_MS
-  ) {
-    return; // an audit is already in progress
+
+  if (inFlight?.startedAt) {
+    const age = Date.now() - inFlight.startedAt.getTime();
+    if (age < STALLED_AFTER_MS) {
+      // Really running — show it, don't swallow the click.
+      redirect(`/audits/${inFlight.id}`);
+    }
+    // Stalled. Mark it failed so the history is honest about what
+    // happened, then fall through and start a fresh one.
+    await db
+      .update(audits)
+      .set({
+        status: "failed",
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(audits.id, inFlight.id));
   }
 
   // Look up previous completed audit BEFORE running the new one,

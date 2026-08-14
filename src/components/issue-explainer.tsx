@@ -44,7 +44,31 @@ export function IssueExplainer({ issueType, url, defaultOpen = false }: Props) {
   const explainer = getExplainer(issueType);
 
   if (!explainer) {
-    return null;
+    // Say so, rather than rendering nothing.
+    //
+    // This returned null, which is how 34 of the crawler's 52 finding
+    // types came to show a user a problem and not one word about
+    // fixing it. The gap was invisible from the outside and invisible
+    // in the code — the component looked like it was doing its job.
+    //
+    // A missing explainer is a hole in the product, so it should look
+    // like one. audit-finding-types.test.ts now fails the build if any
+    // emitted type has no entry, so this should be unreachable; it
+    // stays because "unreachable" and "never happens" are not the same.
+    return (
+      <p className="mt-1 text-xs text-muted-foreground">
+        We haven&apos;t written the fix guide for this check yet.{" "}
+        <a
+          href="https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues/new"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          Tell us it&apos;s missing
+        </a>{" "}
+        and we&apos;ll add it.
+      </p>
+    );
   }
 
   const conf = CONFIDENCE_META[explainer.confidence];
