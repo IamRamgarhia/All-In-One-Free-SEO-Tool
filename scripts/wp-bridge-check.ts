@@ -41,10 +41,32 @@ import {
 } from "../src/lib/wp-bridge";
 import { hasPluginVersion } from "../src/lib/agent/capabilities";
 
+/**
+ * Point this at a REAL WordPress instead of the stand-in:
+ *
+ *   SEO_WP_BASE=http://127.0.0.1:8181/wp-json/seo-tool/v1 \
+ *   SEO_WP_KEY=your-connection-key \
+ *   pnpm exec tsx scripts/wp-bridge-check.ts
+ *
+ * The fake exists so CI can run this with no WordPress anywhere. But a
+ * fake is only ever as correct as whoever read the plugin source, and
+ * this project has already been bitten by that once — the auth header
+ * was wrong for the plugin's entire life and 45 passing assertions
+ * against the stand-in never noticed, because the stand-in had been
+ * written from the client's assumptions rather than from the PHP.
+ *
+ * WordPress Playground makes the real thing cheap:
+ *
+ *   npx @wp-playground/cli server --port 8181 \
+ *     --mount-dir <repo>/wordpress-plugin /wordpress/wp-content/plugins/seo-tool-bridge
+ */
+const REAL_BASE = process.env.SEO_WP_BASE?.replace(/\/+$/, "");
+const USING_REAL_WP = Boolean(REAL_BASE);
+
 const PORT = Number(process.env.FAKE_WP_PORT ?? 8787);
 const creds: WpCreds = {
-  endpoint: `http://localhost:${PORT}/seo-tool/v1`,
-  key: "fake-bridge-key",
+  endpoint: REAL_BASE ?? `http://localhost:${PORT}/seo-tool/v1`,
+  key: process.env.SEO_WP_KEY ?? "fake-bridge-key",
 };
 
 // The endpoint is loopback, which the SSRF guard refuses by default and
@@ -95,19 +117,23 @@ const bad = (m: string, d = "") => {
   fail++;
   console.log(`  FAIL  ${m}${d ? "  — " + d : ""}`);
 };
+const info = (m: string) => console.log(`        ${m}`);
 const section = (t: string) =>
   console.log("\n" + "=".repeat(70) + "\n" + t + "\n" + "=".repeat(70));
 
 async function main() {
-  section("Connection");
-  if (!(await startFakeWordPress())) {
+  section(USING_REAL_WP ? "Connection — REAL WordPress" : "Connection");
+  if (USING_REAL_WP) {
+    info(`Testing against ${REAL_BASE}`);
+    info("Not the stand-in — this is a real WordPress install.");
+  } else if (!(await startFakeWordPress())) {
     bad("the fake WordPress never came up", `port ${PORT} may be in use`);
     finish();
     return;
   }
   const ping = await pingWpBridge(creds);
   if (!ping.ok) {
-    bad("couldn't reach the fake bridge", ping.error ?? "");
+    bad("couldn't reach the bridge", ping.error ?? "");
     finish();
     return;
   }

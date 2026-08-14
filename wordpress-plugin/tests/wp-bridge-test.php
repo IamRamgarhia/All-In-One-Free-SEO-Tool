@@ -111,6 +111,55 @@ if (!stb_check_key(req([], [], ['X-STB-Key' => '']))) {
 WPState::$options['stb_connection_key'] = $saved;
 
 // =====================================================================
+section('Route callbacks survive how WordPress actually calls them');
+
+// The bug this exists to prevent took the plugin out entirely on PHP 8,
+// and every test in this file passed while it did.
+//
+// Routes declared `'validate_callback' => 'is_numeric'`. WordPress calls
+// that callback with THREE arguments — value, request, param name — and
+// PHP 8 throws ArgumentCountError when a built-in gets more arguments
+// than it accepts. So every route with an id in its path returned a 500:
+// titles, meta descriptions, alt text, schema, images, internal links
+// and undo. Eight of the eleven endpoints, dead.
+//
+// This file never noticed because it calls the handlers directly and
+// never goes through the REST router, which is where validate_callback
+// runs. Only a real WordPress found it.
+//
+// A closure takes the extra arguments and ignores them, which is why the
+// one route already using a closure (`/find`) was the one that worked.
+$builtinCallbacks = [];
+foreach (WPState::$routes as $r) {
+    $configs = isset($r['config'][0]) ? $r['config'] : [$r['config']];
+    foreach ($configs as $cfg) {
+        foreach (($cfg['args'] ?? []) as $argName => $argCfg) {
+            $cb = $argCfg['validate_callback'] ?? null;
+            // A string callback naming a PHP built-in is the trap. A
+            // closure, or a function defined by this plugin, is fine.
+            if (is_string($cb) && function_exists($cb)) {
+                $ref = new ReflectionFunction($cb);
+                if ($ref->isInternal()) {
+                    $builtinCallbacks[] = "{$r['route']} ($argName => $cb)";
+                }
+            }
+        }
+    }
+}
+if (count($builtinCallbacks) === 0) {
+    ok(
+        'no route hands a PHP built-in straight to WordPress',
+        count(WPState::$routes) . ' routes checked',
+    );
+} else {
+    bad(
+        'ROUTES WILL FATAL ON PHP 8',
+        implode(', ', $builtinCallbacks) .
+            ' — WordPress passes 3 args; wrap it in a closure',
+    );
+}
+
+// =====================================================================
 section('Ping');
 
 [$ping] = call('stb_rest_ping', req());
