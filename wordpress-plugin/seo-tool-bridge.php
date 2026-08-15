@@ -183,13 +183,13 @@ add_action('rest_api_init', function () {
             'methods'  => 'GET',
             'callback' => 'stb_rest_get_post_seo',
             'permission_callback' => 'stb_check_key',
-            'args' => ['id' => ['validate_callback' => 'is_numeric']],
+            'args' => ['id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
         ],
         [
             'methods'  => 'POST',
             'callback' => 'stb_rest_update_post_seo',
             'permission_callback' => 'stb_check_key',
-            'args' => ['id' => ['validate_callback' => 'is_numeric']],
+            'args' => ['id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
         ],
     ]);
 
@@ -197,7 +197,7 @@ add_action('rest_api_init', function () {
         'methods'  => 'POST',
         'callback' => 'stb_rest_update_alt',
         'permission_callback' => 'stb_check_key',
-        'args' => ['id' => ['validate_callback' => 'is_numeric']],
+        'args' => ['id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
     ]);
 
     // GET added in 0.3.0. Without a read, the SEO Tool could only write
@@ -209,13 +209,13 @@ add_action('rest_api_init', function () {
             'methods'  => 'GET',
             'callback' => 'stb_rest_get_schema',
             'permission_callback' => 'stb_check_key',
-            'args' => ['id' => ['validate_callback' => 'is_numeric']],
+            'args' => ['id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
         ],
         [
             'methods'  => 'POST',
             'callback' => 'stb_rest_set_schema',
             'permission_callback' => 'stb_check_key',
-            'args' => ['id' => ['validate_callback' => 'is_numeric']],
+            'args' => ['id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
         ],
     ]);
 
@@ -229,7 +229,7 @@ add_action('rest_api_init', function () {
         'methods'  => 'GET',
         'callback' => 'stb_rest_list_post_images',
         'permission_callback' => 'stb_check_key',
-        'args' => ['id' => ['validate_callback' => 'is_numeric']],
+        'args' => ['id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
     ]);
 
     // 0.3.0 — insert internal links into post content.
@@ -244,7 +244,7 @@ add_action('rest_api_init', function () {
         'methods'  => 'POST',
         'callback' => 'stb_rest_insert_links',
         'permission_callback' => 'stb_check_key',
-        'args' => ['id' => ['validate_callback' => 'is_numeric']],
+        'args' => ['id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
     ]);
 
     register_rest_route(STB_REST_NAMESPACE, '/posts/list', [
@@ -272,7 +272,7 @@ add_action('rest_api_init', function () {
         'methods'  => 'POST',
         'callback' => 'stb_rest_undo',
         'permission_callback' => 'stb_check_key',
-        'args' => ['rev_id' => ['validate_callback' => 'is_numeric']],
+        'args' => ['rev_id' => ['validate_callback' => static fn($v) => is_numeric($v)]],
     ]);
 
     // v0.2.0+ — create a post. Used by daily automation when a blog_draft
