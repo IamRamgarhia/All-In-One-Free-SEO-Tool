@@ -41,7 +41,10 @@ if exist ".dev-server.pid" (
           set "STOPPED=1"
           set "GRACEFUL=1"
         ) else (
-          timeout /t 1 /nobreak >nul
+          REM `ping` not `timeout`: timeout aborts when stdin isn't a
+          REM console, so under the control panel this loop never waited
+          REM and every shutdown fell through to a force-kill.
+          ping -n 2 127.0.0.1 >nul
         )
       )
     )
@@ -83,6 +86,9 @@ if "%STOPPED%"=="1" (
 )
 echo.
 
-REM Brief pause so the user can read the message before the window closes
-timeout /t 3 /nobreak >nul
+REM Brief pause so the user can read the message before the window closes.
+REM Skipped when driven by the control panel: `timeout` aborts with
+REM "Input redirection is not supported" when stdin isn't a console,
+REM which made STOP exit 1 even on a clean shutdown.
+if not defined SEO_NONINTERACTIVE timeout /t 3 /nobreak >nul
 endlocal
