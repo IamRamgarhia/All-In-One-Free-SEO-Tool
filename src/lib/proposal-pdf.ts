@@ -27,6 +27,25 @@ export type ProposalDoc = {
   terms: string | null;
   basedOnScore: number | null;
   basedOnAt: Date | null;
+  /**
+   * Where the site ranks today, before any work. Optional, and only
+   * populated for a kickoff document — a client signing off on a plan
+   * needs the starting line written down, or there is nothing to measure
+   * the next report against.
+   *
+   * Counts are computed from tracked keywords and their latest checked
+   * rank. Nothing here is model-written.
+   */
+  keywordBaseline?: {
+    tracked: number;
+    ranking: number;
+    inTopTen: number;
+    strikingDistance: number;
+    /** A few real examples, so the number is checkable. */
+    examples: { keyword: string; position: number | null }[];
+  } | null;
+  /** Week-by-week plan the client is being asked to approve. */
+  timeline?: { week: string; focus: string; items: string[] }[] | null;
 };
 
 const INK = "#111827";
@@ -178,6 +197,96 @@ export async function generateProposalPdf(
           width,
           lineGap: 2,
         });
+    }
+  }
+
+  // ---- Where you stand today ---------------------------------------
+  // The starting line, in writing. Without it the first monthly report
+  // has nothing to compare against and "we improved things" is unprovable.
+  const kb = proposal.keywordBaseline;
+  if (kb && kb.tracked > 0) {
+    doc.moveDown(1.6);
+    ensure(120);
+    heading(doc, F, "Where you stand today", accent);
+    doc.moveDown(0.4);
+
+    const stats: [string, string][] = [
+      ["Keywords tracked", String(kb.tracked)],
+      ["Already ranking", String(kb.ranking)],
+      ["On page one", String(kb.inTopTen)],
+      ["Close to page one (11–20)", String(kb.strikingDistance)],
+    ];
+    for (const [label, value] of stats) {
+      ensure(20);
+      const y = doc.y;
+      doc
+        .font(F("regular"))
+        .fontSize(10.5)
+        .fillColor(MUTE)
+        .text(label, doc.page.margins.left, y, { width: width - 70 });
+      doc
+        .font(F("bold"))
+        .fontSize(10.5)
+        .fillColor(INK)
+        .text(value, doc.page.margins.left + width - 70, y, {
+          width: 70,
+          align: "right",
+        });
+      doc.x = doc.page.margins.left;
+    }
+
+    if (kb.examples.length > 0) {
+      doc.moveDown(0.6);
+      ensure(40);
+      doc
+        .font(F("regular"))
+        .fontSize(9.5)
+        .fillColor(MUTE)
+        .text(
+          `For example: ${kb.examples
+            .map(
+              (e) =>
+                `“${e.keyword}” ${
+                  e.position === null ? "not ranking yet" : `at #${e.position}`
+                }`,
+            )
+            .join(", ")}.`,
+          doc.page.margins.left,
+          doc.y,
+          { width, lineGap: 2 },
+        );
+    }
+  }
+
+  // ---- The plan ----------------------------------------------------
+  const timeline = proposal.timeline;
+  if (timeline && timeline.length > 0) {
+    doc.moveDown(1.6);
+    ensure(120);
+    heading(doc, F, "What happens, and when", accent);
+
+    for (const phase of timeline) {
+      ensure(70);
+      doc.moveDown(0.5);
+      doc
+        .font(F("bold"))
+        .fontSize(11.5)
+        .fillColor(INK)
+        .text(`${phase.week} — ${phase.focus}`, doc.page.margins.left, doc.y, {
+          width,
+        });
+      for (const item of phase.items) {
+        ensure(18);
+        doc
+          .font(F("regular"))
+          .fontSize(10)
+          .fillColor(MUTE)
+          .text(`·  ${item}`, doc.page.margins.left + 10, doc.y + 2, {
+            width: width - 10,
+            lineGap: 2,
+          });
+      }
+      doc.x = doc.page.margins.left;
     }
   }
 

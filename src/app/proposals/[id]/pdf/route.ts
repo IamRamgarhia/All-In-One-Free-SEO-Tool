@@ -39,6 +39,10 @@ export async function GET(
     terms: row.terms,
     basedOnScore: row.basedOnScore,
     basedOnAt: row.basedOnAt,
+    // Present only on kickoff documents; the PDF skips both sections when
+    // they're null, so ordinary sales proposals render exactly as before.
+    keywordBaseline: row.baselineJson ?? null,
+    timeline: row.timelineJson ?? null,
   });
 
   const filename = `${slug(row.prospectName)}-proposal.pdf`;

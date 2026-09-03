@@ -606,16 +606,86 @@ function CompletedStep({ client }: { client: WizardClient }) {
         <p className="text-xs text-rose-300">{planState.error}</p>
       )}
 
-      <div className="rounded-md border border-white/5 bg-black/20 p-4 text-xs text-muted-foreground">
-        <strong className="text-foreground">What&apos;s in the plan</strong>
-        <ul className="mt-2 space-y-0.5">
-          <li>· Week 1: technical baseline + audit-driven fixes</li>
-          <li>· Week 2: GSC quick-wins + content sprint</li>
-          <li>· Week 3: GBP + local + AI visibility</li>
-          <li>· Week 4: outreach + competitor gaps + monthly report</li>
-        </ul>
-      </div>
+      <KickoffReportCard clientId={client.id} />
     </section>
+  );
+}
+
+/**
+ * The document the client actually gets.
+ *
+ * Built from the crawl that ran while this wizard was being filled in,
+ * plus the keywords now being tracked and the plan just generated — so
+ * it can only be produced at the end, and only once those exist.
+ */
+function KickoffReportCard({ clientId }: { clientId: number }) {
+  const [state, setState] = useState<
+    { ok: true; id: number } | { ok: false; error: string } | null
+  >(null);
+  const [busy, setBusy] = useState(false);
+  const [, startTransition] = useTransition();
+
+  return (
+    <div className="rounded-md border border-white/5 bg-black/20 p-4">
+      <strong className="text-sm text-foreground">
+        Send the client something to approve
+      </strong>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        One document: what we found on the site, where their keywords stand
+        today, and what happens in which week. The starting numbers are frozen
+        into it, so next month&apos;s report has something to be measured
+        against.
+      </p>
+
+      {state?.ok ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <a
+            href={`/proposals/${state.id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center rounded-md bg-emerald-500/15 px-4 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30 hover:bg-emerald-500/25"
+          >
+            Open the PDF
+          </a>
+          <a
+            href="/proposals"
+            className="inline-flex h-9 items-center rounded-md px-3 text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+          >
+            Edit it before sending
+          </a>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            startTransition(async () => {
+              const { buildKickoffReport } = await import(
+                "@/app/proposals/actions"
+              );
+              const res = await buildKickoffReport(clientId);
+              setState(res.ok ? { ok: true, id: res.id } : res);
+              setBusy(false);
+            });
+          }}
+          className="mt-3 inline-flex h-9 items-center rounded-md bg-violet-500/15 px-4 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+        >
+          {busy ? (
+            <>
+              <Loader2 className="mr-2 size-3.5 animate-spin" />
+              Putting it together…
+            </>
+          ) : (
+            "Create the approval document"
+          )}
+        </button>
+      )}
+
+      {state && !state.ok && (
+        <p className="mt-2 text-xs text-rose-300">{state.error}</p>
+      )}
+    </div>
   );
 }
 

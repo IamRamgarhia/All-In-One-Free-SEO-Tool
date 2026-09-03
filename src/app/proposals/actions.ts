@@ -8,7 +8,10 @@ import {
   audits,
   clients,
   graderLeads,
+  keywordRankings,
+  keywords,
   proposals,
+  tasks,
 } from "@/db/schema";
 import { canEdit, canSeeClient, currentUser } from "@/lib/auth";
 import { deriveScope, unmappedFindingTypes } from "@/lib/proposal-scope";
@@ -207,4 +210,184 @@ export async function deleteProposal(
   await db.delete(proposals).where(eq(proposals.id, id));
   revalidatePath("/proposals");
   return { ok: true };
+}
+
+// =============== Client kickoff / approval document ===============
+
+/**
+ * The document a client is sent before work starts.
+ *
+ * It is a proposal row, deliberately — proposals already cite the audit
+ * they were built from, derive scope from findings that were actually
+ * observed, render to a branded PDF, and carry a
+ * draft -> sent -> accepted status. That status *is* the approval
+ * workflow; adding a second one would have meant two half-built ones.
+ *
+ * What this adds on top is the two things a client signing off needs and
+ * a sales proposal doesn't: where their keywords stand today, and what
+ * happens in which week. Both are frozen onto the row rather than
+ * recomputed at render time, because they are the baseline the next
+ * report gets measured against.
+ */
+export async function buildKickoffReport(
+  clientId: number,
+): Promise<CreateResult> {
+  const base = await buildProposal({ clientId });
+  if (!base.ok) return base;
+
+  const [client] = await db
+    .select()
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+  if (!client) return { ok: false, error: "No such client." };
+
+  const baseline = await keywordBaselineFor(clientId);
+  const timeline = await timelineFor(clientId);
+
+  // AI writes the framing only. Every number above is computed, and the
+  // prompt is given the numbers rather than the data, so there is nothing
+  // for it to get arithmetically wrong. If no model is connected the
+  // fallback below is used and the document is still complete.
+  let intro = fallbackIntro(client.name, baseline, timeline.length);
+  try {
+    const { callAI } = await import("@/lib/ai-call");
+    const written = await callAI({
+      system:
+        "You write the opening paragraph of an SEO plan for a client to approve. " +
+        "Plain language, no jargon, no hype, no invented numbers. " +
+        "Two or three sentences. Never promise rankings or traffic.",
+      user:
+        `Client: ${client.name} (${client.url}).\n` +
+        `Their site was audited and we found things to fix.\n` +
+        `They track ${baseline.tracked} keywords, ${baseline.ranking} of which already rank, ` +
+        `${baseline.inTopTen} on page one.\n` +
+        `The plan runs ${timeline.length} weeks.\n` +
+        `Write the opening paragraph. Say what we looked at, what we found in general terms, ` +
+        `and what the first weeks focus on. Do not repeat the numbers back as a list.`,
+    });
+    if (written && written.trim().length > 0) intro = written.trim();
+  } catch {
+    // Keep the fallback — a missing AI key must not block the document.
+  }
+
+  await db
+    .update(proposals)
+    .set({
+      title: `SEO plan — ${client.name}`,
+      intro,
+      baselineJson: baseline,
+      timelineJson: timeline,
+      updatedAt: new Date(),
+    })
+    .where(eq(proposals.id, base.id));
+
+  revalidatePath("/proposals");
+  revalidatePath(`/clients/${clientId}`);
+  return base;
+}
+
+/** Computed from tracked keywords and their most recent checked rank. */
+async function keywordBaselineFor(clientId: number) {
+  const rows = await db
+    .select({
+      keyword: keywords.query,
+      position: keywordRankings.position,
+      checkedAt: keywordRankings.checkedAt,
+    })
+    .from(keywords)
+    .leftJoin(keywordRankings, eq(keywordRankings.keywordId, keywords.id))
+    .where(eq(keywords.clientId, clientId))
+    .orderBy(desc(keywordRankings.checkedAt));
+
+  // One row per keyword — the newest check wins, and a keyword that has
+  // never been checked still counts as tracked with an unknown position.
+  const latest = new Map<string, number | null>();
+  for (const r of rows) {
+    if (!latest.has(r.keyword)) latest.set(r.keyword, r.position ?? null);
+  }
+
+  const positions = [...latest.values()];
+  return {
+    tracked: latest.size,
+    ranking: positions.filter((p) => p !== null).length,
+    inTopTen: positions.filter((p) => p !== null && p <= 10).length,
+    strikingDistance: positions.filter((p) => p !== null && p > 10 && p <= 20)
+      .length,
+    examples: [...latest.entries()]
+      .sort((a, b) => (a[1] ?? 999) - (b[1] ?? 999))
+      .slice(0, 3)
+      .map(([keyword, position]) => ({ keyword, position })),
+  };
+}
+
+/**
+ * The plan, grouped into weeks from the tasks that were actually created
+ * for this client — not the static "Week 1: technical baseline" text the
+ * wizard used to show next to the button, which said the same thing for
+ * every client regardless of what their plan contained.
+ */
+async function timelineFor(clientId: number) {
+  const rows = await db
+    .select({
+      title: tasks.title,
+      dueDate: tasks.dueDate,
+      priority: tasks.priority,
+    })
+    .from(tasks)
+    .where(eq(tasks.clientId, clientId));
+
+  const dated = rows
+    .filter((r): r is typeof r & { dueDate: Date } => r.dueDate !== null)
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  if (dated.length === 0) return [];
+
+  const start = dated[0].dueDate.getTime();
+  const DAY = 86_400_000;
+  const byWeek = new Map<number, string[]>();
+  for (const t of dated) {
+    const week = Math.floor((t.dueDate.getTime() - start) / (7 * DAY)) + 1;
+    if (week > 8) continue; // a kickoff document covers the near term
+    const arr = byWeek.get(week) ?? [];
+    if (arr.length < 5) arr.push(t.title);
+    byWeek.set(week, arr);
+  }
+
+  return [...byWeek.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([week, items]) => ({
+      week: `Week ${week}`,
+      focus: focusOf(items),
+      items,
+    }));
+}
+
+/** A short label for a week, taken from what is actually in it. */
+function focusOf(items: string[]): string {
+  const text = items.join(" ").toLowerCase();
+  if (/redirect|speed|core web|crawl|index|schema|sitemap|robots/.test(text))
+    return "technical foundations";
+  if (/keyword|rank|serp|search/.test(text)) return "keywords and rankings";
+  if (/content|blog|page|article|title|meta/.test(text)) return "content";
+  if (/link|outreach|backlink/.test(text)) return "links and outreach";
+  if (/gbp|local|review|citation/.test(text)) return "local presence";
+  return "ongoing work";
+}
+
+function fallbackIntro(
+  name: string,
+  baseline: { tracked: number; ranking: number },
+  weeks: number,
+): string {
+  const tracked =
+    baseline.tracked > 0
+      ? ` We're tracking ${baseline.tracked} search terms for you, ${baseline.ranking} of which already show up in Google.`
+      : "";
+  return (
+    `We've been through ${name}'s site and this is what we'd like to do about what we found.` +
+    tracked +
+    (weeks > 0
+      ? ` The plan below covers the next ${weeks} ${weeks === 1 ? "week" : "weeks"}, starting with the things that block everything else.`
+      : "")
+  );
 }

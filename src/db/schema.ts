@@ -2219,6 +2219,26 @@ export const proposals = sqliteTable("proposals", {
   >(),
   currency: text("currency").notNull().default("USD"),
   terms: text("terms"),
+  /**
+   * Where the client's keywords stood when this document was written.
+   *
+   * Frozen deliberately rather than recomputed at render time: this is
+   * the starting line the client signs off on, so it has to keep saying
+   * what it said on the day. Recomputed, it would quietly track the
+   * present and the first monthly report would have nothing to show
+   * improvement against.
+   */
+  baselineJson: text("baseline_json", { mode: "json" }).$type<{
+    tracked: number;
+    ranking: number;
+    inTopTen: number;
+    strikingDistance: number;
+    examples: { keyword: string; position: number | null }[];
+  } | null>(),
+  /** The week-by-week plan being approved. Frozen for the same reason. */
+  timelineJson: text("timeline_json", { mode: "json" }).$type<
+    { week: string; focus: string; items: string[] }[] | null
+  >(),
   /** The audit this was built from, so the document can cite its basis. */
   auditId: integer("audit_id").references(() => audits.id, {
     onDelete: "set null",
