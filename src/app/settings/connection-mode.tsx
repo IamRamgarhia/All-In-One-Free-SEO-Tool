@@ -108,6 +108,7 @@ export function ConnectionModePicker({
   mcp,
   origin,
   installPath,
+  platform,
 }: {
   initial: ConnectionMode;
   status: { api: AiConnectionStatus; mcp: AiConnectionStatus };
@@ -116,6 +117,8 @@ export function ConnectionModePicker({
   origin: string;
   /** Where the app is installed, for the stdio config. */
   installPath: string;
+  /** process.platform, for OS-specific paths. */
+  platform: string;
 }) {
   const [mode, setMode] = useState<ConnectionMode>(initial);
   const [pending, start] = useTransition();
@@ -271,6 +274,7 @@ export function ConnectionModePicker({
             token={mcp.token}
             origin={origin}
             installPath={installPath}
+            platform={platform}
           />
         </div>
       )}

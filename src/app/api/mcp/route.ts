@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "@/lib/mcp/server";
-import { getSetting, setSetting } from "@/lib/settings-store";
+import { getSetting } from "@/lib/settings-store";
 
 /**
  * The MCP endpoint remote clients connect to.
@@ -112,27 +112,11 @@ async function authorize(req: Request): Promise<Response | null> {
   return null;
 }
 
-/**
- * Records that a client actually reached us.
- *
- * This is what the "connected" badge reads. A token existing proves only
- * that somebody pressed generate; this proves a chat app is on the other
- * end. Best-effort — a failed write must never fail the call.
- */
-async function recordContact(req: Request): Promise<void> {
-  try {
-    await setSetting("mcp.last_seen_at", new Date().toISOString());
-    const ua = req.headers.get("user-agent");
-    if (ua) await setSetting("mcp.last_client", ua.slice(0, 200));
-  } catch {
-    // Non-fatal: the badge going stale is better than a dropped session.
-  }
-}
-
 async function handle(req: Request): Promise<Response> {
   const denied = await authorize(req);
   if (denied) return denied;
-  await recordContact(req);
+  // Contact is recorded by the shared server on tools/list and
+  // tools/call — one writer, and it fires for stdio clients too.
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     // Stateless — see the note above.
@@ -143,7 +127,7 @@ async function handle(req: Request): Promise<Response> {
     enableJsonResponse: true,
   });
 
-  const server = createMcpServer();
+  const server = createMcpServer(req.headers.get("user-agent") ?? "remote client");
   await server.connect(transport);
 
   try {

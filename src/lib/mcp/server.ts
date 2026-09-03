@@ -213,17 +213,50 @@ export const MCP_TOOL_LIST = TOOLS.map((t) => ({
  * and sharing one Server across concurrent sessions would cross their
  * request handlers.
  */
-export function createMcpServer(): Server {
+/**
+ * Notes that a client actually used the server, whatever transport it
+ * came in on.
+ *
+ * This is what the "connected" badge in Settings reads. It lived only in
+ * the HTTP route at first, which meant a Claude Desktop or Cursor setup —
+ * stdio, a child process that never touches /api/mcp — left the badge
+ * reading "waiting for your chat app" forever while working perfectly.
+ * The badge would have been wrong for the most common way to connect.
+ *
+ * Best-effort and silent: a failed write must never break a tool call,
+ * and on stdio it must never write to stdout, which is the protocol
+ * channel.
+ */
+async function noteContact(source: string): Promise<void> {
+  try {
+    const { setSetting } = await import("../settings-store");
+    await setSetting("mcp.last_seen_at", new Date().toISOString());
+    await setSetting("mcp.last_client", source);
+  } catch {
+    // Nothing to do, and nowhere safe to say so.
+  }
+}
+
+/**
+ * @param source How this server was reached, shown in Settings —
+ *   e.g. "stdio (Claude Desktop / Cursor)" or a remote client's
+ *   user-agent.
+ */
+export function createMcpServer(source = "unknown"): Server {
   const server = new Server(
     { name: "seo-tool", version: "0.1.0" },
     { capabilities: { tools: {} } },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: MCP_TOOL_LIST,
-  }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    // Listing tools is the first thing every client does after the
+    // handshake, so this is the earliest honest evidence of a connection.
+    void noteContact(source);
+    return { tools: MCP_TOOL_LIST };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    void noteContact(source);
     const tool = TOOLS.find((t) => t.name === req.params.name);
     if (!tool) {
       return {

@@ -32,7 +32,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createMcpServer } from "../src/lib/mcp/server";
 
 async function main() {
-  await createMcpServer().connect(new StdioServerTransport());
+  await createMcpServer("stdio (Claude Desktop / Cursor)").connect(
+    new StdioServerTransport(),
+  );
   // stderr, never stdout — stdout is the protocol channel.
   console.error("seo-tool MCP server ready on stdio");
 }

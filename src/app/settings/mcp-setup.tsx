@@ -86,10 +86,13 @@ export function McpSetup({
   token,
   origin,
   installPath,
+  platform,
 }: {
   token: string | null;
   origin: string;
   installPath: string;
+  /** process.platform from the server — picks the right paths. */
+  platform: string;
 }) {
   const [tab, setTab] = useState<ClientId>("claude-code");
   const url = `${origin}/api/mcp`;
@@ -100,15 +103,36 @@ export function McpSetup({
   // refused to parse.
   const jsonPath = JSON.stringify(installPath);
 
-  const desktopConfig = `{
-  "mcpServers": {
-    "seo-tool": {
+  const serverEntry = `    "seo-tool": {
       "command": "npx",
       "args": ["tsx", "scripts/mcp-server.ts"],
       "cwd": ${jsonPath}
-    }
+    }`;
+
+  const desktopConfig = `{
+  "mcpServers": {
+${serverEntry}
   }
 }`;
+
+  // Shown for the case the official quickstart skips: a config that
+  // already has servers. Its instruction is "replace the contents of the
+  // file", which is right for a first server and quietly deletes every
+  // other one after that.
+  const mergeExample = `{
+  "mcpServers": {
+    "some-server-you-already-have": { "command": "..." },
+${serverEntry}
+  }
+}`;
+
+  const isWindows = platform === "win32";
+  const configPath = isWindows
+    ? "%APPDATA%\\Claude\\claude_desktop_config.json"
+    : "~/Library/Application Support/Claude/claude_desktop_config.json";
+  const logPath = isWindows
+    ? 'type "%APPDATA%\\Claude\\logs\\mcp*.log"'
+    : "tail -n 20 -f ~/Library/Logs/Claude/mcp*.log";
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card/60 p-3">
@@ -169,44 +193,105 @@ export function McpSetup({
       )}
 
       {(tab === "claude-desktop" || tab === "cursor") && (
-        <Steps
-          items={[
-            <>
-              <p>
-                {tab === "claude-desktop"
-                  ? "Open Settings → Developer → Edit Config."
-                  : "Open Settings → MCP → Add new global MCP server."}
-              </p>
-            </>,
-            <>
-              <p>Paste this, then save:</p>
-              <Block text={desktopConfig} />
-              <p className="text-muted-foreground">
-                Uses stdio, not the URL above — it launches the server as a
-                child process, so nothing is exposed on the network.
-              </p>
-            </>,
-            <>
-              <p>
-                Restart {tab === "claude-desktop" ? "Claude Desktop" : "Cursor"}
-                . MCP servers are only read at startup.
-              </p>
-            </>,
-            <>
-              <p>
+        <>
+          <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-[11px] leading-relaxed text-emerald-900 dark:text-emerald-100/90">
+            <strong>No tunnel, no Cloudflare, no network.</strong> This launches
+            the server as a child process and talks to it over stdin/stdout.
+            Nothing is exposed, and the token above is not used.
+          </p>
+          <Steps
+            items={[
+              <>
                 {tab === "claude-desktop" ? (
-                  <DocLink href="https://modelcontextprotocol.io/quickstart/user">
-                    Claude Desktop MCP quickstart
-                  </DocLink>
+                  <>
+                    <p>
+                      Open the <strong>Claude</strong> menu in your system menu
+                      bar — not Settings inside the chat window — then{" "}
+                      <strong>Settings → Developer → Edit Config</strong>.
+                    </p>
+                    <p className="text-muted-foreground">
+                      That opens (and creates, if missing) this file:
+                    </p>
+                    <Block text={configPath} />
+                  </>
                 ) : (
-                  <DocLink href="https://docs.cursor.com/context/model-context-protocol">
-                    Cursor MCP documentation
-                  </DocLink>
+                  <p>
+                    Open <strong>Settings → MCP → Add new global MCP server</strong>
+                    . Cursor opens its <code>mcp.json</code> for you.
+                  </p>
                 )}
-              </p>
-            </>,
-          ]}
-        />
+              </>,
+              <>
+                <p>
+                  <strong>If the file is empty or brand new</strong>, paste all
+                  of this and save:
+                </p>
+                <Block text={desktopConfig} />
+              </>,
+              <>
+                <p>
+                  <strong>If it already has servers in it</strong>, do not paste
+                  over them. Add only the <code>&quot;seo-tool&quot;</code> block
+                  inside the existing <code>mcpServers</code>, with a comma
+                  between entries:
+                </p>
+                <Block text={mergeExample} />
+                <p className="text-muted-foreground">
+                  It is one JSON object. A missing or extra comma stops the
+                  whole file loading, and every server in it disappears at once.
+                </p>
+              </>,
+              <>
+                <p>
+                  <strong>Quit completely and reopen.</strong>{" "}
+                  {tab === "claude-desktop"
+                    ? "Closing the window is not enough on either OS — quit from the menu or the tray."
+                    : "Reload the window."}{" "}
+                  Config is only read at startup.
+                </p>
+              </>,
+              <>
+                {tab === "claude-desktop" ? (
+                  <p>
+                    Check it worked: click{" "}
+                    <strong>Add files, connectors, and more</strong> at the
+                    bottom-left of the message box, then{" "}
+                    <strong>Connectors → Manage connectors</strong>. You should
+                    see <code>seo-tool</code> and its 12 tools.
+                  </p>
+                ) : (
+                  <p>
+                    Check it worked: <strong>Settings → MCP</strong> should list{" "}
+                    <code>seo-tool</code> with a green dot.
+                  </p>
+                )}
+              </>,
+              <>
+                <p>
+                  If it does not appear, the log says why:
+                </p>
+                <Block text={logPath} />
+                <p className="text-muted-foreground">
+                  Most often invalid JSON, or Node not being on PATH for the
+                  app.
+                </p>
+              </>,
+              <>
+                <p>
+                  {tab === "claude-desktop" ? (
+                    <DocLink href="https://modelcontextprotocol.io/quickstart/user">
+                      Claude Desktop MCP quickstart
+                    </DocLink>
+                  ) : (
+                    <DocLink href="https://docs.cursor.com/context/model-context-protocol">
+                      Cursor MCP documentation
+                    </DocLink>
+                  )}
+                </p>
+              </>,
+            ]}
+          />
+        </>
       )}
 
       {tab === "web" && (
