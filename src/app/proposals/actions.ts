@@ -362,13 +362,25 @@ async function timelineFor(clientId: number) {
     }));
 }
 
-/** A short label for a week, taken from what is actually in it. */
+/**
+ * A short label for a week, taken from what is actually in it.
+ *
+ * Order matters. On-page tags — title, meta description, h1, viewport,
+ * canonical, alt text — are technical work, but every one of those words
+ * also appears in content tasks, so the technical test has to run first.
+ * It didn't at first, and a real generated plan described "add a viewport
+ * meta tag" as content work in a document a client reads.
+ */
 function focusOf(items: string[]): string {
   const text = items.join(" ").toLowerCase();
-  if (/redirect|speed|core web|crawl|index|schema|sitemap|robots/.test(text))
+  if (
+    /redirect|speed|core web|crawl|index|schema|sitemap|robots|viewport|canonical|<title>|title tag|meta description|h1|alt text|https|ssl|404/.test(
+      text,
+    )
+  )
     return "technical foundations";
   if (/keyword|rank|serp|search/.test(text)) return "keywords and rankings";
-  if (/content|blog|page|article|title|meta/.test(text)) return "content";
+  if (/blog|article|write|draft|publish|content/.test(text)) return "content";
   if (/link|outreach|backlink/.test(text)) return "links and outreach";
   if (/gbp|local|review|citation/.test(text)) return "local presence";
   return "ongoing work";
