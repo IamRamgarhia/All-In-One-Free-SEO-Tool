@@ -44,7 +44,38 @@ function tokensMatch(a: string, b: string): boolean {
   return diff === 0;
 }
 
+/**
+ * Refuses a cross-origin browser request.
+ *
+ * The transport spec makes this a MUST: "Servers MUST validate the Origin
+ * header on all incoming connections to prevent DNS rebinding attacks."
+ * Without it, a page the user happens to be visiting can rebind DNS to
+ * 127.0.0.1 and POST to this endpoint from their browser — and the
+ * browser attaches no Origin restriction of its own.
+ *
+ * A real MCP client sends no Origin header at all (it is not a browser),
+ * so absent is allowed; only a *mismatched* one is refused. This matters
+ * because the dev server binds every interface, not just loopback, so the
+ * endpoint is reachable from the local network too.
+ */
+function originAllowed(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true; // not a browser — the normal case for MCP
+  const host = req.headers.get("host");
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
 async function authorize(req: Request): Promise<Response | null> {
+  if (!originAllowed(req)) {
+    return new NextResponse("Forbidden: cross-origin request refused", {
+      status: 403,
+    });
+  }
+
   const expected = await getSetting<string>("mcp.access_token");
   if (!expected) {
     return NextResponse.json(
@@ -59,10 +90,22 @@ async function authorize(req: Request): Promise<Response | null> {
   const header = req.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token || !tokensMatch(token, expected)) {
+    // Deliberately a plain Bearer challenge, with no `resource_metadata`
+    // pointer.
+    //
+    // The MCP authorization spec requires that pointer — but of servers
+    // that implement OAuth, and this one does not. Authorization is
+    // OPTIONAL in MCP, and this uses a static bearer token, which is the
+    // mode Anthropic calls `static_headers`. Advertising
+    // resource_metadata here would send a client to a discovery document
+    // that cannot name an authorization server, because there is no
+    // authorization server: a promise of an OAuth flow that does not
+    // exist, which fails later and less clearly than not promising it.
+    //
+    // If OAuth 2.1 + DCR is built later, this is where the pointer goes,
+    // alongside /.well-known/oauth-protected-resource.
     return new NextResponse("Unauthorized", {
       status: 401,
-      // Tells a spec-compliant client how to authenticate rather than
-      // leaving it to guess at a bare 401.
       headers: { "WWW-Authenticate": 'Bearer realm="seo-tool"' },
     });
   }

@@ -66,13 +66,57 @@ async function getRemoteSha(): Promise<string | null> {
   }
 }
 
+/**
+ * Is the local checkout actually behind the given remote commit?
+ *
+ *   true  — the remote commit is not in our history, so there is
+ *           genuinely something to pull.
+ *   false — the remote commit is already an ancestor of HEAD, so we are
+ *           level or ahead. Nothing to pull.
+ *   null  — cannot tell: the commit isn't in this clone (never fetched),
+ *           or git isn't available. The caller treats that as "offer the
+ *           update", since not having the commit is itself a reason to
+ *           fetch.
+ */
+async function isBehind(remote: string): Promise<boolean | null> {
+  const cwd = process.cwd();
+  try {
+    // Do we even have this object? Without it --is-ancestor just errors,
+    // and an error would be indistinguishable from "not an ancestor".
+    await exec("git", ["cat-file", "-e", `${remote}^{commit}`], { cwd });
+  } catch {
+    return null;
+  }
+  try {
+    await exec("git", ["merge-base", "--is-ancestor", remote, "HEAD"], { cwd });
+    return false; // remote is already in our history
+  } catch {
+    return true; // it isn't — there are commits to pull
+  }
+}
+
 export async function GET(req: Request) {
   const denied = guardAdminRequest(req);
   if (denied) return denied;
 
   const [local, remote] = await Promise.all([getLocalSha(), getRemoteSha()]);
+
+  // "Different" is not "behind".
+  //
+  // This used to be `local !== remote`, which called any divergence an
+  // update — including being *ahead* of GitHub, which is the normal state
+  // for anyone with unpushed commits. The card then offered an update
+  // that would do nothing, directly above a panel correctly reporting
+  // "You're already on the latest version": two contradictory claims on
+  // one screen, and the actionable-looking one was the wrong one.
+  const behind = remote ? await isBehind(remote) : null;
   const updateAvailable =
-    local !== null && remote !== null && local !== remote;
+    local !== null &&
+    remote !== null &&
+    local !== remote &&
+    // null means we could not tell — the remote commit isn't in the local
+    // clone, which is itself evidence there is something to fetch.
+    behind !== false;
 
   // Surface as a notification once per remote-SHA so the bell badges.
   // No-op if logActivity dedupes elsewhere; logActivity itself swallows errors.
