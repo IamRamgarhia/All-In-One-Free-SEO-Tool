@@ -119,11 +119,30 @@ export function McpSetup({
   const join = (...parts: string[]) => parts.join(sep);
   const tsxCli = join(installPath, "node_modules", "tsx", "dist", "cli.mjs");
   const serverScript = join(installPath, "scripts", "mcp-server.ts");
+  const tsconfig = join(installPath, "tsconfig.json");
+  const dbPath = join(installPath, "data.db");
 
+  // --tsconfig and SEO_DB_PATH are not optional extras. Claude Desktop
+  // does not run the server in the `cwd` the config asks for, and both
+  // of these resolve relative to the working directory:
+  //
+  //   tsx finds tsconfig from cwd, so "@/db/client" failed to resolve
+  //   and the process died with MODULE_NOT_FOUND;
+  //   the database path defaults to cwd, so it then tried to open
+  //   C:\data.db and died with "unable to open database file".
+  //
+  // Both were reproduced by launching with cwd set elsewhere, and the
+  // pair of them together makes the server start regardless of cwd.
   const serverEntry = `    "seo-tool": {
       "command": ${JSON.stringify(nodePath)},
-      "args": [${JSON.stringify(tsxCli)}, ${JSON.stringify(serverScript)}],
-      "cwd": ${jsonPath}
+      "args": [
+        ${JSON.stringify(tsxCli)},
+        "--tsconfig",
+        ${JSON.stringify(tsconfig)},
+        ${JSON.stringify(serverScript)}
+      ],
+      "cwd": ${jsonPath},
+      "env": { "SEO_DB_PATH": ${JSON.stringify(dbPath)} }
     }`;
 
   const desktopConfig = `{
