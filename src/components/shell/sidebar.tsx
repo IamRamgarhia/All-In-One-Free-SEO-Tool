@@ -6,6 +6,7 @@ import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
 import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
+import { capabilityOf } from "@/lib/tool-capabilities";
 import { useStoredState } from "@/components/use-stored-state";
 
 /** Alias kept so the render code below reads unchanged. */
@@ -425,6 +426,22 @@ export function Sidebar({
                               {label}
                             </span>
                           )}
+                          {/* Only the free rows are tagged, and nothing is
+                              said about the rest. The capability data
+                              over-approximates AI (see tool-capabilities.ts),
+                              so "needs AI" could be wrong on a composed page
+                              but "free" cannot be — this is the only claim
+                              here that can't mislead. */}
+                          {!collapsed &&
+                            !unread[href] &&
+                            capabilityOf(href)?.needsAI === false && (
+                              <span
+                                title="Works without any AI key — this one never costs you credits."
+                                className="relative z-10 ml-auto shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wide text-emerald-400/70"
+                              >
+                                free
+                              </span>
+                            )}
                           {unread[href] && unread[href] > 0 ? (
                             collapsed ? (
                               <span

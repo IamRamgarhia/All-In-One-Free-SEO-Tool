@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Search, X } from "lucide-react";
 import { NAV_GROUPS, type NavItem } from "./nav-items";
+import { capabilityOf } from "@/lib/tool-capabilities";
 
 /**
  * Mobile-only navigation drawer. Hidden ≥md where the regular sidebar
@@ -147,6 +148,14 @@ export function MobileNav({
                               className={`size-4 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
                             />
                             <span className="flex-1 truncate">{label}</span>
+                            {/* Same rule as the desktop sidebar: tag only
+                                what is certainly free. */}
+                            {badge === 0 &&
+                              capabilityOf(href)?.needsAI === false && (
+                                <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-emerald-400/70">
+                                  free
+                                </span>
+                              )}
                             {badge > 0 && (
                               <span className="rounded-full bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-bold text-rose-300 ring-1 ring-inset ring-rose-500/40">
                                 {badge > 9 ? "9+" : badge}

@@ -1,5 +1,5 @@
 /**
- * Works out, from the code itself, which tools need a model to write text
+ * Works out, from the code itself, which pages need a model to write text
  * and which need headless Chromium.
  *
  * Every hand-maintained list in this codebase has drifted — the four
@@ -8,17 +8,21 @@
  * this reads the import graph instead. Nothing here is written down, so
  * nothing here can go stale.
  *
+ * Covers every route, not only /tools/*: the sidebar links to /agent,
+ * /blog and /reports too, and those owe the reader the same "will this
+ * cost me anything?" answer the tool cards give.
+ *
  * Node-only — it reads the filesystem. The committed result lives in
  * tool-capabilities.generated.ts and a test asserts the two still agree,
- * so adding AI to a tool fails the build until the badge is regenerated.
+ * so adding AI to a page fails the build until the badge is regenerated.
  */
 import fs from "node:fs";
 import path from "node:path";
 
 export type DerivedCapability = {
-  /** Directory name under src/app/tools, e.g. "health-check". */
-  slug: string;
-  /** A model has to produce words for this tool to do its job. */
+  /** Route path as it appears in a link, e.g. "/tools/health-check". */
+  route: string;
+  /** A model has to produce words for this page to do its job. */
   needsAI: boolean;
   /** Drives headless Chromium — runs locally, costs no AI credits. */
   usesBrowser: boolean;
@@ -68,7 +72,7 @@ function resolveSpecifier(spec: string, fromFile: string, src: string): string |
 export function deriveToolCapabilities(): DerivedCapability[] {
   const root = repoRoot();
   const src = path.join(root, "src");
-  const toolsDir = path.join(src, "app", "tools");
+  const appDir = path.join(src, "app");
 
   const files = listSourceFiles(src);
   const text = new Map(files.map((f) => [f, fs.readFileSync(f, "utf8")]));
@@ -116,18 +120,37 @@ export function deriveToolCapabilities(): DerivedCapability[] {
   const aiDependents = dependents(spendModules);
   const browserDependents = dependents([path.join(src, "lib", "browser-pool.ts")]);
 
-  return fs
-    .readdirSync(toolsDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => {
-      const entries = ["page.tsx", "actions.ts", "page.ts", "actions.tsx"]
-        .map((f) => path.join(toolsDir, e.name, f))
-        .filter((f) => fs.existsSync(f));
-      return {
-        slug: e.name,
+  const routes: DerivedCapability[] = [];
+  (function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (entry.name !== "page.tsx") continue;
+
+      // Route groups — (marketing) — organise files without appearing in
+      // the URL, so they are dropped here too.
+      const segments = path
+        .relative(appDir, dir)
+        .split(path.sep)
+        .filter(Boolean)
+        .filter((seg) => !/^\(.*\)$/.test(seg));
+
+      // A page's own actions.ts counts as part of it: that is where the
+      // server work, and so the AI call, usually lives.
+      const entries = [full, path.join(dir, "actions.ts")].filter((f) =>
+        fs.existsSync(f),
+      );
+
+      routes.push({
+        route: segments.length === 0 ? "/" : `/${segments.join("/")}`,
         needsAI: entries.some((f) => aiDependents.has(f)),
         usesBrowser: entries.some((f) => browserDependents.has(f)),
-      };
-    })
-    .sort((a, b) => a.slug.localeCompare(b.slug));
+      });
+    }
+  })(appDir);
+
+  return routes.sort((a, b) => a.route.localeCompare(b.route));
 }

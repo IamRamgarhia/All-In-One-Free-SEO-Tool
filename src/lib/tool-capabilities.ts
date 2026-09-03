@@ -13,7 +13,7 @@ export type ToolCapability = (typeof TOOL_CAPABILITIES)[number];
 /**
  * How the user has chosen to supply AI.
  *
- * - `none`  — nothing connected. The 58 tools that need no model still work.
+ * - `none`  — nothing connected. The tools that need no model still work.
  * - `mcp`   — their Claude/ChatGPT/Cursor client connects to us. Their
  *             subscription writes the text; we validate and apply it. No
  *             per-call cost, but it only works while they are there.
@@ -23,6 +23,22 @@ export type ToolCapability = (typeof TOOL_CAPABILITIES)[number];
  */
 export type ConnectionMode = "none" | "mcp" | "api" | "both";
 
+/**
+ * The tools grid, for counting purposes: top-level /tools/<name> only.
+ *
+ * The generated table covers every route, because the sidebar links to
+ * plenty of pages that aren't tools. Nested pages like
+ * /tools/geo-swot/c/[clientId] are the same tool seen from a client, so
+ * counting them would inflate the number shown to the user.
+ */
+const TOOL_ROUTES = TOOL_CAPABILITIES.filter((c) =>
+  /^\/tools\/[^/]+$/.test(c.route),
+);
+
+export const AI_TOOL_COUNT = TOOL_ROUTES.filter((c) => c.needsAI).length;
+export const FREE_TOOL_COUNT = TOOL_ROUTES.filter((c) => !c.needsAI).length;
+export const TOTAL_TOOL_COUNT = TOOL_ROUTES.length;
+
 export const CONNECTION_MODES: {
   id: ConnectionMode;
   label: string;
@@ -31,20 +47,21 @@ export const CONNECTION_MODES: {
 }[] = [
   {
     id: "none",
+    // Counted, not typed out. These numbers were written into the copy by
+    // hand first, and were already wrong one commit later when the table
+    // grew to cover every route rather than just the tools.
     label: "Nothing connected",
-    summary: "58 of 96 tools work with no setup at all.",
+    summary: `${FREE_TOOL_COUNT} of ${TOTAL_TOOL_COUNT} tools work with no setup at all.`,
   },
   {
     id: "mcp",
     label: "My Claude / ChatGPT subscription",
-    summary:
-      "All 96 tools work while you're here. Nothing is charged per use — your existing subscription does the writing.",
+    summary: `All ${TOTAL_TOOL_COUNT} tools work while you're here. Nothing is charged per use — your existing subscription does the writing.`,
   },
   {
     id: "api",
     label: "An API key",
-    summary:
-      "All 96 tools, and the tool keeps working when you're away — overnight audits, scheduled reports, alerts.",
+    summary: `All ${TOTAL_TOOL_COUNT} tools, and the tool keeps working when you're away — overnight audits, scheduled reports, alerts.`,
   },
   {
     id: "both",
@@ -56,18 +73,39 @@ export const CONNECTION_MODES: {
 
 // Explicitly widened: `as const` in the generated file narrows slug to a
 // literal union, which would make lookups by an arbitrary href a type error.
-const BY_SLUG = new Map<string, ToolCapability>(
-  TOOL_CAPABILITIES.map((c) => [c.slug, c]),
+const BY_ROUTE = new Map<string, ToolCapability>(
+  TOOL_CAPABILITIES.map((c) => [c.route, c]),
 );
 
-/** Accepts "health-check" or "/tools/health-check". */
-export function capabilityOf(slugOrHref: string): ToolCapability | null {
-  const slug = slugOrHref.startsWith("/tools/")
-    ? slugOrHref.slice("/tools/".length).split(/[/?#]/)[0]
-    : slugOrHref;
-  return BY_SLUG.get(slug) ?? null;
+/**
+ * Look up a route. Accepts a full href with query or hash — the sidebar
+ * and the tools grid both pass real link targets.
+ */
+export function capabilityOf(href: string): ToolCapability | null {
+  let route = href.split(/[?#]/)[0];
+  // Drop a trailing slash, but never turn "/" into "".
+  if (route.length > 1) route = route.replace(/\/+$/, "");
+  return BY_ROUTE.get(route) ?? null;
 }
 
+/**
+ * A note on how much these two flags can be trusted, because they are
+ * not equally reliable.
+ *
+ * The derivation asks "can this page reach code that spends credits?",
+ * which OVER-approximates. /audits comes back needsAI because its page
+ * embeds an add-client dialog whose action kicks off a background AI
+ * audit; the audits page itself needs nothing. Composed hub pages are
+ * flagged this way all the time.
+ *
+ * The error only runs one way. A page can be wrongly marked needsAI, but
+ * never wrongly marked free — if the graph cannot reach a spend module,
+ * the code cannot spend. So `needsAI === false` is sound and safe to
+ * advertise, while `needsAI === true` is "might", not "will".
+ *
+ * That is why the sidebar tags only the free rows and says nothing about
+ * the rest: the claim it makes is the one that cannot be wrong.
+ */
 export type ToolBadge = {
   label: string;
   /** Longer text for the tooltip / title attribute. */
@@ -141,9 +179,5 @@ export function worksIn(cap: ToolCapability | null, mode: ConnectionMode): boole
   if (!cap.needsAI) return true;
   return mode !== "none";
 }
-
-export const AI_TOOL_COUNT = TOOL_CAPABILITIES.filter((c) => c.needsAI).length;
-export const FREE_TOOL_COUNT = TOOL_CAPABILITIES.filter((c) => !c.needsAI).length;
-export const TOTAL_TOOL_COUNT = TOOL_CAPABILITIES.length;
 
 export { TOOL_CAPABILITIES };
