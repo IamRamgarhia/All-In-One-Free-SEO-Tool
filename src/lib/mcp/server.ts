@@ -248,15 +248,30 @@ export function createMcpServer(source = "unknown"): Server {
     { capabilities: { tools: {} } },
   );
 
+  /**
+   * Who is on the other end, in the client's own words.
+   *
+   * MCP clients identify themselves in `initialize`, so ask rather than
+   * label by transport. "stdio (Claude Desktop / Cursor)" was true but
+   * useless: it could not tell a real chat app from a test script that
+   * happened to run, which is exactly the question the badge is asked.
+   * Falls back to the transport when a client sends nothing.
+   */
+  function who(): string {
+    const info = server.getClientVersion();
+    if (!info?.name) return source;
+    return info.version ? `${info.name} ${info.version}` : info.name;
+  }
+
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     // Listing tools is the first thing every client does after the
     // handshake, so this is the earliest honest evidence of a connection.
-    void noteContact(source);
+    void noteContact(who());
     return { tools: MCP_TOOL_LIST };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    void noteContact(source);
+    void noteContact(who());
     const tool = TOOLS.find((t) => t.name === req.params.name);
     if (!tool) {
       return {

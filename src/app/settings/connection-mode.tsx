@@ -219,6 +219,25 @@ export function ConnectionModePicker({
               <StatusDot status={status.mcp} />
             </div>
 
+            {/* What connected and when, on the page rather than in a
+                tooltip. A green dot alone says something worked without
+                saying what, which is not enough to tell a chat app that
+                really connected from a test that happened to run. */}
+            {mcp.connected && (
+              <p className="text-[11px] text-muted-foreground">
+                Last used{" "}
+                <span className="text-foreground">{mcp.lastSeenLabel}</span>
+                {mcp.lastClient && (
+                  <>
+                    {" "}
+                    by{" "}
+                    <span className="text-foreground">{mcp.lastClient}</span>
+                  </>
+                )}
+                .
+              </p>
+            )}
+
             {mcp.token ? (
               <>
                 <CopyRow label="Server URL" value={remoteUrl} />

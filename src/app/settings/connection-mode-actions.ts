@@ -30,7 +30,27 @@ export type McpStatus = {
   lastClient: string | null;
   /** A client has actually connected — not merely been configured. */
   connected: boolean;
+  /**
+   * "4 minutes ago", "yesterday" — rendered on the server.
+   *
+   * Computed here rather than in the browser on purpose: a relative time
+   * worked out on the client disagrees with the server's HTML and React
+   * errors on the mismatch. Null when nothing has ever connected.
+   */
+  lastSeenLabel: string | null;
 };
+
+/** Coarse on purpose — "4 minutes ago" is the answer, not the timestamp. */
+function relativeTime(iso: string): string {
+  const secs = Math.round((Date.now() - Date.parse(iso)) / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
 
 /**
  * A client counts as connected for 30 days after its last call.
@@ -53,7 +73,14 @@ export async function getMcpStatus(): Promise<McpStatus> {
     Number.isFinite(seenMs) &&
     Date.now() - seenMs < CONNECTED_WINDOW_MS;
 
-  return { enabled: Boolean(token), token, lastSeenAt, lastClient, connected };
+  return {
+    enabled: Boolean(token),
+    token,
+    lastSeenAt,
+    lastClient,
+    connected,
+    lastSeenLabel: Number.isFinite(seenMs) ? relativeTime(lastSeenAt!) : null,
+  };
 }
 
 /**
