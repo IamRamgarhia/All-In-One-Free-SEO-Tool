@@ -797,3 +797,81 @@ async function writeField(
 }
 
 export type { AgentAction };
+
+/**
+ * Check a value someone else wrote against the rules we'd apply to our
+ * own drafts.
+ *
+ * Exists for the MCP path, where the text comes from the user's own
+ * Claude or ChatGPT rather than from a model we called. The words change
+ * origin; the standards must not. A 95-character title is refused
+ * whoever produced it.
+ *
+ * Deliberately reuses DRAFT_SPECS rather than restating the limits. Four
+ * separate copies of the finding-type names drifted in this codebase and
+ * every one of them broke something silently — a second copy of the
+ * length rules would go the same way, and the symptom would be the agent
+ * accepting copy it should have rejected.
+ */
+export function validateDraftedValue(
+  kind: string,
+  value: string,
+): { ok: true; value: string } | { ok: false; error: string } {
+  const cleaned = cleanDraft(value);
+  if (!cleaned) {
+    return { ok: false, error: "Empty after trimming — there is nothing to write." };
+  }
+
+  // Schema is JSON, not prose, so the prompt-table rules don't apply.
+  // It gets the same structural check draftSchema performs.
+  if (kind === "write_schema") {
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (!parsed || typeof parsed !== "object") throw new Error("not an object");
+      const r = parsed as Record<string, unknown>;
+      if (!r["@context"] || !r["@type"]) {
+        return { ok: false, error: "Schema is missing @context or @type." };
+      }
+    } catch {
+      return {
+        ok: false,
+        error:
+          "That isn't valid JSON. Refusing to write it — broken JSON-LD is worse than none, because the page looks marked up and isn't.",
+      };
+    }
+    return { ok: true, value: cleaned };
+  }
+
+  const spec = DRAFT_SPECS[kind];
+  if (!spec) return { ok: false, error: `No validation rules for ${kind}.` };
+
+  const problem = spec.validate(cleaned);
+  if (problem) return { ok: false, error: problem };
+  return { ok: true, value: cleaned };
+}
+
+/** The rules, as text, so a client's model can meet them first time. */
+export function draftRulesFor(kind: string): string | null {
+  if (kind === "write_schema") {
+    return "Valid JSON-LD as a single JSON object, including @context and @type. Do not invent facts, prices, ratings or authors that aren't demonstrably on the page.";
+  }
+  return DRAFT_SPECS[kind]?.system ?? null;
+}
+
+/**
+ * Does this kind need an actual language model, or just a value?
+ *
+ * Not the same question as `requiresDraft`, and conflating them cost
+ * something real: internal links need a VALUE (the anchor and target)
+ * but no model — the planner computes both from an orphan page and a
+ * phrase that demonstrably appears on the linking page. Treating them as
+ * model-dependent meant that on an install with no API key they were
+ * parked awaiting text a caller would have had to invent, when they
+ * could have been applied immediately and correctly.
+ *
+ * requiresDraft: "must not be executed with an empty value" — all kinds.
+ * requiresModel: "somebody has to write prose" — all but links.
+ */
+export function requiresModel(kind: string): boolean {
+  return requiresDraft(kind) && kind !== "write_internal_links";
+}

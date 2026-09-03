@@ -32,7 +32,12 @@ import {
   type PlannedAction,
 } from "./planner";
 import { findPostIdByUrl, getClientWpCreds, getPostImages } from "../wp-bridge";
-import { draftValue, executeAction, requiresDraft } from "./executor";
+import {
+  draftValue,
+  executeAction,
+  requiresDraft,
+  requiresModel,
+} from "./executor";
 
 /**
  * Record a change the agent decided not to make, and why.
@@ -60,6 +65,38 @@ async function recordFailedDraft(opts: {
     beforeValue: opts.action.currentValue ?? null,
     status: "failed",
     error: opts.error,
+  });
+}
+
+/**
+ * Record work the agent has decided on but cannot write the words for.
+ *
+ * Status is "proposed", which the rest of the system already understands
+ * as "waiting for a human". The difference is afterValue is null: the
+ * decision is made, the text is not written. list_proposed_fixes over
+ * MCP picks these up so the user own assistant can supply it.
+ *
+ * beforeValue is captured here for the same reason executeAction
+ * captures it: without a previous value there is no undo, and a change
+ * we cannot reverse is not one worth making.
+ */
+async function recordAwaitingText(opts: {
+  runId: number | null;
+  clientId: number;
+  action: PlannedAction;
+}): Promise<void> {
+  await db.insert(agentActions).values({
+    runId: opts.runId,
+    clientId: opts.clientId,
+    kind: opts.action.kind,
+    targetUrl: opts.action.targetUrl,
+    targetRef: opts.action.targetRef ?? null,
+    reason: opts.action.reason,
+    risk: opts.action.risk,
+    beforeValue: opts.action.currentValue ?? null,
+    afterValue: null,
+    status: "proposed",
+    error: null,
   });
 }
 
@@ -144,8 +181,31 @@ export async function runAgentForClient(opts: {
       // reported as fixed.
       const needsDraft = requiresDraft(action.kind);
 
-      if (needsDraft && !has(capabilities, "generate_text")) {
-        skipped++;
+      if (requiresModel(action.kind) && !has(capabilities, "generate_text")) {
+        // No model of our own — which does not mean nothing can be done.
+        //
+        // This used to just skip. The work vanished: no row, no record,
+        // nothing for anyone to act on. So a user who connected their
+        // Claude or ChatGPT subscription instead of buying an API key
+        // got an agent that planned everything and did none of it,
+        // silently — the exact failure shape this codebase keeps
+        // finding.
+        //
+        // Now it records the proposal with the text still missing. The
+        // MCP tools (list_proposed_fixes / apply_fix) hand it to the
+        // user own model, which writes the words. We still validate
+        // them against the same rules, write, verify by reading back,
+        // and record the undo. Only where the words come from changes.
+        if (capabilities.canWrite) {
+          await recordAwaitingText({
+            runId: run.id,
+            clientId: opts.clientId,
+            action,
+          });
+          queued++;
+        } else {
+          skipped++;
+        }
         continue;
       }
 

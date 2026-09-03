@@ -361,6 +361,107 @@ async function main() {
     bad("SMALL SAMPLE PRESENTED AS A PATTERN", String(L?.note).slice(0, 90));
   }
 
+
+  section("Fixes written by the caller's model — the subscription path");
+
+  // The whole reason someone would connect a Claude or ChatGPT
+  // subscription instead of buying an API key: this install has no model
+  // of its own, so the agent decides WHAT to change and the caller
+  // writes the words.
+  const { agentActions: aa } = await import("../src/db/schema");
+  const [proposal] = await db
+    .insert(aa)
+    .values({
+      clientId: client.id,
+      kind: "write_title",
+      targetUrl: "https://example.com/",
+      reason: "The title is 102 characters, which is too long to display.",
+      risk: "safe",
+      beforeValue: "x".repeat(102),
+      afterValue: null,
+      status: "proposed",
+    })
+    .returning();
+
+  const fixesRes = payload(
+    await send("tools/call", {
+      name: "list_proposed_fixes",
+      arguments: { clientId: client.id },
+    }),
+  );
+  const fixes = (fixesRes.json?.fixes ?? []) as Record<string, unknown>[];
+  if (fixes.length === 1 && fixes[0].fixId === proposal.id) {
+    ok("lists work that is waiting for wording");
+  } else {
+    bad("proposal not listed", JSON.stringify(fixesRes.json).slice(0, 140));
+  }
+  if (typeof fixes[0]?.rules === "string" && String(fixes[0].rules).length > 40) {
+    ok("hands over the rules the text must satisfy", "so a client meets them first time");
+  } else {
+    bad("NO RULES GIVEN", "the caller would have to guess and be refused");
+  }
+  if (fixes[0]?.currentValue) {
+    ok("includes the current value", "you cannot rewrite what you cannot see");
+  } else {
+    bad("no current value supplied");
+  }
+
+  // The property that matters most. A model asked for a shorter title
+  // returns a plausible one every time — including another too-long one.
+  const tooLong = payload(
+    await send("tools/call", {
+      name: "apply_fix",
+      arguments: { fixId: proposal.id, newValue: "A".repeat(95) },
+    }),
+  );
+  if (tooLong.isError && /still over/i.test(tooLong.text)) {
+    ok("REFUSES text that breaks the same rules", tooLong.text.slice(0, 52));
+  } else {
+    bad(
+      "ACCEPTED AN OVER-LENGTH TITLE",
+      "the caller's model is trusted to self-police — it will not",
+    );
+  }
+
+  const blankText = payload(
+    await send("tools/call", {
+      name: "apply_fix",
+      arguments: { fixId: proposal.id, newValue: "  " },
+    }),
+  );
+  if (blankText.isError) ok("refuses empty text");
+  else bad("ACCEPTED EMPTY TEXT");
+
+  // Still proposed after two refusals — a rejected attempt must not
+  // consume the fix.
+  const stillThere = payload(
+    await send("tools/call", {
+      name: "list_proposed_fixes",
+      arguments: { clientId: client.id },
+    }),
+  );
+  if (((stillThere.json?.fixes ?? []) as unknown[]).length === 1) {
+    ok("a refused attempt does not consume the fix", "you can try again");
+  } else {
+    bad("the fix vanished after a refusal");
+  }
+
+  // No CMS on this client, so the write itself must fail cleanly rather
+  // than claim success.
+  const good = payload(
+    await send("tools/call", {
+      name: "apply_fix",
+      arguments: { fixId: proposal.id, newValue: "Handmade Soap for Sensitive Skin" },
+    }),
+  );
+  if (good.isError && /credential|wordpress|cms/i.test(good.text)) {
+    ok("valid text, no CMS connected — fails honestly", good.text.slice(0, 46));
+  } else if (!good.isError) {
+    bad("CLAIMED SUCCESS WITH NO CMS CONNECTED", good.text.slice(0, 90));
+  } else {
+    info("apply failed: " + good.text.slice(0, 80));
+  }
+
   section("Writing — the agent's gates, not new ones");
 
   const tool = tools.find((t) => t.name === "run_agent");

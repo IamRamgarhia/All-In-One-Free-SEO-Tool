@@ -509,3 +509,178 @@ export async function getRecentAgentRuns(opts: {
     },
   };
 }
+
+// =====================================================================
+// Fixes the caller's own model writes
+// =====================================================================
+
+/**
+ * Work the agent has decided on but has no words for.
+ *
+ * This is the whole point of connecting a subscription rather than
+ * buying an API key. The agent still decides WHAT to change and WHY —
+ * that comes from measurable audit findings, and no model is asked for
+ * an opinion about it. What it cannot do without a model of its own is
+ * write the replacement title. So it asks the caller's.
+ *
+ * The response carries the rules the text must satisfy, so a client can
+ * meet them first time instead of guessing and being refused.
+ */
+export async function listProposedFixes(opts: {
+  clientId: number;
+  limit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const { draftRulesFor } = await import("../agent/executor");
+
+  const rows = await db
+    .select()
+    .from(agentActions)
+    .where(
+      and(
+        eq(agentActions.clientId, opts.clientId),
+        eq(agentActions.status, "proposed"),
+      ),
+    )
+    .orderBy(desc(agentActions.id))
+    .limit(Math.min(opts.limit ?? 20, 50));
+
+  const awaiting = rows.filter((r) => r.afterValue === null);
+
+  if (awaiting.length === 0) {
+    return {
+      ok: true,
+      data: {
+        fixes: [],
+        note:
+          rows.length > 0
+            ? "Everything proposed already has text written and is waiting for approval in the app."
+            : "Nothing is waiting. Run the agent first with run_agent — it finds the work; this tool is where you supply the wording.",
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    data: {
+      fixes: awaiting.map((r) => ({
+        fixId: r.id,
+        kind: r.kind,
+        page: r.targetUrl,
+        whyItNeedsChanging: r.reason,
+        currentValue: r.beforeValue,
+        // The same rules our own drafts are held to. A value that breaks
+        // them is refused whoever wrote it.
+        rules: draftRulesFor(r.kind) ?? "No specific rules for this kind.",
+      })),
+      howToApply:
+        "Write the replacement, then call apply_fix with the fixId and your text. It is checked against the rules above, written to the site, read back to confirm, and recorded so it can be undone.",
+    },
+  };
+}
+
+/**
+ * Apply text the caller's model wrote.
+ *
+ * Everything that makes a write safe stays on this side: the length and
+ * quality rules, reading the previous value, verifying by reading the
+ * page back, and recording the undo. The only thing that moved is where
+ * the words came from.
+ *
+ * That matters because a model asked for a replacement title returns a
+ * plausible one every time, including a 95-character one for a page
+ * whose problem was that the title was too long. Trusting the caller to
+ * self-police would reintroduce exactly the bug the agent's own
+ * validation exists to prevent.
+ */
+export async function applyProposedFix(opts: {
+  fixId: number;
+  newValue: string;
+}): Promise<McpToolResult> {
+  const [row] = await db
+    .select()
+    .from(agentActions)
+    .where(eq(agentActions.id, opts.fixId))
+    .limit(1);
+
+  if (!row) return { ok: false, error: `No proposed fix with id ${opts.fixId}.` };
+  if (row.status !== "proposed") {
+    return {
+      ok: false,
+      error: `That fix is "${row.status}", not waiting for text. Use list_proposed_fixes to see what is.`,
+    };
+  }
+  if (row.afterValue !== null) {
+    return {
+      ok: false,
+      error:
+        "That fix already has text and is waiting for approval in the app — applying it from here would bypass that review.",
+    };
+  }
+
+  const { validateDraftedValue, executeAction } = await import("../agent/executor");
+
+  const checked = validateDraftedValue(row.kind, opts.newValue);
+  if (!checked.ok) {
+    return {
+      ok: false,
+      error: `${checked.error} Write a replacement that satisfies the rules and call apply_fix again.`,
+    };
+  }
+
+  const client = await resolveClient(row.clientId);
+  if (!client) return { ok: false, error: "That client no longer exists." };
+
+  // Hand it to the same executor the scheduler uses. Reusing it is the
+  // point: undo, verification and the CMS quirks are all handled there,
+  // and a second write path would be a second thing to get wrong on the
+  // one code path that edits live websites.
+  const outcome = await executeAction({
+    runId: row.runId,
+    clientId: row.clientId,
+    action: {
+      kind: row.kind as never,
+      targetUrl: row.targetUrl ?? "",
+      reason: row.reason ?? "",
+      risk: row.risk,
+      weight: 0,
+      currentValue: row.beforeValue,
+      targetRef: row.targetRef ?? undefined,
+    },
+    newValue: checked.value,
+    apply: true,
+    siteName: client.name,
+  });
+
+  // The proposal has been acted on; executeAction wrote its own row.
+  // Leaving this one "proposed" would offer the same fix again forever.
+  await db
+    .update(agentActions)
+    .set({
+      status: outcome.status === "failed" ? "failed" : "applied",
+      afterValue: checked.value,
+      error: outcome.error ?? null,
+    })
+    .where(eq(agentActions.id, opts.fixId));
+
+  if (outcome.status === "failed") {
+    return { ok: false, error: outcome.error ?? "The CMS rejected the change." };
+  }
+
+  return {
+    ok: true,
+    data: {
+      applied: true,
+      status: outcome.status,
+      // "verified" means we read the page back and saw it. "applied"
+      // means the CMS accepted it and the read-back didn't confirm —
+      // usually a cache. The caller should not report these as the same.
+      verified: outcome.status === "verified",
+      wrote: checked.value,
+      previousValue: row.beforeValue,
+      undoWith: `revert_agent_action with actionId ${outcome.actionId}`,
+    },
+  };
+}
