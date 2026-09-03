@@ -21,6 +21,7 @@ import {
   type SaveBrandResult,
 } from "./actions";
 import { COUNTRIES } from "./countries";
+import { AuditProgressBar } from "./audit-progress";
 
 type Step = "pending" | "brand" | "keywords" | "targeting" | "completed";
 
@@ -57,6 +58,11 @@ export function OnboardingWizard({ client }: { client: WizardClient }) {
   return (
     <>
       <Stepper current={step} />
+
+      {/* Shown on every step, not just the last one: the crawl starts when
+          the client is added, so it is already running while these steps
+          are being filled in. */}
+      <AuditProgressBar clientId={client.id} />
 
       {step === "brand" && (
         <BrandStep client={client} onNext={() => setStep("keywords")} />

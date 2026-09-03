@@ -166,10 +166,24 @@ export async function createClient(
   revalidatePath("/");
   revalidatePath("/clients");
 
-  // Fire an AI audit in the background — by the time the user finishes the
-  // onboarding wizard, an initial 25-point audit will be ready on
-  // /clients/<id>/ai-audit. Best-effort; failures are silent.
+  // Two audits start here, in order, while the user works through the
+  // onboarding wizard.
+  //
+  // The crawl goes first and it is the important one. Until this was
+  // wired up, a brand-new client's only audit was runAiSiteAudit, which
+  // sets pagesCrawled: 1 — so the first thing anyone saw about their
+  // site, and anything built on top of it, described the homepage and
+  // nothing else. The full crawler was already sitting here unused.
+  //
+  // Progress is written to audits.pagesCrawled as it goes, and the
+  // wizard reads it, so this is visible rather than silent.
   void (async () => {
+    try {
+      const { runAuditForClient } = await import("@/app/audits/actions");
+      await runAuditForClient(row.id);
+    } catch {
+      // Best-effort — re-runnable from the client page.
+    }
     try {
       const { runAiSiteAudit } = await import("@/lib/ai-site-audit");
       await runAiSiteAudit({ clientId: row.id, url: parsed.data.url });

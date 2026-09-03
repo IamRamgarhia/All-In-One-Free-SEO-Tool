@@ -1142,6 +1142,11 @@ async function crawlSite(
     seedUrls?: string[];
     /** See runAudit`s allowPrivateHosts. */
     allowPrivate?: boolean;
+    /**
+     * Called after each page is fetched, so callers can show how far a
+     * crawl has got. A long crawl with no feedback reads as a hang.
+     */
+    onProgress?: (crawled: number, max: number) => void;
   },
 ): Promise<CrawlOutcome> {
   const visited = new Set<string>();
@@ -1224,6 +1229,14 @@ async function crawlSite(
         if (!page) continue;
         if (!page.headers.get("content-type")?.includes("html")) continue;
         results.push(page);
+        // Report after each page so a caller can show real progress
+        // rather than an indeterminate spinner. Never let a reporting
+        // failure take the crawl down with it.
+        try {
+          options.onProgress?.(results.length, options.maxPages);
+        } catch {
+          // A broken progress callback is not a reason to lose an audit.
+        }
         if (depth < options.maxDepth) {
           nextLinks.push(...extractHrefs(page.html, page.finalUrl));
         }
@@ -1405,6 +1418,12 @@ export async function runAudit(
      * infrastructure should turn this on.
      */
     allowPrivateHosts?: boolean;
+    /**
+     * Progress callback, fired once per crawled page. Used by the client
+     * onboarding flow to show a real progress bar instead of leaving a
+     * multi-minute crawl looking like nothing is happening.
+     */
+    onProgress?: (crawled: number, max: number) => void;
   } = {},
 ): Promise<AuditResult> {
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
@@ -1459,6 +1478,7 @@ export async function runAudit(
       ignoreRobots: options.ignoreRobots,
       seedUrls,
       allowPrivate: options.allowPrivateHosts === true,
+      onProgress: options.onProgress,
     });
     pages = crawl.pages;
   } catch (err) {

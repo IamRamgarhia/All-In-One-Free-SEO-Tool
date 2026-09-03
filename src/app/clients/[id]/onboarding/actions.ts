@@ -463,3 +463,61 @@ export async function getLearnedRulesForClient(
     .limit(10);
   return rows;
 }
+
+// =============== Background audit progress ===============
+
+export type AuditProgress = {
+  status: "none" | "queued" | "running" | "completed" | "failed";
+  /** Pages fetched so far. Written by runAuditForClient as the crawl runs. */
+  pagesCrawled: number;
+  /** The crawler's default cap. Only used to draw the bar. */
+  maxPages: number;
+  score: number | null;
+  issuesCount: number;
+  auditId: number | null;
+};
+
+/**
+ * Progress of the site crawl kicked off when the client was created.
+ *
+ * Polled by the wizard so a multi-minute crawl looks like work in
+ * progress rather than a page that has stopped responding.
+ */
+export async function getAuditProgress(
+  clientId: number,
+): Promise<AuditProgress> {
+  const [row] = await db
+    .select({
+      id: audits.id,
+      status: audits.status,
+      pagesCrawled: audits.pagesCrawled,
+      score: audits.score,
+      issuesCount: audits.issuesCount,
+    })
+    .from(audits)
+    .where(and(eq(audits.clientId, clientId), eq(audits.kind, "crawler")))
+    .orderBy(desc(audits.id))
+    .limit(1);
+
+  if (!row) {
+    return {
+      status: "none",
+      pagesCrawled: 0,
+      maxPages: 25,
+      score: null,
+      issuesCount: 0,
+      auditId: null,
+    };
+  }
+
+  return {
+    status: row.status,
+    pagesCrawled: row.pagesCrawled ?? 0,
+    // Mirrors runAudit's default. Shown as "of 25", never as a promise
+    // that 25 pages exist — small sites finish early and that is fine.
+    maxPages: 25,
+    score: row.score,
+    issuesCount: row.issuesCount,
+    auditId: row.id,
+  };
+}
