@@ -109,6 +109,7 @@ export function ConnectionModePicker({
   origin,
   installPath,
   platform,
+  nodePath,
 }: {
   initial: ConnectionMode;
   status: { api: AiConnectionStatus; mcp: AiConnectionStatus };
@@ -119,6 +120,8 @@ export function ConnectionModePicker({
   installPath: string;
   /** process.platform, for OS-specific paths. */
   platform: string;
+  /** process.execPath, for a config that needs no PATH lookup. */
+  nodePath: string;
 }) {
   const [mode, setMode] = useState<ConnectionMode>(initial);
   const [pending, start] = useTransition();
@@ -275,6 +278,7 @@ export function ConnectionModePicker({
             origin={origin}
             installPath={installPath}
             platform={platform}
+            nodePath={nodePath}
           />
         </div>
       )}

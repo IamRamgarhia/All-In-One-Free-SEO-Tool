@@ -87,12 +87,15 @@ export function McpSetup({
   origin,
   installPath,
   platform,
+  nodePath,
 }: {
   token: string | null;
   origin: string;
   installPath: string;
   /** process.platform from the server — picks the right paths. */
   platform: string;
+  /** process.execPath — the node binary already running this app. */
+  nodePath: string;
 }) {
   const [tab, setTab] = useState<ClientId>("claude-code");
   const url = `${origin}/api/mcp`;
@@ -103,9 +106,23 @@ export function McpSetup({
   // refused to parse.
   const jsonPath = JSON.stringify(installPath);
 
+  // Absolute paths to node and to the local tsx, not "npx".
+  //
+  // "npx" is what the docs use and it fails on Windows in a way that
+  // reads as a bug in this app: a desktop app does not inherit the PATH
+  // your shell has, and on Windows npx resolves to npx.ps1 — a
+  // PowerShell script a packaged (Store) build often cannot execute. The
+  // result is "Server disconnected" with no useful message. Naming the
+  // node binary and the tsx entry point outright removes every lookup,
+  // and also stops npx reaching for the network to resolve tsx.
+  const sep = platform === "win32" ? "\\" : "/";
+  const join = (...parts: string[]) => parts.join(sep);
+  const tsxCli = join(installPath, "node_modules", "tsx", "dist", "cli.mjs");
+  const serverScript = join(installPath, "scripts", "mcp-server.ts");
+
   const serverEntry = `    "seo-tool": {
-      "command": "npx",
-      "args": ["tsx", "scripts/mcp-server.ts"],
+      "command": ${JSON.stringify(nodePath)},
+      "args": [${JSON.stringify(tsxCli)}, ${JSON.stringify(serverScript)}],
       "cwd": ${jsonPath}
     }`;
 
@@ -213,6 +230,17 @@ ${serverEntry}
                       That opens (and creates, if missing) this file:
                     </p>
                     <Block text={configPath} />
+                    {isWindows && (
+                      <p className="text-muted-foreground">
+                        Installed from the Microsoft Store? That build
+                        virtualises %APPDATA%, so the file is really under{" "}
+                        <code className="rounded bg-muted px-1">
+                          AppData\Local\Packages\Claude_…\LocalCache\Roaming\Claude\
+                        </code>
+                        . Use Edit config rather than typing the path and it
+                        opens the right one either way.
+                      </p>
+                    )}
                   </>
                 ) : (
                   <p>
