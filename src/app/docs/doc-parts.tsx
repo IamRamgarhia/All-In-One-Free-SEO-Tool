@@ -94,10 +94,17 @@ export function Steps({
   );
 }
 
-/** A short flagged aside. Rare on purpose, so it keeps being read. */
+/**
+ * A short flagged aside. Rare on purpose, so it keeps being read.
+ *
+ * The text colour is set per theme. It was amber-100 only, which is
+ * legible on a dark canvas and all but invisible on a light one — pale
+ * amber text on a pale amber panel. The note that warned about exposing
+ * the tunnel to the internet was the one nobody could read.
+ */
 export function Note({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3 text-[13px] leading-relaxed text-amber-100/90">
+    <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[13px] leading-relaxed text-amber-900 dark:text-amber-100/90">
       {children}
     </p>
   );

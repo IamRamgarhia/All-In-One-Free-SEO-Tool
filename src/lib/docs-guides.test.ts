@@ -55,4 +55,20 @@ describe("docs guides", () => {
     // the grid, so there is no copy to read. That is legitimate.
     expect(undocumented).toEqual(["/tools/geo-swot"]);
   });
+
+  it("external links are absolute https URLs", () => {
+    // A relative or http link in a docs page is either broken or a
+    // downgrade; both are worse than no link.
+    const bad = DOC_GUIDES.flatMap((g) =>
+      (g.links ?? []).map((l) => ({ guide: g.slug, href: l.href })),
+    ).filter(({ href }) => !href.startsWith("https://"));
+    expect(bad).toEqual([]);
+  });
+
+  it("link labels are unique within a guide", () => {
+    for (const g of DOC_GUIDES) {
+      const labels = (g.links ?? []).map((l) => l.label);
+      expect(new Set(labels).size, g.slug).toBe(labels.length);
+    }
+  });
 });

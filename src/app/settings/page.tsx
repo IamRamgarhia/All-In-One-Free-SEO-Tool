@@ -550,6 +550,7 @@ export default async function SettingsPage() {
             status={aiStatus}
             mcp={mcpStatus}
             origin={appOrigin}
+            installPath={process.cwd()}
           />
           {/* Keys stay reachable in every mode: someone on a subscription
               still wants a key for the overnight jobs, and hiding it would

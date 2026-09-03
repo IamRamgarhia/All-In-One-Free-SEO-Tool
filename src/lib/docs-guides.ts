@@ -28,6 +28,8 @@ export type DocGuide = {
   related?: string[];
   /** Anything genuinely worth flagging. Kept rare so it stays read. */
   note?: string;
+  /** Official documentation worth having to hand, rather than searched for. */
+  links?: { label: string; href: string }[];
 };
 
 export const DOC_GUIDES: DocGuide[] = [
@@ -115,6 +117,64 @@ export const DOC_GUIDES: DocGuide[] = [
     ],
     note: "One real difference. A subscription only writes while you are at the keyboard, so anything unattended — overnight audits, scheduled reports, alerts — needs a key.",
     related: ["/settings", "/connect"],
+  },
+  {
+    slug: "connect-chat-app",
+    title: "Connect Claude or ChatGPT to this tool",
+    summary:
+      "Three of the four take no setup. Only the browser one needs a tunnel.",
+    minutes: 6,
+    group: "Start here",
+    steps: [
+      {
+        do: "Decide which app you are connecting.",
+        then: "Claude Desktop, Claude Code and Cursor run on this computer and can reach it directly. claude.ai and ChatGPT run on their own servers and call you, so they cannot.",
+      },
+      {
+        do: "Open Settings, choose My Claude / ChatGPT subscription, and generate a token.",
+        then: "The endpoint stays closed until you do. Anyone with that token can read every client and change live sites, so treat it like a password.",
+      },
+      {
+        do: "Pick your app in the tabs and copy the command or config it shows.",
+        then: "The port, the folder path and the token are already filled in — nothing to substitute.",
+      },
+      {
+        do: "Restart the app, then check it connected.",
+        then: "In Claude Code, type /mcp. The badge in Settings turns green once something has actually called us.",
+      },
+      {
+        do: "For claude.ai or ChatGPT only: run a tunnel first.",
+        then: "cloudflared tunnel --url <this app's address> prints an https address. Use that plus /api/mcp as the connector URL. Both refuse plain http, and neither can see localhost.",
+      },
+    ],
+    note: "A tunnel puts this endpoint on the public internet with only the token in front of it. Stop the tunnel when you are not using it. If you only use Claude Desktop, Claude Code or Cursor, you never need one.",
+    related: ["/settings", "/docs"],
+    links: [
+      {
+        label: "Claude Code — MCP documentation",
+        href: "https://code.claude.com/docs/en/mcp",
+      },
+      {
+        label: "Claude Desktop — MCP quickstart",
+        href: "https://modelcontextprotocol.io/quickstart/user",
+      },
+      {
+        label: "Cursor — MCP documentation",
+        href: "https://docs.cursor.com/context/model-context-protocol",
+      },
+      {
+        label: "Cloudflare Tunnel — download cloudflared",
+        href: "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/",
+      },
+      {
+        label: "Claude — connector request-header auth (beta)",
+        href: "https://claude.com/docs/connectors/custom/remote-mcp",
+      },
+      {
+        label: "Anthropic — official MCP tunnels (preview)",
+        href: "https://platform.claude.com/docs/en/agents-and-tools/mcp-tunnels/quickstart",
+      },
+    ],
   },
   {
     slug: "audit",

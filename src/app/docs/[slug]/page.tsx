@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Clock,
+  ExternalLink,
+} from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { DOC_GUIDES, guideBySlug } from "@/lib/docs-guides";
 import { CostBadge, Note, Steps, routeLabel } from "../doc-parts";
@@ -58,6 +64,30 @@ export default async function GuidePage({
       </div>
 
       {guide.note && <Note>{guide.note}</Note>}
+
+      {/* Official docs, listed rather than left to be searched for — the
+          setup steps above are ours, but the apps being connected have
+          their own, and hunting for the right page is most of the work. */}
+      {guide.links && guide.links.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">Official documentation</h2>
+          <ul className="grid gap-1.5 sm:grid-cols-2">
+            {guide.links.map((l) => (
+              <li key={l.href}>
+                <a
+                  href={l.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-[13px] transition-colors hover:border-white/15"
+                >
+                  <span className="min-w-0 flex-1 truncate">{l.label}</span>
+                  <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Tools this guide actually uses, with their real cost badge. */}
       {guide.related && guide.related.length > 0 && (

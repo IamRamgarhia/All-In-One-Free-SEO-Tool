@@ -10,22 +10,13 @@ import {
   type ConnectionMode,
 } from "@/lib/tool-capabilities";
 import type { AiConnectionStatus } from "./connection-mode-actions";
+import { McpSetup } from "./mcp-setup";
 import type { McpStatus } from "./connection-mode-actions";
 import {
   generateMcpToken,
   revokeMcpToken,
   setConnectionMode,
 } from "./connection-mode-actions";
-
-const MCP_CONFIG = `{
-  "mcpServers": {
-    "seo-tool": {
-      "command": "npx",
-      "args": ["tsx", "scripts/mcp-server.ts"],
-      "cwd": "<path to this folder>"
-    }
-  }
-}`;
 
 const ICONS: Record<ConnectionMode, typeof KeyRound> = {
   none: Moon,
@@ -116,24 +107,31 @@ export function ConnectionModePicker({
   status,
   mcp,
   origin,
+  installPath,
 }: {
   initial: ConnectionMode;
   status: { api: AiConnectionStatus; mcp: AiConnectionStatus };
   mcp: McpStatus;
   /** Absolute origin, from the server. See remoteUrl below. */
   origin: string;
+  /** Where the app is installed, for the stdio config. */
+  installPath: string;
 }) {
   const [mode, setMode] = useState<ConnectionMode>(initial);
   const [pending, start] = useTransition();
-  const [copied, setCopied] = useState(false);
 
   // The origin is passed in from the server, which reads it off the Host
   // header. Reading window.location here instead produced a hydration
   // mismatch (React #418): the server rendered "/api/mcp" and the browser
   // rendered "http://localhost:63140/api/mcp".
   const remoteUrl = `${origin}/api/mcp`;
-  const isLocalhost =
-    origin.includes("localhost") || origin.includes("127.0.0.1");
+  // A local address is one claude.ai and ChatGPT can never reach. Also
+  // covers plain http on a LAN IP, which they refuse for the same reason
+  // they refuse localhost: it is not HTTPS.
+  const isLocalUrl =
+    origin.startsWith("http://") ||
+    origin.includes("localhost") ||
+    origin.includes("127.0.0.1");
 
   function choose(next: ConnectionMode) {
     setMode(next);
@@ -205,10 +203,13 @@ export function ConnectionModePicker({
               "connect my ChatGPT / Claude subscription", and it was the
               part that did not exist. */}
           <div className="space-y-2 rounded-lg border border-border bg-card/60 p-3">
+            {/* Titled for what it is, not for one audience.
+                It used to read "claude.ai or ChatGPT connector" above a
+                localhost URL — the single address those two clients
+                cannot use. The value is right for Claude Code, Desktop
+                and Cursor; it was the heading that promised otherwise. */}
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-medium">
-                claude.ai or ChatGPT connector
-              </p>
+              <p className="text-xs font-medium">Endpoint and token</p>
               <StatusDot status={status.mcp} />
             </div>
 
@@ -216,12 +217,30 @@ export function ConnectionModePicker({
               <>
                 <CopyRow label="Server URL" value={remoteUrl} />
                 <CopyRow label="Access token" value={mcp.token} secret />
+                {/* Per-client instructions live in the tabs below, which
+                    fill this token in for you. Only the warning that
+                    applies whichever client you pick is repeated here. */}
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Add it as a custom connector, pasting the token as a bearer
-                  token. Anyone who can reach that URL with that token can read
-                  every client and apply changes to live sites — treat it like
-                  a password.
+                  Anyone who can reach that URL with this token can read every
+                  client and change live websites — treat it like a password.
                 </p>
+                {/* The URL comes from the Host header, so it is whatever
+                    address you opened this page on. Open Settings through
+                    a tunnel and the row above becomes the tunnel URL by
+                    itself — which is exactly what claude.ai needs, and
+                    saves anyone assembling it by hand. */}
+                {isLocalUrl && (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    <strong className="text-foreground">
+                      This is a local address.
+                    </strong>{" "}
+                    Right for Claude Code, Claude Desktop and Cursor. claude.ai
+                    and ChatGPT cannot reach it — start a tunnel, then open
+                    this page on the tunnel address and this row will show the
+                    URL to paste. Steps are in the claude.ai / ChatGPT tab
+                    below.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => start(() => void revokeMcpToken())}
@@ -246,47 +265,13 @@ export function ConnectionModePicker({
               </>
             )}
 
-            {isLocalhost && (
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-relaxed text-amber-900 dark:text-amber-100/90">
-                <strong>This address only works on this computer.</strong>{" "}
-                claude.ai and ChatGPT call your server from their own machines,
-                so they cannot reach <code>localhost</code>. To use those,
-                either host this app somewhere public or run a tunnel
-                (Cloudflare Tunnel, ngrok) and use that URL instead. Claude
-                Desktop, Claude Code and Cursor run on this machine and work
-                with the config below right now.
-              </p>
-            )}
           </div>
 
-          <div>
-            <p className="mb-1.5 text-xs font-medium">
-              Or, for Claude Desktop / Claude Code / Cursor on this machine:
-            </p>
-            <pre className="overflow-x-auto rounded-lg border border-border bg-muted p-3 text-[11px] leading-relaxed text-foreground">
-              <code>{MCP_CONFIG}</code>
-            </pre>
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard.writeText(MCP_CONFIG).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1800);
-                });
-              }}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs hover:border-white/25"
-            >
-              {copied ? (
-                <>
-                  <Check className="size-3" /> Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="size-3" /> Copy config
-                </>
-              )}
-            </button>
-          </div>
+          <McpSetup
+            token={mcp.token}
+            origin={origin}
+            installPath={installPath}
+          />
         </div>
       )}
     </div>
