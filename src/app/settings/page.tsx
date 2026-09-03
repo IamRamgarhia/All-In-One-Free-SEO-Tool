@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import path from "node:path";
+import { headers } from "next/headers";
 import { count } from "drizzle-orm";
 import Link from "next/link";
 import {
@@ -36,7 +37,11 @@ import { ApiKeysSection } from "./api-keys-section";
 import { ActiveProviderCard } from "./active-provider-card";
 import { CreditSaverForm } from "./credit-saver-form";
 import { ConnectionModePicker } from "./connection-mode";
-import { getConnectionMode } from "./connection-mode-actions";
+import {
+  getAiConnectionStatus,
+  getConnectionMode,
+  getMcpStatus,
+} from "./connection-mode-actions";
 import { BrowserForm } from "./browser-form";
 import { loadBrowserSettings } from "./browser-actions";
 import { ApiKeyManager } from "./api-keys/manager";
@@ -84,6 +89,14 @@ export default async function SettingsPage() {
     await getSetting<boolean>("ai.credit_saver.enabled"),
   );
   const connectionMode = await getConnectionMode();
+  const aiStatus = await getAiConnectionStatus();
+  const mcpStatus = await getMcpStatus();
+  // Read here rather than from window.location in the client component:
+  // the two disagree during hydration and React errors on the mismatch.
+  const hdrs = await headers();
+  const host = hdrs.get("host") ?? "localhost:3000";
+  const proto = hdrs.get("x-forwarded-proto") ?? "http";
+  const appOrigin = `${proto}://${host}`;
   const googleStatus = await getGoogleConnectionStatus();
 
   // SMTP config — read individually so we can pass an "initial" object to the
@@ -532,7 +545,12 @@ export default async function SettingsPage() {
           </p>
         </header>
         <div className="relative space-y-5 p-5">
-          <ConnectionModePicker initial={connectionMode} />
+          <ConnectionModePicker
+            initial={connectionMode}
+            status={aiStatus}
+            mcp={mcpStatus}
+            origin={appOrigin}
+          />
           {/* Keys stay reachable in every mode: someone on a subscription
               still wants a key for the overnight jobs, and hiding it would
               make that look impossible rather than optional. */}

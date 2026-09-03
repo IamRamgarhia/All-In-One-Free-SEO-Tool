@@ -108,7 +108,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "mcp": "tsx scripts/mcp-server.ts",
-    "test:mcp": "tsx scripts/mcp-check.ts"
+    "test:mcp": "tsx scripts/mcp-check.ts",
+    "test:mcp:http": "tsx scripts/mcp-http-check.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

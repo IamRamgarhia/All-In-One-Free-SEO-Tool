@@ -9,7 +9,13 @@ import {
   TOTAL_TOOL_COUNT,
   type ConnectionMode,
 } from "@/lib/tool-capabilities";
-import { setConnectionMode } from "./connection-mode-actions";
+import type { AiConnectionStatus } from "./connection-mode-actions";
+import type { McpStatus } from "./connection-mode-actions";
+import {
+  generateMcpToken,
+  revokeMcpToken,
+  setConnectionMode,
+} from "./connection-mode-actions";
 
 const MCP_CONFIG = `{
   "mcpServers": {
@@ -28,10 +34,106 @@ const ICONS: Record<ConnectionMode, typeof KeyRound> = {
   both: KeyRound,
 };
 
-export function ConnectionModePicker({ initial }: { initial: ConnectionMode }) {
+/**
+ * Green only when it is genuinely working.
+ *
+ * "Connected" has to mean the thing actually works, or the badge becomes
+ * decoration: a saved key with no model selected, or an MCP token nothing
+ * ever called, both look like success and behave like failure.
+ */
+function StatusDot({ status }: { status: AiConnectionStatus }) {
+  return (
+    <span
+      title={status.detail}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${
+        status.ok
+          ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
+          : "bg-white/[0.04] text-muted-foreground ring-white/10"
+      }`}
+    >
+      <span
+        className={`size-1.5 rounded-full ${
+          status.ok ? "bg-emerald-400" : "bg-muted-foreground/50"
+        }`}
+      />
+      {status.label}
+    </span>
+  );
+}
+
+/**
+ * A value with a copy button.
+ *
+ * `secret` masks the middle rather than hiding it entirely: you need to
+ * recognise which token this is without reading the whole thing aloud,
+ * and copy is what actually moves it.
+ */
+function CopyRow({
+  label,
+  value,
+  secret,
+}: {
+  label: string;
+  value: string;
+  secret?: boolean;
+}) {
+  const [done, setDone] = useState(false);
+  const shown =
+    secret && value.length > 22
+      ? `${value.slice(0, 14)}…${value.slice(-6)}`
+      : value;
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-20 shrink-0 text-[11px] text-muted-foreground">
+        {label}
+      </span>
+      {/* Theme tokens, not bg-black/40: in light mode that renders as a
+          grey slab with pale text and the URL was barely readable. */}
+      <code className="min-w-0 flex-1 truncate rounded border border-border bg-muted px-2 py-1 text-[11px] text-foreground">
+        {shown}
+      </code>
+      <button
+        type="button"
+        aria-label={`Copy ${label}`}
+        onClick={() => {
+          void navigator.clipboard.writeText(value).then(() => {
+            setDone(true);
+            setTimeout(() => setDone(false), 1800);
+          });
+        }}
+        className="inline-flex shrink-0 items-center gap-1 rounded border border-white/10 px-2 py-1 text-[11px] hover:border-white/25"
+      >
+        {done ? <Check className="size-3" /> : <Copy className="size-3" />}
+        {done ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+export function ConnectionModePicker({
+  initial,
+  status,
+  mcp,
+  origin,
+}: {
+  initial: ConnectionMode;
+  status: { api: AiConnectionStatus; mcp: AiConnectionStatus };
+  mcp: McpStatus;
+  /** Absolute origin, from the server. See remoteUrl below. */
+  origin: string;
+}) {
   const [mode, setMode] = useState<ConnectionMode>(initial);
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
+
+  // The origin is passed in from the server, which reads it off the Host
+  // header. Reading window.location here instead produced a hydration
+  // mismatch (React #418): the server rendered "/api/mcp" and the browser
+  // rendered "http://localhost:63140/api/mcp".
+  const remoteUrl = `${origin}/api/mcp`;
+  const isLocalhost =
+    origin.includes("localhost") || origin.includes("127.0.0.1");
 
   function choose(next: ConnectionMode) {
     setMode(next);
@@ -67,9 +169,14 @@ export function ConnectionModePicker({ initial }: { initial: ConnectionMode }) {
                   : "border-white/10 bg-white/[0.02] hover:border-white/20"
               }`}
             >
-              <span className="flex items-center gap-2 text-sm font-medium">
+              <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
                 <Icon className="size-3.5 text-amber-300" />
                 {m.label}
+                {/* Shown on both modes, not only the selected one: seeing
+                    that a key is live while sitting in MCP mode is the
+                    whole point of being able to run both. */}
+                {m.id === "api" && <StatusDot status={status.api} />}
+                {m.id === "mcp" && <StatusDot status={status.mcp} />}
               </span>
               <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
                 {m.summary}
@@ -94,12 +201,69 @@ export function ConnectionModePicker({ initial }: { initial: ConnectionMode }) {
             alerts — still needs an API key. Every tool on the grid works
             either way.
           </p>
+          {/* Remote connectors first: it is what most people mean by
+              "connect my ChatGPT / Claude subscription", and it was the
+              part that did not exist. */}
+          <div className="space-y-2 rounded-lg border border-border bg-card/60 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-medium">
+                claude.ai or ChatGPT connector
+              </p>
+              <StatusDot status={status.mcp} />
+            </div>
+
+            {mcp.token ? (
+              <>
+                <CopyRow label="Server URL" value={remoteUrl} />
+                <CopyRow label="Access token" value={mcp.token} secret />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Add it as a custom connector, pasting the token as a bearer
+                  token. Anyone who can reach that URL with that token can read
+                  every client and apply changes to live sites — treat it like
+                  a password.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => start(() => void revokeMcpToken())}
+                  className="text-[11px] text-rose-300 underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                >
+                  Revoke this token
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  The endpoint is closed until you generate a token.
+                </p>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => start(() => void generateMcpToken())}
+                  className="inline-flex h-8 items-center rounded-lg bg-violet-500/15 px-3 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+                >
+                  Generate a token
+                </button>
+              </>
+            )}
+
+            {isLocalhost && (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-relaxed text-amber-900 dark:text-amber-100/90">
+                <strong>This address only works on this computer.</strong>{" "}
+                claude.ai and ChatGPT call your server from their own machines,
+                so they cannot reach <code>localhost</code>. To use those,
+                either host this app somewhere public or run a tunnel
+                (Cloudflare Tunnel, ngrok) and use that URL instead. Claude
+                Desktop, Claude Code and Cursor run on this machine and work
+                with the config below right now.
+              </p>
+            )}
+          </div>
+
           <div>
             <p className="mb-1.5 text-xs font-medium">
-              Add this to your Claude Desktop, Claude Code or Cursor config,
-              then restart it:
+              Or, for Claude Desktop / Claude Code / Cursor on this machine:
             </p>
-            <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-[11px] leading-relaxed">
+            <pre className="overflow-x-auto rounded-lg border border-border bg-muted p-3 text-[11px] leading-relaxed text-foreground">
               <code>{MCP_CONFIG}</code>
             </pre>
             <button

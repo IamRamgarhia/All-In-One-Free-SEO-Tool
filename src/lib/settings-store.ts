@@ -91,6 +91,24 @@ export type SettingKey =
   // records what they *told* us; what is actually configured is read from
   // the keys. See lib/tool-capabilities.ts.
   | "ai.connection_mode"
+  /**
+   * Bearer token for the remote MCP endpoint at /api/mcp.
+   *
+   * Generated on demand, never derived from anything guessable. The
+   * endpoint can read every client, run the agent and apply fixes to live
+   * websites, so it is closed until a token exists.
+   */
+  | "mcp.access_token"
+  /**
+   * When an MCP client last called /api/mcp successfully — an ISO string.
+   *
+   * This is the only honest signal that a subscription is actually
+   * connected. Nothing else observable proves a chat app is attached:
+   * a token existing only proves one was generated.
+   */
+  | "mcp.last_seen_at"
+  /** What the last caller said it was, for display. */
+  | "mcp.last_client"
   | "outreach.sender_name"
   | "indexnow.key"
   | "bing.api_key"
