@@ -36,6 +36,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  applyProposedFix,
   getAiVisibility,
   getCitationLandscape,
   getClientOverview,
@@ -44,6 +45,7 @@ import {
   listAgentActions,
   listAuditIssues,
   listClients,
+  listProposedFixes,
   revertAgentActionById,
   runAgent,
   type McpToolResult,
@@ -169,6 +171,37 @@ const TOOLS = [
       "Ask the automated agent to work on a site now: find fixable problems, draft the fixes, and apply what the configured autonomy level permits. It cannot exceed that level from here — at the default 'suggest' setting nothing is written to the live site, and every applied change records an undo. The response states which level was in force and what that meant.",
     inputSchema: clientIdArg,
     handler: (a: { clientId: number }) => runAgent(a.clientId),
+  },
+  {
+    name: "list_proposed_fixes",
+    description:
+      "Changes the agent has decided to make but has no wording for. Each one says what is wrong, why, the current value, and the rules your replacement must satisfy. Use this when the install has no AI key of its own: the agent decides WHAT to change from measurable audit findings, and you write the words. Run run_agent first if nothing is listed.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        limit: { type: "number", description: "Default 20, max 50." },
+      },
+      required: ["clientId"],
+    },
+    handler: (a: { clientId: number; limit?: number }) => listProposedFixes(a),
+  },
+  {
+    name: "apply_fix",
+    description:
+      "Apply wording you wrote to a fix from list_proposed_fixes. Your text is checked against the same rules the tool applies to its own drafts — a title still over the display limit is refused, whoever wrote it — then written to the site, read back to confirm it took effect, and recorded so it can be undone.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        fixId: { type: "number", description: "From list_proposed_fixes." },
+        newValue: {
+          type: "string",
+          description: "The replacement text. For schema, a JSON-LD object as a string.",
+        },
+      },
+      required: ["fixId", "newValue"],
+    },
+    handler: (a: { fixId: number; newValue: string }) => applyProposedFix(a),
   },
   {
     name: "revert_agent_action",
