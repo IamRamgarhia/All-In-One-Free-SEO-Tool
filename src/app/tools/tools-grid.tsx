@@ -59,6 +59,13 @@ import {
   isRetired,
   type ToolCategoryId,
 } from "@/lib/tool-categories";
+import {
+  badgeFor,
+  capabilityOf,
+  worksIn,
+  type ConnectionMode,
+  type ToolBadge,
+} from "@/lib/tool-capabilities";
 
 const tools = [
   {
@@ -864,6 +871,14 @@ const accentMap: Record<string, string> = {
   rose: "bg-rose-500/15 text-rose-300 ring-rose-400/30",
 };
 
+// Green reads as "costs you nothing", which is the question people are
+// actually asking when they scan this grid.
+const badgeTone: Record<ToolBadge["tone"], string> = {
+  free: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25",
+  chat: "bg-violet-500/10 text-violet-300 ring-violet-400/25",
+  key: "bg-amber-500/10 text-amber-300 ring-amber-400/25",
+};
+
 // CATEGORY_ORDER now lives in lib/tool-categories alongside the labels
 // and the assignments. It was defined here as a second list of the same
 // category ids — the pattern CLAUDE.md's fourth standing rule names, and
@@ -872,6 +887,12 @@ const accentMap: Record<string, string> = {
 type Tool = (typeof tools)[number];
 
 const PINNED_KEY = "seo:tools-pinned";
+
+const HIDE_UNUSABLE_KEY = "seo:tools-hide-unusable";
+// Module-level so the identity is stable across renders — useStoredState
+// keeps `parse` in a useCallback dependency list.
+const parseHideUnusable = (raw: string) => raw !== "false";
+const serializeHideUnusable = (v: boolean) => (v ? "true" : "false");
 
 /** Stable identity — useSyncExternalStore requires a stable fallback. */
 const NO_PINS: ReadonlySet<string> = new Set<string>();
@@ -884,8 +905,16 @@ function parsePinned(raw: string): ReadonlySet<string> {
 const serializePinned = (set: ReadonlySet<string>) =>
   JSON.stringify(Array.from(set));
 
-export function ToolsGrid() {
+export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
   const [query, setQuery] = useState("");
+  // On by default, so someone who has connected nothing sees a grid where
+  // everything they click actually works. Persisted, because whichever way
+  // they set it is a standing preference, not a per-visit one.
+  const [hideUnusable, setHideUnusable] = useStoredState<boolean>(
+    HIDE_UNUSABLE_KEY,
+    true,
+    parseHideUnusable,
+  );
   // useSyncExternalStore rather than useState + a hydrate effect: the
   // old version rendered with zero pins, committed that, then re-rendered
   // with the real set — so pinned tools visibly jumped to the top a beat
@@ -912,7 +941,7 @@ export function ToolsGrid() {
   );
 
   const q = query.trim().toLowerCase();
-  const filteredTools = useMemo(() => {
+  const searchMatches = useMemo(() => {
     if (!q) return tools;
     return tools.filter(
       (t) =>
@@ -920,6 +949,27 @@ export function ToolsGrid() {
         t.description.toLowerCase().includes(q),
     );
   }, [q]);
+
+  // Only ever hides tools that genuinely cannot run, which — given how
+  // worksIn() is defined — means the AI tools, and only while nothing at
+  // all is connected. Connect a subscription OR a key and nothing hides,
+  // because nothing is unavailable. The count below keeps that honest
+  // instead of letting the grid quietly look smaller than the product is.
+  const unusableCount = useMemo(
+    () =>
+      tools.filter(
+        (t) => !isRetired(t.href) && !worksIn(capabilityOf(t.href), mode),
+      ).length,
+    [mode],
+  );
+
+  const filteredTools = useMemo(
+    () =>
+      hideUnusable
+        ? searchMatches.filter((t) => worksIn(capabilityOf(t.href), mode))
+        : searchMatches,
+    [searchMatches, hideUnusable, mode],
+  );
 
   const pinnedTools = useMemo(
     () => tools.filter((t) => pinned.has(t.href)),
@@ -978,6 +1028,32 @@ export function ToolsGrid() {
             {totalMatches} {totalMatches === 1 ? "match" : "matches"}
           </p>
         )}
+        {/* Only worth showing when something is actually being held back.
+            Says the number out loud so the grid never silently shrinks. */}
+        {unusableCount > 0 && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[11px] text-muted-foreground">
+            <span>
+              {hideUnusable
+                ? `${unusableCount} tools hidden — they need AI, and nothing is connected yet.`
+                : `${unusableCount} tools need AI, and nothing is connected yet.`}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setHideUnusable(!hideUnusable, serializeHideUnusable)
+              }
+              className="rounded text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid"
+            >
+              {hideUnusable ? "Show them anyway" : "Hide them"}
+            </button>
+            <Link
+              href="/settings#ai"
+              className="rounded text-amber-300 underline decoration-dotted underline-offset-2 hover:decoration-solid"
+            >
+              Connect a subscription or key
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Pinned — only render when the user actually has favorites
@@ -1000,6 +1076,7 @@ export function ToolsGrid() {
                 tool={t}
                 pinned
                 onTogglePin={() => togglePin(t.href)}
+                badge={badgeFor(capabilityOf(t.href), mode)}
               />
             ))}
           </div>
@@ -1100,6 +1177,7 @@ export function ToolsGrid() {
                     tool={t}
                     pinned={pinned.has(t.href)}
                     onTogglePin={() => togglePin(t.href)}
+                    badge={badgeFor(capabilityOf(t.href), mode)}
                   />
                 ))}
               </div>
@@ -1115,10 +1193,12 @@ function ToolCard({
   tool,
   pinned,
   onTogglePin,
+  badge,
 }: {
   tool: Tool;
   pinned: boolean;
   onTogglePin: () => void;
+  badge: ToolBadge | null;
 }) {
   return (
     <div className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl">
@@ -1132,6 +1212,14 @@ function ToolCard({
           </div>
           <h3 className="pr-7 text-base font-semibold">{tool.title}</h3>
           <p className="text-sm text-muted-foreground">{tool.description}</p>
+          {badge && (
+            <span
+              title={badge.detail}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${badgeTone[badge.tone]}`}
+            >
+              {badge.label}
+            </span>
+          )}
         </div>
       </Link>
       {/* Pin button is a sibling of the Link so clicks on it don't

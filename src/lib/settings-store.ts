@@ -86,6 +86,11 @@ export type SettingKey =
   // ON keeps token use under ~500/answer for cheap providers like Gemini /
   // Groq free tiers. OFF gives full-quality long-form answers (defaults OFF).
   | "ai.credit_saver.enabled"
+  // How the user supplies AI: "none" | "mcp" | "api" | "both". Drives which
+  // badge each tool shows and whether the tools grid filters itself. This
+  // records what they *told* us; what is actually configured is read from
+  // the keys. See lib/tool-capabilities.ts.
+  | "ai.connection_mode"
   | "outreach.sender_name"
   | "indexnow.key"
   | "bing.api_key"
