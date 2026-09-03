@@ -11,13 +11,34 @@ import {
 } from "./tool-capabilities";
 
 describe("tool capabilities", () => {
-  it("the committed file still matches the code", () => {
+  it("the committed flags still match the code", () => {
     // If this fails, a page started or stopped using AI (or a browser) and
     // nobody regenerated the badges. Run `pnpm gen:capabilities`.
     // Left stale, the UI would tell users a paid tool is free.
-    expect(deriveToolCapabilities()).toEqual(
-      TOOL_CAPABILITIES.map((c) => ({ ...c })),
-    );
+    //
+    // Only the derived fields are compared here; title and description
+    // come from the tools-grid parser and are checked separately below.
+    const flagsOnly = TOOL_CAPABILITIES.map((c) => ({
+      route: c.route,
+      needsAI: c.needsAI,
+      usesBrowser: c.usesBrowser,
+    }));
+    expect(deriveToolCapabilities()).toEqual(flagsOnly);
+  });
+
+  it("the committed copy still matches the tools grid", async () => {
+    // The docs render these strings. If someone edits a tool's card and
+    // does not regenerate, the docs keep describing the old behaviour —
+    // which is the failure mode that makes documentation untrustworthy.
+    const { readToolCopy } = await import("../../scripts/gen-tool-capabilities");
+    const fresh = readToolCopy();
+    const stale = TOOL_CAPABILITIES.filter(
+      (c) =>
+        "title" in c &&
+        (fresh.get(c.route)?.title !== c.title ||
+          fresh.get(c.route)?.description !== c.description),
+    ).map((c) => c.route);
+    expect(stale).toEqual([]);
   });
 
   it("finds a route from a real link target", () => {

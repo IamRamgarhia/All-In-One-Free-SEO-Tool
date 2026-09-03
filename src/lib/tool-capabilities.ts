@@ -106,6 +106,21 @@ export function capabilityOf(href: string): ToolCapability | null {
  * That is why the sidebar tags only the free rows and says nothing about
  * the rest: the claim it makes is the one that cannot be wrong.
  */
+/**
+ * The tool's name and one-line description, as shown on its card.
+ *
+ * Read out of tools-grid.tsx by the generator, so the docs and the grid
+ * say the same thing by construction. Null for routes that have no card
+ * — /tools/geo-swot is reached from a client page and never appears in
+ * the grid, which is legitimate rather than a gap.
+ */
+export function copyOf(
+  cap: ToolCapability | null,
+): { title: string; description: string } | null {
+  if (!cap || !("title" in cap)) return null;
+  return { title: cap.title, description: cap.description };
+}
+
 export type ToolBadge = {
   label: string;
   /** Longer text for the tooltip / title attribute. */
