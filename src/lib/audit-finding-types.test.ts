@@ -5,6 +5,13 @@ import {
   AUDIT_FINDING_TYPES,
   NON_CRAWLER_FINDING_TYPES,
 } from "./audit-finding-types";
+// Imported, not parsed. keysOf() stops at the first `};` in column zero,
+// and a fix guide containing a next.config.js sample has exactly that —
+// so four guides became invisible to this test the moment one was
+// written. These are real exported objects; reading them is simpler and
+// immune to whatever a code sample happens to contain.
+import { ISSUE_EXPLAINERS } from "./issue-explainers";
+import { TECH_ISSUE_EXPLAINERS } from "./issue-explainers-tech";
 
 /**
  * Finding-type names, across every list that uses them.
@@ -31,11 +38,23 @@ import {
 
 const src = (p: string) => readFileSync(join(process.cwd(), "src", p), "utf8");
 
-/** Every `type: "..."` the crawler emits. */
+/**
+ * Every `type: "..."` an audit can emit.
+ *
+ * Both files, not just audit.ts. Scanning one of them was itself the bug
+ * this test exists to catch: all 16 tech-stack findings live in
+ * tech-audit-rules.ts, so every one of them reached users with no fix
+ * guide while this test passed. The guard had a blind spot exactly the
+ * shape of a file.
+ */
+const FINDING_SOURCES = ["lib/audit.ts", "lib/tech-audit-rules.ts"];
+
 function typesEmittedByCrawler(): Set<string> {
   const out = new Set<string>();
-  for (const m of src("lib/audit.ts").matchAll(/type:\s*"([a-z0-9_]+)"/g)) {
-    out.add(m[1]);
+  for (const file of FINDING_SOURCES) {
+    for (const m of src(file).matchAll(/type:\s*"([a-z0-9_]+)"/g)) {
+      out.add(m[1]);
+    }
   }
   return out;
 }
@@ -176,7 +195,10 @@ describe("no dead finding names anywhere else", () => {
 
 describe("guidance reaches the user", () => {
   it("every explainer is keyed to a finding type something produces", () => {
-    const explainers = keysOf("lib/issue-explainers.ts", "ISSUE_EXPLAINERS");
+    const explainers = new Set([
+      ...Object.keys(ISSUE_EXPLAINERS),
+      ...Object.keys(TECH_ISSUE_EXPLAINERS),
+    ]);
     const unreal = [...explainers].filter((t) => !known.has(t));
     expect(
       unreal,
@@ -190,7 +212,10 @@ describe("guidance reaches the user", () => {
   it("every finding the crawler emits has an explainer", () => {
     // The user-facing half: a finding with no explainer renders the
     // problem and nothing about what to do with it.
-    const explainers = keysOf("lib/issue-explainers.ts", "ISSUE_EXPLAINERS");
+    const explainers = new Set([
+      ...Object.keys(ISSUE_EXPLAINERS),
+      ...Object.keys(TECH_ISSUE_EXPLAINERS),
+    ]);
     const unexplained = (AUDIT_FINDING_TYPES as readonly string[]).filter(
       (t) => !explainers.has(t),
     );

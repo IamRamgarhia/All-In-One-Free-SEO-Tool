@@ -83,6 +83,29 @@ export const AUDIT_FINDING_TYPES = [
   "viewport_blocks_zoom",
   "weak_anchor_text",
   "xrobots_noindex",
+
+  // Tech-stack checks, from lib/tech-audit-rules.ts.
+  //
+  // Emitted for a long time without being listed here, so nothing
+  // downstream could explain or fix them and users were told "we haven't
+  // written the fix guide for this check yet" on all sixteen. The drift
+  // test that exists to catch exactly this only read lib/audit.ts.
+  "next_chunk_explosion",
+  "next_powered_by_header",
+  "next_raw_img_tags",
+  "shopify_collections_all",
+  "shopify_liquid_debug",
+  "spa_empty_body",
+  "wp_author_archive_indexed",
+  "wp_default_permalinks",
+  "wp_emoji_bloat",
+  "wp_heartbeat_on_frontend",
+  "wp_missing_block_styles",
+  "wp_multiple_seo_plugins",
+  "wp_plugin_bloat",
+  "wp_rest_api_advertised",
+  "wp_version_disclosed",
+  "wp_xmlrpc_exposed",
 ] as const;
 
 export type AuditFindingType = (typeof AUDIT_FINDING_TYPES)[number];
