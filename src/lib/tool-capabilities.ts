@@ -56,12 +56,20 @@ export const CONNECTION_MODES: {
   {
     id: "mcp",
     label: "My Claude / ChatGPT subscription",
-    summary: `All ${TOTAL_TOOL_COUNT} tools work while you're here. Nothing is charged per use — your existing subscription does the writing.`,
+    // Says what it does, not what would be nicer.
+    //
+    // This used to read "All 96 tools work while you're here", which was
+    // simply false: MCP lets your chat app call into this one, it does
+    // not let this one call a model. The AI pages in this app keep
+    // failing with "No active AI provider" — correctly — because nothing
+    // has given them anything to call.
+    summary:
+      "Your chat app reads and acts on your SEO data through 13 tools. Free, but it works inside Claude or ChatGPT — not inside this app's own AI pages.",
   },
   {
     id: "api",
     label: "An API key",
-    summary: `All ${TOTAL_TOOL_COUNT} tools, and the tool keeps working when you're away — overnight audits, scheduled reports, alerts.`,
+    summary: `Makes the ${AI_TOOL_COUNT} AI tools in this app work, and keeps working when you're away — overnight audits, scheduled reports, alerts.`,
   },
   {
     id: "both",
@@ -156,20 +164,17 @@ export function badgeFor(
         };
   }
 
-  if (mode === "mcp") {
+  // "mcp" deliberately falls through to the same answer as "none".
+  //
+  // It said "Uses your chat", which implied this page would work with a
+  // subscription connected. It does not: the page calls a model directly
+  // and a subscription gives it nothing to call. Describing a page that
+  // will fail as one that works is worse than saying nothing.
+  if (mode === "none" || mode === "mcp") {
     return {
-      label: "Uses your chat",
+      label: "Needs a key",
       detail:
-        "Your Claude or ChatGPT subscription writes the text; this app checks and applies it. No per-use charge.",
-      tone: "chat",
-    };
-  }
-
-  if (mode === "none") {
-    return {
-      label: "Needs AI",
-      detail:
-        "Connect a subscription or an API key to use this. Everything else still works without one.",
+        "This page calls a model directly, so it needs an API key or Ollama. A connected chat subscription does not drive it — that works the other way round, inside your chat app.",
       tone: "key",
     };
   }
@@ -192,7 +197,15 @@ export function badgeFor(
 export function worksIn(cap: ToolCapability | null, mode: ConnectionMode): boolean {
   if (!cap) return true;
   if (!cap.needsAI) return true;
-  return mode !== "none";
+  // A subscription does NOT make these work.
+  //
+  // This returned true for "mcp" and that was wrong. MCP runs the other
+  // way round: your chat app calls into this one. It gives this app no
+  // way to call a model, so a tool page that calls callAI() still has
+  // nothing to call — the SEO assistant says "No active AI provider"
+  // with a subscription connected and working, because it is telling the
+  // truth. Only a key (or Ollama) makes the tools in these pages run.
+  return mode === "api" || mode === "both";
 }
 
 export { TOOL_CAPABILITIES };

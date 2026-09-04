@@ -54,17 +54,20 @@ export async function getOnboardingChecklist(): Promise<{
   const steps: ChecklistItem[] = [
     {
       id: "ai-provider",
-      title: "Connect AI",
-      description:
-        "Connect the Claude or ChatGPT subscription you already pay for, or paste a free-tier key (Gemini / Groq / DeepSeek), or run Ollama locally. Unlocks audits, content writer, code generator, AI chat.",
-      // Counts a connected subscription, not just a saved key.
+      title: "Add an AI key",
+      // Explains why a connected chat app does not tick this.
       //
-      // This asked for a key and an active provider, so somebody whose
-      // Claude Desktop was connected and working still saw "Connect an
-      // AI provider" as an unfinished step. A checklist that will not
-      // tick for work you have already done stops being a checklist.
+      // It briefly counted a connected subscription and that was wrong:
+      // MCP does not let this app call a model, so the AI pages here
+      // still fail. Ticking it would have meant the checklist said
+      // "done" about features that do not run. Saying plainly that the
+      // subscription is connected but powers a different thing is the
+      // honest version, and stops the step reading as a bug.
+      description: aiAvailability.hasSubscription
+        ? `Your chat app (${aiAvailability.client}) is connected and can read your SEO data — but that works inside Claude, not in here. This app's own AI pages (assistant, summaries, content writer) call a model directly, so they need a key or Ollama.`
+        : "Paste a free-tier key (Gemini / Groq / DeepSeek) or run Ollama locally. Unlocks the AI assistant, executive summaries, content writer and code generator.",
       done: aiAvailability.available,
-      cta: aiAvailability.available ? "Manage AI" : "Set up AI",
+      cta: aiAvailability.available ? "Manage AI" : "Add a key",
       href: "/settings#ai",
     },
     {

@@ -12,11 +12,19 @@ import { getSetting } from "./settings-store";
  * broken.
  */
 export type AiAvailability = {
-  /** Something can write text right now. */
+  /**
+   * Can THIS APP call a model?
+   *
+   * Only a key or Ollama does that. A connected chat subscription does
+   * not: MCP runs the other way, with the chat app calling into this
+   * one, so the AI pages here still have nothing to call. Treating the
+   * two as interchangeable is what made the SEO assistant report "No
+   * active AI provider" on a screen that claimed AI was connected.
+   */
   available: boolean;
   /** A provider key is saved. */
   hasKey: boolean;
-  /** A chat app has connected over MCP recently. */
+  /** A chat app has connected over MCP recently. Not the same thing. */
   hasSubscription: boolean;
   /** What connected, in its own words — e.g. "claude-ai 0.1.0". */
   client: string | null;
@@ -39,7 +47,8 @@ export async function getAiAvailability(): Promise<AiAvailability> {
     Number.isFinite(seenMs) && Date.now() - seenMs < CONNECTED_WINDOW_MS;
 
   return {
-    available: ids.length > 0 || hasSubscription,
+    // Keys only. See the note on `available` above.
+    available: ids.length > 0,
     hasKey: ids.length > 0,
     hasSubscription,
     client: hasSubscription ? client : null,

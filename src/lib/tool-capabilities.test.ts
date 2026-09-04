@@ -83,12 +83,22 @@ describe("tool capabilities", () => {
     }
   });
 
-  it("a subscription unlocks the AI tools, not just a key", () => {
+  it("a subscription does NOT make this app's AI pages work", () => {
+    // The correction that matters most here. MCP lets a chat app call
+    // into this one; it gives this app nothing to call. Claiming
+    // otherwise sent people to a page that answers "No active AI
+    // provider" while the settings screen said AI was connected.
     const ai = TOOL_CAPABILITIES.find((c) => c.needsAI)!;
     expect(worksIn(ai, "none")).toBe(false);
-    expect(worksIn(ai, "mcp")).toBe(true);
+    expect(worksIn(ai, "mcp")).toBe(false);
     expect(worksIn(ai, "api")).toBe(true);
-    expect(badgeFor(ai, "mcp")?.tone).toBe("chat");
+    expect(worksIn(ai, "both")).toBe(true);
+  });
+
+  it("does not advertise an AI page as usable under a subscription", () => {
+    const ai = TOOL_CAPABILITIES.find((c) => c.needsAI)!;
+    expect(badgeFor(ai, "mcp")?.tone).toBe("key");
+    expect(badgeFor(ai, "mcp")?.label).toBe("Needs a key");
   });
 
   it("counts only top-level tools, so the copy matches the grid", () => {
