@@ -58,6 +58,32 @@ const WRITE_CAPS: CapabilityId[] = [
   "write_internal_links",
 ];
 
+/**
+ * Capabilities the plugin can perform but the planner does not yet ask
+ * for, with what is missing on our side.
+ *
+ * These exist because the endpoint landed before the planning did. That
+ * is a legitimate order to build in — the plugin ships to users on its
+ * own schedule — but it creates a trap: capability detection would
+ * report "needs plugin 0.5.0" to somebody on 0.4.0, sending them to
+ * update for a feature that does nothing once they have it.
+ *
+ * So they are excluded from `gaps`. Nobody is told to go and get
+ * something that would not help them.
+ *
+ * capabilities-coverage.test.ts fails if a write capability is neither
+ * planned nor listed here, so this cannot become a place capabilities
+ * are quietly parked.
+ */
+export const NOT_YET_PLANNED: Partial<Record<CapabilityId, string>> = {
+  write_robots_txt:
+    "The plugin serves robots.txt, but nothing in the planner turns a missing_robots_txt / invalid_robots_txt / missing_ai_crawler_policy finding into an action yet.",
+  write_redirects:
+    "The plugin applies redirects, but nothing turns a broken_link or redirect_chain finding into one yet.",
+  write_hardening:
+    "The plugin has the toggles, but nothing maps the wp_* findings onto them yet.",
+};
+
 export async function detectCapabilities(
   clientId: number,
 ): Promise<ClientCapabilities> {
@@ -185,6 +211,10 @@ export async function detectCapabilities(
     ...new Set(
       Object.values(byId)
         .filter((c) => !c.available && c.missing)
+        // A capability nothing plans is not a gap in the user's setup —
+        // it is a gap in ours, and telling them to update their plugin
+        // for it would waste their time and then not work.
+        .filter((c) => !(c.id in NOT_YET_PLANNED))
         .map((c) => c.missing as string),
     ),
   ];
