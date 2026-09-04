@@ -116,7 +116,7 @@ export async function checkRank(
       `Not in top ${topN} for "${query}" in ${country}. Start with content audit: do you have a page targeting this query at all?`,
     );
     recommendations.push(
-      "Build a dedicated landing page using the Content Attack Brief tool (/tools/attack-briefs) to scope the work.",
+      "Build a dedicated landing page for this query — BlogPilot can draft it from the SERP.",
     );
     if (
       top3.length > 0 &&

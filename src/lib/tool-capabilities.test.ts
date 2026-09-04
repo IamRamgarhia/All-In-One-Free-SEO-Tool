@@ -61,7 +61,7 @@ describe("tool capabilities", () => {
     // The sidebar links to plenty of pages that are not tools. Before the
     // table covered every route these all returned null, so the whole
     // sidebar rendered unbadged.
-    for (const route of ["/agent", "/blog", "/reports", "/audits"]) {
+    for (const route of ["/agent", "/seo-chat", "/reports", "/audits"]) {
       expect(capabilityOf(route), `${route} should be in the table`).not.toBeNull();
     }
   });
@@ -115,6 +115,10 @@ describe("tool capabilities", () => {
     // gets a tag, which is impossible to notice by looking at the UI.
     const { NAV_GROUPS } = await import("@/components/shell/nav-items");
     const missing = NAV_GROUPS.flatMap((g) => g.items)
+      // An external entry is a link off this app entirely — content
+      // writing now lives in BlogPilot — so there is no route of ours
+      // for it to resolve to, and expecting one would be a false alarm.
+      .filter((i) => !i.external)
       .map((i) => i.href)
       .filter((href) => capabilityOf(href) === null);
     expect(missing).toEqual([]);

@@ -3,8 +3,8 @@
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
-// 237 routes · 112 need AI · 79 use a browser.
-// 96 are /tools/* · 38 need AI · 95 carry copy.
+// 221 routes · 99 need AI · 70 use a browser.
+// 91 are /tools/* · 34 need AI · 90 carry copy.
 
 export const TOOL_CAPABILITIES = [
   { route: "/", needsAI: true, usesBrowser: true },
@@ -28,9 +28,6 @@ export const TOOL_CAPABILITIES = [
   { route: "/automations/templates", needsAI: false, usesBrowser: false },
   { route: "/backlinks", needsAI: true, usesBrowser: true },
   { route: "/backlinks/c/[clientId]", needsAI: true, usesBrowser: true },
-  { route: "/blog", needsAI: false, usesBrowser: false },
-  { route: "/blog/[id]", needsAI: true, usesBrowser: false },
-  { route: "/blog/[id]/bulk", needsAI: true, usesBrowser: false },
   { route: "/bot-logs", needsAI: false, usesBrowser: false },
   { route: "/brand-monitor", needsAI: true, usesBrowser: true },
   { route: "/brand-monitor/c/[clientId]", needsAI: true, usesBrowser: true },
@@ -59,14 +56,8 @@ export const TOOL_CAPABILITIES = [
   { route: "/competitors/c/[clientId]", needsAI: true, usesBrowser: true },
   { route: "/competitors/playbook", needsAI: true, usesBrowser: false },
   { route: "/connect", needsAI: false, usesBrowser: false },
-  { route: "/content", needsAI: true, usesBrowser: true },
-  { route: "/content-decay", needsAI: true, usesBrowser: true },
-  { route: "/content-decay/c/[clientId]", needsAI: true, usesBrowser: true },
   { route: "/content-gap", needsAI: true, usesBrowser: true },
   { route: "/content-gap/c/[clientId]", needsAI: true, usesBrowser: true },
-  { route: "/content/c/[clientId]", needsAI: true, usesBrowser: true },
-  { route: "/content/c/[clientId]/calendar", needsAI: true, usesBrowser: true },
-  { route: "/content/calendar", needsAI: false, usesBrowser: false },
   { route: "/csv-import", needsAI: false, usesBrowser: false },
   { route: "/cwv", needsAI: true, usesBrowser: true },
   { route: "/cwv/archive", needsAI: false, usesBrowser: false },
@@ -149,15 +140,12 @@ export const TOOL_CAPABILITIES = [
   { route: "/tools/ai-overview", needsAI: true, usesBrowser: false, title: "AI Overview optimizer", description: "AI scores your page's citation-worthiness for Google's AI Overviews. Specific changes to make ranked by impact." },
   { route: "/tools/ai-robots", needsAI: false, usesBrowser: false, title: "AI-bot robots.txt audit ⭐", description: "Which AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) can currently reach this site? Per-bot status + a copy-paste patch you can flip Allow/Disallow per line before pasting into robots.txt." },
   { route: "/tools/ai-schema", needsAI: true, usesBrowser: false, title: "AI schema generator (from URL)", description: "Paste any URL — AI fetches, classifies content type, emits valid JSON-LD grounded in actual on-page content. Won't invent fields that aren't there." },
-  { route: "/tools/ai-slop", needsAI: false, usesBrowser: false, title: "AI slop detector (24 patterns)", description: "24 telltale AI writing patterns — significance inflation, negative parallelism, em-dash overuse, sycophancy. 90+ ships. Local, free, no AI call." },
   { route: "/tools/aio-passage", needsAI: true, usesBrowser: false, title: "AI Overview passage optimizer ⭐", description: "AIs cite 134-167 word self-contained passages. Paste a draft OR analyze a live URL — we split it, score each chunk on length / self-containment / Q→A / specifics / citations, and AI-rewrite low scorers in one batch." },
   { route: "/tools/anchor-distribution", needsAI: false, usesBrowser: false, title: "Anchor-text distribution", description: "Per-URL anchor frequency, internal vs external split, exact-match % over-optimization detection, brand variation check." },
-  { route: "/tools/attack-briefs", needsAI: true, usesBrowser: true, title: "Content Attack Briefs", description: "Up to 5 keyword-gap briefs per run. Vulnerability scoring + required E-E-A-T + schema + AIO passage hints + definition of done." },
   { route: "/tools/auto-link", needsAI: true, usesBrowser: false, title: "Auto-link suggester (RankMath-style)", description: "Paste content + your internal page list. AI proposes contextual internal links — exact anchor + target — to add." },
   { route: "/tools/backlink-discovery", needsAI: false, usesBrowser: false, title: "Backlink discovery", description: "DuckDuckGo + Common Crawl + crawl-to-confirm. Finds real verified backlinks with anchor text + rel. Closes the Ahrefs gap as much as is possible without a paid index." },
   { route: "/tools/bing", needsAI: false, usesBrowser: false, title: "Bing Webmaster Tools", description: "Free Bing organic data — top queries, top pages, crawl issues, URL submission. Add a free Bing API key once." },
   { route: "/tools/branded-split", needsAI: false, usesBrowser: false, title: "Branded vs non-branded GSC split", description: "28-day clicks split with delta vs prior 28 days, separately for branded and non-branded queries. Different drops, different fixes." },
-  { route: "/tools/brief", needsAI: true, usesBrowser: true, title: "Content brief — one-click composite", description: "Type a query → top-10 SERP corpus + PAA → AI writes a writer-ready markdown brief: intent, length, H2 outline, semantic terms, FAQ block, internal-link anchors, snippet shape, CTA." },
   { route: "/tools/browser-agent", needsAI: true, usesBrowser: true, title: "Browser agent (goal-driven)", description: "Plain-English goal + a starting URL. Headless Chrome reads the page, decides the next step, and narrates each move with a screenshot. Replaces 'I need an API for that site' with browser automation." },
   { route: "/tools/bulk-alt", needsAI: true, usesBrowser: false, title: "Bulk image alt-text generator", description: "Crawl a URL, AI writes SEO alt text for every image based on nearby context. RankMath bulk image SEO equivalent." },
   { route: "/tools/bulk-scan", needsAI: false, usesBrowser: true, title: "Bulk URL scanner", description: "Paste up to 25 URLs. Run the full health check on each in parallel + save every result as a snapshot. Sortable table." },
@@ -165,7 +153,6 @@ export const TOOL_CAPABILITIES = [
   { route: "/tools/canonical-audit", needsAI: false, usesBrowser: false, title: "Canonical conflict detector", description: "Crawl + flag every page where rel=canonical is missing, multiple, off-host, broken, redirect-target, or conflicts with noindex. Catches the silent indexation killer." },
   { route: "/tools/cluster", needsAI: true, usesBrowser: true, title: "Topic cluster builder", description: "Head topic → mine PAA + autocomplete + Reddit → AI assembles 1 pillar + 15-20 spokes with slugs, intent, format, and an interlinking map. The 1-day strategy plan, in 60 seconds." },
   { route: "/tools/code-generator", needsAI: true, usesBrowser: false, title: "SEO code / plugin generator", description: "AI writes the code you need to apply SEO changes — WordPress plugins, .htaccess rules, Elementor HTML, Shopify Liquid, Next.js routes, schema markup. With install steps + live preview." },
-  { route: "/tools/content-attack-brief", needsAI: true, usesBrowser: false, title: "Content attack brief", description: "Pulls GSC striking-distance queries, scores each by Impact × Confidence, AI-writes the attack angle for the top 10. Ranked by what moves the needle." },
   { route: "/tools/content-grader", needsAI: false, usesBrowser: true, title: "Content grader (Surfer / Clearscope replacement)", description: "Pulls top 10 SERP results, builds a TF-IDF corpus, scores your draft on length / term coverage / density. Free, browser-mode." },
   { route: "/tools/content-helpers", needsAI: true, usesBrowser: false, title: "Cover-image prompts + category suggester", description: "Two AI helpers: 3 image-gen prompts in distinct visual styles for any post, plus primary category + 5-10 SEO tags scoped to your existing taxonomy." },
   { route: "/tools/content-score", needsAI: true, usesBrowser: false, title: "Content scorer", description: "Paste content + target keyword. AI scores readability, density, structure, suggests LSI terms + specific edits." },
@@ -175,7 +162,6 @@ export const TOOL_CAPABILITIES = [
   { route: "/tools/dns-whois", needsAI: false, usesBrowser: false, title: "DNS + WHOIS / RDAP", description: "A/AAAA/MX/NS/TXT/CAA + registrar + expiry. Catches missing SPF/DMARC/CAA, near-expiry domains, broken nameservers. No paid API — public RDAP." },
   { route: "/tools/domain-overview", needsAI: false, usesBrowser: false, title: "Domain overview", description: "Every signal we can check ourselves — HTTPS, security headers, schema, on-page basics, indexed-pages estimate. Plus links to free external checkers for DA/DR." },
   { route: "/tools/eeat-audit", needsAI: true, usesBrowser: false, title: "E-E-A-T audit", description: "Score any URL on Experience / Expertise / Authoritativeness / Trust. Detects bylines, schema, citations, trust pages, then AI writes a fix punch list." },
-  { route: "/tools/expert-panel", needsAI: true, usesBrowser: false, title: "Expert panel content scorer", description: "Auto-assembles 6-9 domain experts (incl. AI Detector + Brand Voice) and scores your draft. Target 90/100. Outputs each expert's specific revisions." },
   { route: "/tools/external", needsAI: false, usesBrowser: false, title: "External tools launchpad", description: "Paste a URL or keyword once → all 28 external tools (Moz DA, Ahrefs, SSL Labs, Wayback, etc.) open with that context pre-filled." },
   { route: "/tools/facet-trap", needsAI: false, usesBrowser: false, title: "Faceted-nav crawl-trap detector", description: "Filter / sort / pagination params can balloon a crawl from thousands to millions of near-duplicates. We crawl + group URLs by query shape and flag groups needing canonical/noindex protection." },
   { route: "/tools/freshness", needsAI: false, usesBrowser: false, title: "Freshness audit ⭐", description: "AI-search systems skip undated or stale pages. Fetches every freshness signal (HTTP header, meta tags, JSON-LD dateModified, <time> elements, visible 'Last updated' text) and gives you a ready-to-paste patch." },
@@ -241,7 +227,5 @@ export const TOOL_CAPABILITIES = [
   { route: "/tools/wp-hack-scan", needsAI: false, usesBrowser: false, title: "WordPress hack / malware scan ⭐", description: "Probes a live WP site for compromise indicators: backdoor files, exposed configs, JS injection, hidden iframes, spam injection, cloaking. Returns containment + cleanup + prevention playbook." },
   { route: "/tools/youtube", needsAI: false, usesBrowser: false, title: "YouTube keyword research", description: "Real video data — view counts, channels, recurring tag phrases. Free YouTube Data API tier (100 searches a day)." },
   { route: "/tools/youtube-audit", needsAI: true, usesBrowser: false, title: "YouTube SEO audit", description: "Paste any YouTube URL → 14-point checklist (title, description, chapters, hashtags, tags, captions, thumbnail, like ratio, freshness) + AI fix steps. Free — uses oEmbed + watch-page scrape." },
-  { route: "/topic-clusters", needsAI: true, usesBrowser: true },
-  { route: "/topic-clusters/c/[clientId]", needsAI: true, usesBrowser: true },
   { route: "/welcome", needsAI: false, usesBrowser: false },
 ] as const;

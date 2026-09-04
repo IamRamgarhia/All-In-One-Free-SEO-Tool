@@ -49,7 +49,7 @@ export function NeedsKeyBanner({
   // graph happens to mark.
   const isAiPage =
     /^\/tools\/[^/]+$/.test(pathname) ||
-    ["/agent", "/blog", "/seo-chat", "/ai-visibility", "/content"].includes(
+    ["/agent", "/seo-chat", "/ai-visibility"].includes(
       pathname,
     );
   if (!isAiPage) return null;

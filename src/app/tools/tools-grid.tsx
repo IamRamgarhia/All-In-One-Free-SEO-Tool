@@ -141,14 +141,6 @@ const tools = [
     accent: "rose",
   },
   {
-    href: "/tools/brief",
-    icon: FileText,
-    title: "Content brief — one-click composite",
-    description:
-      "Type a query → top-10 SERP corpus + PAA → AI writes a writer-ready markdown brief: intent, length, H2 outline, semantic terms, FAQ block, internal-link anchors, snippet shape, CTA.",
-    accent: "emerald",
-  },
-  {
     href: "/tools/cluster",
     icon: Layers,
     title: "Topic cluster builder",
@@ -501,6 +493,24 @@ const tools = [
     accent: "rose",
   },
   {
+    // Writing moved out of this app. Five tools used to sit here —
+    // briefs, an expert-panel scorer, an AI-slop detector — and they
+    // competed badly against tools built only for that, while making
+    // this one harder to describe. BlogPilot is the same author, MIT,
+    // self-hosted, and does that job properly.
+    //
+    // A card rather than a silent deletion: someone who used those
+    // tools should find out where they went, not conclude the feature
+    // was quietly dropped.
+    href: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
+    external: true,
+    icon: FileText,
+    title: "Content writing → BlogPilot",
+    description:
+      "Drafting, briefs, content scoring against the top 10, brand voice and CMS export live in BlogPilot — a separate free, self-hosted tool. This one does technical SEO and applies the fixes.",
+    accent: "emerald",
+  },
+  {
     href: "/tools/schema",
     icon: Code2,
     title: "Schema markup generator",
@@ -659,30 +669,6 @@ const tools = [
     accent: "rose",
   },
   {
-    href: "/tools/ai-slop",
-    icon: Sparkles,
-    title: "AI slop detector (24 patterns)",
-    description:
-      "24 telltale AI writing patterns — significance inflation, negative parallelism, em-dash overuse, sycophancy. 90+ ships. Local, free, no AI call.",
-    accent: "amber",
-  },
-  {
-    href: "/tools/expert-panel",
-    icon: Users,
-    title: "Expert panel content scorer",
-    description:
-      "Auto-assembles 6-9 domain experts (incl. AI Detector + Brand Voice) and scores your draft. Target 90/100. Outputs each expert's specific revisions.",
-    accent: "violet",
-  },
-  {
-    href: "/tools/content-attack-brief",
-    icon: Target,
-    title: "Content attack brief",
-    description:
-      "Pulls GSC striking-distance queries, scores each by Impact × Confidence, AI-writes the attack angle for the top 10. Ranked by what moves the needle.",
-    accent: "emerald",
-  },
-  {
     href: "/tools/meta-tag-generator",
     icon: Code2,
     title: "Meta tag generator",
@@ -820,14 +806,6 @@ const tools = [
     description:
       "Audits user-experience signals Google now weights heavily: page promise, time-to-answer, next step, friction, Core Web Vitals. Persona-driven recommendations.",
     accent: "cyan",
-  },
-  {
-    href: "/tools/attack-briefs",
-    icon: Sparkles,
-    title: "Content Attack Briefs",
-    description:
-      "Up to 5 keyword-gap briefs per run. Vulnerability scoring + required E-E-A-T + schema + AIO passage hints + definition of done.",
-    accent: "rose",
   },
   {
     href: "/tools/image-gen",
@@ -1223,7 +1201,13 @@ function ToolCard({
   return (
     <div className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl">
       <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-violet-500/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
-      <Link href={tool.href} className="relative block p-5">
+      <Link
+        href={tool.href}
+        {...("external" in tool && tool.external
+          ? { target: "_blank", rel: "noreferrer noopener" }
+          : {})}
+        className="relative block p-5"
+      >
         <div className="space-y-3">
           <div
             className={`inline-flex size-10 items-center justify-center rounded-xl ring-1 ring-inset ${accentMap[tool.accent]}`}

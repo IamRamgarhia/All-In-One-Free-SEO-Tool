@@ -125,10 +125,8 @@ export function copyOf(
  */
 const KNOWN_AI_PAGES = new Set([
   "/agent",
-  "/blog",
   "/seo-chat",
   "/ai-visibility",
-  "/content",
   // Verified by reading the path, not by trusting the flag: the page's
   // only action calls startAiAudit -> runAiSiteAudit -> callAI. Without
   // a key it fails at the point the user presses the button, which is
@@ -160,11 +158,9 @@ const KNOWN_FREE_PAGES = new Set([
   "/audits",
   "/backlinks",
   "/citations",
-  "/content-decay",
   "/keywords",
   "/local-grid",
   "/local-rank",
-  "/topic-clusters",
   "/clients/[id]/onboarding",
 ]);
 

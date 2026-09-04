@@ -18,8 +18,8 @@ import { toolReadiness } from "./tool-readiness";
 
 describe("green means it actually works", () => {
   it("a free tool is ready with no key at all", () => {
-    // /tools/ai-slop is derived free — it never reaches a spend module.
-    const r = toolReadiness({ href: "/tools/ai-slop", hasAiKey: false });
+    // /tools/robots is derived free — it never reaches a spend module.
+    const r = toolReadiness({ href: "/tools/robots", hasAiKey: false });
     expect(r.state).toBe("ready");
   });
 
@@ -27,9 +27,9 @@ describe("green means it actually works", () => {
     // The rail links with ?url= and ?clientId= on nearly every entry, so
     // a lookup that didn't strip them would fall through to "unknown"
     // and silently drop the dot from the one panel that most needs it.
-    const plain = toolReadiness({ href: "/tools/ai-slop", hasAiKey: false });
+    const plain = toolReadiness({ href: "/tools/robots", hasAiKey: false });
     const withQuery = toolReadiness({
-      href: "/tools/ai-slop?url=https%3A%2F%2Fexample.com#top",
+      href: "/tools/robots?url=https%3A%2F%2Fexample.com#top",
       hasAiKey: false,
     });
     expect(withQuery).toEqual(plain);
@@ -141,10 +141,10 @@ describe("per-client views resolve like the page they came from", () => {
    * broken rather than as the app being unsure.
    */
   it("a client-scoped AI page is blocked without a key, like its parent", () => {
-    expect(toolReadiness({ href: "/content/c/4", hasAiKey: false }).state).toBe(
-      "blocked",
-    );
-    expect(toolReadiness({ href: "/content", hasAiKey: false }).state).toBe(
+    expect(
+      toolReadiness({ href: "/ai-visibility/c/4", hasAiKey: false }).state,
+    ).toBe("blocked");
+    expect(toolReadiness({ href: "/ai-visibility", hasAiKey: false }).state).toBe(
       "blocked",
     );
   });
@@ -162,7 +162,6 @@ describe("per-client views resolve like the page they came from", () => {
     // The failure mode, stated directly: same tool, two entry points,
     // two different answers.
     for (const [nested, parent] of [
-      ["/content/c/4", "/content"],
       ["/ai-visibility/c/4", "/ai-visibility"],
       ["/agent/c/4", "/agent"],
     ]) {

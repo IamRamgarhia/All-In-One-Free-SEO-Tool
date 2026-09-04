@@ -5,7 +5,6 @@ import { db } from "@/db/client";
 import {
   audits,
   clients,
-  contentBriefs,
   competitors,
   invoices,
   keywords,
@@ -41,9 +40,6 @@ const TOOL_INDEX: Array<{
   keywords: string;
 }> = [
   { href: "/tools/code-generator", title: "Code generator (plugins/HTML/.htaccess)", subtitle: "WP plugin, Elementor HTML, Shopify Liquid, schema, Next.js…", keywords: "wordpress plugin htaccess shopify liquid schema nextjs code ai" },
-  { href: "/tools/ai-slop", title: "AI slop detector (24 patterns)", subtitle: "Score any draft against 24 telltale AI writing patterns", keywords: "humanizer ai detect content slop writing" },
-  { href: "/tools/expert-panel", title: "Expert panel content scorer", subtitle: "6-9 expert panel scores your draft against the right rubric", keywords: "content quality panel scorer review" },
-  { href: "/tools/content-attack-brief", title: "Content attack brief", subtitle: "GSC striking-distance + Impact × Confidence scoring", keywords: "content brief gsc keyword striking distance" },
   { href: "/tools/meta-tag-generator", title: "Meta tag generator", subtitle: "3 title + description options with SERP preview + OG tags", keywords: "meta title description og open graph seo" },
   { href: "/tools/pixel-preview", title: "Pixel preview (SERP simulator)", subtitle: "Title + meta preview at Google's exact pixel widths", keywords: "serp simulator preview title meta pixel" },
   { href: "/tools/rank-where", title: "Rank where (country-aware)", subtitle: "Find your position on Google for any keyword + country", keywords: "rank tracker position serp google country" },
@@ -78,7 +74,6 @@ const TOOL_INDEX: Array<{
   { href: "/tools/reddit-research", title: "Reddit research", subtitle: "Mine Reddit for questions and pain points", keywords: "reddit research questions community" },
   { href: "/tools/content-grader", title: "Content grader", subtitle: "Score content for SEO + readability", keywords: "content grade score readability" },
   { href: "/tools/content-score", title: "Content scorer", subtitle: "Real-time SEO score with LSI suggestions", keywords: "content score lsi" },
-  { href: "/tools/brief", title: "Composite content brief", subtitle: "Length + headings + semantic + PAA in one brief", keywords: "content brief outline composite" },
   { href: "/tools/refresh", title: "Content refresh detector", subtitle: "Pages losing traffic, ranked by recovery value", keywords: "content refresh decay update" },
   { href: "/tools/plagiarism", title: "Plagiarism + AI detection", subtitle: "Originality + AI-likelihood scoring", keywords: "plagiarism ai detection originality" },
   { href: "/tools/summarizer", title: "Content summarizer", subtitle: "Summarize any URL or text", keywords: "summarize content text url" },
@@ -127,7 +122,6 @@ const TOOL_INDEX: Array<{
   { href: "/tools/github-pr", title: "GitHub PR — SEO fixes", subtitle: "Open a PR with auto SEO fixes", keywords: "github pr pull request fixes" },
   { href: "/tools/browser-agent", title: "Browser agent (experimental)", subtitle: "AI controls a real browser for a goal", keywords: "browser agent ai automation" },
   { href: "/tools/content-helpers", title: "Content helpers (categories / image prompts)", subtitle: "AI suggests categories + cover image prompts", keywords: "content helpers categories tags" },
-  { href: "/tools/attack-briefs", title: "Content attack briefs (multi)", subtitle: "Generate 5 keyword-gap briefs at once", keywords: "attack briefs keyword gap" },
 ];
 
 export type SearchResults = {
@@ -243,34 +237,6 @@ export async function search(rawQuery: string): Promise<SearchResults> {
       href: "/competitors",
       title: c.name,
       subtitle: `competitor · ${c.clientName ?? "—"}`,
-    });
-  }
-
-  // Content briefs — by keyword or title
-  const briefMatches = await db
-    .select({
-      id: contentBriefs.id,
-      title: contentBriefs.title,
-      targetKeyword: contentBriefs.targetKeyword,
-      status: contentBriefs.status,
-      clientName: clients.name,
-    })
-    .from(contentBriefs)
-    .leftJoin(clients, eq(contentBriefs.clientId, clients.id))
-    .where(
-      or(
-        like(contentBriefs.title, pattern),
-        like(contentBriefs.targetKeyword, pattern),
-      ),
-    )
-    .limit(4);
-  for (const b of briefMatches) {
-    hits.push({
-      type: "brief",
-      id: b.id,
-      href: "/content",
-      title: b.title,
-      subtitle: `${b.status} · ${b.targetKeyword}`,
     });
   }
 

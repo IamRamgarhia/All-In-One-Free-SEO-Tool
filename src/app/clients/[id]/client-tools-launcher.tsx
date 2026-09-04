@@ -194,48 +194,6 @@ function buildGroups(client: {
       ],
     },
     {
-      label: "Content for this client",
-      blurb: "Briefs, refresh, writing, AI / human checks.",
-      tools: [
-        {
-          href: `/content/c/${id}`,
-          title: "Content calendar",
-          icon: FileText,
-          blurb: "Plan + draft posts for this client.",
-        },
-        {
-          href: `/content-decay/c/${id}`,
-          title: "Refresh candidates",
-          icon: RefreshCw,
-          blurb: "Pages losing traffic, prioritized by recovery value.",
-        },
-        {
-          href: `/topic-clusters/c/${id}`,
-          title: "Topic clusters",
-          icon: Network,
-          blurb: "Map pillar + supporting pages by topic.",
-        },
-        {
-          href: `/tools/brief`,
-          title: "Composite content brief",
-          icon: BookOpen,
-          blurb: "Length + headings + semantic + PAA in one brief.",
-        },
-        {
-          href: `/tools/expert-panel`,
-          title: "Expert-panel scorer",
-          icon: Bot,
-          blurb: "Score a draft against a domain expert panel.",
-        },
-        {
-          href: `/tools/ai-slop`,
-          title: "AI slop detector",
-          icon: AlertTriangle,
-          blurb: "24-pattern humanizer check.",
-        },
-      ],
-    },
-    {
       label: "Links — internal + outbound",
       blurb: "Internal linking, prospects, anchor profile.",
       tools: [

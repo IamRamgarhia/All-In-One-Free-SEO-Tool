@@ -384,12 +384,18 @@ export function Sidebar({
               )}
               {(isOpen || collapsed) && (
                 <ul className="mt-0.5">
-                  {group.items.map(({ href, label, icon: Icon }: NavItem) => {
-                    const active = isActive(pathname, href);
+                  {group.items.map(({ href, label, icon: Icon, external }: NavItem) => {
+                    // An external entry is never "the current page", and
+                    // opening it in this tab would navigate away from the
+                    // app entirely.
+                    const active = external ? false : isActive(pathname, href);
                     return (
                       <li key={href}>
                         <Link
                           href={href}
+                          {...(external
+                            ? { target: "_blank", rel: "noreferrer noopener" }
+                            : {})}
                           title={collapsed ? label : undefined}
                           aria-label={collapsed ? label : undefined}
                           className={
