@@ -1077,6 +1077,7 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
                 pinned
                 onTogglePin={() => togglePin(t.href)}
                 badge={badgeFor(capabilityOf(t.href), mode)}
+                usable={worksIn(capabilityOf(t.href), mode)}
               />
             ))}
           </div>
@@ -1178,6 +1179,7 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
                     pinned={pinned.has(t.href)}
                     onTogglePin={() => togglePin(t.href)}
                     badge={badgeFor(capabilityOf(t.href), mode)}
+                usable={worksIn(capabilityOf(t.href), mode)}
                   />
                 ))}
               </div>
@@ -1194,11 +1196,14 @@ function ToolCard({
   pinned,
   onTogglePin,
   badge,
+  usable,
 }: {
   tool: Tool;
   pinned: boolean;
   onTogglePin: () => void;
   badge: ToolBadge | null;
+  /** Will this page actually run with what is connected? */
+  usable: boolean;
 }) {
   return (
     <div className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl">
@@ -1210,7 +1215,23 @@ function ToolCard({
           >
             <tool.icon className="size-5" />
           </div>
-          <h3 className="pr-7 text-base font-semibold">{tool.title}</h3>
+          {/* A dot before the name, so "does this work right now?" is
+              answerable at a glance without reading the badge. Green
+              runs; amber needs a key. Only shown on tool cards, where
+              the capability data is per-tool and accurate — not on
+              composed pages, where it over-approximates. */}
+          <h3 className="flex items-start gap-2 pr-7 text-base font-semibold">
+            <span
+              aria-hidden="true"
+              className={`mt-[0.45rem] size-1.5 shrink-0 rounded-full ${
+                usable ? "bg-emerald-400" : "bg-amber-400"
+              }`}
+            />
+            <span className="min-w-0 flex-1">{tool.title}</span>
+            <span className="sr-only">
+              {usable ? " (ready to use)" : " (needs an AI key)"}
+            </span>
+          </h3>
           <p className="text-sm text-muted-foreground">{tool.description}</p>
           {badge && (
             <span

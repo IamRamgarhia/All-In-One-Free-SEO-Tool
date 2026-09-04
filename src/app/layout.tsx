@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { Sidebar } from "@/components/shell/sidebar";
+import { NeedsKeyBanner } from "@/components/shell/needs-key-banner";
+import { getAiAvailability } from "@/lib/ai-availability";
 import { TopBar } from "@/components/shell/top-bar";
 import { AIAssistant } from "@/components/shell/ai-assistant";
 import { PowerWidget } from "@/components/shell/power-widget";
@@ -88,6 +90,15 @@ export default async function RootLayout({
   // entirely for users who have chosen one.
   const theme = await getThemePreference();
 
+  // Read once here rather than in each page that needs a model. Failure
+  // is non-fatal: no banner is better than a broken shell.
+  const aiAvailability = await getAiAvailability().catch(() => ({
+    available: false,
+    hasKey: false,
+    hasSubscription: false,
+    client: null,
+  }));
+
   return (
     <html
       lang="en"
@@ -125,6 +136,14 @@ export default async function RootLayout({
                   <div className="flex h-full min-w-0 flex-1 flex-col">
                     <TopBar unreadByHref={unreadByHref} theme={theme} />
                     <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                      {/* One place, so all 38 AI pages say the same thing
+                          — and /agent, /blog and the assistant too, not
+                          only /tools/*. */}
+                      <NeedsKeyBanner
+                        hasKey={aiAvailability.hasKey}
+                        hasSubscription={aiAvailability.hasSubscription}
+                        client={aiAvailability.client}
+                      />
                       {children}
                     </main>
                   </div>
