@@ -1034,8 +1034,8 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[11px] text-muted-foreground">
             <span>
               {hideUnusable
-                ? `${unusableCount} tools hidden — they need AI, and nothing is connected yet.`
-                : `${unusableCount} tools need AI, and nothing is connected yet.`}
+                ? `${unusableCount} tools hidden — they need an AI key.`
+                : `${unusableCount} tools need an AI key.`}
             </span>
             <button
               type="button"
@@ -1048,10 +1048,25 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
             </button>
             <Link
               href="/settings#ai"
-              className="rounded text-amber-300 underline decoration-dotted underline-offset-2 hover:decoration-solid"
+              className="rounded text-amber-500 underline decoration-dotted underline-offset-2 hover:decoration-solid dark:text-amber-300"
             >
-              Connect a subscription or key
+              Add a key
             </Link>
+            {/* A legend, because a coloured dot only means something once
+                somebody has told you what it means. Shown alongside the
+                dots rather than in a help page nobody opens. */}
+            {!hideUnusable && (
+              <span className="inline-flex items-center gap-2.5">
+                <span className="inline-flex items-center gap-1">
+                  <span className="size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+                  works now
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="size-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/25" />
+                  needs a key
+                </span>
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -1221,10 +1236,18 @@ function ToolCard({
               the capability data is per-tool and accurate — not on
               composed pages, where it over-approximates. */}
           <h3 className="flex items-start gap-2 pr-7 text-base font-semibold">
+            {/* 6px with a soft tint was invisible in practice — present
+                in the markup, unnoticed on the screen. A ring gives it an
+                edge against the card, and the amber is deepened so it
+                reads as different at a glance rather than only on
+                inspection. */}
             <span
               aria-hidden="true"
-              className={`mt-[0.45rem] size-1.5 shrink-0 rounded-full ${
-                usable ? "bg-emerald-400" : "bg-amber-400"
+              title={usable ? "Ready to use" : "Needs an AI key"}
+              className={`mt-[0.4rem] size-2.5 shrink-0 rounded-full ring-2 ${
+                usable
+                  ? "bg-emerald-500 ring-emerald-500/20"
+                  : "bg-amber-500 ring-amber-500/25"
               }`}
             />
             <span className="min-w-0 flex-1">{tool.title}</span>
