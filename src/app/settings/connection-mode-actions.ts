@@ -6,15 +6,27 @@ import { setSetting, getSetting } from "@/lib/settings-store";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
 import type { ConnectionMode } from "@/lib/tool-capabilities";
 
-export async function setConnectionMode(mode: ConnectionMode) {
-  await setSetting("ai.connection_mode", mode);
-  // The tools grid badges itself from this, so it has to revalidate too.
-  revalidatePath("/", "layout");
-}
-
+/**
+ * What is connected, worked out rather than chosen.
+ *
+ * This used to return a setting the user picked from three options, and
+ * that was wrong twice over. The two are not alternatives — a key and a
+ * connected chat app do different jobs and having both is the complete
+ * setup — so presenting them as a choice implied picking one ruled out
+ * the other. And a stored answer drifts: someone could select "API key",
+ * never add one, and every screen would then describe a state that did
+ * not exist.
+ *
+ * Derived from what is actually there, it cannot disagree with reality.
+ */
 export async function getConnectionMode(): Promise<ConnectionMode> {
-  const m = await getSetting<ConnectionMode>("ai.connection_mode");
-  return m ?? "none";
+  const { getAiAvailability } = await import("@/lib/ai-availability");
+  const ai = await getAiAvailability().catch(() => null);
+  if (!ai) return "none";
+  if (ai.hasKey && ai.hasSubscription) return "both";
+  if (ai.hasKey) return "api";
+  if (ai.hasSubscription) return "mcp";
+  return "none";
 }
 
 // =============== Remote MCP ===============

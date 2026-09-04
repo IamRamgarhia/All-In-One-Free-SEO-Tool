@@ -1,38 +1,30 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Copy, KeyRound, MessageSquare, Moon } from "lucide-react";
+import { Check, Copy, KeyRound, MessageSquare } from "lucide-react";
 import {
-  CONNECTION_MODES,
   AI_TOOL_COUNT,
   FREE_TOOL_COUNT,
   TOTAL_TOOL_COUNT,
   type ConnectionMode,
 } from "@/lib/tool-capabilities";
-import type { AiConnectionStatus } from "./connection-mode-actions";
-import { McpSetup } from "./mcp-setup";
 import { clientToTab } from "@/lib/mcp-clients";
-import type { McpStatus } from "./connection-mode-actions";
-import {
-  generateMcpToken,
-  revokeMcpToken,
-  setConnectionMode,
-} from "./connection-mode-actions";
-
-const ICONS: Record<ConnectionMode, typeof KeyRound> = {
-  none: Moon,
-  mcp: MessageSquare,
-  api: KeyRound,
-  both: KeyRound,
-};
+import type { AiConnectionStatus, McpStatus } from "./connection-mode-actions";
+import { generateMcpToken, revokeMcpToken } from "./connection-mode-actions";
+import { McpSetup } from "./mcp-setup";
+import { ModePreview } from "./mode-preview";
 
 /**
- * Green only when it is genuinely working.
+ * Two things you can connect, not three options to pick between.
  *
- * "Connected" has to mean the thing actually works, or the badge becomes
- * decoration: a saved key with no model selected, or an MCP token nothing
- * ever called, both look like success and behave like failure.
+ * They were a radio group, which said something untrue: that choosing one
+ * ruled out the other. They are independent and do different jobs — a key
+ * makes the AI pages in this app run, a connected chat app lets Claude or
+ * ChatGPT work with your SEO data — and having both is the complete
+ * setup. Nothing is selected here now; the state is simply what is
+ * connected, so the screen cannot disagree with reality.
  */
+
 function StatusDot({ status }: { status: AiConnectionStatus }) {
   return (
     <span
@@ -53,13 +45,6 @@ function StatusDot({ status }: { status: AiConnectionStatus }) {
   );
 }
 
-/**
- * A value with a copy button.
- *
- * `secret` masks the middle rather than hiding it entirely: you need to
- * recognise which token this is without reading the whole thing aloud,
- * and copy is what actually moves it.
- */
 function CopyRow({
   label,
   value,
@@ -80,8 +65,6 @@ function CopyRow({
       <span className="w-20 shrink-0 text-[11px] text-muted-foreground">
         {label}
       </span>
-      {/* Theme tokens, not bg-black/40: in light mode that renders as a
-          grey slab with pale text and the URL was barely readable. */}
       <code className="min-w-0 flex-1 truncate rounded border border-border bg-muted px-2 py-1 text-[11px] text-foreground">
         {shown}
       </code>
@@ -94,7 +77,7 @@ function CopyRow({
             setTimeout(() => setDone(false), 1800);
           });
         }}
-        className="inline-flex shrink-0 items-center gap-1 rounded border border-white/10 px-2 py-1 text-[11px] hover:border-white/25"
+        className="inline-flex shrink-0 items-center gap-1 rounded border border-border px-2 py-1 text-[11px] hover:border-foreground/25"
       >
         {done ? <Check className="size-3" /> : <Copy className="size-3" />}
         {done ? "Copied" : "Copy"}
@@ -104,167 +87,146 @@ function CopyRow({
 }
 
 export function ConnectionModePicker({
-  initial,
+  mode,
   status,
   mcp,
   origin,
   installPath,
   platform,
   nodePath,
+  mcpToolCount,
+  mcpToolNames,
 }: {
-  initial: ConnectionMode;
+  /** Derived from what is connected — see getConnectionMode. */
+  mode: ConnectionMode;
   status: { api: AiConnectionStatus; mcp: AiConnectionStatus };
   mcp: McpStatus;
-  /** Absolute origin, from the server. See remoteUrl below. */
   origin: string;
-  /** Where the app is installed, for the stdio config. */
   installPath: string;
-  /** process.platform, for OS-specific paths. */
   platform: string;
-  /** process.execPath, for a config that needs no PATH lookup. */
   nodePath: string;
+  mcpToolCount: number;
+  mcpToolNames: string[];
 }) {
-  const [mode, setMode] = useState<ConnectionMode>(initial);
   const [pending, start] = useTransition();
+  // Open by default only when there is something left to finish: a token
+  // exists but nothing has connected with it yet.
+  const [openChat, setOpenChat] = useState(mcp.enabled && !mcp.connected);
 
-  // The origin is passed in from the server, which reads it off the Host
-  // header. Reading window.location here instead produced a hydration
-  // mismatch (React #418): the server rendered "/api/mcp" and the browser
-  // rendered "http://localhost:63140/api/mcp".
   const remoteUrl = `${origin}/api/mcp`;
-  // A local address is one claude.ai and ChatGPT can never reach. Also
-  // covers plain http on a LAN IP, which they refuse for the same reason
-  // they refuse localhost: it is not HTTPS.
   const isLocalUrl =
     origin.startsWith("http://") ||
     origin.includes("localhost") ||
     origin.includes("127.0.0.1");
 
-  function choose(next: ConnectionMode) {
-    setMode(next);
-    start(() => {
-      void setConnectionMode(next);
-    });
-  }
-
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-medium">How do you want to connect AI?</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {FREE_TOOL_COUNT} of the {TOTAL_TOOL_COUNT} tools need no AI at all and
-          already work. This only affects the other {AI_TOOL_COUNT}.
+        <h3 className="text-sm font-medium">AI connection</h3>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {FREE_TOOL_COUNT} of the {TOTAL_TOOL_COUNT} tools need no AI and
+          already work. These two cover the other {AI_TOOL_COUNT}. They do
+          different jobs — you can have either, or both.
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        {CONNECTION_MODES.filter((m) => m.id !== "both").map((m) => {
-          const Icon = ICONS[m.id];
-          const active = mode === m.id || (mode === "both" && m.id !== "none");
-          return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => choose(m.id)}
-              disabled={pending}
-              aria-pressed={active}
-              className={`rounded-xl border p-3 text-left transition ${
-                active
-                  ? "border-amber-400/50 bg-amber-500/10"
-                  : "border-white/10 bg-white/[0.02] hover:border-white/20"
-              }`}
-            >
-              <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                <Icon className="size-3.5 text-amber-300" />
-                {m.label}
-                {/* Shown on both modes, not only the selected one: seeing
-                    that a key is live while sitting in MCP mode is the
-                    whole point of being able to run both. */}
-                {m.id === "api" && <StatusDot status={status.api} />}
-                {m.id === "mcp" && <StatusDot status={status.mcp} />}
-              </span>
-              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                {m.summary}
-              </span>
-            </button>
-          );
-        })}
+      {mode === "both" && (
+        <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-[11px] leading-relaxed text-emerald-900 dark:text-emerald-100/90">
+          <strong>Both connected — nothing is missing.</strong> The AI tools in
+          here run on your key, and your chat app can work with your SEO data
+          directly.
+        </p>
+      )}
+
+      <ModePreview
+        mode={mode}
+        mcpToolCount={mcpToolCount}
+        mcpToolNames={mcpToolNames}
+      />
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <KeyRound className="size-3.5 text-amber-300" />
+            <p className="text-sm font-medium">An API key</p>
+            <StatusDot status={status.api} />
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Makes the {AI_TOOL_COUNT} AI tools in this app work — the
+            assistant, executive summaries, content writer — and keeps them
+            running overnight. Gemini and Groq have free tiers.
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Providers are listed below.
+          </p>
+        </section>
+
+        <section className="space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <MessageSquare className="size-3.5 text-violet-300" />
+            <p className="text-sm font-medium">Your Claude / ChatGPT app</p>
+            <StatusDot status={status.mcp} />
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Lets Claude or ChatGPT read and act on your SEO data through{" "}
+            {mcpToolCount} tools, using the subscription you already pay for.
+            It works in that app, not in this one.
+          </p>
+          {mcp.connected && mcp.lastSeenLabel && (
+            <p className="text-[11px] text-muted-foreground">
+              Last used{" "}
+              <span className="text-foreground">{mcp.lastSeenLabel}</span>
+              {mcp.lastClient && (
+                <>
+                  {" "}
+                  by <span className="text-foreground">{mcp.lastClient}</span>
+                </>
+              )}
+              .
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpenChat((v) => !v)}
+            className="text-[11px] text-violet-300 underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          >
+            {openChat
+              ? "Hide setup"
+              : mcp.connected
+                ? "Change setup"
+                : "Set this up"}
+          </button>
+        </section>
       </div>
 
-      {/* The one thing a subscription genuinely cannot do. Said plainly here
-          rather than discovered later when an overnight report doesn't
-          arrive. */}
-      {mode === "mcp" && (
+      {openChat && (
         <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            <strong className="text-foreground">
-              One thing to know before you rely on this.
-            </strong>{" "}
-            Your subscription works by your chat app connecting to this tool —
-            so it only writes when you&apos;re at the keyboard. Anything that
-            runs while you&apos;re away — overnight audits, scheduled reports,
-            alerts — still needs an API key. Every tool on the grid works
-            either way.
+            <strong className="text-foreground">How this one works.</strong>{" "}
+            Your chat app connects to this tool and calls it, so it answers in
+            that app while you&apos;re at the keyboard. It does not power the
+            AI pages in here, and nothing is charged per use.
           </p>
-          {/* Remote connectors first: it is what most people mean by
-              "connect my ChatGPT / Claude subscription", and it was the
-              part that did not exist. */}
+
           <div className="space-y-2 rounded-lg border border-border bg-card/60 p-3">
-            {/* Titled for what it is, not for one audience.
-                It used to read "claude.ai or ChatGPT connector" above a
-                localhost URL — the single address those two clients
-                cannot use. The value is right for Claude Code, Desktop
-                and Cursor; it was the heading that promised otherwise. */}
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-medium">Endpoint and token</p>
-              <StatusDot status={status.mcp} />
-            </div>
-
-            {/* What connected and when, on the page rather than in a
-                tooltip. A green dot alone says something worked without
-                saying what, which is not enough to tell a chat app that
-                really connected from a test that happened to run. */}
-            {mcp.connected && (
-              <p className="text-[11px] text-muted-foreground">
-                Last used{" "}
-                <span className="text-foreground">{mcp.lastSeenLabel}</span>
-                {mcp.lastClient && (
-                  <>
-                    {" "}
-                    by{" "}
-                    <span className="text-foreground">{mcp.lastClient}</span>
-                  </>
-                )}
-                .
-              </p>
-            )}
-
+            <p className="text-xs font-medium">Endpoint and token</p>
             {mcp.token ? (
               <>
                 <CopyRow label="Server URL" value={remoteUrl} />
                 <CopyRow label="Access token" value={mcp.token} secret />
-                {/* Per-client instructions live in the tabs below, which
-                    fill this token in for you. Only the warning that
-                    applies whichever client you pick is repeated here. */}
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   Anyone who can reach that URL with this token can read every
                   client and change live websites — treat it like a password.
                 </p>
-                {/* The URL comes from the Host header, so it is whatever
-                    address you opened this page on. Open Settings through
-                    a tunnel and the row above becomes the tunnel URL by
-                    itself — which is exactly what claude.ai needs, and
-                    saves anyone assembling it by hand. */}
                 {isLocalUrl && (
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     <strong className="text-foreground">
                       This is a local address.
                     </strong>{" "}
                     Right for Claude Code, Claude Desktop and Cursor. claude.ai
-                    and ChatGPT cannot reach it — start a tunnel, then open
-                    this page on the tunnel address and this row will show the
-                    URL to paste. Steps are in the claude.ai / ChatGPT tab
-                    below.
+                    and ChatGPT cannot reach it — start a tunnel, then open this
+                    page on the tunnel address and this row will show the URL to
+                    paste.
                   </p>
                 )}
                 <button
@@ -290,7 +252,6 @@ export function ConnectionModePicker({
                 </button>
               </>
             )}
-
           </div>
 
           <McpSetup

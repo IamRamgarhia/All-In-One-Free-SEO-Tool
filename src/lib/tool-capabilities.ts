@@ -11,15 +11,22 @@ import { TOOL_CAPABILITIES } from "./tool-capabilities.generated";
 export type ToolCapability = (typeof TOOL_CAPABILITIES)[number];
 
 /**
- * How the user has chosen to supply AI.
+ * What is connected. Derived from reality, never chosen — see
+ * getConnectionMode.
  *
- * - `none`  — nothing connected. The tools that need no model still work.
- * - `mcp`   — their Claude/ChatGPT/Cursor client connects to us. Their
- *             subscription writes the text; we validate and apply it. No
- *             per-call cost, but it only works while they are there.
- * - `api`   — a provider key. Same tools, plus everything unattended:
- *             overnight audits, scheduled reports, alerts.
- * - `both`  — a key and a connected client.
+ * - `none` — nothing. The tools that need no model still work.
+ * - `mcp`  — a chat app has connected and can read and act on the data
+ *            through the MCP tools. It calls *into* this app, so it does
+ *            not make the AI pages here work.
+ * - `api`  — a provider key. This is what makes the AI pages here run,
+ *            including unattended work: overnight audits, reports, alerts.
+ * - `both` — both of the above. Nothing is unavailable.
+ *
+ * The two are not alternatives and one does not substitute for the other.
+ * An earlier version of this comment said a subscription "writes the text
+ * and we validate and apply it", which described an intended design that
+ * was never built beyond apply_fix, and the UI was written as though it
+ * had been.
  */
 export type ConnectionMode = "none" | "mcp" | "api" | "both";
 
@@ -39,46 +46,6 @@ export const AI_TOOL_COUNT = TOOL_ROUTES.filter((c) => c.needsAI).length;
 export const FREE_TOOL_COUNT = TOOL_ROUTES.filter((c) => !c.needsAI).length;
 export const TOTAL_TOOL_COUNT = TOOL_ROUTES.length;
 
-export const CONNECTION_MODES: {
-  id: ConnectionMode;
-  label: string;
-  /** One line, plain language, no jargon. */
-  summary: string;
-}[] = [
-  {
-    id: "none",
-    // Counted, not typed out. These numbers were written into the copy by
-    // hand first, and were already wrong one commit later when the table
-    // grew to cover every route rather than just the tools.
-    label: "Nothing connected",
-    summary: `${FREE_TOOL_COUNT} of ${TOTAL_TOOL_COUNT} tools work with no setup at all.`,
-  },
-  {
-    id: "mcp",
-    label: "My Claude / ChatGPT subscription",
-    // Says what it does, not what would be nicer.
-    //
-    // This used to read "All 96 tools work while you're here", which was
-    // simply false: MCP lets your chat app call into this one, it does
-    // not let this one call a model. The AI pages in this app keep
-    // failing with "No active AI provider" — correctly — because nothing
-    // has given them anything to call.
-    summary:
-      "Your chat app reads and acts on your SEO data through 13 tools. Free, but it works inside Claude or ChatGPT — not inside this app's own AI pages.",
-  },
-  {
-    id: "api",
-    label: "An API key",
-    summary: `Makes the ${AI_TOOL_COUNT} AI tools in this app work, and keeps working when you're away — overnight audits, scheduled reports, alerts.`,
-  },
-  {
-    id: "both",
-    label: "Both",
-    summary:
-      "Your subscription handles the writing you watch; the key covers what runs overnight.",
-  },
-];
-
 // Explicitly widened: `as const` in the generated file narrows slug to a
 // literal union, which would make lookups by an arbitrary href a type error.
 const BY_ROUTE = new Map<string, ToolCapability>(
@@ -96,24 +63,6 @@ export function capabilityOf(href: string): ToolCapability | null {
   return BY_ROUTE.get(route) ?? null;
 }
 
-/**
- * A note on how much these two flags can be trusted, because they are
- * not equally reliable.
- *
- * The derivation asks "can this page reach code that spends credits?",
- * which OVER-approximates. /audits comes back needsAI because its page
- * embeds an add-client dialog whose action kicks off a background AI
- * audit; the audits page itself needs nothing. Composed hub pages are
- * flagged this way all the time.
- *
- * The error only runs one way. A page can be wrongly marked needsAI, but
- * never wrongly marked free — if the graph cannot reach a spend module,
- * the code cannot spend. So `needsAI === false` is sound and safe to
- * advertise, while `needsAI === true` is "might", not "will".
- *
- * That is why the sidebar tags only the free rows and says nothing about
- * the rest: the claim it makes is the one that cannot be wrong.
- */
 /**
  * The tool's name and one-line description, as shown on its card.
  *
@@ -135,6 +84,25 @@ export type ToolBadge = {
   detail: string;
   tone: "free" | "chat" | "key";
 };
+
+/**
+ * A note on how much these two flags can be trusted, because they are
+ * not equally reliable.
+ *
+ * The derivation asks "can this page reach code that spends credits?",
+ * which OVER-approximates. /audits comes back needsAI because its page
+ * embeds an add-client dialog whose action kicks off a background AI
+ * audit; the audits page itself needs nothing. Composed hub pages are
+ * flagged this way all the time.
+ *
+ * The error only runs one way. A page can be wrongly marked needsAI, but
+ * never wrongly marked free — if the graph cannot reach a spend module,
+ * the code cannot spend. So `needsAI === false` is sound and safe to
+ * advertise, while `needsAI === true` is "might", not "will".
+ *
+ * That is why the sidebar tags only the free rows and says nothing about
+ * the rest: the claim it makes is the one that cannot be wrong.
+ */
 
 /**
  * The badge to show on a tool, given how the user is connected.
@@ -187,12 +155,11 @@ export function badgeFor(
 }
 
 /**
- * Whether a tool is usable right now.
+ * Whether a tool page in this app will actually run right now.
  *
- * Deliberately generous: a subscription drives the AI tools just as well
- * as a key does. The only thing a key buys that a subscription cannot is
- * work that happens while nobody is watching, and no tool on the grid
- * does that — the background jobs do, and they are not tools.
+ * Note the scope: this is about the page here, not about what your chat
+ * app can do. A tool that needs a model needs a key, because the page
+ * calls the model itself.
  */
 export function worksIn(cap: ToolCapability | null, mode: ConnectionMode): boolean {
   if (!cap) return true;

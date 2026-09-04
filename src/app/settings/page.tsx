@@ -37,6 +37,7 @@ import { ApiKeysSection } from "./api-keys-section";
 import { ActiveProviderCard } from "./active-provider-card";
 import { CreditSaverForm } from "./credit-saver-form";
 import { ConnectionModePicker } from "./connection-mode";
+import { MCP_TOOL_LIST } from "@/lib/mcp/server";
 import {
   getAiConnectionStatus,
   getConnectionMode,
@@ -546,13 +547,15 @@ export default async function SettingsPage() {
         </header>
         <div className="relative space-y-5 p-5">
           <ConnectionModePicker
-            initial={connectionMode}
+            mode={connectionMode}
             status={aiStatus}
             mcp={mcpStatus}
             origin={appOrigin}
             installPath={process.cwd()}
             platform={process.platform}
             nodePath={process.execPath}
+            mcpToolCount={MCP_TOOL_LIST.length}
+            mcpToolNames={MCP_TOOL_LIST.map((t) => t.name)}
           />
           {/* Keys stay reachable in every mode: someone on a subscription
               still wants a key for the overnight jobs, and hiding it would
