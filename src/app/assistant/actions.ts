@@ -295,10 +295,31 @@ export async function chat(history: ChatMessage[]): Promise<ChatResult> {
 
   const active = await getActiveProvider();
   if (!active) {
+    // Says the useful thing when a chat app is already connected.
+    //
+    // Somebody who has just connected Claude Desktop reads the plain
+    // version as the setup having failed. It has not: MCP lets their
+    // chat app call in here, which is the opposite direction to what
+    // this assistant needs. They can have the same answer right now by
+    // asking it there, and the message should say so instead of sending
+    // them back to a settings screen that already looks done.
+    const { getAiAvailability } = await import("@/lib/ai-availability");
+    const ai = await getAiAvailability().catch(() => null);
+
+    if (ai?.hasSubscription) {
+      return {
+        ok: false,
+        error:
+          `This assistant calls a model directly, so it needs a key — ${ai.client ?? "your chat app"} is connected, but that works the other way round: it calls in here.\n\n` +
+          "You can ask the same question in that app right now — it can see your clients, audits, keywords and rankings.\n\n" +
+          "To answer it here instead, add a free Gemini or Groq key in Settings → AI connection.",
+      };
+    }
+
     return {
       ok: false,
       error:
-        "No active AI provider. Open Settings → AI provider, configure a free Gemini or Groq key, then pick it as active.",
+        "No active AI provider. Open Settings → AI connection, add a free Gemini or Groq key, then pick it as active.",
     };
   }
 
