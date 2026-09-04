@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
+import {
+  installDesktopConfig,
+  type InstallResult,
+} from "./desktop-config-actions";
 
 /**
  * Per-client setup instructions for connecting a chat app to this tool.
@@ -88,6 +92,8 @@ export function McpSetup({
   installPath,
   platform,
   nodePath,
+  connectedTab,
+  connectedClient,
 }: {
   token: string | null;
   origin: string;
@@ -96,8 +102,14 @@ export function McpSetup({
   platform: string;
   /** process.execPath — the node binary already running this app. */
   nodePath: string;
+  /** Which tab is actually connected, from the client name it sent. */
+  connectedTab: ClientId | null;
+  /** That client, verbatim, e.g. "claude-ai 0.1.0". */
+  connectedClient: string | null;
 }) {
   const [tab, setTab] = useState<ClientId>("claude-code");
+  const [installing, setInstalling] = useState(false);
+  const [installed, setInstalled] = useState<InstallResult | null>(null);
   const url = `${origin}/api/mcp`;
   const tok = token ?? "<generate a token above first>";
 
@@ -193,15 +205,41 @@ ${serverEntry}
             }`}
           >
             {t.label}
-            {t.local && (
-              <span className="ml-1.5 text-[9px] uppercase text-emerald-400/70">
-                no setup
+            {/* The one that is actually connected says so. Four tabs
+                that all look identical cannot answer "which of these am
+                I using?", which is the first thing anyone asks after
+                setting one up. */}
+            {connectedTab === t.id ? (
+              <span className="ml-1.5 inline-flex items-center gap-1 text-[9px] uppercase text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-400" />
+                connected
               </span>
+            ) : (
+              t.local && (
+                <span className="ml-1.5 text-[9px] uppercase text-emerald-400/70">
+                  no setup
+                </span>
+              )
             )}
           </button>
         ))}
       </div>
 
+      {/* What to do once it says connected. "Connected" is a claim
+          about a handshake; asking it something is the only thing that
+          proves the tools actually answer. */}
+      {connectedTab && (
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-[11px] leading-relaxed text-emerald-900 dark:text-emerald-100/90">
+          <strong>
+            Connected via {TABS.find((t) => t.id === connectedTab)?.label}
+          </strong>
+          {connectedClient ? ` — it identified itself as ${connectedClient}.` : "."}{" "}
+          To check the tools really work, ask it:{" "}
+          <em>&ldquo;list my SEO clients&rdquo;</em> — it should name the sites
+          you have added. If it says it has no such tool, quit that app
+          completely and reopen it.
+        </div>
+      )}
       {tab === "claude-code" && (
         <Steps
           items={[
@@ -235,6 +273,62 @@ ${serverEntry}
             the server as a child process and talks to it over stdin/stdout.
             Nothing is exposed, and the token above is not used.
           </p>
+
+          {/* Offered before the manual steps, because hand-editing this
+              file is where it goes wrong: a snippet pasted at the end
+              makes two JSON objects and the app refuses to start with a
+              parse error that names a byte offset. Merging in code
+              cannot produce invalid JSON. */}
+          {tab === "claude-desktop" && (
+            <div className="space-y-2 rounded-lg border border-violet-500/30 bg-violet-500/[0.07] p-3">
+              <p className="text-xs font-medium">Do it for me</p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Writes the config, keeping any servers you already have and
+                saving a backup first. Then quit Claude Desktop completely and
+                reopen it.
+              </p>
+              <button
+                type="button"
+                disabled={installing}
+                onClick={() => {
+                  setInstalling(true);
+                  setInstalled(null);
+                  void installDesktopConfig().then((r) => {
+                    setInstalled(r);
+                    setInstalling(false);
+                  });
+                }}
+                className="inline-flex h-8 items-center rounded-lg bg-violet-500/20 px-3 text-xs font-medium text-violet-200 ring-1 ring-inset ring-violet-500/40 hover:bg-violet-500/30 disabled:opacity-50"
+              >
+                {installing ? "Writing…" : "Write the config for me"}
+              </button>
+
+              {installed?.ok && (
+                <div className="space-y-1 text-[11px] leading-relaxed">
+                  <p className="text-emerald-600 dark:text-emerald-300">
+                    Done — {installed.replaced ? "updated" : "added"} seo-tool.
+                    Servers now configured:{" "}
+                    <strong>{installed.servers.join(", ")}</strong>.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Wrote {installed.configPath}
+                    {installed.backupPath
+                      ? `; previous version saved alongside it.`
+                      : "."}
+                  </p>
+                  <p className="text-foreground">
+                    Now quit Claude Desktop completely (system tray → Quit) and
+                    reopen it.
+                  </p>
+                </div>
+              )}
+              {installed && !installed.ok && (
+                <p className="text-[11px] leading-relaxed text-rose-600 dark:text-rose-300">
+                  {installed.error}
+                </p>
+              )}
+            </div>
+          )}
           <Steps
             items={[
               <>

@@ -11,7 +11,7 @@
 import { db } from "@/db/client";
 import { audits, clients, reportArchives } from "@/db/schema";
 import { count, eq, ne } from "drizzle-orm";
-import { configuredProviders, getActiveProvider } from "./api-keys";
+import { getAiAvailability } from "./ai-availability";
 import { getGoogleConnectionStatus } from "./google-oauth";
 
 export type ChecklistItem = {
@@ -30,15 +30,12 @@ export async function getOnboardingChecklist(): Promise<{
 }> {
   // Run all detection queries in parallel
   const [
-    activeProvider,
-    { ids: providerIds },
     [{ value: clientCount }],
     [{ value: completedAuditCount }],
     [{ value: reportCount }],
     googleStatus,
+    aiAvailability,
   ] = await Promise.all([
-    getActiveProvider().catch(() => null),
-    configuredProviders().catch(() => ({ ids: [] as string[], byId: {} })),
     db.select({ value: count() }).from(clients),
     db
       .select({ value: count() })
@@ -46,19 +43,28 @@ export async function getOnboardingChecklist(): Promise<{
       .where(eq(audits.status, "completed")),
     db.select({ value: count() }).from(reportArchives),
     getGoogleConnectionStatus().catch(() => ({ connected: false })),
+    getAiAvailability().catch(() => ({
+      available: false,
+      hasKey: false,
+      hasSubscription: false,
+      client: null,
+    })),
   ]);
 
   const steps: ChecklistItem[] = [
     {
       id: "ai-provider",
-      title: "Connect an AI provider",
+      title: "Connect AI",
       description:
-        "Pick free Ollama (private, runs locally) OR paste a free-tier key (Gemini / Groq / DeepSeek / GitHub Models). Unlocks audits, content writer, code generator, AI chat.",
-      done: providerIds.length > 0 && activeProvider !== null,
-      cta:
-        providerIds.length > 0 && activeProvider !== null
-          ? "Manage providers"
-          : "Set up AI",
+        "Connect the Claude or ChatGPT subscription you already pay for, or paste a free-tier key (Gemini / Groq / DeepSeek), or run Ollama locally. Unlocks audits, content writer, code generator, AI chat.",
+      // Counts a connected subscription, not just a saved key.
+      //
+      // This asked for a key and an active provider, so somebody whose
+      // Claude Desktop was connected and working still saw "Connect an
+      // AI provider" as an unfinished step. A checklist that will not
+      // tick for work you have already done stops being a checklist.
+      done: aiAvailability.available,
+      cta: aiAvailability.available ? "Manage AI" : "Set up AI",
       href: "/settings#ai",
     },
     {

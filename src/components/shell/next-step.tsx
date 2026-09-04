@@ -21,6 +21,7 @@ import {
   tasks,
 } from "@/db/schema";
 import { configuredProviders } from "@/lib/api-keys";
+import { getAiAvailability } from "@/lib/ai-availability";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { NextStepDismissButton } from "./next-step-dismiss";
 
@@ -56,11 +57,18 @@ async function maybe(step: Step | null): Promise<Step | null> {
 
 async function pickNextStep(): Promise<Step | null> {
   // 1. AI provider — without it most tools degrade. Highest priority.
-  const { ids: providerIds } = await configuredProviders().catch(() => ({
-    ids: [] as string[],
-    byId: {} as Record<string, string>,
+  //
+  // Asks whether AI is available at all, not whether a key exists: a
+  // connected Claude or ChatGPT subscription drives the same tools, and
+  // testing only for keys kept telling people to set up something they
+  // had already set up.
+  const { available: aiAvailable } = await getAiAvailability().catch(() => ({
+    available: false,
+    hasKey: false,
+    hasSubscription: false,
+    client: null,
   }));
-  if (providerIds.length === 0) {
+  if (!aiAvailable) {
     const s = await maybe({
       id: "ai",
       href: "/settings#ai",

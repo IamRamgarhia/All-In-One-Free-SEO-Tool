@@ -11,6 +11,7 @@ import {
 } from "@/lib/tool-capabilities";
 import type { AiConnectionStatus } from "./connection-mode-actions";
 import { McpSetup } from "./mcp-setup";
+import { clientToTab } from "@/lib/mcp-clients";
 import type { McpStatus } from "./connection-mode-actions";
 import {
   generateMcpToken,
@@ -298,6 +299,8 @@ export function ConnectionModePicker({
             installPath={installPath}
             platform={platform}
             nodePath={nodePath}
+            connectedTab={mcp.connected ? clientToTab(mcp.lastClient) : null}
+            connectedClient={mcp.connected ? mcp.lastClient : null}
           />
         </div>
       )}
