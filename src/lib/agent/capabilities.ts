@@ -76,8 +76,6 @@ const WRITE_CAPS: CapabilityId[] = [
  * are quietly parked.
  */
 export const NOT_YET_PLANNED: Partial<Record<CapabilityId, string>> = {
-  write_robots_txt:
-    "The plugin serves robots.txt, but nothing in the planner turns a missing_robots_txt / invalid_robots_txt / missing_ai_crawler_policy finding into an action yet.",
   write_redirects:
     "The plugin applies redirects, but nothing turns a broken_link or redirect_chain finding into one yet.",
   write_hardening:

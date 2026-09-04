@@ -77,7 +77,11 @@ export type PlannableKind =
   | "write_internal_links"
   // Per-page metadata, plugin 0.5.0 and up.
   | "write_canonical"
-  | "write_robots_meta";
+  | "write_robots_meta"
+  // Site-wide, plugin 0.5.0 and up. Not a page edit — the target is the
+  // site itself, which is why the executor handles it separately and the
+  // risk is always needs_review.
+  | "write_robots_txt";
 
 /**
  * Audit finding types the agent can actually fix, and what fixing one is
@@ -258,6 +262,29 @@ const FIXABLE: Record<
     risk: "needs_review",
     reason:
       "The server sends an X-Robots-Tag noindex header for this page, which keeps it out of search regardless of what the page itself says.",
+  },
+
+  // ---- robots.txt ----------------------------------------------------
+  //
+  // Site-wide, so needs_review without exception. One wrong Disallow line
+  // takes a whole site out of Google, and unlike a page edit there is no
+  // partial blast radius to limit it.
+
+  missing_ai_crawler_policy: {
+    kind: "write_robots_txt",
+    capability: "write_robots_txt",
+    weight: 65,
+    risk: "needs_review",
+    reason:
+      "robots.txt says nothing about AI crawlers, so each of them applies its own default — some read the site, some don't, and nobody decided which. Saying so explicitly is the decision, whichever way it goes.",
+  },
+  partial_ai_crawler_policy: {
+    kind: "write_robots_txt",
+    capability: "write_robots_txt",
+    weight: 35,
+    risk: "needs_review",
+    reason:
+      "robots.txt names some AI crawlers and not others, so the ones left out fall back to their own defaults rather than the policy that was chosen for the rest.",
   },
 };
 

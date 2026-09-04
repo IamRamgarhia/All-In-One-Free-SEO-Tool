@@ -61,6 +61,10 @@ const EXECUTABLE = new Set([
   // nothing — which is what this whole contract exists to catch.
   "write_canonical",
   "write_robots_meta",
+  // Site-wide rather than per-page, so it has its own branch in
+  // executeAction instead of going through writeField — the target is
+  // the site, and there is no post id to resolve.
+  "write_robots_txt",
 ]);
 
 /**

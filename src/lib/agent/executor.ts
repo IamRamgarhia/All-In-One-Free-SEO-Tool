@@ -23,6 +23,8 @@
  */
 
 import { eq } from "drizzle-orm";
+import { AI_BOTS } from "../ai-bot-robots";
+import { getRobotsTxt, setRobotsTxt } from "../wp-bridge";
 import { db } from "@/db/client";
 import { agentActions, type AgentAction } from "@/db/schema";
 import {
@@ -96,6 +98,7 @@ export function requiresDraft(kind: string): boolean {
     // fixed. That exact sequence already shipped for alt text.
     kind === "write_canonical" ||
     kind === "write_robots_meta" ||
+    kind === "write_robots_txt" ||
     kind in DRAFT_SPECS
   );
 }
@@ -104,6 +107,26 @@ export async function draftValue(
   action: PlannedAction,
   context: { siteName: string; pageTitle?: string | null; pageUrl: string },
 ): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
+  // robots.txt: the block of directives that must be present.
+  //
+  // Not the whole file — the executor merges this into whatever the site
+  // already serves, because replacing robots.txt wholesale would throw
+  // away Disallow rules somebody added on purpose and the agent has no
+  // way to know were deliberate.
+  //
+  // Allow, not Disallow. The finding is "nobody decided", and the agent
+  // must not decide to block AI crawlers on a user's behalf — that is a
+  // business decision with revenue attached, and it is far easier to
+  // flip a written Allow to Disallow than to notice a silent one.
+  if (action.kind === "write_robots_txt") {
+    const lines = [
+      "# AI crawler policy — added by SEO Tool. Change Allow to Disallow",
+      "# for any of these you would rather keep out.",
+      ...AI_BOTS.flatMap((b) => [`User-agent: ${b.ua}`, "Allow: /", ""]),
+    ];
+    return { ok: true, value: lines.join("\n").trimEnd() + "\n" };
+  }
+
   // A canonical is the page's own address. There is no wording to
   // choose and nothing for a model to get wrong, so this is computed —
   // and computed from the URL the crawler actually fetched, not
@@ -387,6 +410,72 @@ export async function executeAction(opts: {
       error: "No usable WordPress credentials for this client.",
     });
     return { status: "failed", actionId: id, error: "No WordPress credentials." };
+  }
+
+  // robots.txt is site-wide, so it never resolves a post id.
+  //
+  // It reads what the site serves, merges the drafted block in, and
+  // writes the result — rather than replacing the file. Anything already
+  // there was put there by somebody, and this has no way to tell a
+  // deliberate Disallow from an accidental one.
+  if (action.kind === "write_robots_txt") {
+    const current = await getRobotsTxt(creds);
+    if (!current.ok) {
+      const id = await insert({ status: "failed", error: current.error });
+      return { status: "failed", actionId: id, error: current.error };
+    }
+
+    // A real file on disk beats every plugin. Saying so is the whole
+    // point — writing anyway would report a success the user could only
+    // disprove by loading the URL.
+    if (current.data.physicalFile) {
+      const why =
+        "This site serves a real robots.txt file from disk, which WordPress uses instead of anything a plugin provides. Edit that file directly.";
+      const id = await insert({ status: "skipped", error: why });
+      return { status: "skipped", actionId: id };
+    }
+
+    const existing = current.data.served;
+    const merged = mergeRobotsBlock(existing, opts.newValue);
+    if (merged === existing) {
+      const id = await insert({
+        status: "skipped",
+        beforeValue: existing,
+        error:
+          "Every one of these directives is already in robots.txt, so nothing needed changing.",
+      });
+      return { status: "skipped", actionId: id };
+    }
+
+    const res = await setRobotsTxt(creds, merged);
+    if (!res.ok) {
+      const id = await insert({
+        status: "failed",
+        beforeValue: existing,
+        error: res.error,
+      });
+      return { status: "failed", actionId: id, error: res.error ?? "Write failed." };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: "site:robots_txt",
+      beforeValue: existing,
+      afterValue: merged,
+      appliedAt: new Date(),
+    });
+
+    // Read it back. The write returning ok only means the request was
+    // accepted; this is what proves the site changed.
+    const after = await getRobotsTxt(creds);
+    if (after.ok && after.data.served === merged) {
+      await db
+        .update(agentActions)
+        .set({ status: "verified", verifiedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { status: "verified", actionId };
+    }
+    return { status: "applied", actionId };
   }
 
   // Internal links edit the article BODY, which makes them the only
@@ -940,4 +1029,54 @@ export function draftRulesFor(kind: string): string | null {
  */
 export function requiresModel(kind: string): boolean {
   return requiresDraft(kind) && kind !== "write_internal_links";
+}
+
+/**
+ * Add a block of robots.txt directives without disturbing what's there.
+ *
+ * Merge rather than replace, and it matters: robots.txt is one file for
+ * a whole site, and anything already in it was put there by somebody.
+ * Replacing it wholesale would silently drop a Disallow that was
+ * protecting a staging path or an admin area, and the agent has no way
+ * to tell a deliberate rule from an accidental one.
+ *
+ * A user-agent already named in the file is left completely alone —
+ * including its existing directives — because a policy someone has
+ * already stated is a decision, not a gap. Only the ones the file says
+ * nothing about get appended.
+ */
+export function mergeRobotsBlock(existing: string, block: string): string {
+  const names = (text: string) =>
+    new Set(
+      [...text.matchAll(/^\s*User-agent:\s*(.+?)\s*$/gim)].map((m) =>
+        m[1].toLowerCase(),
+      ),
+    );
+
+  const already = names(existing);
+
+  // Walk the block in "User-agent: X" + following directives groups, and
+  // keep only the groups for agents the file has never heard of.
+  const lines = block.split(/\r?\n/);
+  const kept: string[] = [];
+  let skipping = false;
+  for (const line of lines) {
+    const ua = line.match(/^\s*User-agent:\s*(.+?)\s*$/i);
+    if (ua) {
+      skipping = already.has(ua[1].toLowerCase());
+      if (!skipping) kept.push(line);
+      continue;
+    }
+    // Comments before the first User-agent belong to the block header.
+    if (!skipping) kept.push(line);
+  }
+
+  const addition = kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Nothing new to say. Returning `existing` unchanged is what lets the
+  // caller record "skipped" rather than writing an identical file and
+  // reporting it as a fix.
+  if (!/^\s*User-agent:/im.test(addition)) return existing;
+
+  const base = existing.trimEnd();
+  return (base ? base + "\n\n" : "") + addition + "\n";
 }

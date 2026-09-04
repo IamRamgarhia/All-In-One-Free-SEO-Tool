@@ -49,12 +49,13 @@ describe("auto-fix coverage", () => {
   });
 
   it("does not regress", () => {
-    // Raise this when coverage goes up. It went 7 -> 16 of 72 (22%)
-    // when plugin 0.5.0 wired canonical and per-page robots directives,
-    // and the duplicate/short metadata findings — detected since the
-    // crawler was written, never once actionable — were finally given
-    // planner entries.
-    const FLOOR = 16;
+    // Raise this when coverage goes up. 7 -> 16 -> 18 of 72 (25%):
+    // plugin 0.5.0 wired canonical and per-page robots directives; the
+    // duplicate/short metadata findings — detected since the crawler was
+    // written, never once actionable — were finally given planner
+    // entries; then the two AI-crawler-policy findings became the first
+    // site-wide fix the agent can apply.
+    const FLOOR = 18;
     expect(
       fixable.length,
       `The agent can fix ${fixable.length} of ${ALL.size} finding types. ` +
