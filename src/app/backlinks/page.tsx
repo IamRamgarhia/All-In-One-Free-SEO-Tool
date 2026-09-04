@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { Link2 } from "lucide-react";
+import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { backlinks, clients } from "@/db/schema";
 import { desc, eq, count, and } from "drizzle-orm";
@@ -12,7 +13,24 @@ import {
 } from "@/components/shell/client-tool-grid";
 import { ImportAhrefsForm } from "./import-ahrefs-form";
 
-export default async function BacklinksIndexPage() {
+export default async function BacklinksIndexPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clientId?: string; embed?: string }>;
+}) {
+  // Opened from a client, so the client is already chosen.
+  //
+  // The "Tools for this client" rail links here with ?clientId=, and
+  // this page ignored it and drew the picker anyway — so picking a
+  // client and then picking a tool asked you to pick the client again.
+  // The per-client page it would have sent you to already exists.
+  const { clientId, embed } = await searchParams;
+  if (clientId && /^\d+$/.test(clientId)) {
+    // Carry ?embed=1 through. Without it the drawer would load the
+    // full shell inside itself — a sidebar inside a sidebar.
+    redirect(`/backlinks/c/${clientId}${embed ? "?embed=1" : ""}`);
+  }
+
   const all = await db.select().from(clients).where(await clientScope()).orderBy(desc(clients.createdAt));
 
   const cards: ClientToolCard[] = await Promise.all(
