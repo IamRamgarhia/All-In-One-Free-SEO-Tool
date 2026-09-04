@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { usePresetUrl } from "@/components/use-preset-url";
+import { usePresetMode, usePresetUrl } from "@/components/use-preset-url";
 import { SetupPrompt } from "@/components/setup-prompt";
 import { Gauge, Loader2 } from "lucide-react";
 import { runLocalCwv, type LocalCwvState } from "./actions";
@@ -9,6 +9,8 @@ import { runLocalCwv, type LocalCwvState } from "./actions";
 export function LocalCwvForm() {
   // Prefilled when opened from a client, so the domain is not retyped.
   const presetUrl = usePresetUrl();
+  // Honours ?mode=local, which the "measure locally instead" link sets.
+  const presetMode = usePresetMode(["psi", "local"] as const, "psi");
   const [state, formAction, pending] = useActionState<
     LocalCwvState | null,
     FormData
@@ -20,7 +22,7 @@ export function LocalCwvForm() {
         action={formAction}
         className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3"
       >
-        <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_120px]">
+        <div className="grid gap-3 md:grid-cols-[1fr_130px_180px_120px]">
           <label className="space-y-1 text-xs">
             <span className="text-muted-foreground">URL</span>
             <input
@@ -49,7 +51,8 @@ export function LocalCwvForm() {
             <span className="text-muted-foreground">Mode</span>
             <select
               name="mode"
-              defaultValue="psi"
+              key={presetMode}
+              defaultValue={presetMode}
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             >
               {/* Named for what it does rather than which API it calls.
@@ -137,7 +140,7 @@ function ResultView({
           the reader a different measurement under the old label — a
           quieter version of the bug this whole change is about. */}
       {result.fellBackBecause && (
-        <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-200 ring-1 ring-inset ring-amber-500/25">
+        <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 ring-1 ring-inset ring-amber-500/25 dark:text-amber-200">
           <strong className="font-medium">Measured on this machine.</strong>{" "}
           {result.fellBackBecause} These are synthetic numbers from one run
           here, not real-user data from Google.

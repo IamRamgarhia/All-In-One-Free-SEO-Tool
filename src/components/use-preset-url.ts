@@ -20,6 +20,25 @@ export function usePresetUrl(): string {
   return params?.get("url") ?? "";
 }
 
+/**
+ * A tool's starting mode, from `?mode=`.
+ *
+ * Added because a link was written that set `?mode=local` and a select
+ * whose default was hardcoded `"psi"` ignored it — the link navigated,
+ * the page looked identical, and the user was left to conclude the
+ * button did nothing. A query param that nothing reads is a dead
+ * control, and this file exists because that had already happened eight
+ * times with `?url=`.
+ */
+export function usePresetMode<T extends string>(
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const params = useSearchParams();
+  const raw = params?.get("mode");
+  return raw && (allowed as readonly string[]).includes(raw) ? (raw as T) : fallback;
+}
+
 /** The client a tool was opened for, from `?clientId=`. */
 export function usePresetClientId(): number | null {
   const params = useSearchParams();

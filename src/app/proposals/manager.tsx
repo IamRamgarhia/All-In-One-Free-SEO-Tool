@@ -17,6 +17,24 @@ import { createProposal, deleteProposal, updateProposal } from "./actions";
 type ScopeLine = { label: string; detail: string; findings: number };
 type PriceLine = { label: string; detail: string; amount: number };
 
+/**
+ * A date that reads the same on the server and in the browser.
+ *
+ * This was `new Date(x).toLocaleDateString()`, which formats using the
+ * runtime's locale and timezone — the Node process renders one string,
+ * the browser renders another, and React tears the tree down with a
+ * hydration mismatch (#418) on every visit to this page. Nothing looked
+ * broken, which is why it survived: the page re-rendered client-side and
+ * showed the right date anyway.
+ *
+ * ISO, in UTC, deliberately. Unambiguous to read, and identical wherever
+ * it is rendered.
+ */
+function isoDate(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "—" : d.toISOString().slice(0, 10);
+}
+
 /** Colour follows meaning: green is agreed, amber is waiting on them. */
 const STATUS_TONE: Record<string, string> = {
   draft: "border-white/10 bg-white/5 text-muted-foreground",
@@ -218,7 +236,7 @@ function ProposalRowView({
             {proposal.prospectName}
             {proposal.basedOnScore !== null && ` · ${proposal.basedOnScore}/100`}
             {` · ${proposal.scope.length} scope line${proposal.scope.length === 1 ? "" : "s"}`}
-            {` · ${new Date(proposal.createdAt).toLocaleDateString()}`}
+            {` · ${isoDate(proposal.createdAt)}`}
           </div>
         </div>
 
