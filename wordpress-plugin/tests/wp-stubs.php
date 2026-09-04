@@ -27,6 +27,8 @@ $GLOBALS['wp_actions'] = [];
 $GLOBALS['wp_redirects'] = [];
 $GLOBALS['wp_is_404'] = false;
 $GLOBALS['wp_is_author'] = false;
+$GLOBALS['wp_is_singular'] = false;
+$GLOBALS['wp_current_post'] = 0;
 $GLOBALS['wp_exited'] = false;
 
 // Set by the test runner before this file loads, so a real robots.txt
@@ -48,6 +50,8 @@ function wp_reset_state(): void
     $GLOBALS['wp_redirects'] = [];
     $GLOBALS['wp_is_404'] = false;
     $GLOBALS['wp_is_author'] = false;
+    $GLOBALS['wp_is_singular'] = false;
+    $GLOBALS['wp_current_post'] = 0;
     $GLOBALS['wp_exited'] = false;
 }
 
@@ -225,6 +229,21 @@ function current_time($type = 'timestamp', $gmt = 0)
 function is_admin()
 {
     return false;
+}
+
+function is_singular($types = '')
+{
+    return (bool)($GLOBALS['wp_is_singular'] ?? false);
+}
+
+function get_the_ID()
+{
+    return $GLOBALS['wp_current_post'] ?? 0;
+}
+
+function esc_url($u)
+{
+    return esc_url_raw($u);
 }
 
 function is_404()

@@ -157,3 +157,88 @@ describe("the version the client requires is the version that ships", () => {
     ).toEqual([]);
   });
 });
+
+describe("what the plugin says it can do matches what it registered", () => {
+  /**
+   * The /ping response advertises a `capabilities` map. Its own comment
+   * says "anything added here must have a route above it" — and the
+   * three routes added in 0.5.0 shipped with their flags still false,
+   * so the plugin told every caller it could not write canonicals while
+   * happily writing them.
+   *
+   * Nothing read the field yet, which is exactly why it drifted. A flag
+   * nobody checks is a lie waiting to be believed.
+   */
+  function pingCapabilities(): Record<string, boolean> {
+    const start = source.indexOf("'capabilities' => [");
+    expect(start, "the ping response no longer advertises capabilities").toBeGreaterThan(-1);
+    const body = source.slice(start, source.indexOf("]", start));
+    const out: Record<string, boolean> = {};
+    for (const m of body.matchAll(/'([a-z_]+)'\s*=>\s*(true|false)/g)) {
+      out[m[1]] = m[2] === "true";
+    }
+    return out;
+  }
+
+  /**
+   * Capability name -> the handler that must be registered for it.
+   *
+   * Keyed on the handler function rather than the route pattern. The
+   * route strings contain regex escapes ("(?P<id>\d+)") and comparing
+   * them across two languages is a way to fail for reasons that have
+   * nothing to do with the thing being checked — which it promptly did.
+   * A handler name is a plain identifier and means the same on both
+   * sides.
+   */
+  const NEEDS_HANDLER: Record<string, string> = {
+    meta_titles: "stb_rest_update_post_seo",
+    meta_descriptions: "stb_rest_update_post_seo",
+    canonical: "stb_rest_update_post_seo",
+    robots: "stb_rest_update_post_seo",
+    image_alt: "stb_rest_update_alt",
+    schema: "stb_rest_set_schema",
+    internal_links: "stb_rest_insert_links",
+    create_posts: "stb_rest_create_post",
+    redirects: "stb_rest_set_redirects",
+    robots_txt: "stb_rest_set_robots_txt",
+    hardening: "stb_rest_set_hardening",
+  };
+
+  /** Handlers actually wired to a route. */
+  function registeredHandlers(): Set<string> {
+    return new Set(
+      [...source.matchAll(/'callback'\s*=>\s*'(stb_[a-z_]+)'/g)].map((m) => m[1]),
+    );
+  }
+
+  it("every capability claimed true has a route behind it", () => {
+    const caps = pingCapabilities();
+    const lying = Object.entries(caps)
+      .filter(([, on]) => on)
+      .filter(([name]) => {
+        const handler = NEEDS_HANDLER[name];
+        return !handler || !registeredHandlers().has(handler);
+      })
+      .map(([name]) => name);
+    expect(
+      lying,
+      `${lying.join(", ")} is advertised as available and no matching ` +
+        `route is registered.`,
+    ).toEqual([]);
+  });
+
+  it("every capability with a route is claimed, not left false", () => {
+    // The direction that actually bit: routes added, flags forgotten.
+    const caps = pingCapabilities();
+    const registered = registeredHandlers();
+    const understated = Object.entries(NEEDS_HANDLER)
+      .filter(([name, handler]) => registered.has(handler) && caps[name] === false)
+      .map(([name]) => name);
+    expect(
+      understated,
+      `${understated.join(", ")} has a working route but /ping reports it ` +
+        `as unavailable, so callers are told the plugin cannot do ` +
+        `something it does.`,
+    ).toEqual([]);
+  });
+});

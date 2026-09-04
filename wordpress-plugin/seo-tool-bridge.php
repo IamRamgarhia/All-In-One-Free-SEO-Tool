@@ -424,9 +424,11 @@ function stb_rest_ping(): WP_REST_Response
             'schema' => true,
             'internal_links' => true,
             'create_posts' => true,
-            'redirects' => false,
-            'canonical' => false,
-            'robots' => false,
+            'redirects' => true,
+            'canonical' => true,
+            'robots' => true,
+            'robots_txt' => true,
+            'hardening' => true,
         ],
     ]);
 }
@@ -1072,6 +1074,79 @@ function stb_link_first_text_occurrence(string $content, string $anchor, string 
     }
 
     return null;
+}
+
+/**
+ * Is another SEO plugin responsible for the <head> tags?
+ *
+ * This decides whether we render a meta description and canonical
+ * ourselves. Getting it wrong in one direction prints two canonicals on
+ * a page, which is worse than none; getting it wrong in the other means
+ * the value we store is never rendered at all.
+ *
+ * Checked by class/function rather than by plugin file, because a plugin
+ * can be installed under any folder name and several of these ship
+ * renamed in hosting bundles.
+ */
+function stb_seo_plugin_active(): bool
+{
+    return defined('WPSEO_VERSION')            // Yoast
+        || class_exists('RankMath')            // Rank Math
+        || defined('AIOSEO_VERSION')           // All in One SEO
+        || defined('SEOPRESS_VERSION')         // SEOPress
+        || class_exists('The_SEO_Framework\\Load'); // The SEO Framework
+}
+
+/**
+ * Render the description and canonical we were asked to store, when
+ * nothing else will.
+ *
+ * Found by running this plugin on a real WordPress for the first time:
+ * on a site with no SEO plugin, writing a meta description stored it in
+ * three plugins' meta keys, the REST API read it back correctly, and the
+ * page served zero description tags. The canonical was worse — we wrote
+ * one pointing elsewhere and WordPress core's own rel_canonical kept
+ * winning, so the API reported a change that had no effect on anything
+ * Google sees.
+ *
+ * That is the failure this codebase keeps producing: a write that
+ * reports success and changes nothing. It was invisible from inside the
+ * app, because every layer up to and including the plugin's own response
+ * was telling the truth.
+ *
+ * Deliberately silent when an SEO plugin is active — that plugin owns
+ * these tags, it reads the same meta keys we write, and a second
+ * canonical in the head is a real problem rather than a cosmetic one.
+ */
+add_action('wp_head', 'stb_render_head_tags', 1);
+function stb_render_head_tags(): void
+{
+    if (!is_singular() || stb_seo_plugin_active()) {
+        return;
+    }
+    $id = get_the_ID();
+    if (!$id) {
+        return;
+    }
+
+    $desc = stb_get_meta_description($id);
+    if ($desc !== '') {
+        echo "\n<!-- SEO Tool -->\n<meta name=\"description\" content=\""
+            . esc_attr($desc) . "\" />\n";
+    }
+
+    $canonical = stb_get_canonical($id);
+    if ($canonical !== '') {
+        // Core's rel_canonical runs at priority 10 and would print a
+        // second one. Ours is the deliberate value, so core's comes off.
+        remove_action('wp_head', 'rel_canonical');
+        echo '<link rel="canonical" href="' . esc_url($canonical) . "\" />\n";
+    }
+
+    $robots = stb_get_robots_meta($id);
+    if ($robots !== '') {
+        echo '<meta name="robots" content="' . esc_attr($robots) . "\" />\n";
+    }
 }
 
 // Hook our schema into <head> on relevant pages

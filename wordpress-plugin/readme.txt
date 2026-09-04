@@ -131,6 +131,13 @@ The plugin doesn't collect or transmit any personal data. It exposes a REST endp
 == Changelog ==
 
 = 0.5.0 (current) =
+* Fixed (Important): on a site with no SEO plugin installed, the meta
+  description and canonical this plugin stored were never rendered. They are
+  written to Yoast / Rank Math / All in One SEO meta keys, and with none of
+  those active nothing read them — so the API reported a change and the page
+  was unaltered. The plugin now prints both itself in that case, and stays
+  silent when an SEO plugin is active so a page never gets two canonicals.
+  Found by running the plugin on a real WordPress for the first time.
 * Added: canonical URL and per-page robots directives are now readable and
   writable. Both fields were already in the SEO Tool's request format and this
   plugin read neither, so sending one was accepted, ignored, and answered with

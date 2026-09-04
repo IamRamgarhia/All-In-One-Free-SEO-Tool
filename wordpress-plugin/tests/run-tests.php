@@ -382,6 +382,11 @@ t('site-level revisions are identifiable', function () {
     eq(stb_rest_undo(req(['rev_id' => $rev]))->get_status(), 200, 'site targets must undo cleanly');
 });
 
+// Split into its own file: these need output buffering and a couple of
+// extra stubs, and keeping them here made this file harder to read than
+// the thing it tests.
+require __DIR__ . '/head-tests.php';
+
 // ---------------------------------------------------------------- report
 
 echo "\n";
