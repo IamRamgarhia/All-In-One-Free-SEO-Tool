@@ -197,10 +197,28 @@ GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-…`}</pre>
               <li>· App name: anything (e.g. &ldquo;My SEO Tool&rdquo;)</li>
               <li>· User support email: yourself</li>
               <li>
-                · Add yourself under <strong>Test users</strong> (you can have up to
-                100 testers without verification — plenty for personal use)
+                · Add yourself under <strong>Test users</strong>
+              </li>
+              <li>
+                · Then press <strong>Publish app</strong> and confirm.
               </li>
             </ul>
+            {/* The step this guide used to omit, and the omission broke
+                the connection every week without saying so. */}
+            <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-relaxed text-amber-900 dark:text-amber-100/90">
+              <strong>Publishing matters more than it sounds.</strong> Google
+              gives apps left in <em>Testing</em> a refresh token that expires
+              after <strong>7 days</strong> — so the connection works, then
+              quietly stops about a week later and has to be redone. Publishing
+              is what makes it permanent.
+              <br />
+              <br />
+              You will see an &ldquo;unverified app&rdquo; warning when you sign
+              in. That is expected and fine here: it is your own app, in your
+              own Google account, used only by you. Verification only exists to
+              remove that screen for strangers. Click{" "}
+              <strong>Advanced → Go to … (unsafe)</strong> to continue.
+            </p>
           </Step>
 
           <Step
