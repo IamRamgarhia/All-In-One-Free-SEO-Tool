@@ -1476,6 +1476,18 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
         case 'meta_description':
             stb_set_meta_description($object_id, (string)$previous);
             break;
+        case 'canonical':
+            // Added late, and only because the plugin was finally run.
+            // Without these two the switch fell through to "Unsupported
+            // field" and answered 400 — so every canonical and robots
+            // change was un-undoable while the client offered an undo
+            // button for it. Writing the value worked; taking it back
+            // did not, which is the worse half to get wrong.
+            stb_set_canonical($object_id, (string)$previous);
+            break;
+        case 'robots':
+            stb_set_robots_meta($object_id, (string)$previous);
+            break;
         case 'alt':
             update_post_meta($object_id, '_wp_attachment_image_alt', (string)$previous);
             break;

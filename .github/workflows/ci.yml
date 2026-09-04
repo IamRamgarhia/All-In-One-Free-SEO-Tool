@@ -65,6 +65,28 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # The WordPress plugin, actually executed.
+      #
+      # It runs inside other people's live sites and had never been run
+      # anywhere — every claim about it came from reading it, which is how
+      # it came to ignore the canonical field for months while answering
+      # {ok: true}. The first time it was executed it turned up a second
+      # one: canonical and robots changes could be written but not undone,
+      # because the undo switch had no case for either.
+      #
+      # A parse error here is a white screen on somebody's business rather
+      # than a red build, so this runs on every push.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Test WordPress plugin
+        run: |
+          php -l wordpress-plugin/seo-tool-bridge.php
+          pnpm test:php
+
       # Runs migrations against a scratch DB then builds. Catches both
       # broken migrations and any module that fails to resolve.
       - name: Build
