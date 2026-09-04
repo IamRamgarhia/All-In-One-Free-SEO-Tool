@@ -132,7 +132,11 @@ export default async function RootLayout({
             ) : (
               <>
                 <div className="flex h-full">
-                  <Sidebar unreadByHref={unreadByHref} uiMode={uiMode} />
+                  <Sidebar
+                    unreadByHref={unreadByHref}
+                    uiMode={uiMode}
+                    hasAiKey={aiAvailability.hasKey}
+                  />
                   <div className="flex h-full min-w-0 flex-1 flex-col">
                     <TopBar unreadByHref={unreadByHref} theme={theme} />
                     <main className="flex-1 overflow-y-auto p-4 md:p-6">

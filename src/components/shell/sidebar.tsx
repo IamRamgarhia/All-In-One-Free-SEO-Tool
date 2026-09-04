@@ -6,7 +6,7 @@ import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
 import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
-import { capabilityOf } from "@/lib/tool-capabilities";
+import { capabilityOf, isKnownAiPage } from "@/lib/tool-capabilities";
 import { useStoredState } from "@/components/use-stored-state";
 
 /** Alias kept so the render code below reads unchanged. */
@@ -144,8 +144,15 @@ function isActive(pathname: string, href: string) {
 export function Sidebar({
   unreadByHref,
   uiMode = "guided",
+  hasAiKey = false,
 }: {
   unreadByHref?: Record<string, number>;
+  /**
+   * Whether an AI key is configured. Decides if the amber "needs a key"
+   * dot is worth showing — once a key exists nothing is blocked, so the
+   * dot would only be noise.
+   */
+  hasAiKey?: boolean;
   /**
    * "guided" (default for new users): filters nav to only items marked
    * `guided: true`. Empty groups collapse out of view. ~15 items total
@@ -426,22 +433,29 @@ export function Sidebar({
                               {label}
                             </span>
                           )}
-                          {/* Only the free rows are tagged, and nothing is
-                              said about the rest. The capability data
-                              over-approximates AI (see tool-capabilities.ts),
-                              so "needs AI" could be wrong on a composed page
-                              but "free" cannot be — this is the only claim
-                              here that can't mislead. */}
+                          {/* A dot, same language as the tool cards.
+                              Green when the row needs no AI at all — a
+                              claim that cannot be wrong, since the
+                              derivation only ever over-states AI. Amber
+                              only for pages known to call a model, never
+                              from the flag alone: /audits is flagged
+                              purely because it embeds an add-client
+                              dialog, and an amber dot there would say a
+                              working page is blocked. Anything uncertain
+                              gets no dot rather than a guess. */}
                           {!collapsed &&
                             !unread[href] &&
-                            capabilityOf(href)?.needsAI === false && (
+                            (capabilityOf(href)?.needsAI === false ? (
                               <span
-                                title="Works without any AI key — this one never costs you credits."
-                                className="relative z-10 ml-auto shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wide text-emerald-400/70"
-                              >
-                                free
-                              </span>
-                            )}
+                                title="Works now — needs no AI key, costs nothing to run."
+                                className="relative z-10 ml-auto size-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20"
+                              />
+                            ) : isKnownAiPage(href) && !hasAiKey ? (
+                              <span
+                                title="Needs an AI key. Add one in Settings → AI connection."
+                                className="relative z-10 ml-auto size-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-500/25"
+                              />
+                            ) : null)}
                           {unread[href] && unread[href] > 0 ? (
                             collapsed ? (
                               <span

@@ -78,6 +78,32 @@ export function copyOf(
   return { title: cap.title, description: cap.description };
 }
 
+/**
+ * Routes where "needs AI" is known to be true, not merely derived.
+ *
+ * The derivation over-approximates: /audits comes back needing AI only
+ * because its page embeds an add-client dialog. So anywhere we make a
+ * negative claim — a warning banner, an amber dot — it has to come from
+ * this list rather than from the flag, or we would tell people a page is
+ * broken when it works fine.
+ *
+ * /tools/<name> is included wholesale: those pages are single-purpose,
+ * so the flag is accurate there.
+ */
+const KNOWN_AI_PAGES = new Set([
+  "/agent",
+  "/blog",
+  "/seo-chat",
+  "/ai-visibility",
+  "/content",
+]);
+
+export function isKnownAiPage(route: string): boolean {
+  const cap = capabilityOf(route);
+  if (!cap?.needsAI) return false;
+  return /^\/tools\/[^/]+$/.test(route) || KNOWN_AI_PAGES.has(route);
+}
+
 export type ToolBadge = {
   label: string;
   /** Longer text for the tooltip / title attribute. */
