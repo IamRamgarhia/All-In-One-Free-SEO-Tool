@@ -57,8 +57,11 @@ import {
   backlinks,
   reportArchives,
   clientMetricSnapshots,
+  proposals,
 } from "@/db/schema";
 import { ClientToolsPanel } from "./client-tools-panel";
+import { StartHere } from "./start-here";
+import { surfacesFor } from "@/lib/engagement-surfaces";
 import { getAiAvailability } from "@/lib/ai-availability";
 import { DeleteClientButton } from "./delete-client-button";
 import { DailyAutomationCard } from "./daily-automation-card";
@@ -289,6 +292,16 @@ export default async function ClientDetailPage({
   const googleRedirectUri = `${proto}://${host}/api/google/callback`;
 
   const smtpConfigured = Boolean(await getSmtpConfig());
+  // The approval document for this client, if one has been built. Newest
+  // first — re-running onboarding writes another, and the current one is
+  // the one the Start-here strip should be talking about.
+  const [approvalDoc] = await db
+    .select({ id: proposals.id, status: proposals.status })
+    .from(proposals)
+    .where(eq(proposals.clientId, clientId))
+    .orderBy(desc(proposals.id))
+    .limit(1);
+
   // Drives the ready/blocked dots in the per-client tool rail. `hasKey`,
   // not `available` — the rail is asking whether the tool page you are
   // about to open can call a model itself.
@@ -318,6 +331,17 @@ export default async function ClientDetailPage({
         Below md the sidebar collapses to a button + sheet so the main
         content gets full width.
       */}
+      {/* The order to do things in, before the wall of tools. */}
+      <StartHere
+        clientId={client.id}
+        auditDone={Boolean(latestCompleted)}
+        auditFindings={latestCompleted?.issuesCount ?? null}
+        keywordCount={keywordCount}
+        proposalId={approvalDoc?.id ?? null}
+        proposalStatus={approvalDoc?.status ?? null}
+        onboardingDone={client.onboardingStep === "completed"}
+      />
+
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <ClientToolsPanel
           client={{
@@ -329,6 +353,7 @@ export default async function ClientDetailPage({
             wpEndpoint: client.wpEndpoint,
           }}
           hasAiKey={ai.hasKey}
+          surfaces={surfacesFor(client.surfacesJson, client.niche)}
         />
 
         <div className="min-w-0 flex-1 space-y-6">
@@ -397,12 +422,21 @@ export default async function ClientDetailPage({
           : null;
         const barFill = score === null ? 0 : Math.max(2, Math.min(100, score));
 
+        // The hero card is deliberately NOT overflow-hidden.
+        //
+        // It was, to clip the masthead stripe to the rounded corners —
+        // and it clipped the "Generate report" menu too, which opens
+        // downward from a button inside this card. The card's bottom
+        // edge sat 130px above the menu's, so the user saw one item of
+        // three and a box cut in half. The stripe rounds its own top
+        // corners instead, which is all the clipping was ever for.
+        // Anything added here that needs clipping should clip itself.
         return (
-          <section className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+          <section className="relative rounded-2xl border border-border bg-card shadow-xl">
             {/* Score-colored masthead stripe */}
             <div
               aria-hidden
-              className={`h-px w-full bg-gradient-to-r ${toneClasses.stripe}`}
+              className={`h-px w-full rounded-t-2xl bg-gradient-to-r ${toneClasses.stripe}`}
             />
 
             <div className="p-6 sm:p-8">

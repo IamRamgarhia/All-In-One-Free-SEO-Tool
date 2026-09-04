@@ -17,6 +17,14 @@ import { createProposal, deleteProposal, updateProposal } from "./actions";
 type ScopeLine = { label: string; detail: string; findings: number };
 type PriceLine = { label: string; detail: string; amount: number };
 
+/** Colour follows meaning: green is agreed, amber is waiting on them. */
+const STATUS_TONE: Record<string, string> = {
+  draft: "border-white/10 bg-white/5 text-muted-foreground",
+  sent: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+  accepted: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+  declined: "border-rose-500/30 bg-rose-500/10 text-rose-300",
+};
+
 type ProposalRow = {
   id: number;
   prospectName: string;
@@ -213,6 +221,35 @@ function ProposalRowView({
             {` · ${new Date(proposal.createdAt).toLocaleDateString()}`}
           </div>
         </div>
+
+        {/* Where a proposal stands.
+            The column existed from the beginning, updateProposal accepted
+            it, and nothing anywhere rendered a control — so the document
+            whose entire purpose is to be approved could not be marked as
+            sent, let alone accepted. The approval workflow was a database
+            column and nothing else. */}
+        <select
+          value={proposal.status}
+          disabled={pending}
+          onChange={(e) => {
+            const next = e.target.value as
+              | "draft"
+              | "sent"
+              | "accepted"
+              | "declined";
+            start(async () => {
+              await updateProposal(proposal.id, { status: next });
+              router.refresh();
+            });
+          }}
+          className={`h-8 rounded-lg border px-2 text-xs ${STATUS_TONE[proposal.status] ?? STATUS_TONE.draft}`}
+          title="Where this document stands with the client"
+        >
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="accepted">Accepted</option>
+          <option value="declined">Declined</option>
+        </select>
 
         <a
           href={`/proposals/${proposal.id}/pdf`}

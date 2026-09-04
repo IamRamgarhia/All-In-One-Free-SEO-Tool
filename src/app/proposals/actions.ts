@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { splitSurfaces, surfacesFor } from "@/lib/engagement-surfaces";
+import { classifyIntent } from "@/lib/keyword-research";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -244,12 +246,28 @@ export async function buildKickoffReport(
 
   const baseline = await keywordBaselineFor(clientId);
   const timeline = await timelineFor(clientId);
+  // Frozen with everything else. What the client agreed to has to still
+  // read the same in month three, after somebody has edited the scope on
+  // the client record.
+  const surfaces = surfacesFor(client.surfacesJson, client.niche);
+  const { inScope, outOfScope } = splitSurfaces(surfaces);
 
   // AI writes the framing only. Every number above is computed, and the
   // prompt is given the numbers rather than the data, so there is nothing
   // for it to get arithmetically wrong. If no model is connected the
   // fallback below is used and the document is still complete.
-  let intro = fallbackIntro(client.name, baseline, timeline.length);
+  // How long the plan RUNS, not how many entries it has.
+  //
+  // This was timeline.length, which counts only the weeks that happen to
+  // contain work. A real generated plan with tasks in weeks 1, 4, 6, 9,
+  // 11 and 12 produced "the plan below covers the next 6 weeks" on a
+  // document a client signs — off by half, in our favour, in writing.
+  const planWeeks = timeline.reduce((max, t) => {
+    const n = Number(t.week.replace(/\D+/g, ""));
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+
+  let intro = fallbackIntro(client.name, baseline, planWeeks);
   try {
     const { callAI } = await import("@/lib/ai-call");
     const written = await callAI({
@@ -262,7 +280,11 @@ export async function buildKickoffReport(
         `Their site was audited and we found things to fix.\n` +
         `They track ${baseline.tracked} keywords, ${baseline.ranking} of which already rank, ` +
         `${baseline.inTopTen} on page one.\n` +
-        `The plan runs ${timeline.length} weeks.\n` +
+        `The plan runs ${planWeeks} weeks.\n` +
+        `We will work on: ${inScope.map((sf) => sf.label.toLowerCase()).join(", ") || "nothing agreed yet"}.\n` +
+        (outOfScope.length > 0
+          ? `Not included: ${outOfScope.map((sf) => sf.label.toLowerCase()).join(", ")}.\n`
+          : "") +
         `Write the opening paragraph. Say what we looked at, what we found in general terms, ` +
         `and what the first weeks focus on. Do not repeat the numbers back as a list.`,
     });
@@ -278,6 +300,7 @@ export async function buildKickoffReport(
       intro,
       baselineJson: baseline,
       timelineJson: timeline,
+      surfacesJson: surfaces,
       updatedAt: new Date(),
     })
     .where(eq(proposals.id, base.id));
@@ -293,6 +316,7 @@ async function keywordBaselineFor(clientId: number) {
     .select({
       keyword: keywords.query,
       position: keywordRankings.position,
+      url: keywordRankings.url,
       checkedAt: keywordRankings.checkedAt,
     })
     .from(keywords)
@@ -302,12 +326,13 @@ async function keywordBaselineFor(clientId: number) {
 
   // One row per keyword — the newest check wins, and a keyword that has
   // never been checked still counts as tracked with an unknown position.
-  const latest = new Map<string, number | null>();
+  const latest = new Map<string, { position: number | null; url: string | null }>();
   for (const r of rows) {
-    if (!latest.has(r.keyword)) latest.set(r.keyword, r.position ?? null);
+    if (!latest.has(r.keyword))
+      latest.set(r.keyword, { position: r.position ?? null, url: r.url ?? null });
   }
 
-  const positions = [...latest.values()];
+  const positions = [...latest.values()].map((v) => v.position);
   return {
     tracked: latest.size,
     ranking: positions.filter((p) => p !== null).length,
@@ -315,10 +340,39 @@ async function keywordBaselineFor(clientId: number) {
     strikingDistance: positions.filter((p) => p !== null && p > 10 && p <= 20)
       .length,
     examples: [...latest.entries()]
-      .sort((a, b) => (a[1] ?? 999) - (b[1] ?? 999))
+      .sort((a, b) => (a[1].position ?? 999) - (b[1].position ?? 999))
       .slice(0, 3)
-      .map(([keyword, position]) => ({ keyword, position })),
+      .map(([keyword, v]) => ({ keyword, position: v.position })),
+    // The list itself, not a summary of it.
+    //
+    // The document said "24 keywords tracked, 6 on page one" and named
+    // three of them. A client approving a plan wants to see WHICH words
+    // — it is the only part of the document they can check against their
+    // own knowledge of their business, and the part they will push back
+    // on. Sorted best-first so the ones already working lead, with the
+    // not-yet-ranking ones last where the work is.
+    map: [...latest.entries()]
+      .map(([keyword, v]) => ({
+        keyword,
+        intent: classifyIntent(keyword),
+        position: v.position,
+        // Where it ranks today, if it does. A keyword with no page yet
+        // is the honest signal that something has to be written, so it
+        // says so rather than being left blank.
+        targetPage: v.url ? pathOf(v.url) : null,
+      }))
+      .sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999)),
   };
+}
+
+/** Just the path, so a table of URLs stays readable at PDF width. */
+function pathOf(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.pathname === "/" ? "/" : u.pathname.replace(/[/]+$/, "");
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -347,7 +401,10 @@ async function timelineFor(clientId: number) {
   const byWeek = new Map<number, string[]>();
   for (const t of dated) {
     const week = Math.floor((t.dueDate.getTime() - start) / (7 * DAY)) + 1;
-    if (week > 8) continue; // a kickoff document covers the near term
+    // 13 weeks, not 8. A document headed "the first 90 days" that
+    // silently dropped everything past week 8 was showing 56 days of it
+    // and calling that the plan.
+    if (week > 13) continue;
     const arr = byWeek.get(week) ?? [];
     if (arr.length < 5) arr.push(t.title);
     byWeek.set(week, arr);
@@ -359,7 +416,25 @@ async function timelineFor(clientId: number) {
       week: `Week ${week}`,
       focus: focusOf(items),
       items,
+      phase: phaseOf(week),
     }));
+}
+
+/**
+ * The 30 / 60 / 90 phase a week falls in.
+ *
+ * Weeks alone are a list; phases are a story, and a client reading
+ * "Week 7" has no idea whether that is still setup or already growth.
+ * The names are the ones agencies actually use, but the CONTENTS stay
+ * derived from real tasks — the wizard used to print a hardcoded
+ * "Week 1: technical baseline, Week 2: GSC quick-wins" for every client
+ * alike, and a phase label is only an improvement if it does not
+ * reintroduce that.
+ */
+function phaseOf(week: number): string {
+  if (week <= 4) return "Foundation · days 1-30";
+  if (week <= 9) return "Content and authority · days 31-60";
+  return "Compound growth · days 61-90";
 }
 
 /**

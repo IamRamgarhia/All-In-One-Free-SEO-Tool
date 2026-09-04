@@ -45,8 +45,21 @@ export const clients = sqliteTable("clients", {
   serviceRadiusKm: integer("service_radius_km"),
   /** Onboarding state machine — once "completed", the wizard hides. */
   onboardingStep: text("onboarding_step", {
-    enum: ["pending", "brand", "keywords", "targeting", "completed"],
+    enum: ["pending", "brand", "keywords", "targeting", "surfaces", "completed"],
   }).default("pending"),
+  /**
+   * Where we work for this client — website, local, e-commerce, content,
+   * links, AI search. See lib/engagement-surfaces.ts.
+   *
+   * Null means never asked, and reads back as the niche's default rather
+   * than as an empty scope; an empty array is a real answer meaning the
+   * user unticked everything. The client's approval document renders
+   * both what is in scope and what explicitly is not, and the latter is
+   * only honest if "not chosen" and "chosen against" stay distinct.
+   */
+  surfacesJson: text("surfaces_json", { mode: "json" }).$type<
+    string[] | null
+  >(),
   /** Generated 30-day plan timestamp — null = not generated yet. */
   planGeneratedAt: integer("plan_generated_at", { mode: "timestamp" }),
   // Google integrations — paired against the Google account connected
@@ -2234,10 +2247,34 @@ export const proposals = sqliteTable("proposals", {
     inTopTen: number;
     strikingDistance: number;
     examples: { keyword: string; position: number | null }[];
+    /**
+     * The keyword list the client actually reads, frozen with the rest.
+     * Optional because documents built before this existed have counts
+     * and no list, and those must keep rendering.
+     */
+    map?: {
+      keyword: string;
+      intent: string;
+      position: number | null;
+      targetPage: string | null;
+    }[];
   } | null>(),
   /** The week-by-week plan being approved. Frozen for the same reason. */
   timelineJson: text("timeline_json", { mode: "json" }).$type<
-    { week: string; focus: string; items: string[] }[] | null
+    { week: string; focus: string; items: string[]; phase?: string }[] | null
+  >(),
+  /**
+   * What the client is agreeing we will work on, frozen at the moment
+   * they were sent it.
+   *
+   * Deliberately not the same field as `scopeJson`. That one is work
+   * derived from audit findings ("Technical fixes — 14 findings") and
+   * changes as the site does. This is the engagement's boundary, and it
+   * has to still say what they agreed to a month later even after the
+   * findings have all been fixed.
+   */
+  surfacesJson: text("surfaces_json", { mode: "json" }).$type<
+    string[] | null
   >(),
   /** The audit this was built from, so the document can cite its basis. */
   auditId: integer("audit_id").references(() => audits.id, {

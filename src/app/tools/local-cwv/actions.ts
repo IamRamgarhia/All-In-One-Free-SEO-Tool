@@ -4,6 +4,7 @@ import { z } from "zod";
 import { measureCwv, type CwvResult } from "@/lib/local-cwv";
 import { measureCwvPsi } from "@/lib/local-cwv-psi";
 import { saveToolRun } from "@/lib/tool-runs";
+import type { PsiFailure } from "@/lib/psi-error";
 
 const inputSchema = z.object({
   url: z
@@ -22,7 +23,9 @@ const inputSchema = z.object({
 
 export type LocalCwvState =
   | { ok: true; result: CwvResult }
-  | { ok: false; error: string };
+  // `failure` carries where the fix is, so the form can render a button
+  // instead of a sentence naming a settings page.
+  | { ok: false; error: string; failure?: PsiFailure };
 
 export async function runLocalCwv(
   _prev: LocalCwvState | null,
@@ -37,14 +40,41 @@ export async function runLocalCwv(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   try {
-    const result =
-      parsed.data.mode === "local"
-        ? await measureCwv(parsed.data.url, { device: parsed.data.device })
-        : await measureCwvPsi(parsed.data.url, { device: parsed.data.device });
-    if (!result.ok && result.error) return { ok: false, error: result.error };
+    const { url, device, mode } = parsed.data;
+
+    let result =
+      mode === "local"
+        ? { ...(await measureCwv(url, { device })), source: "local" as const }
+        : await measureCwvPsi(url, { device });
+
+    // Fall back to the local browser when PSI cannot answer.
+    //
+    // This tool is called "Local Core Web Vitals (no PSI key)" and its
+    // default mode was PSI, which with no key draws on a daily allowance
+    // shared by every install of this app on earth. That allowance is
+    // routinely gone, so the default path failed for everyone who had
+    // not added a key — and the tool has a mode right here that needs no
+    // key at all. Not falling back was the bug; the 429 was the symptom.
+    if (!result.ok && result.failure?.retryLocally && mode === "psi") {
+      const local = await measureCwv(url, { device });
+      if (local.ok) {
+        result = {
+          ...local,
+          source: "local",
+          fellBackBecause: result.failure.message,
+        };
+      }
+    }
+
+    if (!result.ok && result.error)
+      return { ok: false, error: result.error, failure: result.failure };
     await saveToolRun({
       toolId: "local-cwv",
-      label: `${parsed.data.url} · ${parsed.data.device} · ${parsed.data.mode}`,
+      // The label records how it was ACTUALLY measured, not what was
+      // asked for. A run that fell back to the local browser is not the
+      // same measurement as a PSI run — PSI reads real-user field data
+      // where it exists — and the history would have claimed otherwise.
+      label: `${url} · ${device} · ${result.source ?? mode}`,
       input: parsed.data,
       result: { ok: true, result },
     }).catch(() => undefined);

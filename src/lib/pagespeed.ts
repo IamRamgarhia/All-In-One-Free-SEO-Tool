@@ -1,4 +1,5 @@
 import { getSetting } from "./settings-store";
+import { psiHttpFailure, psiNetworkFailure } from "./psi-error";
 
 /**
  * PageSpeed Insights API — free, 25,000 requests/day. The user can paste a
@@ -93,7 +94,7 @@ export async function scanCwv(opts: {
       headers: { accept: "application/json" },
     });
   } catch (err) {
-    out.error = (err as Error).message;
+    out.error = psiNetworkFailure(err).message;
     clearTimeout(t);
     return out;
   } finally {
@@ -101,7 +102,12 @@ export async function scanCwv(opts: {
   }
 
   if (!res.ok) {
-    out.error = `PageSpeed API ${res.status}`;
+    // Was `PageSpeed API ${res.status}`, which told the reader a number
+    // and nothing they could act on. The commonest value by far is 429 —
+    // Google's keyless quota, shared by every install — and the fix is a
+    // free key the message never mentioned.
+    const body = await res.text().catch(() => "");
+    out.error = psiHttpFailure(res.status, body).message;
     return out;
   }
 

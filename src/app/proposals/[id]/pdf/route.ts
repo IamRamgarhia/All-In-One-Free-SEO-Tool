@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { splitSurfaces, surfacesFor } from "@/lib/engagement-surfaces";
 import { db } from "@/db/client";
 import { proposals } from "@/db/schema";
 import { canSeeClient, currentUser } from "@/lib/auth";
@@ -43,6 +44,17 @@ export async function GET(
     // they're null, so ordinary sales proposals render exactly as before.
     keywordBaseline: row.baselineJson ?? null,
     timeline: row.timelineJson ?? null,
+    // Read from the frozen column, never recomputed from the client
+    // record. What they agreed to has to keep reading the same after
+    // somebody edits the client's scope next month.
+    surfaces: row.surfacesJson
+      ? (() => {
+          const { inScope, outOfScope } = splitSurfaces(
+            surfacesFor(row.surfacesJson, null),
+          );
+          return { inScope, outOfScope };
+        })()
+      : null,
   });
 
   const filename = `${slug(row.prospectName)}-proposal.pdf`;

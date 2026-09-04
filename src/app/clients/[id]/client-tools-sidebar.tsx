@@ -10,6 +10,11 @@ import {
 } from "./client-tools-launcher";
 import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
 import { toolReadiness } from "@/lib/tool-readiness";
+import {
+  allMappedGroups,
+  groupsForSurfaces,
+  type SurfaceId,
+} from "@/lib/engagement-surfaces";
 import type { OpenToolState } from "./client-tools-panel";
 
 /**
@@ -29,9 +34,18 @@ import type { OpenToolState } from "./client-tools-panel";
 export function ClientToolsSidebar({
   client,
   hasAiKey = false,
+  surfaces,
   onOpenTool,
 }: {
   client: ClientToolsClient;
+  /**
+   * What this engagement covers. Groups belonging to a chosen surface
+   * sort first and stay open; the rest fall below a divider, collapsed.
+   * Ordering, not gating — every tool is still one click away, because
+   * a scope decision made during onboarding should not stop somebody
+   * using a tool they want today.
+   */
+  surfaces?: SurfaceId[];
   /**
    * Whether this app can call a model — a provider key or Ollama. A
    * connected chat subscription is NOT this: MCP runs the other way
@@ -45,11 +59,40 @@ export function ClientToolsSidebar({
    */
   onOpenTool?: (tool: OpenToolState) => void;
 }) {
-  const groups = buildClientToolGroups(client);
+  const allGroups = buildClientToolGroups(client);
+
+  // Scope order. Groups no surface claims — "Paid ads & growth" — keep
+  // their place among the in-scope ones rather than being demoted:
+  // unmapped is not the same as declined, and treating it as such would
+  // quietly bury a tool nobody decided about.
+  const scoped = surfaces && surfaces.length > 0 ? groupsForSurfaces(surfaces) : null;
+  const mapped = new Set(allMappedGroups());
+  const outOfScope = new Set(
+    scoped ? [...mapped].filter((g) => !scoped.includes(g)) : [],
+  );
+  const groups = scoped
+    ? [...allGroups].sort((a, b2) => {
+        const rank = (label: string) =>
+          outOfScope.has(label) ? 2 : scoped.indexOf(label) === -1 ? 1 : 0;
+        const d = rank(a.label) - rank(b2.label);
+        if (d !== 0) return d;
+        return scoped.indexOf(a.label) - scoped.indexOf(b2.label);
+      })
+    : allGroups;
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    new Set(),
+    // Out-of-scope groups start closed. Seeded once from the initial
+    // scope rather than derived every render, so a user who opens one
+    // does not have it snap shut again.
+    () =>
+      new Set(
+        surfaces && surfaces.length > 0
+          ? allMappedGroups().filter(
+              (g) => !groupsForSurfaces(surfaces).includes(g),
+            )
+          : [],
+      ),
   );
 
   const q = query.trim().toLowerCase();
@@ -145,8 +188,22 @@ export function ClientToolsSidebar({
         {filteredGroups.map((g, gIdx) => {
           const collapsed = collapsedGroups.has(g.label);
           const groupAccent = GROUP_ACCENTS[gIdx % GROUP_ACCENTS.length];
+          // First group past the scope boundary gets the divider, so the
+          // client's agreed scope is visible here and not only in the PDF.
+          const firstOut =
+            outOfScope.has(g.label) &&
+            !filteredGroups
+              .slice(0, gIdx)
+              .some((prev) => outOfScope.has(prev.label));
           return (
             <section key={g.label}>
+              {firstOut && !q && (
+                <p className="mb-1 mt-3 flex items-center gap-2 px-1 text-[9px] uppercase tracking-wider text-muted-foreground/70">
+                  <span className="h-px flex-1 bg-white/[0.06]" />
+                  Not in this engagement
+                  <span className="h-px flex-1 bg-white/[0.06]" />
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => toggleGroup(g.label)}

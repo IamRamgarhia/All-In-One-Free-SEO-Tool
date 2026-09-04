@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isSurfaceId } from "@/lib/engagement-surfaces";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -99,13 +100,53 @@ export async function saveTargetingStep(
       city: parsed.data.city ?? null,
       geoTarget: parsed.data.geoTarget,
       serviceRadiusKm: parsed.data.serviceRadiusKm ?? null,
-      onboardingStep: "completed",
+      onboardingStep: "surfaces",
       updatedAt: new Date(),
     })
     .where(eq(clients.id, parsed.data.clientId));
 
   revalidatePath(`/clients/${parsed.data.clientId}`);
   revalidatePath(`/clients/${parsed.data.clientId}/onboarding`);
+  return { ok: true };
+}
+
+/**
+ * Step 4 — what this engagement covers.
+ *
+ * The one thing a client signing off asks that nothing here could
+ * answer: what are you actually going to work on? Niche, locale and tech
+ * stack were all collected and none of them say whether we touch their
+ * Google Business Profile or their product pages.
+ *
+ * An empty selection is allowed and stored as an empty array, which is
+ * NOT the same as the null that means "never asked". The document renders
+ * an out-of-scope list, and that list is only honest if declining
+ * something and never being offered it stay distinguishable.
+ */
+export async function saveSurfacesStep(
+  _prev: SaveBrandResult | null,
+  formData: FormData,
+): Promise<SaveBrandResult> {
+  const clientId = Number(formData.get("clientId"));
+  if (!Number.isFinite(clientId) || clientId <= 0)
+    return { ok: false, error: "Invalid client." };
+
+  const picked = formData
+    .getAll("surfaces")
+    .map(String)
+    .filter((v) => isSurfaceId(v));
+
+  await db
+    .update(clients)
+    .set({
+      surfacesJson: picked,
+      onboardingStep: "completed",
+      updatedAt: new Date(),
+    })
+    .where(eq(clients.id, clientId));
+
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/clients/${clientId}/onboarding`);
   return { ok: true };
 }
 

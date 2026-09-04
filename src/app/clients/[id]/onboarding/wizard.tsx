@@ -6,6 +6,7 @@ import {
   Circle,
   Globe,
   Loader2,
+  Layers,
   MapPin,
   Search,
   Sparkles,
@@ -15,15 +16,23 @@ import {
   generateMonthlyCalendar,
   runKeywordDiscovery,
   saveBrandStep,
+  saveSurfacesStep,
   saveTargetingStep,
   skipOnboarding,
   type DiscoverState,
   type SaveBrandResult,
 } from "./actions";
 import { COUNTRIES } from "./countries";
+import { SURFACES, surfacesFor } from "@/lib/engagement-surfaces";
 import { AuditProgressBar } from "./audit-progress";
 
-type Step = "pending" | "brand" | "keywords" | "targeting" | "completed";
+type Step =
+  | "pending"
+  | "brand"
+  | "keywords"
+  | "targeting"
+  | "surfaces"
+  | "completed";
 
 type WizardClient = {
   id: number;
@@ -39,6 +48,8 @@ type WizardClient = {
   serviceRadiusKm: number | null;
   gscProperty: string | null;
   gbpUrl: string | null;
+  /** Null = never asked; reads back as the niche default. */
+  surfacesJson: string[] | null;
   onboardingStep: Step;
   planGeneratedAt: Date | null;
 };
@@ -47,6 +58,7 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "brand", label: "Brand" },
   { id: "keywords", label: "Keywords" },
   { id: "targeting", label: "Targeting" },
+  { id: "surfaces", label: "Scope" },
   { id: "completed", label: "Plan" },
 ];
 
@@ -71,7 +83,10 @@ export function OnboardingWizard({ client }: { client: WizardClient }) {
         <KeywordsStep client={client} onNext={() => setStep("targeting")} />
       )}
       {step === "targeting" && (
-        <TargetingStep client={client} onNext={() => setStep("completed")} />
+        <TargetingStep client={client} onNext={() => setStep("surfaces")} />
+      )}
+      {step === "surfaces" && (
+        <SurfacesStep client={client} onNext={() => setStep("completed")} />
       )}
       {step === "completed" && <CompletedStep client={client} />}
     </>
@@ -501,7 +516,135 @@ function TargetingStep({
   );
 }
 
-// =========== Step 4: Completed / generate plan ===========
+// =========== Step 4: Where we'll work ===========
+
+/**
+ * The section every agency scope-of-work leads with, and the one this
+ * wizard had no answer for.
+ *
+ * Pre-ticked from the niche so the common case is one click, but the
+ * ticks are real choices: unticking something is what puts it on the
+ * "not included in this engagement" list in the client's document, which
+ * is the half that prevents an argument in month three.
+ */
+function SurfacesStep({
+  client,
+  onNext,
+}: {
+  client: WizardClient;
+  onNext: () => void;
+}) {
+  const [picked, setPicked] = useState<Set<string>>(
+    () => new Set(surfacesFor(client.surfacesJson, client.niche)),
+  );
+  const [state, formAction, pending] = useActionState<
+    SaveBrandResult | null,
+    FormData
+  >(saveSurfacesStep, null);
+
+  useEffect(() => {
+    if (state?.ok) onNext();
+  }, [state, onNext]);
+
+  function toggle(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const out = SURFACES.filter((sf) => !picked.has(sf.id));
+
+  return (
+    <form
+      action={formAction}
+      className="glass-apple relative overflow-hidden rounded-2xl p-6 space-y-4"
+    >
+      <input type="hidden" name="clientId" value={client.id} />
+
+      <div>
+        <h2 className="text-base font-semibold flex items-center gap-2">
+          <Layers className="size-4 text-violet-300" />
+          Where will you be working?
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This goes straight into the document {client.name}
+          {" "}approves — both what you&apos;re doing and, just as usefully,
+          what you&apos;re not. We&apos;ve ticked the usual set for a{" "}
+          {client.niche ?? "business"}
+          {" "}site; change anything that doesn&apos;t fit.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {SURFACES.map((sf) => {
+          const on = picked.has(sf.id);
+          return (
+            <label
+              key={sf.id}
+              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                on
+                  ? "border-violet-500/30 bg-violet-500/[0.07]"
+                  : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                name="surfaces"
+                value={sf.id}
+                checked={on}
+                onChange={() => toggle(sf.id)}
+                className="mt-0.5 size-4 shrink-0 accent-violet-500"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{sf.label}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  {sf.detail}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {/* Shown live, because the out-of-scope list is the part people
+          forget they are writing. */}
+      {out.length > 0 && (
+        <p className="rounded-md bg-white/[0.03] px-3 py-2 text-xs leading-relaxed text-muted-foreground ring-1 ring-inset ring-white/5">
+          <strong className="text-foreground">Not included:</strong>{" "}
+          {out.map((sf) => sf.label.toLowerCase()).join(", ")}. The document
+          will say so, so nobody assumes otherwise later.
+        </p>
+      )}
+
+      {state && !state.ok && (
+        <p className="text-xs text-rose-300">{state.error}</p>
+      )}
+
+      <div className="flex items-center justify-between">
+        <SkipButton clientId={client.id} />
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex h-10 items-center rounded-md bg-violet-500/15 px-5 text-sm font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+        >
+          {pending ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Saving…
+            </>
+          ) : (
+            "Continue → the plan"
+          )}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// =========== Step 5: Completed / generate plan ===========
 
 function CompletedStep({ client }: { client: WizardClient }) {
   const [, startTransition] = useTransition();
