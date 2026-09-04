@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -57,7 +58,8 @@ const TYPES: { id: SchemaType; label: string; description: string }[] = [
 
 export default function SchemaGeneratorPage() {
   const [type, setType] = useState<SchemaType>("Article");
-  const [url, setUrl] = useState("");
+  // Seeded from ?url= so opening this from a client keeps the client.
+  const [url, setUrl] = useState(usePresetUrl());
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
   const [jsonld, setJsonld] = useState<string | null>(null);

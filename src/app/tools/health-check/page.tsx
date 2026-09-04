@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -47,7 +48,8 @@ const SEV_TONE: Record<string, string> = {
 };
 
 export default function HealthCheckPage() {
-  const [url, setUrl] = useState("");
+  // Seeded from ?url= so opening this from a client keeps the client.
+  const [url, setUrl] = useState(usePresetUrl());
   const [pending, startTransition] = useTransition();
   const [savePending, startSave] = useTransition();
   const [result, setResult] = useState<HealthResult | null>(null);

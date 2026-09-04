@@ -1,10 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { Gauge, Loader2 } from "lucide-react";
 import { runLocalCwv, type LocalCwvState } from "./actions";
 
 export function LocalCwvForm() {
+  // Prefilled when opened from a client, so the domain is not retyped.
+  const presetUrl = usePresetUrl();
   const [state, formAction, pending] = useActionState<
     LocalCwvState | null,
     FormData
@@ -21,6 +24,7 @@ export function LocalCwvForm() {
             <span className="text-muted-foreground">URL</span>
             <input
               name="url"
+              defaultValue={presetUrl}
               required
               placeholder="https://example.com/landing"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

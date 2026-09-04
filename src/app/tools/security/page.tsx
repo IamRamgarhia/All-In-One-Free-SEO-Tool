@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -18,7 +19,8 @@ import { Label } from "@/components/ui/label";
 import { checkSecurity, type SecurityResult } from "./actions";
 
 export default function SecurityPage() {
-  const [url, setUrl] = useState("");
+  // Seeded from ?url= so opening this from a client keeps the client.
+  const [url, setUrl] = useState(usePresetUrl());
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<SecurityResult | null>(null);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -29,6 +30,8 @@ const RISK_LEVEL_TEXT = {
 };
 
 export default function WpHackScanPage() {
+  // Prefilled when opened from a client, so the domain is not retyped.
+  const presetUrl = usePresetUrl();
   const [state, formAction, pending] = useActionState<WpHackState, FormData>(
     runWpHackScan,
     null,
@@ -52,6 +55,7 @@ export default function WpHackScanPage() {
           <span className="text-muted-foreground">WordPress site URL</span>
           <input
             name="url"
+            defaultValue={presetUrl}
             required
             placeholder="https://yoursite.com"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"
