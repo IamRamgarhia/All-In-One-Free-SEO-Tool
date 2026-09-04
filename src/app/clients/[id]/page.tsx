@@ -59,6 +59,7 @@ import {
   clientMetricSnapshots,
   proposals,
 } from "@/db/schema";
+import { Dropdown } from "@/components/ui/dropdown";
 import { ClientToolsPanel } from "./client-tools-panel";
 import { StartHere } from "./start-here";
 import { surfacesFor } from "@/lib/engagement-surfaces";
@@ -616,18 +617,17 @@ export default async function ClientDetailPage({
                   </form>
 
                   {/* Generate report dropdown */}
-                  <details className="group/rep relative">
-                    <summary
-                      className={buttonVariants({
-                        variant: "outline",
-                        className:
-                          "list-none cursor-pointer [&::-webkit-details-marker]:hidden",
-                      })}
-                    >
-                      <FileDown className="size-3.5" />
-                      Generate report
-                    </summary>
-                    <div className="absolute left-0 top-full z-20 mt-1 w-60 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+                  <Dropdown
+                    width={240}
+                    className={buttonVariants({ variant: "outline" })}
+                    trigger={
+                      <>
+                        <FileDown className="size-3.5" />
+                        Generate report
+                      </>
+                    }
+                  >
+                    <div>
                       <Link
                         href={`/reports/${client.id}?template=executive`}
                         className="block px-3 py-2 text-sm hover:bg-accent"
@@ -656,7 +656,7 @@ export default async function ClientDetailPage({
                         </div>
                       </Link>
                     </div>
-                  </details>
+                  </Dropdown>
 
                   {/* Primary AI surface */}
                   <Link
@@ -693,18 +693,19 @@ export default async function ClientDetailPage({
                   </Link>
 
                   {/* Overflow — everything else */}
-                  <details className="group/more relative ml-auto">
-                    <summary
-                      className={buttonVariants({
-                        variant: "outline",
-                        className:
-                          "list-none cursor-pointer [&::-webkit-details-marker]:hidden",
-                      })}
-                    >
-                      <MoreHorizontal className="size-3.5" />
-                      More
-                    </summary>
-                    <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+                  <div className="ml-auto">
+                  <Dropdown
+                    align="right"
+                    width={224}
+                    className={buttonVariants({ variant: "outline" })}
+                    trigger={
+                      <>
+                        <MoreHorizontal className="size-3.5" />
+                        More
+                      </>
+                    }
+                  >
+                    <div>
                       <Link
                         href={`/agent/c/${client.id}`}
                         className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
@@ -759,7 +760,8 @@ export default async function ClientDetailPage({
                         </SubmitButton>
                       </form>
                     </div>
-                  </details>
+                  </Dropdown>
+                  </div>
                 </div>
               </div>
             </div>
