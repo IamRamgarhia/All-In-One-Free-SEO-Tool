@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Loader2, Check, X, Circle, Copy } from "lucide-react";
 import { runAiRobotsAudit } from "./actions";
+import { usePresetClientId, usePresetUrl } from "@/components/use-preset-url";
 import type { RobotsAudit } from "@/lib/ai-bot-robots";
 
 const STATUS_META: Record<
@@ -32,7 +33,11 @@ const STATUS_META: Record<
 };
 
 export function AiRobotsForm() {
-  const [url, setUrl] = useState("");
+  // Prefilled when the tool is opened from a client, so the domain is
+  // not retyped and the findings attach to the right client.
+  const presetUrl = usePresetUrl();
+  const clientId = usePresetClientId();
+  const [url, setUrl] = useState(presetUrl);
   const [result, setResult] = useState<RobotsAudit | null>(null);
   const [pending, startTransition] = useTransition();
   const [copied, setCopied] = useState(false);
@@ -43,7 +48,11 @@ export function AiRobotsForm() {
     setResult(null);
     setCopied(false);
     startTransition(async () => {
-      const r = await runAiRobotsAudit(url.trim());
+      // The client id matters more than it looks. Without it the
+      // findings this records have no client, so the agent — which
+      // plans per client — never sees them, and the tool goes back to
+      // computing an answer that reaches nothing.
+      const r = await runAiRobotsAudit(url.trim(), clientId ?? undefined);
       setResult(r);
     });
   }

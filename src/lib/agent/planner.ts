@@ -32,6 +32,7 @@ import { agentActions, auditIssues, audits, clients } from "@/db/schema";
 import type { AgentSettings } from "./autonomy";
 import { has, type ClientCapabilities } from "./capabilities";
 import { analyseInternalLinks } from "../internal-link-graph";
+import { loadActionableToolFindings } from "./tool-finding-map";
 import { pickAnchor } from "./anchor-text";
 
 export type PlannedAction = {
@@ -68,6 +69,15 @@ export type PlannedAction = {
    */
   links?: { anchor: string; url: string }[];
 };
+
+/**
+ * Kinds whose target is the site, not a page.
+ *
+ * They dedup on the kind alone and their cooldown is site-wide, because
+ * there is only one of the thing being edited no matter how many URLs
+ * describe it.
+ */
+export const SITE_WIDE_KINDS: ReadonlySet<string> = new Set(["write_robots_txt"]);
 
 export type PlannableKind =
   | "write_title"
@@ -354,6 +364,50 @@ export async function planForClient(opts: {
   }
   note("Findings the agent has no way to fix automatically.", notFixable);
 
+  // 1a. The same, from tools rather than the crawler.
+  //
+  // The tools produce findings into their own table and, until now, the
+  // agent had never read one — so a tool could detect a problem the
+  // agent already knew how to fix and the two never met. See
+  // tool-finding-map.ts for why the mapping goes onto the crawler's
+  // vocabulary rather than beside it.
+  //
+  // Deliberately after the audit findings and before dedup: an audit
+  // finding and a tool finding for the same page and the same problem
+  // collapse to one action at step 3, and the audit's copy wins because
+  // it is already in the list.
+  let fromTools = 0;
+  try {
+    const toolFound = await loadActionableToolFindings({
+      clientId: opts.clientId,
+      now,
+    });
+    for (const f of toolFound) {
+      const spec = FIXABLE[f.type];
+      if (!spec) continue;
+      // Without a URL there is nothing for a per-page action to target.
+      // Site-wide kinds ignore targetUrl, but they still carry one so
+      // the dedup key and the run log have something to show.
+      if (!f.url) continue;
+      candidates.push({
+        kind: spec.kind,
+        targetUrl: f.url,
+        // Says where it came from. A user reading the run log should be
+        // able to tell a crawl finding from a tool's, because they can
+        // disagree and the tool is usually the more specific of the two.
+        reason: `${spec.reason} (found by the ${f.toolId} tool)`,
+        risk: spec.risk,
+        weight: spec.weight + severityBonus(f.severity),
+      });
+      fromTools++;
+    }
+  } catch {
+    // A broken tool-findings read must not take the whole run down —
+    // the crawler findings above are the primary source and still stand.
+    fromTools = 0;
+  }
+  void fromTools;
+
   // 1b. Internal links, which don't come from a finding.
   //
   // Everything above starts with something the audit noticed about one
@@ -387,11 +441,21 @@ export async function planForClient(opts: {
   // 3. One action per page+kind. An audit can report the same problem
   //    from several crawl paths, and without this the agent would edit
   //    one page three times in a row.
+  //
+  //    Site-wide kinds key on the kind alone. There is one robots.txt
+  //    however many URLs point at it, and the crawler and the ai-robots
+  //    tool describe it with different ones — the crawl says
+  //    "https://site/robots.txt", the tool says "https://site/". Keying
+  //    on the URL let both through, so the agent planned the same
+  //    site-wide edit twice and burned two of its per-run slots to
+  //    apply it once.
   const seen = new Set<string>();
   const deduped: PlannedAction[] = [];
   let duplicates = 0;
   for (const a of capable) {
-    const key = `${a.kind}::${a.targetUrl}`;
+    const key = SITE_WIDE_KINDS.has(a.kind)
+      ? a.kind
+      : `${a.kind}::${a.targetUrl}`;
     if (seen.has(key)) {
       duplicates++;
       continue;
