@@ -16,13 +16,25 @@ export type OpenToolState = { url: string; title: string };
  * follows the link to the standalone tool page — preserves the user's
  * ability to fan out into multiple browser tabs when they want to.
  */
-export function ClientToolsPanel({ client }: { client: ClientToolsClient }) {
+export function ClientToolsPanel({
+  client,
+  hasAiKey = false,
+}: {
+  client: ClientToolsClient;
+  /**
+   * Passed straight through to the rail so its dots can tell ready from
+   * blocked. Read server-side on the client page; a connected chat
+   * subscription is not a key and does not count.
+   */
+  hasAiKey?: boolean;
+}) {
   const [openTool, setOpenTool] = useState<OpenToolState | null>(null);
 
   return (
     <>
       <ClientToolsSidebar
         client={client}
+        hasAiKey={hasAiKey}
         onOpenTool={(t) => setOpenTool(t)}
       />
       {openTool && (

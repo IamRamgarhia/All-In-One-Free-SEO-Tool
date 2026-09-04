@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { GitMerge } from "lucide-react";
+import { SetupPrompt } from "@/components/setup-prompt";
 import { PageHeader } from "@/components/shell/page-header";
 import { listGscProperties } from "@/lib/google-oauth";
 import { BrandedForm } from "./branded-form";
@@ -21,9 +22,12 @@ export default async function BrandedSplitPage() {
         accent="amber"
       />
       {properties.length === 0 ? (
-        <div className="glass-apple rounded-2xl p-5 text-sm text-muted-foreground">
-          Connect Google Search Console first — Settings → Google.
-        </div>
+        <SetupPrompt
+          title="Connect Google Search Console to use this"
+          detail="Splitting branded from non-branded queries needs the real query data from Search Console — a brand drop and a non-brand drop have completely different causes."
+          href="/settings/google"
+          cta="Connect Search Console"
+        />
       ) : (
         <BrandedForm properties={properties.map((p) => p.siteUrl)} />
       )}

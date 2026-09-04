@@ -59,6 +59,7 @@ import {
   clientMetricSnapshots,
 } from "@/db/schema";
 import { ClientToolsPanel } from "./client-tools-panel";
+import { getAiAvailability } from "@/lib/ai-availability";
 import { DeleteClientButton } from "./delete-client-button";
 import { DailyAutomationCard } from "./daily-automation-card";
 import { inArray } from "drizzle-orm";
@@ -288,6 +289,10 @@ export default async function ClientDetailPage({
   const googleRedirectUri = `${proto}://${host}/api/google/callback`;
 
   const smtpConfigured = Boolean(await getSmtpConfig());
+  // Drives the ready/blocked dots in the per-client tool rail. `hasKey`,
+  // not `available` — the rail is asking whether the tool page you are
+  // about to open can call a model itself.
+  const ai = await getAiAvailability();
   const [scheduleRow] = await db
     .select()
     .from(reportSchedules)
@@ -323,6 +328,7 @@ export default async function ClientDetailPage({
             ga4PropertyId: client.ga4PropertyId,
             wpEndpoint: client.wpEndpoint,
           }}
+          hasAiKey={ai.hasKey}
         />
 
         <div className="min-w-0 flex-1 space-y-6">

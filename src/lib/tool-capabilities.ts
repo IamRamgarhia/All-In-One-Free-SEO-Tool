@@ -53,6 +53,37 @@ const BY_ROUTE = new Map<string, ToolCapability>(
 );
 
 /**
+ * Dynamic routes, matched by shape.
+ *
+ * The generated table stores Next's own route patterns —
+ * "/content/c/[clientId]" — while every link in the app is a real URL,
+ * "/content/c/4". An exact-map lookup missed all of them. Nothing threw;
+ * the caller just got null and treated the route as unknown, which is
+ * how a third of the per-client rail (where nearly every link has a
+ * client id in the path) ended up with no readiness dot at all.
+ *
+ * Sorted longest-first so a more specific pattern wins over a shorter
+ * one that also matches.
+ */
+const DYNAMIC_ROUTES = TOOL_CAPABILITIES.filter((c) => c.route.includes("["))
+  .map((c) => ({
+    cap: c,
+    re: new RegExp(
+      "^" +
+        c.route
+          .split("/")
+          .map((seg) => {
+            if (/^\[\.\.\..+\]$/.test(seg)) return ".+"; // catch-all [...slug]
+            if (/^\[.+\]$/.test(seg)) return "[^/]+";
+            return seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          })
+          .join("/") +
+        "$",
+    ),
+  }))
+  .sort((a, b) => b.cap.route.length - a.cap.route.length);
+
+/**
  * Look up a route. Accepts a full href with query or hash — the sidebar
  * and the tools grid both pass real link targets.
  */
@@ -60,7 +91,9 @@ export function capabilityOf(href: string): ToolCapability | null {
   let route = href.split(/[?#]/)[0];
   // Drop a trailing slash, but never turn "/" into "".
   if (route.length > 1) route = route.replace(/\/+$/, "");
-  return BY_ROUTE.get(route) ?? null;
+  const exact = BY_ROUTE.get(route);
+  if (exact) return exact;
+  return DYNAMIC_ROUTES.find((d) => d.re.test(route))?.cap ?? null;
 }
 
 /**
@@ -96,12 +129,73 @@ const KNOWN_AI_PAGES = new Set([
   "/seo-chat",
   "/ai-visibility",
   "/content",
+  // Verified by reading the path, not by trusting the flag: the page's
+  // only action calls startAiAudit -> runAiSiteAudit -> callAI. Without
+  // a key it fails at the point the user presses the button, which is
+  // the worst place to find out.
+  "/clients/[id]/ai-audit",
 ]);
+
+/**
+ * The other side of the same coin: section hubs the derivation flags as
+ * needing AI that provably do not.
+ *
+ * These are the pages the per-client rail links to first — "Run a full
+ * audit", "Tracked keywords", "Backlink hub" — and they came back
+ * `unknown`, so the rail drew no dot on ten of its forty-three rows. A
+ * third of a panel whose whole job is to say "yes you can click this"
+ * saying nothing at all reads as the dots being broken, which is how
+ * they were reported the first two times.
+ *
+ * They are flagged because the import graph is reachability-based and
+ * these pages compose shared chrome — the add-client dialog, mostly —
+ * that can reach a spend module. The page's own work never does.
+ *
+ * Verified, not assumed: nothing under each of these route folders
+ * imports ai-call or any @/lib/ai-* module. tool-capabilities.test.ts
+ * re-runs that check, so if AI is ever added under one of these routes
+ * the build fails instead of the dot quietly starting to lie.
+ */
+const KNOWN_FREE_PAGES = new Set([
+  "/audits",
+  "/backlinks",
+  "/citations",
+  "/content-decay",
+  "/keywords",
+  "/local-grid",
+  "/local-rank",
+  "/topic-clusters",
+  "/clients/[id]/onboarding",
+]);
+
+/** The route folders KNOWN_FREE_PAGES claims are AI-free, for the test. */
+export const KNOWN_FREE_PAGE_ROUTES = [...KNOWN_FREE_PAGES];
+
+/**
+ * Will this page run with no AI key? True only when we can say so
+ * soundly — either the derivation says it needs nothing (which never
+ * over-states), or it is on the hand-verified list above.
+ */
+export function isKnownFreePage(route: string): boolean {
+  const cap = capabilityOf(route);
+  if (!cap) return false;
+  if (!cap.needsAI) return true;
+  const base = cap.route.replace(/\/c\/\[clientId\]$/, "");
+  return KNOWN_FREE_PAGES.has(base);
+}
 
 export function isKnownAiPage(route: string): boolean {
   const cap = capabilityOf(route);
   if (!cap?.needsAI) return false;
-  return /^\/tools\/[^/]+$/.test(route) || KNOWN_AI_PAGES.has(route);
+  // Test the resolved PATTERN, not the href we were handed. Callers pass
+  // real URLs — "/content/c/4", "/tools/geo-swot/c/4" — and testing those
+  // against "/tools/<name>" failed on every per-client view, so the page
+  // you reach from a client was silently treated as unknown while the
+  // same page reached from the sidebar was not.
+  const pattern = cap.route;
+  // A per-client view is the same tool, seen from a client.
+  const base = pattern.replace(/\/c\/\[clientId\]$/, "");
+  return /^\/tools\/[^/]+$/.test(base) || KNOWN_AI_PAGES.has(base);
 }
 
 export type ToolBadge = {

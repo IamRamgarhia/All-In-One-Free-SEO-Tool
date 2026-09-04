@@ -6,7 +6,7 @@ import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
 import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
-import { capabilityOf, isKnownAiPage } from "@/lib/tool-capabilities";
+import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
 import { useStoredState } from "@/components/use-stored-state";
 
 /** Alias kept so the render code below reads unchanged. */
@@ -433,29 +433,22 @@ export function Sidebar({
                               {label}
                             </span>
                           )}
-                          {/* A dot, same language as the tool cards.
-                              Green when the row needs no AI at all — a
-                              claim that cannot be wrong, since the
-                              derivation only ever over-states AI. Amber
-                              only for pages known to call a model, never
-                              from the flag alone: /audits is flagged
-                              purely because it embeds an add-client
-                              dialog, and an amber dot there would say a
-                              working page is blocked. Anything uncertain
-                              gets no dot rather than a guess. */}
-                          {!collapsed &&
-                            !unread[href] &&
-                            (capabilityOf(href)?.needsAI === false ? (
-                              <span
-                                title="Works now — needs no AI key, costs nothing to run."
-                                className="relative z-10 ml-auto size-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20"
-                              />
-                            ) : isKnownAiPage(href) && !hasAiKey ? (
-                              <span
-                                title="Needs an AI key. Add one in Settings → AI connection."
-                                className="relative z-10 ml-auto size-2 shrink-0 rounded-full bg-amber-500 ring-2 ring-amber-500/25"
-                              />
-                            ) : null)}
+                          {/* One dot, one rule — lib/tool-readiness.ts,
+                              shared with the per-client rail and the
+                              launcher cards. It renders nothing when the
+                              answer is genuinely unknown, which is the
+                              case for composed hub pages the import-graph
+                              derivation over-flags: /audits comes back
+                              "needs AI" only because it embeds an
+                              add-client dialog, and an amber dot there
+                              would call a working page broken. */}
+                          {!collapsed && !unread[href] && (
+                            <ToolDot
+                              href={href}
+                              hasAiKey={hasAiKey}
+                              className="relative z-10 ml-auto"
+                            />
+                          )}
                           {unread[href] && unread[href] > 0 ? (
                             collapsed ? (
                               <span
@@ -479,6 +472,15 @@ export function Sidebar({
         })}
       </nav>
       </LayoutGroup>
+
+      {/* What the dots mean. They were shipped without a key twice and
+          reported unreadable both times; a color with no legend is a
+          puzzle, and the dot exists to save a click, not add one.
+          Hidden when the rail is collapsed — there is no room, and no
+          dots are drawn there either. */}
+      {!collapsed && (
+        <ToolDotLegend className="border-t border-sidebar-border px-3 py-2" />
+      )}
 
       {/* User block + live status — shadcn-admin pattern */}
       <div className="border-t border-sidebar-border">

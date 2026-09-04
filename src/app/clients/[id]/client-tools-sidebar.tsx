@@ -8,6 +8,8 @@ import {
   CLIENT_TOOL_NEEDS_HINTS,
   type ClientToolsClient,
 } from "./client-tools-launcher";
+import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
+import { toolReadiness } from "@/lib/tool-readiness";
 import type { OpenToolState } from "./client-tools-panel";
 
 /**
@@ -26,9 +28,16 @@ import type { OpenToolState } from "./client-tools-panel";
  */
 export function ClientToolsSidebar({
   client,
+  hasAiKey = false,
   onOpenTool,
 }: {
   client: ClientToolsClient;
+  /**
+   * Whether this app can call a model — a provider key or Ollama. A
+   * connected chat subscription is NOT this: MCP runs the other way
+   * round, so it gives these pages nothing to call.
+   */
+  hasAiKey?: boolean;
   /**
    * Fired when the user left-clicks a tool. The sidebar passes
    * { url, title } and the parent decides what to do (open drawer
@@ -58,6 +67,16 @@ export function ClientToolsSidebar({
     : groups;
 
   const toolCount = groups.reduce((s, g) => s + g.tools.length, 0);
+  const blockedCount = groups.reduce(
+    (s, g) =>
+      s +
+      g.tools.filter(
+        (t) =>
+          toolReadiness({ href: t.href, needs: t.needs, hasAiKey }).state ===
+          "blocked",
+      ).length,
+    0,
+  );
 
   function toggleGroup(label: string) {
     setCollapsedGroups((prev) => {
@@ -92,13 +111,28 @@ export function ClientToolsSidebar({
             </button>
           )}
         </div>
-        {q && (
+        {q ? (
           <p className="mt-1.5 text-[10px] text-muted-foreground">
             {filteredGroups.reduce((s, g) => s + g.tools.length, 0)} match
             {filteredGroups.reduce((s, g) => s + g.tools.length, 0) === 1
               ? ""
               : "es"}
           </p>
+        ) : (
+          /* What the dots mean, in the one place you can't scroll past.
+             A colored dot with no key is a puzzle, and the dot exists to
+             save a click rather than add one. */
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <ToolDotLegend />
+            {blockedCount > 0 && (
+              <Link
+                href="/settings#ai"
+                className="text-[10px] text-amber-300/90 underline decoration-dotted underline-offset-2 hover:text-amber-200"
+              >
+                {blockedCount} need setup
+              </Link>
+            )}
+          </div>
         )}
       </div>
 
@@ -167,6 +201,18 @@ export function ClientToolsSidebar({
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-1.5">
+                              {/* Same dot, same rule, as the main
+                                  sidebar and the launcher cards. This
+                                  rail is where you actually pick a tool
+                                  for a client, and it was the one panel
+                                  that said nothing about whether the
+                                  tool would run when you got there. */}
+                              <ToolDot
+                                href={t.href}
+                                needs={t.needs}
+                                hasAiKey={hasAiKey}
+                                className="mt-px"
+                              />
                               <span
                                 className={`block flex-1 truncate text-[13px] font-medium leading-tight transition-colors ${groupAccent.hoverText}`}
                               >

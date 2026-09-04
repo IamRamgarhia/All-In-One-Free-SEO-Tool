@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ToolDot } from "@/components/tool-dot";
+import { NEEDS_HINTS, toolReadiness } from "@/lib/tool-readiness";
 import {
   Activity,
   AlertTriangle,
@@ -399,19 +401,17 @@ function buildGroups(client: {
   ];
 }
 
-export const CLIENT_TOOL_NEEDS_HINTS: Record<
-  NonNullable<ClientToolLink["needs"]>,
-  string
-> = {
-  gsc: "Connect Google Search Console first",
-  gbp: "Add the client's GBP URL on this page first",
-  ga4: "Connect Google Analytics 4 first",
-  "wp-bridge": "Install the WordPress SEO Tool Bridge plugin first",
-};
-const NEEDS_HINTS = CLIENT_TOOL_NEEDS_HINTS;
+/**
+ * Re-exported so existing importers keep working. The table itself lives
+ * in lib/tool-readiness.ts — it was written here and again in the
+ * readiness rule, and two copies of a hint string is exactly the drift
+ * CLAUDE.md's fourth standing rule is about.
+ */
+export { NEEDS_HINTS as CLIENT_TOOL_NEEDS_HINTS } from "@/lib/tool-readiness";
 
 export function ClientToolsLauncher({
   client,
+  hasAiKey = false,
 }: {
   client: {
     id: number;
@@ -421,6 +421,8 @@ export function ClientToolsLauncher({
     ga4PropertyId: string | null;
     wpEndpoint: string | null;
   };
+  /** Whether an AI key exists, so the dots can tell ready from blocked. */
+  hasAiKey?: boolean;
 }) {
   const groups = buildGroups(client);
 
@@ -449,6 +451,12 @@ export function ClientToolsLauncher({
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {g.tools.map((t) => {
                 const Icon = t.icon;
+                const r = toolReadiness({
+                  href: t.href,
+                  needs: t.needs,
+                  hasAiKey,
+                });
+                const blocked = r.state === "blocked" ? r : null;
                 return (
                   <Link
                     key={t.href}
@@ -460,16 +468,34 @@ export function ClientToolsLauncher({
                         <Icon className="size-3.5 text-violet-300" />
                       </div>
                       <div className="min-w-0 flex-1 space-y-0.5">
-                        <p className="truncate text-xs font-medium group-hover:text-violet-200">
-                          {t.title}
+                        {/* Same dot, same rule, as the main sidebar
+                            and the per-client rail — one function in
+                            lib/tool-readiness.ts decides all three.
+                            This panel used to paint green wherever the
+                            sidebar stayed silent, so the same tool got
+                            two different answers depending on which
+                            panel you were looking at. */}
+                        <p className="flex items-start gap-1.5 truncate text-xs font-medium group-hover:text-violet-200">
+                          <ToolDot
+                            href={t.href}
+                            needs={t.needs}
+                            hasAiKey={hasAiKey}
+                            className="mt-[0.25rem]"
+                          />
+                          <span className="min-w-0 flex-1 truncate">
+                            {t.title}
+                          </span>
                         </p>
                         <p className="text-[11px] text-muted-foreground">
                           {t.blurb}
                         </p>
-                        {t.needs && (
-                          <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300 ring-1 ring-inset ring-amber-500/30">
-                            {NEEDS_HINTS[t.needs]}
-                          </p>
+                        {/* A span, not a link: the whole card is
+                            already a <Link>, and nesting one inside
+                            another is invalid HTML. */}
+                        {blocked && (
+                          <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300 ring-1 ring-inset ring-amber-500/30">
+                            {blocked.label}
+                          </span>
                         )}
                       </div>
                     </div>
