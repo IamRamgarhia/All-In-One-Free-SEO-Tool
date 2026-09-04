@@ -74,7 +74,10 @@ export type PlannableKind =
   | "write_meta_description"
   | "write_image_alt"
   | "write_schema"
-  | "write_internal_links";
+  | "write_internal_links"
+  // Per-page metadata, plugin 0.5.0 and up.
+  | "write_canonical"
+  | "write_robots_meta";
 
 /**
  * Audit finding types the agent can actually fix, and what fixing one is
@@ -153,6 +156,108 @@ const FIXABLE: Record<
     risk: "needs_review",
     reason:
       "No structured data, so this page can't qualify for rich results. Which schema type fits is a judgement call worth checking.",
+  },
+
+  // ---- Metadata that duplicates or under-uses the space -------------
+  //
+  // These reuse the title and description writers unchanged. They were
+  // simply never listed, so the crawler flagged them and the agent had
+  // no entry for them — detected, never actionable.
+
+  duplicate_title: {
+    kind: "write_title",
+    capability: "write_title",
+    weight: 85,
+    // Which of the two pages should keep the title is a judgement about
+    // what each page is for, and the agent cannot see that.
+    risk: "needs_review",
+    reason:
+      "Another page on the site uses this exact title, so Google has to guess which one to show for it — and often shows neither.",
+  },
+  duplicate_meta_description: {
+    kind: "write_meta_description",
+    capability: "write_meta_description",
+    weight: 55,
+    risk: "needs_review",
+    reason:
+      "This description is copied on another page. Identical descriptions give searchers no reason to pick one result over the other.",
+  },
+  short_meta_description: {
+    kind: "write_meta_description",
+    capability: "write_meta_description",
+    weight: 45,
+    risk: "needs_review",
+    reason:
+      "The description is much shorter than the space search results allow, which is unused room to say why this page answers the question.",
+  },
+
+  // ---- Canonical tags ------------------------------------------------
+
+  missing_canonical: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 75,
+    // A page with no canonical at all gets a self-referencing one. There
+    // is no judgement in pointing a page at itself.
+    risk: "safe",
+    reason:
+      "This page doesn't say which address is the real one, so if it's reachable at more than one URL, Google picks for you.",
+  },
+  non_self_canonical: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 95,
+    // Pointing elsewhere is sometimes deliberate — syndicated content,
+    // deliberate consolidation. Changing it without looking can hand a
+    // page's rankings to a page that shouldn't have them.
+    risk: "needs_review",
+    reason:
+      "This page's canonical points at a different URL, which tells Google to rank that one instead. Sometimes deliberate, often a template mistake.",
+  },
+  invalid_canonical: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 100,
+    // Not "safe", even though a broken canonical is unambiguously wrong.
+    // The contract test refuses a safe flag on anything that isn't an
+    // absence or a measured limit, and it is right to: a malformed
+    // canonical can be a templating bug the owner wants to see, and
+    // apply_safe would rewrite it on a live site without asking.
+    risk: "needs_review",
+    reason:
+      "The canonical tag isn't a usable URL, so Google ignores it and the page is left with no canonical at all.",
+  },
+  canonical_chain: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 80,
+    risk: "needs_review",
+    reason:
+      "The canonical points at a page that then points somewhere else. Google follows one hop, so the intended destination is never reached.",
+  },
+
+  // ---- Indexing directives -------------------------------------------
+  //
+  // Both are needs_review without exception. A noindex is occasionally
+  // deliberate — a thank-you page, a staging route left public — and
+  // removing one the owner meant to keep is how a private page ends up
+  // in search results.
+
+  noindex_set: {
+    kind: "write_robots_meta",
+    capability: "write_robots_meta",
+    weight: 120,
+    risk: "needs_review",
+    reason:
+      "This page tells Google not to index it, so it cannot appear in search at all. Worth confirming that's intended.",
+  },
+  xrobots_noindex: {
+    kind: "write_robots_meta",
+    capability: "write_robots_meta",
+    weight: 120,
+    risk: "needs_review",
+    reason:
+      "The server sends an X-Robots-Tag noindex header for this page, which keeps it out of search regardless of what the page itself says.",
   },
 };
 

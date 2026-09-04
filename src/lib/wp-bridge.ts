@@ -183,6 +183,8 @@ type WirePostSeo = {
   id?: number;
   title?: string;
   meta_description?: string;
+  canonical?: string;
+  robots?: string;
   permalink?: string;
   status?: string;
   modified?: string;
@@ -203,10 +205,12 @@ export async function getPostSeo(
       url: r.data.permalink ?? "",
       title: r.data.title ?? "",
       metaDescription: r.data.meta_description ?? "",
-      // The plugin doesn't report these yet. Null means "unknown", not
-      // "absent" — nothing should write a canonical based on this.
-      canonical: null,
-      robots: null,
+      // Reported as of plugin 0.5.0. Null still means "unknown" — an
+      // older plugin omits both keys, and treating a missing key as an
+      // empty string would tell the agent every page on that site has no
+      // canonical, which is an invitation to write one onto all of them.
+      canonical: r.data.canonical ?? null,
+      robots: r.data.robots ?? null,
     },
   };
 }
@@ -231,21 +235,17 @@ export async function setPostSeo(
     body.meta_description = patch.metaDescription;
   }
 
-  // The plugin's update handler reads `title` and `meta_description` and
-  // nothing else, so a canonical or robots value sent here was accepted,
-  // ignored, and answered with `ok: true`. Two "apply fix" buttons told
-  // users the change had been made to their site when it hadn't. Say so
-  // instead — a refusal the user can act on beats a success they can't
-  // trust.
-  const unsupported = (["canonical", "robots"] as const).filter(
-    (f) => patch[f] !== undefined,
-  );
-  if (unsupported.length > 0) {
-    return {
-      ok: false,
-      error: `The SEO Tool Bridge plugin can't write ${unsupported.join(" or ")} yet. Change it in your SEO plugin (Yoast, Rank Math) for now.`,
-    };
-  }
+  // Canonical and robots, genuinely wired as of plugin 0.5.0.
+  //
+  // These were in this signature from the start and the plugin read
+  // neither, so sending one was accepted, ignored, and answered
+  // `{ok: true}` — two "apply fix" buttons telling users their site had
+  // been changed when it had not. That earned an explicit refusal here,
+  // which now comes out because the handler reads both.
+  // plugin-contract.test.ts asserts the handler still does, so this can
+  // never quietly go back to being a lie.
+  if (patch.canonical !== undefined) body.canonical = patch.canonical;
+  if (patch.robots !== undefined) body.robots = patch.robots;
 
   if (Object.keys(body).length === 0) {
     return { ok: false, error: "Nothing to write." };
@@ -546,5 +546,146 @@ export async function undoRevision(
     }
     return { ok: false, error: r.error };
   }
+  return { ok: true };
+}
+
+// ============================================================
+//  Site-level surfaces (plugin 0.5.0+)
+// ============================================================
+//
+// These change the whole site rather than one page, which is why the
+// agent marks every one of them needs_review regardless of autonomy
+// level. A wrong line in robots.txt deindexes a site; a wrong redirect
+// takes traffic off a page that was working.
+
+export type RobotsTxtState = {
+  /** Whether the plugin is currently serving robots.txt. */
+  managed: boolean;
+  /**
+   * A real robots.txt on disk. WordPress serves that and ignores every
+   * filter, so when this is true nothing we write has any effect — and
+   * the plugin refuses the write rather than reporting a success the
+   * user could only disprove by loading the URL.
+   */
+  physicalFile: boolean;
+  /** What we have stored. */
+  content: string;
+  /** What the site actually serves right now, whatever the source. */
+  served: string;
+};
+
+export async function getRobotsTxt(
+  creds: WpCreds,
+): Promise<{ ok: true; data: RobotsTxtState } | { ok: false; error: string }> {
+  const r = await wpFetch<{
+    ok: boolean;
+    managed: boolean;
+    physical_file: boolean;
+    content: string;
+    served: string;
+  }>(creds, "/site/robots");
+  if (!r.ok) return { ok: false, error: r.error };
+  return {
+    ok: true,
+    data: {
+      managed: Boolean(r.data.managed),
+      physicalFile: Boolean(r.data.physical_file),
+      content: String(r.data.content ?? ""),
+      served: String(r.data.served ?? ""),
+    },
+  };
+}
+
+export async function setRobotsTxt(
+  creds: WpCreds,
+  content: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await wpFetch<{ ok: boolean }>(creds, "/site/robots", {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true };
+}
+
+export type WpRedirect = {
+  /** Home-relative path, leading slash. */
+  from: string;
+  to: string;
+  code: 301 | 302 | 307 | 308;
+};
+
+export async function getRedirects(
+  creds: WpCreds,
+): Promise<{ ok: true; data: WpRedirect[] } | { ok: false; error: string }> {
+  const r = await wpFetch<{ ok: boolean; redirects: WpRedirect[] }>(
+    creds,
+    "/site/redirects",
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: Array.isArray(r.data.redirects) ? r.data.redirects : [] };
+}
+
+/**
+ * Replaces the whole map, not a merge.
+ *
+ * Deliberate: a merge needs a rule identity, and the natural one — the
+ * `from` path — is also the thing an edit changes, so merging would
+ * silently leave the old rule behind next to the new one. Read, modify,
+ * write the full list.
+ */
+export async function setRedirects(
+  creds: WpCreds,
+  redirects: WpRedirect[],
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const r = await wpFetch<{ ok: boolean; count?: number }>(
+    creds,
+    "/site/redirects",
+    { method: "POST", body: JSON.stringify({ redirects }) },
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, count: r.data.count };
+}
+
+/** Every hardening toggle the plugin knows, all defaulting to off. */
+export type WpHardening = {
+  disable_xmlrpc: boolean;
+  hide_wp_version: boolean;
+  hide_rest_discovery: boolean;
+  disable_emoji: boolean;
+  disable_heartbeat_frontend: boolean;
+  noindex_author_archives: boolean;
+};
+
+export const HARDENING_KEYS = [
+  "disable_xmlrpc",
+  "hide_wp_version",
+  "hide_rest_discovery",
+  "disable_emoji",
+  "disable_heartbeat_frontend",
+  "noindex_author_archives",
+] as const;
+
+export async function getHardening(
+  creds: WpCreds,
+): Promise<{ ok: true; data: WpHardening } | { ok: false; error: string }> {
+  const r = await wpFetch<{ ok: boolean; hardening: WpHardening }>(
+    creds,
+    "/site/hardening",
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: r.data.hardening };
+}
+
+/** Partial — omitted keys keep whatever the site already has. */
+export async function setHardening(
+  creds: WpCreds,
+  patch: Partial<WpHardening>,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await wpFetch<{ ok: boolean }>(creds, "/site/hardening", {
+    method: "POST",
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
   return { ok: true };
 }

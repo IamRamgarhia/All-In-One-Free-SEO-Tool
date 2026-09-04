@@ -4,7 +4,7 @@ Tags: seo, ai, automation, meta tags, schema, yoast, rank math
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 8.0
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -130,7 +130,31 @@ The plugin doesn't collect or transmit any personal data. It exposes a REST endp
 
 == Changelog ==
 
-= 0.4.0 (current) =
+= 0.5.0 (current) =
+* Added: canonical URL and per-page robots directives are now readable and
+  writable. Both fields were already in the SEO Tool's request format and this
+  plugin read neither, so sending one was accepted, ignored, and answered with
+  success — two "apply fix" buttons reported changes that never happened.
+* Added: robots.txt management, served through WordPress's own robots_txt
+  filter. If a real robots.txt file exists on disk WordPress serves that and
+  ignores every plugin, so the endpoint refuses the write and says why rather
+  than reporting a success you could only disprove by loading the URL.
+* Added: 301/302/307/308 redirects. Applied on template_redirect and only where
+  WordPress found nothing, so a rule can never shadow a page that exists.
+  Self-referencing rules are dropped rather than stored — they become
+  ERR_TOO_MANY_REDIRECTS on a live page.
+* Added: hardening toggles — disable XML-RPC, hide the WordPress version, drop
+  REST discovery links, remove the emoji script, stop the front-end heartbeat,
+  noindex author archives. All default to off, so installing this plugin still
+  changes nothing about how the site behaves.
+* Added: undo now covers site-wide changes. The revision log's object field
+  required a numeric id, so every site-level change would have been refused as
+  unidentifiable while the SEO Tool still offered the undo button.
+* Note: none of this writes to disk. Everything above is stored in WordPress
+  options and applied through filters, so deactivating the plugin reverts all
+  of it at once and leaves no edited files behind.
+
+= 0.4.0 =
 * Fixed (Critical): authentication accepted only `Authorization: Bearer`, while
   the SEO Tool has only ever sent `X-STB-Key`. Every request from the tool
   returned 401, for every endpoint, in every version of this plugin — and a 401

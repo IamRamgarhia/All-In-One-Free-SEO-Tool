@@ -55,6 +55,12 @@ const EXECUTABLE = new Set([
   // per-page check, because the problem is the absence of a link on a
   // different page. planInternalLinks in planner.ts produces these.
   "write_internal_links",
+  // Plugin 0.5.0 wired both into POST /post/{id}/seo, and
+  // GET returns them so a write can be verified and undone. Before that
+  // the handler read neither and answered ok to a write that changed
+  // nothing — which is what this whole contract exists to catch.
+  "write_canonical",
+  "write_robots_meta",
 ]);
 
 /**

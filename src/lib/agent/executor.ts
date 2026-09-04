@@ -89,6 +89,13 @@ export function requiresDraft(kind: string): boolean {
   return (
     kind === "write_schema" ||
     kind === "write_internal_links" ||
+    // Deterministic, but still drafted. "Requires a draft" means "must
+    // not be executed with an empty string" — it does not mean "must ask
+    // a model". Leaving these out would send "" to the site, verify
+    // cleanly against a field that never changed, and report the page as
+    // fixed. That exact sequence already shipped for alt text.
+    kind === "write_canonical" ||
+    kind === "write_robots_meta" ||
     kind in DRAFT_SPECS
   );
 }
@@ -97,6 +104,38 @@ export async function draftValue(
   action: PlannedAction,
   context: { siteName: string; pageTitle?: string | null; pageUrl: string },
 ): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
+  // A canonical is the page's own address. There is no wording to
+  // choose and nothing for a model to get wrong, so this is computed —
+  // and computed from the URL the crawler actually fetched, not
+  // reconstructed, so it matches what the site serves.
+  if (action.kind === "write_canonical") {
+    const url = (action.targetUrl ?? "").trim();
+    if (!url) {
+      return {
+        ok: false,
+        error:
+          "No page URL to point the canonical at. Writing an empty canonical would remove the tag rather than fix it.",
+      };
+    }
+    try {
+      // Normalised so a trailing-slash difference between the crawl and
+      // the site's own permalink doesn't read as a mismatch forever.
+      const u = new URL(url);
+      u.hash = "";
+      return { ok: true, value: u.toString() };
+    } catch {
+      return { ok: false, error: `"${url}" isn't a valid URL to canonicalise to.` };
+    }
+  }
+
+  // Removing a noindex means saying the opposite explicitly rather than
+  // deleting the directive: an absent robots meta inherits whatever the
+  // SEO plugin's site-wide default is, which on some setups is the
+  // noindex we are trying to remove.
+  if (action.kind === "write_robots_meta") {
+    return { ok: true, value: "index,follow" };
+  }
+
   // Internal links are decided by the planner, not written by a model.
   // The orphan page, the page to link it from, and the anchor phrase
   // are all computable — see anchor-text.ts. Drafting here is just
@@ -744,11 +783,24 @@ export async function revertAction(
 }
 
 function readField(
-  seo: { title: string; metaDescription: string },
+  seo: {
+    title: string;
+    metaDescription: string;
+    canonical?: string | null;
+    robots?: string | null;
+  },
   kind: string,
 ): string | null {
   if (kind === "write_title") return seo.title ?? null;
   if (kind === "write_meta_description") return seo.metaDescription ?? null;
+  // Null here means the plugin did not report the field — an install
+  // older than 0.5.0 omits both keys. That is deliberately NOT coerced
+  // to "": the caller treats null as "no recorded undo" and refuses the
+  // write, which is the right answer. Reading a missing key as "this
+  // page has no canonical" would invite writing one onto every page on
+  // the site, with nothing to restore.
+  if (kind === "write_canonical") return seo.canonical ?? null;
+  if (kind === "write_robots_meta") return seo.robots ?? null;
   // Schema: empty string, not null, and the distinction is load-bearing.
   //
   // `getPostSeo` doesn't return the existing JSON-LD, so we can't read
@@ -770,7 +822,17 @@ function readField(
 
 /** Can we confirm a write took effect by reading the page back? */
 function isVerifiable(kind: string): boolean {
-  return kind === "write_title" || kind === "write_meta_description";
+  // Canonical and robots join the list because plugin 0.5.0 returns both
+  // from GET /post/{id}/seo. Verification is the difference between
+  // "we sent it" and "the site changed" — the two came apart once
+  // already, when the client sent metaDescription and the plugin read
+  // meta_description and answered ok to a write that did nothing.
+  return (
+    kind === "write_title" ||
+    kind === "write_meta_description" ||
+    kind === "write_canonical" ||
+    kind === "write_robots_meta"
+  );
 }
 
 async function writeField(
@@ -790,6 +852,10 @@ async function writeField(
   // exists precisely to stop that, and it was defeated by the executor
   // not implementing what the bridge already did.
   if (kind === "write_schema") return setPostSchema(creds, postId, value);
+  if (kind === "write_canonical")
+    return setPostSeo(creds, postId, { canonical: value });
+  if (kind === "write_robots_meta")
+    return setPostSeo(creds, postId, { robots: value });
   // Alt text never reaches here — it has its own branch in executeAction
   // and in revertAction, because it targets an attachment rather than a
   // post and postId would be the wrong id entirely.

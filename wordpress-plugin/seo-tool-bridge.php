@@ -3,7 +3,7 @@
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/SEO-Tool
  * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, internal links, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -30,10 +30,31 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('STB_VERSION', '0.4.0');
+define('STB_VERSION', '0.5.0');
 define('STB_OPTION_KEY', 'stb_connection_key');
 define('STB_OPTION_REVISIONS', 'stb_revisions');
 define('STB_REST_NAMESPACE', 'seo-tool/v1');
+define('STB_OPTION_ROBOTS', 'stb_robots_txt');
+define('STB_OPTION_REDIRECTS', 'stb_redirects');
+define('STB_OPTION_HARDENING', 'stb_hardening');
+
+/**
+ * Site-level things the agent can change, and the option each lives in.
+ *
+ * Addressed as "site:<key>" in the revision log, alongside "post:123".
+ * The undo handler reads this map to know a target is legitimate — it
+ * previously required a numeric id and refused everything else, which
+ * would have made every site-level change un-undoable while the UI still
+ * offered the button.
+ */
+function stb_site_targets(): array
+{
+    return [
+        'robots_txt' => STB_OPTION_ROBOTS,
+        'redirects'  => STB_OPTION_REDIRECTS,
+        'hardening'  => STB_OPTION_HARDENING,
+    ];
+}
 
 // =====================
 // Setup + key generation
@@ -121,12 +142,23 @@ function stb_render_admin_page(): void
             <li>Insert internal links into post content, first match only, never inside an existing link, heading or code block</li>
             <li>List + look up posts by URL (used by the SEO Tool's one-click fix flow)</li>
             <li>Create new posts (draft or published) — used by the daily AI agent</li>
-            <li>Full revision log with one-click undo on every change, including a whole-body restore for content edits</li>
+            <li>Read + write the canonical URL and per-page robots directives</li>
+            <li>Serve robots.txt, and 301 redirects for URLs that would otherwise 404</li>
+            <li>Toggle hardening: XML-RPC off, WordPress version hidden, REST discovery links removed, emoji script removed, front-end heartbeat off, author archives noindexed</li>
+            <li>Full revision log with one-click undo on every change, including a whole-body restore for content edits and site-wide settings</li>
         </ul>
         <p style="color: #666; font-size: 12px;">
-            Redirects + robots.txt management are not here yet. Internal linking
-            edits post content — if you'd rather it didn't, leave the SEO Tool's
-            autonomy on &ldquo;suggest only&rdquo; and approve each change yourself.
+            Nothing here writes to disk. robots.txt, redirects and the hardening
+            toggles are stored as WordPress options and applied through filters,
+            so deactivating this plugin reverts all of them at once and leaves no
+            edited files behind. If this site has a real robots.txt file,
+            WordPress serves that instead and the plugin refuses to pretend
+            otherwise.
+        </p>
+        <p style="color: #666; font-size: 12px;">
+            Internal linking edits post content, and redirects and robots.txt
+            affect the whole site — if you'd rather approve those yourself,
+            leave the SEO Tool's autonomy on &ldquo;suggest only&rdquo;.
         </p>
 
         <h2>Recent changes</h2>
@@ -268,6 +300,51 @@ add_action('rest_api_init', function () {
         'permission_callback' => 'stb_check_key',
     ]);
 
+    // Site-level surfaces. One shape for all three: GET reads the
+    // current value, POST replaces it. Kept apart from the post routes
+    // because the blast radius is the whole site rather than one page —
+    // a wrong line in robots.txt can deindex everything — which is why
+    // the client marks all three needs_review whatever the autonomy
+    // level says.
+    register_rest_route(STB_REST_NAMESPACE, '/site/robots', [
+        [
+            'methods'  => 'GET',
+            'callback' => 'stb_rest_get_robots_txt',
+            'permission_callback' => 'stb_check_key',
+        ],
+        [
+            'methods'  => 'POST',
+            'callback' => 'stb_rest_set_robots_txt',
+            'permission_callback' => 'stb_check_key',
+        ],
+    ]);
+
+    register_rest_route(STB_REST_NAMESPACE, '/site/redirects', [
+        [
+            'methods'  => 'GET',
+            'callback' => 'stb_rest_get_redirects',
+            'permission_callback' => 'stb_check_key',
+        ],
+        [
+            'methods'  => 'POST',
+            'callback' => 'stb_rest_set_redirects',
+            'permission_callback' => 'stb_check_key',
+        ],
+    ]);
+
+    register_rest_route(STB_REST_NAMESPACE, '/site/hardening', [
+        [
+            'methods'  => 'GET',
+            'callback' => 'stb_rest_get_hardening',
+            'permission_callback' => 'stb_check_key',
+        ],
+        [
+            'methods'  => 'POST',
+            'callback' => 'stb_rest_set_hardening',
+            'permission_callback' => 'stb_check_key',
+        ],
+    ]);
+
     register_rest_route(STB_REST_NAMESPACE, '/undo/(?P<rev_id>\d+)', [
         'methods'  => 'POST',
         'callback' => 'stb_rest_undo',
@@ -380,6 +457,73 @@ function stb_set_meta_description(int $post_id, string $value): void
     update_post_meta($post_id, '_aioseo_description', $value);
 }
 
+/**
+ * Canonical URL, read from whichever SEO plugin is present.
+ *
+ * Same priority order as the description, for the same reason: a site
+ * with two SEO plugins installed has one of them actually rendering the
+ * tag, and we cannot know which, so we read the first that has a value
+ * and write all of them.
+ */
+function stb_get_canonical(int $post_id): string
+{
+    $candidates = [
+        '_yoast_wpseo_canonical',
+        'rank_math_canonical_url',
+        '_aioseo_canonical_url',
+    ];
+    foreach ($candidates as $key) {
+        $val = get_post_meta($post_id, $key, true);
+        if (!empty($val)) {
+            return (string)$val;
+        }
+    }
+    return '';
+}
+
+function stb_set_canonical(int $post_id, string $value): void
+{
+    update_post_meta($post_id, '_yoast_wpseo_canonical', $value);
+    update_post_meta($post_id, 'rank_math_canonical_url', $value);
+    update_post_meta($post_id, '_aioseo_canonical_url', $value);
+}
+
+/**
+ * The robots meta directive for one post — "index,follow" and friends.
+ *
+ * Yoast splits this across two keys holding 0/1/2 sentinels, Rank Math
+ * stores an array of tokens. Both are normalised to the comma string the
+ * caller sent, so what goes out matches what comes back.
+ */
+function stb_get_robots_meta(int $post_id): string
+{
+    $rm = get_post_meta($post_id, 'rank_math_robots', true);
+    if (is_array($rm) && $rm) {
+        return implode(',', array_map('strval', $rm));
+    }
+    $noindex = get_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex', true);
+    $nofollow = get_post_meta($post_id, '_yoast_wpseo_meta-robots-nofollow', true);
+    if ($noindex === '' && $nofollow === '') {
+        return '';
+    }
+    // Yoast: '1' means noindex, '2' means index, '' means default.
+    $parts = [];
+    $parts[] = ($noindex === '1') ? 'noindex' : 'index';
+    $parts[] = ($nofollow === '1') ? 'nofollow' : 'follow';
+    return implode(',', $parts);
+}
+
+function stb_set_robots_meta(int $post_id, string $value): void
+{
+    $tokens = array_filter(array_map('trim', explode(',', strtolower($value))));
+    $noindex = in_array('noindex', $tokens, true);
+    $nofollow = in_array('nofollow', $tokens, true);
+
+    update_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex', $noindex ? '1' : '2');
+    update_post_meta($post_id, '_yoast_wpseo_meta-robots-nofollow', $nofollow ? '1' : '');
+    update_post_meta($post_id, 'rank_math_robots', array_values($tokens));
+}
+
 function stb_record_revision(string $field, string $object, $old, $new): int
 {
     $revs = get_option(STB_OPTION_REVISIONS, []);
@@ -428,6 +572,13 @@ function stb_rest_get_post_seo(WP_REST_Request $req): WP_REST_Response
         'id' => $id,
         'title' => $post->post_title,
         'meta_description' => stb_get_meta_description($id),
+        // Returned so the caller can see the current value before
+        // changing it. The client's PostSeo type has carried these two
+        // fields since it was written and this handler returned neither,
+        // so both were always null — which reads as "this page has no
+        // canonical" for every page on every site.
+        'canonical' => stb_get_canonical($id),
+        'robots' => stb_get_robots_meta($id),
         'permalink' => get_permalink($id),
         'status' => $post->post_status,
         'modified' => $post->post_modified,
@@ -461,6 +612,34 @@ function stb_rest_update_post_seo(WP_REST_Request $req): WP_REST_Response
             stb_set_meta_description($id, $new);
             $rev_id = stb_record_revision('meta_description', "post:$id", $old, $new);
             $changes[] = ['field' => 'meta_description', 'rev_id' => $rev_id];
+        }
+    }
+
+    // Canonical and robots.
+    //
+    // Both of these were in the TypeScript client's type from the
+    // beginning and this handler read neither, so a canonical sent here
+    // was accepted, ignored, and answered {ok:true} — a write that
+    // reported success and changed nothing. The client had to grow an
+    // explicit refusal to stop two "apply fix" buttons lying. That
+    // refusal comes out in the same change as this.
+    if (isset($body['canonical'])) {
+        $new = esc_url_raw(trim((string)$body['canonical']));
+        $old = stb_get_canonical($id);
+        if ($new !== $old) {
+            stb_set_canonical($id, $new);
+            $rev_id = stb_record_revision('canonical', "post:$id", $old, $new);
+            $changes[] = ['field' => 'canonical', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['robots'])) {
+        $new = sanitize_text_field($body['robots']);
+        $old = stb_get_robots_meta($id);
+        if ($new !== $old) {
+            stb_set_robots_meta($id, $new);
+            $rev_id = stb_record_revision('robots', "post:$id", $old, $new);
+            $changes[] = ['field' => 'robots', 'rev_id' => $rev_id];
         }
     }
 
@@ -950,6 +1129,294 @@ function stb_rest_revisions(): WP_REST_Response
     ]);
 }
 
+
+// ============================================================
+//  Site-level surfaces: robots.txt, redirects, hardening
+// ============================================================
+//
+// Each one is stored in an option and applied through a WordPress hook,
+// so nothing on disk is touched and deactivating the plugin reverts
+// every one of them at once. That matters: a plugin that edits a real
+// robots.txt file or writes .htaccess leaves its changes behind when it
+// is removed, and the person removing it usually does not know that.
+
+/**
+ * The robots.txt this plugin serves, or '' when it is not managing it.
+ *
+ * WordPress serves robots.txt virtually unless a real file exists on
+ * disk. If one does, core ignores the filter and so do we — reporting
+ * "managed" when a physical file is winning would be a lie the user
+ * could only discover by loading the URL.
+ */
+function stb_rest_get_robots_txt(WP_REST_Request $req): WP_REST_Response
+{
+    $physical = file_exists(ABSPATH . 'robots.txt');
+    return new WP_REST_Response([
+        'ok' => true,
+        'managed' => !$physical && get_option(STB_OPTION_ROBOTS, '') !== '',
+        'physical_file' => $physical,
+        'content' => (string)get_option(STB_OPTION_ROBOTS, ''),
+        'served' => $physical
+            ? (string)@file_get_contents(ABSPATH . 'robots.txt')
+            : (string)get_option(STB_OPTION_ROBOTS, ''),
+    ], 200);
+}
+
+function stb_rest_set_robots_txt(WP_REST_Request $req): WP_REST_Response
+{
+    if (file_exists(ABSPATH . 'robots.txt')) {
+        return new WP_REST_Response([
+            'ok' => false,
+            'error' => 'This site has a real robots.txt file on disk. WordPress serves that instead of anything a plugin provides, so writing here would change nothing. Edit or remove the file first.',
+        ], 409);
+    }
+
+    $body = $req->get_json_params() ?: [];
+    if (!isset($body['content'])) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'content required'], 400);
+    }
+
+    // Deliberately not sanitize_text_field: robots.txt is multi-line and
+    // that would flatten it to one line. Strip control characters other
+    // than newline and tab, and cap the length.
+    $new = (string)$body['content'];
+    $new = preg_replace('/[^\P{C}\n\t]+/u', '', $new);
+    $new = substr($new, 0, 20000);
+
+    $old = (string)get_option(STB_OPTION_ROBOTS, '');
+    if ($new === $old) {
+        return new WP_REST_Response(['ok' => true, 'changes' => []], 200);
+    }
+
+    update_option(STB_OPTION_ROBOTS, $new, false);
+    $rev_id = stb_record_revision('robots_txt', 'site:robots_txt', $old, $new);
+    return new WP_REST_Response([
+        'ok' => true,
+        'changes' => [['field' => 'robots_txt', 'rev_id' => $rev_id]],
+    ], 200);
+}
+
+/** Serve the managed robots.txt. Priority 99 so SEO plugins run first. */
+add_filter('robots_txt', 'stb_filter_robots_txt', 99, 2);
+function stb_filter_robots_txt($output, $public)
+{
+    $managed = (string)get_option(STB_OPTION_ROBOTS, '');
+    return $managed !== '' ? $managed : $output;
+}
+
+/**
+ * The redirect map: [{from, to, code}], from-paths home-relative.
+ *
+ * Stored rather than written to .htaccess so it works on nginx too, and
+ * so removing the plugin removes the redirects rather than leaving a
+ * server config nobody remembers editing.
+ */
+function stb_rest_get_redirects(WP_REST_Request $req): WP_REST_Response
+{
+    return new WP_REST_Response([
+        'ok' => true,
+        'redirects' => (array)get_option(STB_OPTION_REDIRECTS, []),
+    ], 200);
+}
+
+function stb_rest_set_redirects(WP_REST_Request $req): WP_REST_Response
+{
+    $body = $req->get_json_params() ?: [];
+    if (!isset($body['redirects']) || !is_array($body['redirects'])) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'redirects array required'], 400);
+    }
+
+    $clean = [];
+    foreach ($body['redirects'] as $r) {
+        $from = isset($r['from']) ? stb_normalise_path((string)$r['from']) : '';
+        $to = isset($r['to']) ? trim((string)$r['to']) : '';
+        $code = isset($r['code']) ? (int)$r['code'] : 301;
+        if ($from === '' || $to === '') {
+            continue;
+        }
+        // A rule pointing at itself is an infinite loop the browser turns
+        // into ERR_TOO_MANY_REDIRECTS on a live page.
+        if ($from === stb_normalise_path($to)) {
+            continue;
+        }
+        if (!in_array($code, [301, 302, 307, 308], true)) {
+            $code = 301;
+        }
+        $clean[] = ['from' => $from, 'to' => esc_url_raw($to), 'code' => $code];
+    }
+
+    // Cap it. This is served on every 404 and each entry is a comparison.
+    $clean = array_slice($clean, 0, 500);
+
+    $old = (array)get_option(STB_OPTION_REDIRECTS, []);
+    if (wp_json_encode($old) === wp_json_encode($clean)) {
+        return new WP_REST_Response(['ok' => true, 'changes' => []], 200);
+    }
+
+    update_option(STB_OPTION_REDIRECTS, $clean, false);
+    $rev_id = stb_record_revision('redirects', 'site:redirects', $old, $clean);
+    return new WP_REST_Response([
+        'ok' => true,
+        'count' => count($clean),
+        'changes' => [['field' => 'redirects', 'rev_id' => $rev_id]],
+    ], 200);
+}
+
+/** Home-relative, leading slash, no query or fragment, no trailing slash. */
+function stb_normalise_path(string $url): string
+{
+    $path = parse_url(trim($url), PHP_URL_PATH);
+    if ($path === false || $path === null) {
+        $path = trim($url);
+    }
+    $path = '/' . ltrim((string)$path, '/');
+    if (strlen($path) > 1) {
+        $path = rtrim($path, '/');
+    }
+    return $path;
+}
+
+/**
+ * Apply redirects, but only where WordPress found nothing.
+ *
+ * On template_redirect and gated on is_404() so a rule can never shadow
+ * a page that exists. Somebody adding a redirect for a URL that later
+ * gets a real page would otherwise make that page permanently
+ * unreachable, with no error anywhere.
+ */
+add_action('template_redirect', 'stb_apply_redirects', 1);
+function stb_apply_redirects(): void
+{
+    if (!is_404()) {
+        return;
+    }
+    $rules = (array)get_option(STB_OPTION_REDIRECTS, []);
+    if (!$rules) {
+        return;
+    }
+    $here = stb_normalise_path($_SERVER['REQUEST_URI'] ?? '');
+    foreach ($rules as $r) {
+        if (($r['from'] ?? '') === $here) {
+            wp_redirect($r['to'], (int)($r['code'] ?? 301));
+            exit;
+        }
+    }
+}
+
+/**
+ * Hardening toggles. Each is off unless explicitly turned on, so
+ * installing the plugin changes nothing about how the site behaves.
+ */
+function stb_hardening_keys(): array
+{
+    return [
+        'disable_xmlrpc',
+        'hide_wp_version',
+        'hide_rest_discovery',
+        'disable_emoji',
+        'disable_heartbeat_frontend',
+        'noindex_author_archives',
+    ];
+}
+
+function stb_rest_get_hardening(WP_REST_Request $req): WP_REST_Response
+{
+    $saved = (array)get_option(STB_OPTION_HARDENING, []);
+    $out = [];
+    foreach (stb_hardening_keys() as $k) {
+        $out[$k] = !empty($saved[$k]);
+    }
+    return new WP_REST_Response(['ok' => true, 'hardening' => $out], 200);
+}
+
+function stb_rest_set_hardening(WP_REST_Request $req): WP_REST_Response
+{
+    $body = $req->get_json_params() ?: [];
+    $saved = (array)get_option(STB_OPTION_HARDENING, []);
+    $next = [];
+    foreach (stb_hardening_keys() as $k) {
+        $next[$k] = array_key_exists($k, $body) ? (bool)$body[$k] : !empty($saved[$k]);
+    }
+
+    $before = [];
+    foreach (stb_hardening_keys() as $k) {
+        $before[$k] = !empty($saved[$k]);
+    }
+    if (wp_json_encode($before) === wp_json_encode($next)) {
+        return new WP_REST_Response(['ok' => true, 'changes' => []], 200);
+    }
+
+    update_option(STB_OPTION_HARDENING, $next, false);
+    $rev_id = stb_record_revision('hardening', 'site:hardening', $before, $next);
+    return new WP_REST_Response([
+        'ok' => true,
+        'hardening' => $next,
+        'changes' => [['field' => 'hardening', 'rev_id' => $rev_id]],
+    ], 200);
+}
+
+function stb_hardening_on(string $key): bool
+{
+    $saved = (array)get_option(STB_OPTION_HARDENING, []);
+    return !empty($saved[$key]);
+}
+
+add_action('init', 'stb_apply_hardening', 20);
+function stb_apply_hardening(): void
+{
+    if (stb_hardening_on('disable_xmlrpc')) {
+        add_filter('xmlrpc_enabled', '__return_false');
+        // The header advertises the endpoint even when it is disabled.
+        add_filter('wp_headers', static function ($headers) {
+            unset($headers['X-Pingback']);
+            return $headers;
+        });
+    }
+
+    if (stb_hardening_on('hide_wp_version')) {
+        remove_action('wp_head', 'wp_generator');
+        add_filter('the_generator', '__return_empty_string');
+    }
+
+    if (stb_hardening_on('hide_rest_discovery')) {
+        // The link tags and headers only. The REST API itself stays on —
+        // this plugin talks to it, so disabling it would sever the
+        // connection that turned the setting on.
+        remove_action('wp_head', 'rest_output_link_wp_head', 10);
+        remove_action('template_redirect', 'rest_output_link_header', 11);
+    }
+
+    if (stb_hardening_on('disable_emoji')) {
+        remove_action('wp_head', 'print_emoji_detection_script', 7);
+        remove_action('wp_print_styles', 'print_emoji_styles');
+        remove_action('admin_print_scripts', 'print_emoji_detection_script');
+        remove_action('admin_print_styles', 'print_emoji_styles');
+        add_filter('tiny_mce_plugins', static function ($plugins) {
+            return is_array($plugins) ? array_diff($plugins, ['wpemoji']) : [];
+        });
+    }
+
+    if (stb_hardening_on('disable_heartbeat_frontend')) {
+        // Front end only. Killing it in wp-admin loses post-lock warnings
+        // and autosave, which is a real editorial regression, not a win.
+        add_action('init', static function () {
+            if (!is_admin()) {
+                wp_deregister_script('heartbeat');
+            }
+        }, 1);
+    }
+}
+
+add_filter('wp_robots', 'stb_robots_author_archives');
+function stb_robots_author_archives($robots)
+{
+    if (stb_hardening_on('noindex_author_archives') && is_author()) {
+        $robots['noindex'] = true;
+        unset($robots['index']);
+    }
+    return $robots;
+}
+
 function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
 {
     $rev_id = (int)$req['rev_id'];
@@ -972,15 +1439,35 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
     // an undo that targets the wrong object is worse than one that
     // doesn't run.
     $bits = explode(':', (string)($found['object'] ?? ''), 2);
-    if (count($bits) !== 2 || !ctype_digit($bits[1])) {
+    $site_targets = stb_site_targets();
+    $is_site = count($bits) === 2
+        && $bits[0] === 'site'
+        && array_key_exists($bits[1], $site_targets);
+
+    if (!$is_site && (count($bits) !== 2 || !ctype_digit($bits[1]))) {
         return new WP_REST_Response(
             ['ok' => false, 'error' => 'Revision refers to an object this plugin cannot identify'],
             422,
         );
     }
-    $object_id = (int)$bits[1];
+    $object_id = $is_site ? 0 : (int)$bits[1];
     $field = $found['field'];
     $previous = $found['old'];
+
+    // Site-level restore: put the option back exactly as it was. Handled
+    // before the per-post switch because these have no object id, and the
+    // guard above used to reject them outright — undo was offered in the
+    // UI for changes the plugin would then refuse to reverse.
+    if ($is_site) {
+        $option = $site_targets[$bits[1]];
+        if ($previous === '' || $previous === [] || $previous === null) {
+            delete_option($option);
+        } else {
+            update_option($option, $previous, false);
+        }
+        stb_record_revision($field, $found['object'], $found['new'], $previous);
+        return new WP_REST_Response(['ok' => true, 'undone_rev_id' => $rev_id], 200);
+    }
 
     switch ($field) {
         case 'title':

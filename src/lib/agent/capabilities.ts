@@ -26,6 +26,11 @@ export type CapabilityId =
   | "write_image_alt"
   | "write_schema"
   | "write_internal_links"
+  | "write_canonical"
+  | "write_robots_meta"
+  | "write_robots_txt"
+  | "write_redirects"
+  | "write_hardening"
   | "read_gsc"
   | "generate_text";
 
@@ -134,6 +139,28 @@ export async function detectCapabilities(
       ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Internal linking needs 0.3.0 or newer, which added the endpoint that inserts links safely and records the previous version of the article. Update the plugin.`
       : wpError,
   );
+
+  // Plugin 0.5.0 wired canonical and robots into POST /post/{id}/seo
+  // and added the three site-level routes. Before that the handler read
+  // neither field, so a canonical sent to an older plugin is accepted,
+  // ignored, and answered {ok:true} — the exact silent no-op this
+  // version gate exists to prevent.
+  const NEW_WRITES: { id: CapabilityId; needs: string }[] = [
+    { id: "write_canonical", needs: "canonical tags" },
+    { id: "write_robots_meta", needs: "per-page robots directives" },
+    { id: "write_robots_txt", needs: "robots.txt" },
+    { id: "write_redirects", needs: "redirects" },
+    { id: "write_hardening", needs: "WordPress hardening settings" },
+  ];
+  for (const { id, needs } of NEW_WRITES) {
+    set(
+      id,
+      wpOk && hasPluginVersion(wpVersion, "0.5.0"),
+      wpOk
+        ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Writing ${needs} needs 0.5.0 or newer. Update the plugin.`
+        : wpError,
+    );
+  }
 
   // --- Reading real performance data ---------------------------------
   set(

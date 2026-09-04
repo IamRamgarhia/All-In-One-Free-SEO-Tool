@@ -144,11 +144,16 @@ describe("draftValue — meta descriptions", () => {
 
 describe("draftValue — unknown kinds", () => {
   it("refuses rather than guessing", async () => {
-    // A kind with no drafting path at all. This used to name
-    // write_schema, which passed for the wrong reason once schema got a
-    // generator — it failed on the mocked fetch, not on being unknown.
+    // A kind with no drafting path at all.
+    //
+    // This named write_schema, then write_canonical, and each time the
+    // kind was later implemented the test kept passing for the wrong
+    // reason — or, the second time, started failing and looked like a
+    // regression in the feature rather than a stale fixture. So it now
+    // names something that is not a kind and never will be. The point is
+    // "an unrecognised kind is refused", not "this particular one is."
     const r = await draftValue(
-      { ...action, kind: "write_canonical" as never },
+      { ...action, kind: "write_a_kind_that_does_not_exist" as never },
       context,
     );
     expect(r.ok).toBe(false);
@@ -172,7 +177,19 @@ describe("requiresDraft", () => {
   });
 
   it("is false for a kind nothing can draft", () => {
-    expect(requiresDraft("write_canonical")).toBe(false);
+    // Deliberately not a real kind — see the note above.
+    expect(requiresDraft("write_a_kind_that_does_not_exist")).toBe(false);
+  });
+
+  it("is true for the deterministic kinds too", () => {
+    // "Requires a draft" means "must not be executed with an empty
+    // string", not "must ask a model". Canonical and robots values are
+    // computed, and leaving them out of requiresDraft would send "" to a
+    // live site, verify cleanly against a field that never changed, and
+    // report the page as fixed — which is exactly what shipped for alt
+    // text once.
+    expect(requiresDraft("write_canonical")).toBe(true);
+    expect(requiresDraft("write_robots_meta")).toBe(true);
   });
 });
 
