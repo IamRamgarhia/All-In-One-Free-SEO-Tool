@@ -386,6 +386,7 @@ t('site-level revisions are identifiable', function () {
 // extra stubs, and keeping them here made this file harder to read than
 // the thing it tests.
 require __DIR__ . '/head-tests.php';
+require __DIR__ . '/alt-tests.php';
 
 // ---------------------------------------------------------------- report
 

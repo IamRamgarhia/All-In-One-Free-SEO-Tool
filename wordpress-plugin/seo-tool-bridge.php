@@ -658,12 +658,125 @@ function stb_rest_update_alt(WP_REST_Request $req): WP_REST_Response
     $body = $req->get_json_params() ?: [];
     $new = isset($body['alt']) ? sanitize_text_field($body['alt']) : '';
     $old = (string)get_post_meta($id, '_wp_attachment_image_alt', true);
+
+    $rev_id = null;
     if ($new !== $old) {
         update_post_meta($id, '_wp_attachment_image_alt', $new);
         $rev_id = stb_record_revision('alt', "attachment:$id", $old, $new);
-        return new WP_REST_Response(['ok' => true, 'rev_id' => $rev_id]);
     }
-    return new WP_REST_Response(['ok' => true, 'rev_id' => null, 'note' => 'no change']);
+
+    // The attachment's alt is only half the job, and for most sites it is
+    // the half that does not show.
+    //
+    // The block editor writes the <img> straight into post_content with
+    // its own alt attribute baked in. wp_get_attachment_image() reads the
+    // attachment meta; an inline <img> does not. So updating the meta
+    // alone stored the text, answered {ok: true}, read back correctly
+    // through this plugin's own /images endpoint — and left the page
+    // serving alt="". Verified on a real WordPress: the finding was
+    // reported fixed and the page was unchanged.
+    $content_changes = stb_apply_alt_to_content($id, $new);
+
+    return new WP_REST_Response([
+        'ok' => true,
+        'rev_id' => $rev_id,
+        'posts_updated' => $content_changes,
+        'note' => ($rev_id === null && !$content_changes) ? 'no change' : null,
+    ]);
+}
+
+/**
+ * Rewrite the alt attribute on inline <img> tags for one attachment.
+ *
+ * Matched by the wp-image-N class WordPress puts on every image it
+ * inserts, so this can only ever touch images that genuinely are this
+ * attachment. Nothing else about the tag is altered — not the src, not
+ * the classes, not the dimensions — because the goal is one attribute
+ * and anything broader is a way to damage a page while fixing it.
+ *
+ * The whole previous post_content is recorded, so undo is a straight
+ * put-it-back rather than an attempt to unpick individual edits. That is
+ * the same approach the internal-link inserter takes, for the same
+ * reason.
+ *
+ * Returns how many posts were changed.
+ */
+function stb_apply_alt_to_content(int $attachment_id, string $alt): int
+{
+    global $wpdb;
+
+    $needle = 'wp-image-' . $attachment_id;
+    $posts = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT ID, post_content FROM {$wpdb->posts}
+             WHERE post_status NOT IN ('trash', 'auto-draft')
+               AND post_type NOT IN ('revision', 'attachment')
+               AND post_content LIKE %s
+             LIMIT 20",
+            '%' . $wpdb->esc_like($needle) . '%',
+        ),
+    );
+    if (!$posts) {
+        return 0;
+    }
+
+    $changed = 0;
+    foreach ($posts as $row) {
+        $before = (string)$row->post_content;
+        $after = stb_rewrite_img_alt($before, $attachment_id, $alt);
+        if ($after === $before) {
+            continue;
+        }
+        wp_update_post(['ID' => (int)$row->ID, 'post_content' => $after]);
+        stb_record_revision('content', 'post:' . (int)$row->ID, $before, $after);
+        $changed++;
+    }
+    return $changed;
+}
+
+/**
+ * Set alt="..." on every <img> carrying this attachment's class.
+ *
+ * Deliberately string surgery on the one tag rather than a DOM parse of
+ * the whole document: loading post_content into DOMDocument and writing
+ * it back reformats markup the author wrote by hand, mangles block
+ * comments, and turns a one-attribute change into a whole-file diff.
+ */
+function stb_rewrite_img_alt(string $content, int $attachment_id, string $alt): string
+{
+    $class = 'wp-image-' . $attachment_id;
+    $escaped = esc_attr($alt);
+
+    return (string)preg_replace_callback(
+        '#<img\b[^>]*>#i',
+        static function (array $m) use ($class, $escaped): string {
+            $tag = $m[0];
+            // Only this attachment's images. The class check is on a word
+            // boundary so wp-image-6 never matches wp-image-60.
+            if (!preg_match('#\bclass\s*=\s*("|\')([^"\']*)\1#i', $tag, $c)) {
+                return $tag;
+            }
+            if (!preg_match('#(^|\s)' . preg_quote($class, '#') . '(\s|$)#', $c[2])) {
+                return $tag;
+            }
+            if (preg_match('#\balt\s*=\s*("|\')[^"\']*\1#i', $tag)) {
+                return (string)preg_replace(
+                    '#\balt\s*=\s*("|\')[^"\']*\1#i',
+                    'alt="' . $escaped . '"',
+                    $tag,
+                    1,
+                );
+            }
+            // No alt attribute at all — add one just before the close.
+            return (string)preg_replace(
+                '#\s*(/?)>$#',
+                ' alt="' . $escaped . '"$1>',
+                $tag,
+                1,
+            );
+        },
+        $content,
+    );
 }
 
 function stb_rest_set_schema(WP_REST_Request $req): WP_REST_Response

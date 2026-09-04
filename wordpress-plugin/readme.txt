@@ -131,6 +131,13 @@ The plugin doesn't collect or transmit any personal data. It exposes a REST endp
 == Changelog ==
 
 = 0.5.0 (current) =
+* Fixed (Important): alt text never reached the page. It was written to the
+  attachment, which is what wp_get_attachment_image() reads — but the block
+  editor bakes the <img> and its alt into post content, and an inline tag does
+  not consult the attachment. So the write succeeded, read back correctly, and
+  the page carried on serving alt="". The alt attribute in post content is now
+  rewritten too, matched strictly by the wp-image-N class, with the previous
+  content recorded so undo is exact.
 * Fixed (Important): on a site with no SEO plugin installed, the meta
   description and canonical this plugin stored were never rendered. They are
   written to Yoast / Rank Math / All in One SEO meta keys, and with none of
