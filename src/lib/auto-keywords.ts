@@ -99,10 +99,23 @@ export async function discoverKeywords(
   // 3. Brand seeds — derived from niche + description + (optionally) city
   const baseSeeds = brandSeeds(input);
 
+  // The brand name is deliberately NOT a seed.
+  //
+  // Google autocomplete on a small brand returns whatever bigger thing
+  // shares those words. Seeding "Dice Codes" — a web agency — produced
+  // "dice codes discount", "dice discount code nhs" and "dice codes for
+  // monopoly go": a ticketing app and a mobile game, sixty keywords of
+  // them, every one about somebody else's business.
+  //
+  // That is not a bad autocomplete result, it is the wrong question. A
+  // business that needs SEO help is by definition one nobody searches
+  // for by name yet, so its own name is the least useful seed it has.
+  // What it does and where it does it are the useful ones.
+  //
+  // It stays as a last resort below, because no seeds at all is worse.
   const allSeeds = Array.from(
     new Set(
       [
-        input.clientName,
         ...baseSeeds,
         ...aiSeeds,
       ]
@@ -110,6 +123,23 @@ export async function discoverKeywords(
         .filter((s) => s && s.length >= 2 && s.length <= 60),
     ),
   ).slice(0, 12); // cap fan-out — autocomplete is fast but not infinite
+
+  // Nothing to go on: no description, no niche, no city, no AI. The
+  // brand name is a poor seed and better than returning an empty list,
+  // so it is used and the caller is told that is what happened.
+  if (allSeeds.length === 0) {
+    allSeeds.push(input.clientName.trim().toLowerCase());
+  }
+
+  // Suggestions that belong to a different company.
+  //
+  // Even with better seeds, autocomplete pulls in coupon, mod-apk and
+  // game-code queries whenever the brand's words overlap something
+  // bigger. None of them describe a service a client sells, and every
+  // one that reaches the list is a keyword somebody would have tracked
+  // for a year.
+  const HIJACK =
+    /\b(discount code|coupon|promo code|voucher|redeem|mod apk|apk|cheat|hack|free spins|dice roll)\b/i;
 
   // 4. Google autocomplete fan-out (small LSI mode for each seed)
   for (const seed of allSeeds) {
@@ -122,6 +152,10 @@ export async function discoverKeywords(
       for (const s of result.suggestions) {
         const key = s.query.toLowerCase();
         if (seenQueries.has(key)) continue;
+        // A retailer legitimately wants "discount code" queries. Nobody
+        // else does, and for everybody else they are the signature of
+        // autocomplete answering about a different company entirely.
+        if (HIJACK.test(key) && input.niche !== "ecommerce") continue;
         seenQueries.set(
           key,
           scoreKeyword({
@@ -151,7 +185,80 @@ export async function discoverKeywords(
   };
 }
 
-function brandSeeds(input: DiscoveryInput): string[] {
+/**
+ * The strongest few words describing what the business does.
+ *
+ * Taken from the first sentence of the description, which is where
+ * people put it. Returns null rather than guessing — a wrong subject
+ * seeds sixty wrong keywords, and no subject just means fewer seeds.
+ */
+export function descriptorFor(input: DiscoveryInput): string | null {
+  // The business type first, always.
+  //
+  // It is a field the user filled in with exactly this — "bakery",
+  // "dentist", "SaaS", "software development" — so it is both precise
+  // and already a phrase people search. Mining it out of prose is what
+  // you do when nobody told you, and it is much worse at it: the first
+  // attempt returned "builds fast seo-friendly", a verb and two
+  // adjectives, which seeded "builds fast seo-friendly agency".
+  const stated = (input.businessTypeFromDesc ?? "").trim().toLowerCase();
+  if (stated.length >= 3) return stated;
+
+  const phrases = servicePhrases(input);
+  return phrases[0] ?? null;
+}
+
+/**
+ * Words that start a clause about the company rather than name a thing
+ * it sells.
+ *
+ * "builds fast websites" and "delivers SEO" are both about the business,
+ * and neither is a search. Dropping the verb leaves the noun phrase that
+ * is — "fast websites", "SEO".
+ */
+const ACTION_WORDS = new Set([
+  "builds", "build", "building", "delivers", "deliver", "delivering",
+  "grows", "grow", "growing", "helps", "help", "helping", "provides",
+  "provide", "providing", "offers", "offer", "offering", "creates",
+  "create", "creating", "makes", "make", "making", "specialises",
+  "specializes", "works", "serving", "serves", "designs", "design",
+]);
+
+/**
+ * Noun phrases from the description that could plausibly be searched.
+ *
+ * Two filters do the work. The brand's own words come out first — the
+ * description almost always opens with the company name, so without this
+ * the first bigram IS the brand and the whole point of not seeding on it
+ * is lost. Then anything starting with a verb goes, because a clause
+ * about what the company does is not a phrase anyone types.
+ */
+export function servicePhrases(input: DiscoveryInput): string[] {
+  const desc = (input.description ?? "").trim();
+  if (!desc) return [];
+
+  const brandWords = new Set(
+    input.clientName.toLowerCase().split(/\s+/).filter(Boolean),
+  );
+
+  const tokens = desc
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter(
+      (w) => w.length > 3 && !STOP_WORDS.has(w) && !brandWords.has(w),
+    );
+
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length - 1; i++) {
+    if (ACTION_WORDS.has(tokens[i]) || ACTION_WORDS.has(tokens[i + 1])) continue;
+    const phrase = `${tokens[i]} ${tokens[i + 1]}`;
+    if (!out.includes(phrase)) out.push(phrase);
+  }
+  return out.slice(0, 5);
+}
+
+export function brandSeeds(input: DiscoveryInput): string[] {
   const seeds: string[] = [];
   // Strip stop-suffixes from the brand for a cleaner seed
   const cleanedName = input.clientName.replace(
@@ -169,30 +276,27 @@ function brandSeeds(input: DiscoveryInput): string[] {
       blog: ["guide", "tips", "blog"],
       services: ["service", "agency", "expert"],
     };
-    for (const t of nicheTerms[niche] ?? []) {
-      seeds.push(`${cleanedName || input.clientName} ${t}`);
+    // Attached to what the business DOES, not to what it is called.
+    // "dice codes agency" is a search nobody performs; "web design
+    // agency ludhiana" is one its customers actually type.
+    const subject =
+      descriptorFor(input) ?? input.businessTypeFromDesc ?? null;
+    if (subject) {
+      for (const t of nicheTerms[niche] ?? []) {
+        seeds.push(`${subject} ${t}`);
+      }
+      if (input.city) seeds.push(`${subject} ${input.city}`);
     }
   }
 
-  // Pull noun phrases from the description (very rough — top words minus stops)
-  if (input.description) {
-    const tokens = input.description
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, " ")
-      .split(/\s+/)
-      .filter((w) => w.length > 3 && !STOP_WORDS.has(w));
-    const freq = new Map<string, number>();
-    for (let i = 0; i < tokens.length - 1; i++) {
-      const bigram = `${tokens[i]} ${tokens[i + 1]}`;
-      freq.set(bigram, (freq.get(bigram) ?? 0) + 1);
-    }
-    const top = Array.from(freq.entries())
-      .filter(([, c]) => c >= 2)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([phrase]) => phrase);
-    seeds.push(...top);
-  }
+  // Phrases from the description, brand words and verbs removed.
+  //
+  // This used to build every bigram in the text and keep the ones
+  // appearing twice. In a three-sentence description nothing appears
+  // twice, so it contributed nothing — and when the frequency filter
+  // came off it contributed "codes builds" and "websites delivers",
+  // which is worse than nothing.
+  seeds.push(...servicePhrases(input));
 
   // Local-niche city seeds
   if (input.city && input.niche === "local") {
