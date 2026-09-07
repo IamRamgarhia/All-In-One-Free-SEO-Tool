@@ -123,11 +123,31 @@ function hasJsonLd(html: string): boolean {
   return /<script[^>]+type=["']application\/ld\+json["']/i.test(html);
 }
 
+/**
+ * Is the heading outline sound?
+ *
+ * Two ways it can be wrong, and this used to catch only the first:
+ *
+ *   - the page opens on something other than an <h1>
+ *   - a level is skipped on the way down, h1 straight to h4
+ *
+ * The second is the commoner mistake by a distance — it comes from
+ * picking a heading for how big it looks — and it was invisible here. A
+ * fixture page with exactly that shape was reported clean, which is how
+ * the gap was found: the check's name promised an outline and it only
+ * ever looked at the first tag.
+ *
+ * Going back UP any number of levels is fine. h4 to h2 starts a new
+ * section; it does not skip anything.
+ */
 function checkHeadingOrder(html: string): boolean {
-  // True if first heading is h1 (or no headings yet)
-  const m = html.match(/<h([1-6])\b/i);
-  if (!m) return true;
-  return m[1] === "1";
+  const levels = [...html.matchAll(/<h([1-6])\b/gi)].map((m) => Number(m[1]));
+  if (levels.length === 0) return true;
+  if (levels[0] !== 1) return false;
+  for (let i = 1; i < levels.length; i++) {
+    if (levels[i] - levels[i - 1] > 1) return false;
+  }
+  return true;
 }
 
 type FetchedPage = {
@@ -187,14 +207,22 @@ async function fetchPage(
 async function fetchUrlStatus(
   url: string,
   timeoutMs = 8_000,
+  allowPrivate = false,
 ): Promise<{ status: number; finalUrl: string } | null> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // allowPrivate was missing here while every other fetch in this file
+    // threaded it. The guard rejected the request, the catch below turned
+    // that into null, and null reads as "not broken" — so on the private
+    // hosts that option exists to support (a staging box, a LAN address,
+    // a docker hostname) broken-link checking silently found nothing at
+    // all. No error, no empty result, just a check that never ran.
     const res = await guardedFetch(url, {
       method: "HEAD",
       signal: controller.signal,
       headers: { "user-agent": USER_AGENT },
+      allowPrivate,
     });
     return { status: res.status, finalUrl: res.url };
   } catch {
@@ -332,7 +360,8 @@ function checkPage(page: FetchedPage): {
       type: "heading_order",
       severity: "low",
       url,
-      message: "First heading isn't an <h1> — heading hierarchy may be off.",
+      message:
+        "The heading outline is broken — either the page doesn't open on an <h1>, or it skips a level (an <h1> straight to an <h4>). Screen readers navigate by this outline.",
     });
   }
 
@@ -687,6 +716,33 @@ function checkPage(page: FetchedPage): {
 // Site-wide checks
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * Same page, allowing for a trailing slash.
+ *
+ * runAudit takes the URL as typed and only prefixes a protocol, so
+ * auditing "example.com" leaves homeUrl as "https://example.com" while
+ * the crawled page's finalUrl is "https://example.com/". Comparing them
+ * directly failed for every audit started without a trailing slash —
+ * which is how everyone types a domain.
+ *
+ * The visible effect was that the home page did not match the "skip the
+ * homepage" guard below, had no inbound internal links (nothing links to
+ * the home page), and was reported as an ORPHAN PAGE on any site with
+ * four or more pages. A site's own front page, listed as invisible.
+ */
+function sameUrl(a: string, b: string): boolean {
+  const norm = (u: string) => {
+    try {
+      const url = new URL(u);
+      url.hash = "";
+      return (url.origin + url.pathname).replace(/\/+$/, "").toLowerCase();
+    } catch {
+      return u.replace(/\/+$/, "").toLowerCase();
+    }
+  };
+  return norm(a) === norm(b);
+}
+
 async function checkSiteWide(
   homeUrl: string,
   pages: FetchedPage[],
@@ -787,7 +843,10 @@ async function checkSiteWide(
   }
 
   // Security headers (check on homepage response)
-  const home = pages.find((p) => p.url === homeUrl) ?? pages[0];
+  // Same trailing-slash problem: an exact match here fell through to
+  // pages[0], which is the home page in practice and would not be if the
+  // crawl order ever changed.
+  const home = pages.find((p) => sameUrl(p.url, homeUrl)) ?? pages[0];
   if (home) {
     const missing: string[] = [];
     if (!home.headers.get("strict-transport-security")) missing.push("HSTS");
@@ -936,7 +995,10 @@ async function checkSiteWide(
   }
   const orphans: string[] = [];
   for (const p of pages) {
-    if (p.finalUrl === homeUrl) continue; // homepage doesn't need incoming
+    // The home page needs no inbound links. Compared loosely because
+    // homeUrl is the string the user typed and finalUrl is what the
+    // server served — see sameUrl.
+    if (sameUrl(p.finalUrl, homeUrl)) continue;
     const count = incomingLinks.get(p.finalUrl) ?? 0;
     if (count === 0) orphans.push(p.finalUrl);
   }
@@ -990,6 +1052,7 @@ async function checkBrokenLinks(
   pages: FetchedPage[],
   origin: string,
   maxToCheck = 30,
+  allowPrivate = false,
 ): Promise<AuditFinding[]> {
   const findings: AuditFinding[] = [];
   const allLinks = new Set<string>();
@@ -1017,7 +1080,7 @@ async function checkBrokenLinks(
 
   let broken = 0;
   for (const u of toCheck) {
-    const r = await fetchUrlStatus(u);
+    const r = await fetchUrlStatus(u, 8_000, allowPrivate);
     if (r && r.status >= 400) {
       broken++;
       if (broken <= 5) {
@@ -1602,7 +1665,12 @@ export async function runAudit(
   findings.push(...siteFindings);
 
   // Broken links (best effort, capped)
-  const linkFindings = await checkBrokenLinks(pages, origin);
+  const linkFindings = await checkBrokenLinks(
+    pages,
+    origin,
+    30,
+    options.allowPrivateHosts === true,
+  );
   findings.push(...linkFindings);
 
   const score = scoreFindings(findings, perPageFindings, pages.length);

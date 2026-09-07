@@ -87,6 +87,23 @@ jobs:
           php -l wordpress-plugin/seo-tool-bridge.php
           pnpm test:php
 
+      # The crawler, run against a site built to be broken.
+      #
+      # Everything else about the audit is checked by comparing lists of
+      # finding names to each other, which catches drift and would not
+      # catch the crawler quietly failing to notice a missing title. This
+      # serves 21 pages that each break one rule and asserts the engine
+      # finds exactly what each page declares — no more, because a page
+      # built to have one problem that reports three has two false
+      # positives.
+      #
+      # It found three real bugs on its first run: heading order could
+      # not see a skipped level, the private-host allowance never reached
+      # the broken-link checker, and a site's own home page was reported
+      # as an orphan whenever the URL was typed without a trailing slash.
+      - name: Test the crawler against the fixture site
+        run: pnpm test:fixtures
+
       # Runs migrations against a scratch DB then builds. Catches both
       # broken migrations and any module that fails to resolve.
       - name: Build

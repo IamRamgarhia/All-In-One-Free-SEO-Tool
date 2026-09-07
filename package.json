@@ -97,6 +97,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:php": "php wordpress-plugin/tests/run-tests.php",
+    "test:fixtures": "tsx scripts/audit-fixtures.ts",
     "test:watch": "vitest",
     "setup": "node scripts/migrate.cjs && next build && playwright install chromium",
     "db:generate": "drizzle-kit generate",
