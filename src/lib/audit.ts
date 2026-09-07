@@ -1610,7 +1610,7 @@ export async function runAudit(
   const tech = await (async () => {
     try {
       const { detectTechStack } = await import("./tech-detect");
-      const r = await detectTechStack(url);
+      const r = await detectTechStack(url, options.allowPrivateHosts === true);
       return r.technologies.map((t) => t.name);
     } catch {
       return [] as string[];

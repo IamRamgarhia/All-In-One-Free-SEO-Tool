@@ -31,6 +31,19 @@ export type VariantConfig = {
 };
 
 /**
+ * A one-page site that looks like a particular platform.
+ *
+ * The stack rules only run once the crawler has DETECTED the stack, and
+ * detection re-fetches the URL and matches signatures in the HTML and
+ * headers. So the signature has to be on the page the crawler is pointed
+ * at, which means its own site rather than another fixture.
+ */
+export type StackConfig = {
+  html: string;
+  headers?: Record<string, string>;
+};
+
+/**
  * A correct, unremarkable page for the variant sites.
  *
  * Deliberately complete — a canonical, a description, headings, enough
@@ -72,6 +85,7 @@ ${path === "/" ? '<p><a href="/ordinary">The ordinary page</a></p>' : ""}
 
 export async function startFixtureServer(
   variant?: VariantConfig,
+  stack?: StackConfig,
 ): Promise<RunningFixtures> {
   const byPath = new Map(FIXTURES.map((f) => [f.path, f]));
 
@@ -120,7 +134,11 @@ export async function startFixtureServer(
       // A variant site is two pages, so its sitemap lists two pages. The
       // full fixture set would drag every unrelated finding into a run
       // that is meant to check one thing about robots.txt.
-      const paths = variant ? ["/", "/ordinary"] : FIXTURES.map((f) => f.path);
+      const paths = stack
+        ? ["/"]
+        : variant
+          ? ["/", "/ordinary"]
+          : FIXTURES.map((f) => f.path);
       const urls = paths.map(
         (pp) => `  <url><loc>http://${req.headers.host}${pp}</loc></url>`,
       ).join("\n");
@@ -141,6 +159,18 @@ export async function startFixtureServer(
           "base64",
         ),
       );
+      return;
+    }
+
+    if (stack) {
+      // Every path serves the same page. Checks that read the URL — an
+      // author archive, /collections/all — need the crawl to START at
+      // that path, and a 404 everywhere else would stop it.
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        ...(stack.headers ?? {}),
+      });
+      res.end(stack.html.replaceAll("HOST", String(req.headers.host)));
       return;
     }
 

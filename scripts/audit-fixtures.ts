@@ -26,6 +26,7 @@ import { AUDIT_FINDING_TYPES } from "../src/lib/audit-finding-types";
 import { FIXTURES, SITE_EXPECTATIONS } from "../fixtures/pages";
 import { startFixtureServer } from "../fixtures/server";
 import { VARIANTS } from "../fixtures/variants";
+import { STACK_SITES } from "../fixtures/stacks";
 
 const c = {
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
@@ -190,11 +191,49 @@ async function main() {
     }
   }
 
+  // ---- platform sites --------------------------------------------------
+  //
+  // The wp_*, next_* and shopify_* rules only run once the crawler has
+  // detected that stack, and detection matches signatures on the page it
+  // was pointed at. So each is a one-page site carrying the signature and
+  // every mistake its rules look for.
+  console.log(`\n${c.bold("Platform sites")}`);
+  for (const site of STACK_SITES) {
+    const running = await startFixtureServer(undefined, {
+      html: site.html,
+      headers: site.headers,
+    });
+    let r;
+    try {
+      r = await runAudit(running.baseUrl + (site.startPath ?? "/"), {
+        allowPrivateHosts: true,
+        renderJs: false,
+        maxPages: 3,
+        maxDepth: 0,
+      });
+    } finally {
+      await running.close();
+    }
+
+    const got = new Set(r.findings.map((f) => f.type));
+    const missing = site.expect.filter((t) => !got.has(t));
+    checks++;
+    if (missing.length === 0) {
+      console.log(`  ${c.green("ok")}    ${site.name}`);
+    } else {
+      failures++;
+      console.log(`  ${c.red("FAIL")}  ${site.name}`);
+      console.log(`        ${c.red("not detected:")} ${missing.join(", ")}`);
+      console.log(`        ${c.dim(site.lesson)}`);
+    }
+  }
+
   // ---- coverage --------------------------------------------------------
   const declared = new Set([
     ...FIXTURES.flatMap((f) => f.expect),
     ...Object.values(SITE_EXPECTATIONS).flat(),
     ...VARIANTS.flatMap((v) => v.expect),
+    ...STACK_SITES.flatMap((v) => v.expect),
   ]);
   const uncovered = (AUDIT_FINDING_TYPES as readonly string[]).filter(
     (t) => !declared.has(t as never),
