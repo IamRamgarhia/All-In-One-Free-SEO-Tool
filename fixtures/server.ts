@@ -17,7 +17,62 @@ export type RunningFixtures = {
   close: () => Promise<void>;
 };
 
-export async function startFixtureServer(): Promise<RunningFixtures> {
+/**
+ * A whole-site scenario instead of the full fixture set.
+ *
+ * Site-level findings — no robots.txt, a malformed one, a crawl-delay —
+ * need a site whose robots.txt is the thing under test, and the main set
+ * needs a valid one for everything else to work. So they get their own
+ * tiny site rather than another page in the big one.
+ */
+export type VariantConfig = {
+  robots: string | null;
+  sitemap: boolean;
+};
+
+/**
+ * A correct, unremarkable page for the variant sites.
+ *
+ * Deliberately complete — a canonical, a description, headings, enough
+ * prose — so the only thing a variant run reports is the site-level
+ * finding it exists to check.
+ */
+function variantPage(path: string, host: string): string {
+  const name = path === "/" ? "home" : "ordinary";
+  const body = Array.from(
+    { length: 4 },
+    () =>
+      "<p>An ordinary paragraph on an ordinary page, long enough that the " +
+      "thin-content check has nothing to say about it, and dull enough that " +
+      "nothing else does either. The point of this page is to exist and be " +
+      "correct while the site around it is not.</p>",
+  ).join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The ${name} page of a robots.txt scenario</title>
+<meta name="description" content="An ordinary page, used so a robots.txt scenario can be checked without anything else being wrong.">
+<link rel="icon" href="/favicon.ico">
+<link rel="canonical" href="http://${host}${path}">
+<meta property="og:title" content="The ${name} page">
+<meta property="og:description" content="An ordinary page.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="The ${name} page">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"${name}"}</script>
+</head>
+<body>
+<h1>The ${name} page</h1>
+${body}
+${path === "/" ? '<p><a href="/ordinary">The ordinary page</a></p>' : ""}
+</body>
+</html>`;
+}
+
+export async function startFixtureServer(
+  variant?: VariantConfig,
+): Promise<RunningFixtures> {
   const byPath = new Map(FIXTURES.map((f) => [f.path, f]));
 
   const server = createServer((req, res) => {
@@ -30,6 +85,16 @@ export async function startFixtureServer(): Promise<RunningFixtures> {
     // absence is its own finding, and a fixture site that is missing
     // them would trip that check on every single page.
     if (path === "/robots.txt") {
+      if (variant) {
+        if (variant.robots === null) {
+          res.writeHead(404, { "content-type": "text/plain" });
+          res.end("not found");
+          return;
+        }
+        res.writeHead(200, { "content-type": "text/plain" });
+        res.end(variant.robots.replaceAll("HOST", String(req.headers.host)));
+        return;
+      }
       res.writeHead(200, { "content-type": "text/plain" });
       res.end(
         [
@@ -47,8 +112,17 @@ export async function startFixtureServer(): Promise<RunningFixtures> {
     }
 
     if (path === "/sitemap.xml") {
-      const urls = FIXTURES.map(
-        (f) => `  <url><loc>http://${req.headers.host}${f.path}</loc></url>`,
+      if (variant && !variant.sitemap) {
+        res.writeHead(404, { "content-type": "text/plain" });
+        res.end("not found");
+        return;
+      }
+      // A variant site is two pages, so its sitemap lists two pages. The
+      // full fixture set would drag every unrelated finding into a run
+      // that is meant to check one thing about robots.txt.
+      const paths = variant ? ["/", "/ordinary"] : FIXTURES.map((f) => f.path);
+      const urls = paths.map(
+        (pp) => `  <url><loc>http://${req.headers.host}${pp}</loc></url>`,
       ).join("\n");
       res.writeHead(200, { "content-type": "application/xml" });
       res.end(
@@ -67,6 +141,17 @@ export async function startFixtureServer(): Promise<RunningFixtures> {
           "base64",
         ),
       );
+      return;
+    }
+
+    if (variant) {
+      if (path === "/" || path === "/ordinary") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(variantPage(path, String(req.headers.host)));
+        return;
+      }
+      res.writeHead(404, { "content-type": "text/html" });
+      res.end("<!doctype html><title>Not found</title><h1>Not found</h1>");
       return;
     }
 

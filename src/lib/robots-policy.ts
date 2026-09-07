@@ -182,6 +182,19 @@ export async function fetchRobotsPolicy(
   origin: string,
   userAgent: string,
   timeoutMs = 6_000,
+  /**
+   * See runAudit's allowPrivateHosts.
+   *
+   * Missing here, and the consequence was the worst of the three places
+   * it was missing. The guard rejected the fetch, the catch below turned
+   * that into ALLOW_ALL, and the crawler then ignored robots.txt
+   * completely on exactly the private hosts that option exists for —
+   * walking paths the owner had disallowed and ignoring a Crawl-delay
+   * they had asked for. Silently, and while reporting the site as
+   * having a valid robots.txt, because a different code path fetched
+   * that one correctly.
+   */
+  allowPrivate = false,
 ): Promise<RobotsPolicy> {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
@@ -189,6 +202,7 @@ export async function fetchRobotsPolicy(
     const res = await guardedFetch(`${origin}/robots.txt`, {
       signal: ctl.signal,
       headers: { "user-agent": userAgent, accept: "text/plain" },
+      allowPrivate,
     });
     if (res.status >= 400 && res.status < 500) return ALLOW_ALL;
     if (!res.ok) return { ...ALLOW_ALL, unreachable: true };

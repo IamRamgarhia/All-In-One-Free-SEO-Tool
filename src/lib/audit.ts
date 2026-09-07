@@ -747,13 +747,24 @@ async function checkSiteWide(
   homeUrl: string,
   pages: FetchedPage[],
   metaIndex: Map<string, { title: string | null; description: string | null }>,
+  /**
+   * See runAudit's allowPrivateHosts.
+   *
+   * This function fetched robots.txt and sitemap.xml without it while
+   * the crawler threaded it everywhere else. On a private host the
+   * guard rejected both, fetchText returned null, and the site was
+   * reported as having NO robots.txt and NO sitemap — two confident
+   * findings about files that were being served correctly the whole
+   * time. Same shape as the broken-link checker, found the same way.
+   */
+  allowPrivate = false,
 ): Promise<AuditFinding[]> {
   const findings: AuditFinding[] = [];
   const root = new URL(homeUrl);
   const origin = root.origin;
 
   // robots.txt
-  const robotsTxt = await fetchText(`${origin}/robots.txt`);
+  const robotsTxt = await fetchText(`${origin}/robots.txt`, 6_000, allowPrivate);
   let robotsExists = false;
   if (!robotsTxt || robotsTxt.status >= 400) {
     findings.push({
@@ -826,7 +837,7 @@ async function checkSiteWide(
   }
   let foundSitemap = false;
   for (const sm of sitemapUrls) {
-    const r = await fetchText(sm);
+    const r = await fetchText(sm, 6_000, allowPrivate);
     if (r && r.status < 400 && /<urlset|<sitemapindex/i.test(r.text)) {
       foundSitemap = true;
       break;
@@ -1219,7 +1230,12 @@ async function crawlSite(
 
   const policy = options.ignoreRobots
     ? ALLOW_ALL
-    : await fetchRobotsPolicy(origin, USER_AGENT);
+    : await fetchRobotsPolicy(
+        origin,
+        USER_AGENT,
+        6_000,
+        options.allowPrivate === true,
+      );
 
   const delayMs = Math.min(
     (policy.crawlDelaySec ?? 0) * 1000,
@@ -1661,7 +1677,12 @@ export async function runAudit(
   }
 
   // Site-wide checks
-  const siteFindings = await checkSiteWide(url, pages, metaIndex);
+  const siteFindings = await checkSiteWide(
+    url,
+    pages,
+    metaIndex,
+    options.allowPrivateHosts === true,
+  );
   findings.push(...siteFindings);
 
   // Broken links (best effort, capped)

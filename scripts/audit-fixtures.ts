@@ -23,8 +23,9 @@
 
 import { runAudit, type AuditFinding } from "../src/lib/audit";
 import { AUDIT_FINDING_TYPES } from "../src/lib/audit-finding-types";
-import { FIXTURES } from "../fixtures/pages";
+import { FIXTURES, SITE_EXPECTATIONS } from "../fixtures/pages";
 import { startFixtureServer } from "../fixtures/server";
+import { VARIANTS } from "../fixtures/variants";
 
 const c = {
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
@@ -125,8 +126,76 @@ async function main() {
     }
   }
 
+  // ---- findings nobody claimed ----------------------------------------
+  //
+  // The loop above only looks at paths that have a fixture, so anything
+  // reported against /robots.txt, /sitemap.xml or a URL outside the
+  // fixture set went unread. That hid a real bug: the site-wide checks
+  // were fetching robots.txt without the private-host allowance, failing,
+  // and reporting a robots.txt that was being served perfectly well.
+  //
+  // A finding with no fixture is not automatically wrong — but it is
+  // always something nobody has looked at.
+  const fixturePaths = new Set(FIXTURES.map((f) => f.path));
+  const unclaimed = [...byPath.entries()].filter(([path]) => !fixturePaths.has(path));
+  if (unclaimed.length > 0) {
+    console.log(`\n${c.bold("Findings on paths with no fixture")}`);
+    for (const [path, findings] of unclaimed) {
+      const declared = new Set<string>(SITE_EXPECTATIONS[path] ?? []);
+      const types = [...new Set(findings.map((f) => f.type))].filter(
+        (t) => !declared.has(t),
+      );
+      if (types.length === 0) continue;
+      console.log(`  ${c.yellow("?")}     ${path}  ${c.dim(types.join(", "))}`);
+      failures++;
+    }
+    console.log(
+      c.dim(
+        "        Give each a fixture that declares it, or work out why the\n" +
+          "        crawler is reporting it at all.",
+      ),
+    );
+  }
+
+  // ---- whole-site scenarios --------------------------------------------
+  //
+  // A site has one robots.txt, so "no robots.txt", "a malformed one" and
+  // "one with a crawl-delay" cannot all be pages in the set above. Each
+  // gets its own crawl of a deliberately tiny, otherwise-correct site.
+  console.log(`\n${c.bold("Whole-site scenarios")}`);
+  for (const v of VARIANTS) {
+    const site = await startFixtureServer({ robots: v.robots, sitemap: v.sitemap });
+    let r;
+    try {
+      r = await runAudit(site.baseUrl, {
+        allowPrivateHosts: true,
+        renderJs: false,
+        maxPages: 5,
+        maxDepth: 1,
+      });
+    } finally {
+      await site.close();
+    }
+
+    const got = new Set(r.findings.map((f) => f.type));
+    const missing = v.expect.filter((t) => !got.has(t));
+    checks++;
+    if (missing.length === 0) {
+      console.log(`  ${c.green("ok")}    ${v.name}`);
+    } else {
+      failures++;
+      console.log(`  ${c.red("FAIL")}  ${v.name}`);
+      console.log(`        ${c.red("not detected:")} ${missing.join(", ")}`);
+      console.log(`        ${c.dim(v.lesson)}`);
+    }
+  }
+
   // ---- coverage --------------------------------------------------------
-  const declared = new Set(FIXTURES.flatMap((f) => f.expect));
+  const declared = new Set([
+    ...FIXTURES.flatMap((f) => f.expect),
+    ...Object.values(SITE_EXPECTATIONS).flat(),
+    ...VARIANTS.flatMap((v) => v.expect),
+  ]);
   const uncovered = (AUDIT_FINDING_TYPES as readonly string[]).filter(
     (t) => !declared.has(t as never),
   );

@@ -42,6 +42,14 @@ export type Fixture = {
    * reason next to it.
    */
   tolerate?: AuditFindingType[];
+  /**
+   * Keep this page out of the home page's link list.
+   *
+   * It still appears in sitemap.xml, so the crawler finds it and nothing
+   * links to it — which is exactly what an orphan page is, and the only
+   * way to build one.
+   */
+  unlinked?: boolean;
   /** Raw response. Byte-level control is the point — status, headers, malformed head. */
   respond: (req: { url: string }) => {
     status?: number;
@@ -134,6 +142,53 @@ const html = (body: string, extra: Partial<ReturnType<Fixture["respond"]>> = {})
   ...extra,
 });
 
+/**
+ * The baseline page with one of its head tags removed.
+ *
+ * page() supplies a complete, correct head — a viewport, a favicon,
+ * Open Graph, a Twitter card, JSON-LD — so that a fixture testing one
+ * missing tag does not trip five other checks. Removing one is
+ * therefore a subtraction from that string rather than an option on it,
+ * which keeps page() from growing a flag per tag.
+ */
+function pageWithout(
+  tag: "viewport" | "icon" | "og" | "twitter" | "jsonld",
+  opts: Parameters<typeof page>[0] = {},
+): string {
+  const html = page(opts);
+  switch (tag) {
+    case "viewport":
+      return html.replace(/<meta name="viewport"[^>]*>\n?/, "");
+    case "icon":
+      return html.replace(/<link rel="icon"[^>]*>\n?/, "");
+    case "og":
+      return html.replace(/<meta property="og:[^>]*>\n?/g, "");
+    case "twitter":
+      return html.replace(/<meta name="twitter:[^>]*>\n?/g, "");
+    case "jsonld":
+      return html.replace(
+        /<script type="application\/ld\+json">[\s\S]*?<\/script>\n?/,
+        "",
+      );
+  }
+}
+
+/**
+ * Findings reported against paths that are not fixture pages.
+ *
+ * robots.txt and sitemap.xml are served by the fixture server rather
+ * than declared as pages, and the crawler reports against them by URL.
+ * Without this the harness had no opinion about them at all — which hid
+ * the site-wide checks fetching robots.txt without the private-host
+ * allowance, failing, and reporting a robots.txt that was being served
+ * perfectly well.
+ */
+export const SITE_EXPECTATIONS: Record<string, AuditFindingType[]> = {
+  // The fixture robots.txt names GPTBot and no other AI crawler, which
+  // is exactly the half-finished policy this finding is for.
+  "/robots.txt": ["partial_ai_crawler_policy"],
+};
+
 export const FIXTURES: Fixture[] = [
   // ---- the control -----------------------------------------------------
   {
@@ -145,7 +200,18 @@ export const FIXTURES: Fixture[] = [
     // Site-level findings, reported against the home URL rather than the
     // page they concern. A per-page fixture for these can never fire —
     // which is worth knowing, and was only discoverable by running it.
-    expect: ["missing_security_headers"],
+    // Every site-wide finding lands here, on the home URL, whatever page
+    // actually causes it. Which ones those are is not obvious from the
+    // names — duplicate titles, canonical chains and hreflang problems
+    // all read as per-page and are not — and running the crawler was the
+    // only way to find out.
+    expect: [
+      "missing_security_headers",
+      "orphan_pages",
+      "canonical_chain",
+      "inconsistent_hreflang",
+      "hreflang_not_reciprocal",
+    ],
     // Built at response time, not at module load: this fixture is inside
     // the array it needs to read, so anything eager sees an empty list
     // and the crawler finds a one-page site.
@@ -155,7 +221,7 @@ export const FIXTURES: Fixture[] = [
         body:
           prose(2) +
           "<nav><ul>" +
-          FIXTURES.filter((f) => f.path !== "/")
+          FIXTURES.filter((f) => f.path !== "/" && !f.unlinked)
             .map((f) => `<li><a href="${f.path}">${f.name}</a></li>`)
             .join("\n") +
           "</ul></nav>",
@@ -370,4 +436,332 @@ export const FIXTURES: Fixture[] = [
     ),
   },
 
+  // ---- head tags the baseline supplies, removed one at a time --------
+  {
+    path: "/head/no-viewport",
+    name: "No viewport meta",
+    category: "Head tags",
+    lesson:
+      "Without it, mobile browsers render the page at desktop width and scale it down, which is the classic 'why is my text tiny on a phone' bug.",
+    expect: ["missing_viewport"],
+    respond: () => ({
+      body: pageWithout("viewport", { canonicalPath: "/head/no-viewport" }),
+    }),
+  },
+  {
+    path: "/head/blocks-zoom",
+    name: "Viewport blocks pinch-zoom",
+    category: "Head tags",
+    lesson:
+      "user-scalable=no stops people enlarging text. It is an accessibility failure and Google has called it out for years.",
+    expect: ["viewport_blocks_zoom"],
+    respond: () => ({
+      body: pageWithout("viewport", {
+        canonicalPath: "/head/blocks-zoom",
+        head: `<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">`,
+      }),
+    }),
+  },
+  {
+    path: "/head/no-favicon",
+    name: "No favicon",
+    category: "Head tags",
+    lesson:
+      "Google shows a favicon beside every mobile result. Without one you get a generic globe next to competitors who have theirs.",
+    expect: ["missing_favicon"],
+    respond: () => ({
+      body: pageWithout("icon", { canonicalPath: "/head/no-favicon" }),
+    }),
+  },
+  {
+    path: "/head/no-og",
+    name: "No Open Graph tags",
+    category: "Head tags",
+    lesson:
+      "Without og:title a shared link renders as a bare URL on every social platform and in most chat apps.",
+    expect: ["missing_og_tags"],
+    respond: () => ({
+      body: pageWithout("og", { canonicalPath: "/head/no-og" }),
+    }),
+  },
+  {
+    path: "/head/no-twitter",
+    name: "No Twitter card tags",
+    category: "Head tags",
+    lesson: "Same idea as Open Graph, for the platforms that read the twitter: namespace.",
+    expect: ["missing_twitter_card"],
+    respond: () => ({
+      body: pageWithout("twitter", { canonicalPath: "/head/no-twitter" }),
+    }),
+  },
+  {
+    path: "/head/no-schema",
+    name: "No structured data",
+    category: "Head tags",
+    lesson:
+      "No JSON-LD means the page cannot qualify for any rich result — no stars, no FAQ block, no breadcrumb.",
+    expect: ["missing_schema"],
+    respond: () => ({
+      body: pageWithout("jsonld", { canonicalPath: "/head/no-schema" }),
+    }),
+  },
+
+  // ---- images ---------------------------------------------------------
+  {
+    path: "/images/no-dimensions",
+    name: "Images with no width or height",
+    category: "Images",
+    lesson:
+      "Without dimensions the browser cannot reserve space, so everything below the image jumps when it loads. That is most of a bad CLS score.",
+    expect: ["image_missing_dimensions"],
+    tolerate: ["no_lazy_loading", "old_image_formats"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/images/no-dimensions",
+        body:
+          Array.from({ length: 5 }, (_, i) => `<img src="/img.png?d=${i}" alt="Fixture image ${i}" loading="lazy">`).join("") +
+          prose(),
+      }),
+    }),
+  },
+  {
+    path: "/images/no-lazy",
+    name: "No image is lazy-loaded",
+    category: "Images",
+    lesson:
+      "Every image downloads before the page settles, including the ones nobody scrolls to.",
+    expect: ["no_lazy_loading"],
+    tolerate: ["old_image_formats"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/images/no-lazy",
+        body:
+          Array.from({ length: 6 }, (_, i) => `<img src="/img.png?l=${i}" alt="Fixture image ${i}" width="100" height="100">`).join("") +
+          prose(),
+      }),
+    }),
+  },
+  {
+    path: "/images/old-formats",
+    name: "Only JPEG and PNG",
+    category: "Images",
+    lesson:
+      "WebP and AVIF are typically 25-50% smaller at the same quality, and every browser in use supports WebP.",
+    expect: ["old_image_formats"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/images/old-formats",
+        body:
+          Array.from({ length: 6 }, (_, i) => `<img src="/img.png?o=${i}" alt="Fixture image ${i}" width="100" height="100" loading="lazy">`).join("") +
+          prose(),
+      }),
+    }),
+  },
+
+  // ---- links and scripts ----------------------------------------------
+  {
+    path: "/links/weak-anchors",
+    name: "Anchors that say 'click here'",
+    category: "Links",
+    lesson:
+      "The anchor text tells Google what the linked page is about. 'Click here' tells it nothing, and tells a screen-reader user even less.",
+    expect: ["weak_anchor_text"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/links/weak-anchors",
+        body:
+          Array.from({ length: 12 }, (_, i) =>
+            `<p><a href="/head/short-title?w=${i}">${i < 4 ? "click here" : "a properly described destination " + i}</a></p>`,
+          ).join("") + prose(),
+      }),
+    }),
+  },
+  {
+    path: "/perf/blocking-scripts",
+    name: "Three render-blocking scripts in the head",
+    category: "Performance",
+    lesson:
+      "Each one stops the browser painting until it has downloaded and run. async or defer costs one word and removes the stall.",
+    expect: ["render_blocking_scripts"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/perf/blocking-scripts",
+        head: [1, 2, 3, 4].map((i) => `<script src="/script-${i}.js"></script>`).join(""),
+      }),
+    }),
+  },
+  {
+    path: "/content/no-author",
+    name: "Article with no author",
+    category: "Content",
+    lesson:
+      "Who wrote it is part of how Google assesses expertise. An article with no byline is anonymous advice.",
+    expect: ["article_missing_author"],
+    respond: () => ({
+      // og:type is not what the check reads. It looks for an <article>
+      // element or Article/BlogPosting JSON-LD — which is the right
+      // signal, since og:type is set by templates on pages that are not
+      // articles at all.
+      body: page({
+        canonicalPath: "/content/no-author",
+        body: `<article>${prose()}</article>`,
+      }),
+    }),
+  },
+  // ---- problems that need more than one page --------------------------
+  {
+    path: "/dupe/one",
+    name: "Duplicate title and description (1 of 2)",
+    category: "Duplicates",
+    lesson:
+      "Two pages with the same title make Google choose between them, and it often shows neither. The same description gives searchers no reason to prefer one.",
+    expect: ["duplicate_title", "duplicate_meta_description"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/dupe/one",
+        title: "Exactly the same title on two different pages",
+        description:
+          "Exactly the same description on two different pages, which is the point of this pair of fixtures.",
+      }),
+    }),
+  },
+  {
+    path: "/dupe/two",
+    name: "Duplicate title and description (2 of 2)",
+    category: "Duplicates",
+    lesson:
+      "The other half of the pair above. The finding itself is reported once, against whichever of the two the crawler saw first — so this page declares nothing.",
+    expect: [],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/dupe/two",
+        title: "Exactly the same title on two different pages",
+        description:
+          "Exactly the same description on two different pages, which is the point of this pair of fixtures.",
+      }),
+    }),
+  },
+  {
+    path: "/canonical/chain-a",
+    name: "Canonical chain (a → b → c)",
+    category: "Duplicates",
+    lesson:
+      "Google follows one canonical hop. A chain means the page it eventually points at is never reached, so the whole instruction is wasted.",
+    // canonical_chain is reported against the home URL, not against the
+    // page whose canonical starts the chain. Declared on the home fixture.
+    expect: [],
+    tolerate: ["non_self_canonical"],
+    respond: () => ({
+      body: page({
+        slug: "canonical chain a",
+        head: `<link rel="canonical" href="http://HOST/canonical/chain-b">`,
+      }),
+    }),
+  },
+  {
+    path: "/canonical/chain-b",
+    name: "Canonical chain (middle)",
+    category: "Duplicates",
+    lesson: "The middle of the chain above.",
+    expect: [],
+    tolerate: ["non_self_canonical", "canonical_chain"],
+    respond: () => ({
+      body: page({
+        slug: "canonical chain b",
+        head: `<link rel="canonical" href="http://HOST/canonical/chain-c">`,
+      }),
+    }),
+  },
+  {
+    path: "/canonical/chain-c",
+    name: "Canonical chain (end)",
+    category: "Duplicates",
+    lesson: "The end of the chain. This one is self-canonical and correct.",
+    expect: [],
+    respond: () => ({
+      body: page({ canonicalPath: "/canonical/chain-c", slug: "canonical chain c" }),
+    }),
+  },
+  {
+    path: "/hreflang/en",
+    name: "hreflang points at a page that does not point back",
+    category: "International",
+    lesson:
+      "hreflang has to be reciprocal. If the English page says the French one is its translation and the French one does not say the same, Google ignores both annotations.",
+    // Reported against the home URL — see the home fixture.
+    expect: [],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/hreflang/en",
+        slug: "hreflang en",
+        head:
+          `<link rel="alternate" hreflang="en" href="http://HOST/hreflang/en">` +
+          `<link rel="alternate" hreflang="fr" href="http://HOST/hreflang/fr">`,
+      }),
+    }),
+  },
+  {
+    path: "/hreflang/fr",
+    name: "The page that should point back and does not",
+    category: "International",
+    lesson:
+      "It declares itself and nothing else. A target with no hreflang tags AT ALL is skipped by the reciprocity check, so the broken half of the pair has to carry tags of its own to be seen — which is worth knowing, because a page with none is the commoner mistake and no finding covers it.",
+    expect: [],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/hreflang/fr",
+        slug: "hreflang fr",
+        head: `<link rel="alternate" hreflang="fr" href="http://HOST/hreflang/fr">`,
+      }),
+    }),
+  },
+  {
+    path: "/http/soft-404",
+    name: "Says 'page not found' but returns 200",
+    category: "HTTP",
+    lesson:
+      "A soft 404 tells a person the page is gone and tells Google it is fine, so the empty page gets indexed and competes with real ones.",
+    expect: ["soft_404"],
+    tolerate: ["thin_content"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/http/soft-404",
+        slug: "http soft not found",
+        h1: "Page not found",
+        body: "<p>Sorry, we couldn't find that page. It may have been moved.</p>",
+      }),
+    }),
+  },
+  {
+    path: "/structure/orphan",
+    name: "In the sitemap, linked from nowhere",
+    category: "Structure",
+    lesson:
+      "A page nothing links to gets no share of the site's authority and is invisible to anyone browsing. Being in the sitemap is not the same as being reachable.",
+    expect: [],
+    // The finding is site-wide and reported against the home page, not
+    // against the orphan itself — so this fixture creates the condition
+    // and the home fixture declares the finding.
+    unlinked: true,
+    respond: () => ({
+      body: page({ canonicalPath: "/structure/orphan", slug: "structure orphan" }),
+    }),
+  },
+  {
+    path: "/perf/huge",
+    name: "Over a megabyte of HTML",
+    category: "Performance",
+    lesson:
+      "A megabyte of markup is a megabyte the browser parses before it can paint, and it is almost always a template rendering something that should have been paginated.",
+    expect: ["heavy_html_payload"],
+    respond: () => ({
+      body: page({
+        canonicalPath: "/perf/huge",
+        slug: "perf huge",
+        // Comments rather than text, so this does not also become the
+        // largest page of prose on the site.
+        body: prose() + "<!-- " + "padding ".repeat(140_000) + " -->",
+      }),
+    }),
+  },
 ];
