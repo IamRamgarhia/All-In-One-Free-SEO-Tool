@@ -1,6 +1,7 @@
 "use server";
 
 import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
+import { guardedFetch } from "@/lib/url-guard";
 
 const UA =
   "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost) InternalLinker";
@@ -29,7 +30,7 @@ async function fetchText(url: string, timeoutMs = 12_000): Promise<string | null
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
       headers: { "user-agent": UA, accept: "text/html" },
     });

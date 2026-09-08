@@ -3,6 +3,7 @@
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { callAI } from "@/lib/ai-call";
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type AiOverviewAnalysis =
   | {
@@ -46,7 +47,7 @@ async function fetchPageContent(
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 15_000);
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
       redirect: "follow",
       headers: {

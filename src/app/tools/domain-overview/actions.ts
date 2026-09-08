@@ -2,6 +2,7 @@
 
 import { fetchSiteMetadata, type SiteMetadata } from "@/lib/site-metadata";
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardedFetch, guardUrl } from "@/lib/url-guard";
 
 export type DomainOverview = {
   ok: true;
@@ -76,7 +77,7 @@ export async function runDomainOverview(
   const t = setTimeout(() => c.abort(), 15_000);
   let res: Response;
   try {
-    res = await fetch(finalUrl, {
+    res = await guardedFetch(finalUrl, {
       signal: c.signal,
       redirect: "follow",
       headers: { "user-agent": UA, accept: "text/html" },
@@ -195,6 +196,16 @@ async function checkHttps(
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 8_000);
+    // guardUrl then a manual fetch, NOT guardedFetch: this check reads
+    // the Location header to find out whether http:// redirects to
+    // https://, and guardedFetch follows redirects itself — so the
+    // response it returns is the final one, which has no Location and
+    // would report every site as not redirecting.
+    const verdict = await guardUrl(httpUrl);
+    if (!verdict.ok) {
+      clearTimeout(t);
+      return { enabled: httpsEnabled, redirectsToHttps: null };
+    }
     const r = await fetch(httpUrl, {
       method: "HEAD",
       redirect: "manual",
@@ -218,7 +229,7 @@ async function fetchRobots(
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 8_000);
-    const r = await fetch(`${origin}/robots.txt`, {
+    const r = await guardedFetch(`${origin}/robots.txt`, {
       signal: c.signal,
       headers: { "user-agent": UA },
     });
@@ -276,7 +287,7 @@ async function estimateIndexedFromBing(host: string): Promise<number | null> {
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 8_000);
-    const r = await fetch(
+    const r = await guardedFetch(
       `https://www.bing.com/search?q=site%3A${encodeURIComponent(host)}`,
       {
         signal: c.signal,

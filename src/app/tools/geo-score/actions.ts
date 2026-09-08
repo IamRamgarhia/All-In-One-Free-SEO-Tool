@@ -8,6 +8,7 @@ import { auditEeat } from "@/lib/eeat-audit";
 import { scoreAllPassages } from "@/lib/aio-passage-scorer";
 import { fetchCruxData } from "@/lib/crux";
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type GeoScoreState =
   | {
@@ -34,7 +35,7 @@ async function fetchHtml(url: string): Promise<string | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12_000);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       headers: { "user-agent": USER_AGENT, accept: "text/html" },
       signal: ctrl.signal,
       redirect: "follow",

@@ -5,6 +5,7 @@ import { scanCwv } from "@/lib/pagespeed";
 import { recordToolRun } from "@/lib/tool-findings";
 import { clientIdFrom } from "@/lib/client-id-field";
 import { type ToolFinding } from "@/db/schema";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type SxoAudit = {
   url: string;
@@ -50,7 +51,7 @@ async function fetchHtml(url: string): Promise<string | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12_000);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       headers: { "user-agent": USER_AGENT, accept: "text/html" },
       signal: ctrl.signal,
       redirect: "follow",

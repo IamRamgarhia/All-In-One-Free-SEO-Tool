@@ -1,6 +1,7 @@
 "use server";
 
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type SecurityResult =
   | {
@@ -82,7 +83,7 @@ async function fetchJson<T>(url: string, timeoutMs = 12_000): Promise<T | null> 
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
       headers: { accept: "application/json" },
     });
@@ -162,7 +163,7 @@ async function checkSsl(host: string): Promise<SslResult | null> {
 async function checkHeaders(rawUrl: string): Promise<HttpHeader[]> {
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       method: "HEAD",
       redirect: "follow",
       headers: {

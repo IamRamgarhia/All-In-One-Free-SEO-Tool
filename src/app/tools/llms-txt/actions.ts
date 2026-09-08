@@ -4,6 +4,7 @@ import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
 import type { AiFailure } from "@/lib/ai-error";
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type GenerateLlmsResult =
   | { ok: true; content: string; aiFailure?: AiFailure | null }
@@ -107,7 +108,7 @@ export async function validateLlmsTxt(
   const t = setTimeout(() => c.abort(), 10_000);
   let body = "";
   try {
-    const res = await fetch(llmsUrl, { signal: c.signal });
+    const res = await guardedFetch(llmsUrl, { signal: c.signal });
     if (!res.ok) {
       return {
         ok: false,

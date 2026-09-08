@@ -2,6 +2,7 @@
 
 import { saveSnapshot } from "@/lib/snapshots";
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardUrl } from "@/lib/url-guard";
 
 export type HeaderHop = {
   url: string;
@@ -30,6 +31,28 @@ export async function inspectHeaders(
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 12_000);
     try {
+      // Guard each hop, then fetch it manually. Not guardedFetch: this
+      // tool exists to REPORT the chain, so it has to see every 3xx and
+      // its Location itself, and guardedFetch collapses the chain into
+      // the final response.
+      //
+      // Per hop rather than once at the start, because a public URL that
+      // redirects to 169.254.169.254 is the standard way past a check
+      // that only looks at what the user typed.
+      const verdict = await guardUrl(current);
+      if (!verdict.ok) {
+        clearTimeout(t);
+        // Ending the trace with a reason, rather than returning a chain
+        // that stops short and reads as complete. "This redirects
+        // somewhere we will not follow" is the finding.
+        return {
+          ok: false,
+          error:
+            chain.length === 0
+              ? `Can't check that address: ${verdict.reason}`
+              : `Stopped after ${chain.length} hop${chain.length === 1 ? "" : "s"}: ${current} ${verdict.reason.toLowerCase()}. A public URL that redirects into a private address is a known way to make a server fetch something it shouldn't, so this tool won't follow it.`,
+        };
+      }
       const res = await fetch(current, {
         method: "HEAD",
         redirect: "manual",

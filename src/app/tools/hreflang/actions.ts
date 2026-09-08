@@ -1,6 +1,7 @@
 "use server";
 
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type HreflangEntry = {
   lang: string;
@@ -39,7 +40,7 @@ async function fetchHtml(url: string, timeoutMs = 12_000) {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
       redirect: "follow",
       headers: {
