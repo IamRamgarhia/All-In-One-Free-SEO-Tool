@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ToolDot } from "@/components/tool-dot";
 import { NEEDS_HINTS, toolReadiness } from "@/lib/tool-readiness";
+import { SWEPT_TOOL_IDS } from "@/lib/swept-tools";
 import {
   Activity,
   AlertTriangle,
@@ -10,6 +11,7 @@ import {
   Code2,
   Compass,
   Eye,
+  FileSearch,
   FileText,
   Flame,
   Gauge,
@@ -42,6 +44,15 @@ export type ClientToolLink = {
   blurb: string;
   /** Optional — shown as a chip when the tool needs setup. */
   needs?: "gsc" | "gbp" | "ga4" | "wp-bridge" | null;
+  /**
+   * This tool already runs on a schedule for this client.
+   *
+   * Derived from the scheduler's own list rather than written down a
+   * second time, so the badge cannot claim something the sweep does not
+   * actually do. The tool stays openable — the point is that you never
+   * have to.
+   */
+  autoRuns?: boolean;
 };
 
 export type ClientToolGroup = {
@@ -62,7 +73,44 @@ export type ClientToolsClient = {
 export function buildClientToolGroups(
   client: ClientToolsClient,
 ): ClientToolGroup[] {
-  return buildGroups(client);
+  return withClientId(buildGroups(client), client.id);
+}
+
+/**
+ * Every tool link says which client it is for.
+ *
+ * Roughly half the links below pre-fill the URL and stop there. A tool
+ * opened that way records its run — and any findings it writes — against
+ * no client at all, so the result never reaches that client's ranked
+ * list, the agent's planner, or a report. It renders on the tool's own
+ * page and is invisible everywhere else.
+ *
+ * Done here rather than on each href because there are forty of them and
+ * the next one added would be the one that forgot. The test in
+ * client-tools-launcher.test.ts fails if any ever does.
+ */
+function withClientId(
+  groups: ClientToolGroup[],
+  id: number,
+): ClientToolGroup[] {
+  const tag = (href: string): string => {
+    if (!href.startsWith("/tools/")) return href;
+    if (/[?&]clientId=/.test(href)) return href;
+    return href + (href.includes("?") ? "&" : "?") + "clientId=" + id;
+  };
+  const swept: ReadonlySet<string> = new Set<string>(SWEPT_TOOL_IDS);
+  const slugOf = (href: string) =>
+    href.startsWith("/tools/")
+      ? href.slice("/tools/".length).split(/[?#]/)[0]
+      : "";
+  return groups.map((g) => ({
+    ...g,
+    tools: g.tools.map((t) => ({
+      ...t,
+      href: tag(t.href),
+      autoRuns: swept.has(slugOf(t.href)),
+    })),
+  }));
 }
 
 function buildGroups(client: {
@@ -293,6 +341,21 @@ function buildGroups(client: {
           title: "Render check",
           icon: Eye,
           blurb: "See how Googlebot renders the page.",
+        },
+        // Both of these run nightly for this client already. They are
+        // listed anyway: a check that happens invisibly is one nobody
+        // trusts, and the rail is where someone looks to confirm it.
+        {
+          href: `/tools/robots?url=${u}`,
+          title: "Robots.txt + sitemap",
+          icon: FileSearch,
+          blurb: "Crawl blocks, missing or broken sitemaps.",
+        },
+        {
+          href: `/tools/ai-robots?url=${u}`,
+          title: "AI crawler policy",
+          icon: Bot,
+          blurb: "Which AI crawlers robots.txt has decided about.",
         },
       ],
     },

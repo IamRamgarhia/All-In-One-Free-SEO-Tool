@@ -1,6 +1,6 @@
 "use server";
 
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
 
 export type RobotsResult =
   | {
@@ -58,6 +58,7 @@ async function fetchText(url: string, timeoutMs = 10_000): Promise<{
 
 export async function checkRobots(
   rawUrl: string,
+  clientId?: number | null,
 ): Promise<RobotsResult> {
   if (!rawUrl?.trim()) return { ok: false, error: "URL is required" };
   const url = normalize(rawUrl.trim());
@@ -72,6 +73,11 @@ export async function checkRobots(
   const robotsRes = await fetchText(robotsUrl);
 
   const issues: string[] = [];
+  // The same problems, with an identity that survives across runs. The
+  // display strings above carry counts and wording that change; matching
+  // on them would make every re-run a fresh set of findings nobody could
+  // ever mark resolved.
+  const findings: FindingDraft[] = [];
   let robotsContent: string | null = null;
   const sitemapUrls: string[] = [];
 
@@ -87,17 +93,62 @@ export async function checkRobots(
       issues.push(
         "robots.txt blocks the entire site (Disallow: /). Search engines can't crawl anything.",
       );
+      findings.push({
+        signature: "robots.blocks_everything",
+        title: "robots.txt blocks the whole site",
+        severity: "critical",
+        category: "crawling",
+        details:
+          "A bare 'Disallow: /' with no Allow rule tells every crawler to read nothing. " +
+          "Pages already indexed drop out over the following weeks, and new ones are never seen.",
+      });
     }
     if (!sitemapUrls.length) {
       issues.push(
         "No Sitemap directive declared in robots.txt. Add one to help discovery.",
       );
+      findings.push({
+        signature: "robots.no_sitemap_directive",
+        title: "robots.txt does not point at a sitemap",
+        severity: "low",
+        category: "crawling",
+        details:
+          "robots.txt is the one place every crawler looks for a sitemap. Without the line, " +
+          "discovery falls back to following links, which is slower and misses orphan pages.",
+      });
     }
   } else {
     issues.push(
       robotsRes.status === 404
         ? "No robots.txt found. Create one — even an empty allow-all is better than nothing."
         : `Could not fetch robots.txt (${robotsRes.status} ${robotsRes.error ?? ""}).`,
+    );
+    // A 404 is a site with no robots.txt. Any other failure is a site we
+    // could not reach, which is a different problem with a different fix,
+    // and reporting them under one signature would make the fix for one
+    // look like it had resolved the other.
+    findings.push(
+      robotsRes.status === 404
+        ? {
+            signature: "robots.missing",
+            title: "No robots.txt",
+            severity: "medium",
+            category: "crawling",
+            details:
+              "Not fatal — crawlers assume they may read everything — but it is the only place " +
+              "to name a sitemap or set a policy for AI crawlers, and its absence usually means " +
+              "nobody has decided either.",
+          }
+        : {
+            signature: "robots.unreachable",
+            title: "robots.txt could not be fetched",
+            severity: "high",
+            category: "crawling",
+            details:
+              `The request returned ${robotsRes.status || "no response"}. A crawler that cannot ` +
+              "read robots.txt may treat the whole site as disallowed, so this is worse than " +
+              "having no robots.txt at all.",
+          },
     );
     sitemapUrls.push(`${origin}/sitemap.xml`);
   }
@@ -150,14 +201,38 @@ export async function checkRobots(
 
   if (sitemaps.length === 0) {
     issues.push("No sitemap files found at any declared or default location.");
+    findings.push({
+      signature: "robots.no_sitemap_found",
+      title: "No sitemap at any declared or default location",
+      severity: "medium",
+      category: "crawling",
+      details:
+        "Neither robots.txt nor /sitemap.xml produced a readable sitemap. Google will still " +
+        "crawl what it can reach by following links, but nothing tells it what exists.",
+    });
+  }
+  // A sitemap that is declared and broken is worse than one that is
+  // absent: the site asserts it exists, and the crawler gets an error.
+  for (const sm of sitemaps.filter((x) => !x.ok)) {
+    findings.push({
+      signature: `robots.sitemap_broken.${sm.url}`,
+      title: `Declared sitemap does not load: ${sm.url}`,
+      severity: "high",
+      category: "crawling",
+      details: sm.fetchError
+        ? `Fetching it gave: ${sm.fetchError}`
+        : "The URL is declared but did not return valid sitemap XML.",
+    });
   }
 
   const out: RobotsResult = { ok: true, robotsUrl, robotsContent, sitemaps, issues };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "robots",
     label: `${origin} · ${sitemaps.length} sitemaps · ${issues.length} issues`,
-    input: { url: rawUrl },
+    clientId: clientId ?? null,
+    input: { url: rawUrl, clientId },
     result: out,
-  }).catch(() => undefined);
+    findings,
+  });
   return out;
 }

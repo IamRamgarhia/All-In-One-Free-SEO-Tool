@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TOOL_FINDING_MAP, mapToolFinding } from "./tool-finding-map";
 import { isAuditFindingType } from "../audit-finding-types";
-import { findingRowsFor } from "@/lib/ai-robots-findings";
+import { findingDraftsFor } from "@/lib/ai-robots-findings";
 
 /**
  * The bridge between what the tools find and what the agent can fix.
@@ -127,30 +127,26 @@ describe("what the ai-robots tool records", () => {
   it("records nothing when every bot is already addressed", () => {
     // A green row on a checklist for work nobody has to do is noise, and
     // the agent's loader filters passes out anyway.
-    expect(findingRowsFor(audit(8, 0), 1, 5)).toEqual([]);
+    expect(findingDraftsFor(audit(8, 0))).toEqual([]);
   });
 
   it("records the 'nothing decided' case with the mapped signature", () => {
-    const rows = findingRowsFor(audit(8, 8), 1, 5);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].signature).toBe("ai-robots.unaddressed");
-    expect(mapToolFinding(rows[0].signature)).toBe("missing_ai_crawler_policy");
-    expect(rows[0].clientId).toBe(5);
+    const drafts = findingDraftsFor(audit(8, 8));
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].signature).toBe("ai-robots.unaddressed");
+    expect(mapToolFinding(drafts[0].signature)).toBe(
+      "missing_ai_crawler_policy",
+    );
   });
 
   it("distinguishes partial coverage rather than flattening it", () => {
     // Different crawler finding, different weight. Collapsing both into
     // one row would lose that.
-    const rows = findingRowsFor(audit(8, 3), 1, 5);
-    expect(rows[0].signature).toBe("ai-robots.partial");
-    expect(mapToolFinding(rows[0].signature)).toBe("partial_ai_crawler_policy");
-    expect(rows[0].title).toContain("3 of 8");
-  });
-
-  it("carries a null client through rather than inventing one", () => {
-    // The tool can be run standalone. A finding with no client is
-    // invisible to the agent, which plans per client — that is correct,
-    // not a bug to paper over.
-    expect(findingRowsFor(audit(8, 8), 1, null)[0].clientId).toBeNull();
+    const drafts = findingDraftsFor(audit(8, 3));
+    expect(drafts[0].signature).toBe("ai-robots.partial");
+    expect(mapToolFinding(drafts[0].signature)).toBe(
+      "partial_ai_crawler_policy",
+    );
+    expect(drafts[0].title).toContain("3 of 8");
   });
 });

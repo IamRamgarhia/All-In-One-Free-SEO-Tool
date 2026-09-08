@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { GitMerge, Loader2 } from "lucide-react";
 import { runCanonical, type CanonState } from "./actions";
+import { ClientIdField } from "@/components/client-id-field";
 
 const KIND_TONE: Record<string, string> = {
   missing: "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
@@ -26,6 +27,7 @@ export function CanonForm() {
         action={formAction}
         className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3"
       >
+        <ClientIdField />
         <div className="grid gap-3 md:grid-cols-[1fr_120px_140px]">
           <input
             name="startUrl"

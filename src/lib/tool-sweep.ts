@@ -1,0 +1,138 @@
+/**
+ * Running the checks nobody remembers to open.
+ *
+ * 91 tools, and the only way any of them ever ran was a person clicking
+ * into it. That is the actual gap between this and "an SEO's work done
+ * by AI": not that the checks do not exist, but that they only happen
+ * when someone thinks to make them happen. A weekly check nobody
+ * performs is not a feature.
+ *
+ * This runs the ones that can run unattended and records what they find.
+ * The bar for inclusion is deliberately narrow, and each criterion has
+ * cost the project something before:
+ *
+ *   Free — no API key, no per-call charge. A scheduled job that quietly
+ *   spends money is the worst possible surprise in a self-hosted tool.
+ *
+ *   Deterministic — same site, same answer. Anything that asks a model
+ *   would produce a different set of findings every week, and every one
+ *   of them would look new.
+ *
+ *   Cheap — a handful of HTTP requests. This runs for every client, so
+ *   a tool that crawls 200 pages belongs behind a button, not here.
+ *
+ * Tools that fail the bar keep working exactly as they do now. Nothing
+ * is removed; things stop being things you have to remember.
+ */
+
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { clients } from "@/db/schema";
+
+/**
+ * One sweepable check.
+ *
+ * `run` is dynamically imported so the scheduler does not pull every
+ * tool's dependency graph into the process at boot.
+ */
+type SweepCheck = {
+  toolId: string;
+  label: string;
+  run: (client: { id: number; url: string }) => Promise<unknown>;
+};
+
+function checks(): SweepCheck[] {
+  return [
+    {
+      toolId: "robots",
+      label: "robots.txt and sitemap health",
+      run: async (c) =>
+        (await import("@/app/tools/robots/actions")).checkRobots(c.url, c.id),
+    },
+    {
+      toolId: "ai-robots",
+      label: "AI crawler policy",
+      run: async (c) =>
+        (await import("@/app/tools/ai-robots/actions")).runAiRobotsAudit(
+          c.url,
+          c.id,
+        ),
+    },
+  ];
+}
+
+export type SweepOutcome = {
+  clientId: number;
+  toolId: string;
+  ok: boolean;
+  error?: string;
+};
+
+/**
+ * Run every sweepable check for every client.
+ *
+ * One failure never stops the sweep. A client whose site is down would
+ * otherwise silently cancel the checks for every client after it in the
+ * list — the kind of failure that looks like "the scheduler stopped
+ * working" months later.
+ */
+export async function tickToolSweep(): Promise<SweepOutcome[]> {
+  const rows = await db
+    .select({ id: clients.id, url: clients.url })
+    .from(clients);
+
+  const out: SweepOutcome[] = [];
+  for (const c of rows) {
+    if (!c.url) continue;
+    for (const check of checks()) {
+      try {
+        await check.run(c);
+        out.push({ clientId: c.id, toolId: check.toolId, ok: true });
+      } catch (err) {
+        out.push({
+          clientId: c.id,
+          toolId: check.toolId,
+          ok: false,
+          error: (err as Error).message,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The ids this file actually runs.
+ *
+ * The list the UI badges lives in swept-tools.ts, which imports nothing.
+ * tool-sweep.test.ts asserts the two agree — one of them being wrong is
+ * a badge that promises a check nobody performs.
+ */
+export function sweptToolIds(): string[] {
+  return checks().map((c) => c.toolId);
+}
+
+/** Run the sweep for one client — used after onboarding a new client. */
+export async function sweepClient(clientId: number): Promise<SweepOutcome[]> {
+  const [c] = await db
+    .select({ id: clients.id, url: clients.url })
+    .from(clients)
+    .where(eq(clients.id, clientId));
+  if (!c?.url) return [];
+
+  const out: SweepOutcome[] = [];
+  for (const check of checks()) {
+    try {
+      await check.run(c);
+      out.push({ clientId: c.id, toolId: check.toolId, ok: true });
+    } catch (err) {
+      out.push({
+        clientId: c.id,
+        toolId: check.toolId,
+        ok: false,
+        error: (err as Error).message,
+      });
+    }
+  }
+  return out;
+}

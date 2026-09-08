@@ -32,6 +32,8 @@ import {
   tasks,
 } from "@/db/schema";
 import { FIXABLE } from "./agent/planner";
+import { openToolFindings } from "./tool-findings";
+import { loadActionableToolFindings } from "./agent/tool-finding-map";
 
 export type ActionOwner = "agent" | "you";
 
@@ -222,7 +224,16 @@ export async function nextActions(opts: {
       });
     }
 
-    let agentFixable = 0;
+    // What the tools found, read here rather than lower down because the
+    // agent's queue below counts these too. The planner already reads
+    // them; a count that did not would under-report the agent's own work
+    // and make it look idler than it is.
+    const toolFound = unreachable ? [] : await openToolFindings(c.id);
+    const agentActionableFromTools = unreachable
+      ? []
+      : await loadActionableToolFindings({ clientId: c.id });
+
+    let agentFixable = agentActionableFromTools.length;
     const humanOnly: {
       type: string;
       count: number;
@@ -243,7 +254,11 @@ export async function nextActions(opts: {
         minutes: 10,
         owner: "you",
         href: `/agent/c/${c.id}`,
-        because: `${agentFixable} open findings match a fixable type`,
+                because:
+          agentActionableFromTools.length > 0
+            ? `${agentFixable - agentActionableFromTools.length} from the crawl and ` +
+              `${agentActionableFromTools.length} from the tools match a fixable type`
+            : `${agentFixable} open findings match a fixable type`,
       });
     }
 
@@ -363,7 +378,32 @@ export async function nextActions(opts: {
       });
     }
 
-    // ---- 7. The client has not been told the plan ---------------------
+    // ---- 7. What the tools found, outside the crawl -------------------
+    // The crawler covers one pass over the site. The tools go deeper and
+    // sideways — robots and sitemap health, canonical chains across a
+    // 200-page crawl, links that could exist and do not. Until now all of
+    // that lived on the tool's own results page and nowhere else.
+    const bad = toolFound.filter(
+      (f) => f.severity === "critical" || f.severity === "high",
+    );
+    if (bad.length > 0) {
+      const worstTool = bad[0];
+      add({
+        id: `tools-${c.id}`,
+        title: worstTool.title,
+        why: "Found by one of the tools rather than the crawl, and serious enough to be worth a look before anything cosmetic.",
+        score: rank(worstTool.severity === "critical" ? 80 : 60, 20),
+        minutes: 20,
+        owner: "you",
+        href: `/tools/${worstTool.toolId}?clientId=${c.id}`,
+        because:
+          bad.length === 1
+            ? `1 open ${worstTool.severity} finding from ${worstTool.toolId}`
+            : `${bad.length} open critical/high findings across the tools`,
+      });
+    }
+
+    // ---- 8. The client has not been told the plan ---------------------
     const [doc] = await db
       .select({ id: proposals.id, status: proposals.status })
       .from(proposals)

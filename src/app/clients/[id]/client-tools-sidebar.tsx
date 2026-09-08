@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Lock, Search, Wrench, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Lock,
+  Repeat,
+  Search,
+  Wrench,
+  X,
+} from "lucide-react";
 import {
   buildClientToolGroups,
   CLIENT_TOOL_NEEDS_HINTS,
@@ -275,6 +283,17 @@ export function ClientToolsSidebar({
                               >
                                 {t.title}
                               </span>
+                              {t.autoRuns && (
+                                /* This one already runs nightly. It stays
+                                   openable — the point is that opening it
+                                   is no longer how the check happens. */
+                                <span
+                                  title="Runs on its own every night — findings appear in the ranked list without you opening this."
+                                  className="grid size-4 shrink-0 place-items-center rounded text-emerald-400/80"
+                                >
+                                  <Repeat className="size-3" />
+                                </span>
+                              )}
                               {t.needs && (
                                 <span
                                   title={CLIENT_TOOL_NEEDS_HINTS[t.needs]}

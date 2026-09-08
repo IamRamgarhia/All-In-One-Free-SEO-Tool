@@ -2,9 +2,9 @@
 
 import { callAI } from "@/lib/ai-call";
 import { scanCwv } from "@/lib/pagespeed";
-import { saveToolRun } from "@/lib/tool-runs";
-import { db } from "@/db/client";
-import { toolFindings, type ToolFinding } from "@/db/schema";
+import { recordToolRun } from "@/lib/tool-findings";
+import { clientIdFrom } from "@/lib/client-id-field";
+import { type ToolFinding } from "@/db/schema";
 
 export type SxoAudit = {
   url: string;
@@ -171,6 +171,10 @@ export async function runSxoAudit(
   } catch {
     return { ok: false, error: "Invalid URL." };
   }
+  // Which client this is about, if the tool was opened from a client's
+  // rail. Without it the findings below save and are then invisible to
+  // the agent and the ranked list — see tool-findings.ts.
+  const clientId = clientIdFrom(formData);
   const html = await fetchHtml(url);
   if (!html) return { ok: false, error: `Couldn't fetch ${url}` };
 
@@ -367,27 +371,21 @@ Output a JSON object with: { "primaryPersona": "<one phrase>", "recommendations"
     },
   ];
 
-  // Persist the run first so we have a runId to attach findings to.
-  const runId = await saveToolRun({
+  // Ask the AI for plain-English fix steps + optional copy-paste snippet
+  // for each non-passing finding. One batched call to keep cost low.
+  // Failing AI = fall back to recommendations.
+  const fixMap = await generateFixSteps(
+    url,
+    raw.filter((f) => f.severity !== "pass"),
+  );
+
+  const recorded = await recordToolRun({
     toolId: "sxo",
     label: `${url} · SXO ${sxoScore}/100`,
-    input: { url },
+    clientId,
+    input: { url, clientId },
     result: { ok: true, audit },
-  }).catch(() => null);
-
-  let savedFindings: ToolFinding[] = [];
-  if (runId !== null) {
-    // Ask the AI for plain-English fix steps + optional copy-paste
-    // snippet for each non-passing finding. One batched call to keep
-    // cost low. Failing AI = fall back to recommendations.
-    const fixMap = await generateFixSteps(
-      url,
-      raw.filter((f) => f.severity !== "pass"),
-    );
-
-    const rows = raw.map((f) => ({
-      runId,
-      toolId: "sxo",
+    findings: raw.map((f) => ({
       signature: f.signature,
       title: f.title,
       category: f.category,
@@ -396,19 +394,10 @@ Output a JSON object with: { "primaryPersona": "<one phrase>", "recommendations"
       fixSteps: f.severity === "pass" ? null : fixMap[f.signature]?.steps ?? null,
       codeSnippet:
         f.severity === "pass" ? null : fixMap[f.signature]?.code ?? null,
-      status: "new" as const,
-    }));
-    try {
-      const inserted = await db
-        .insert(toolFindings)
-        .values(rows)
-        .returning();
-      savedFindings = inserted;
-    } catch {
-      // Don't fail the whole audit if the findings table write fails
-      savedFindings = [];
-    }
-  }
+    })),
+  });
+  const runId = recorded.runId;
+  const savedFindings: ToolFinding[] = recorded.findings;
 
   return {
     ok: true,

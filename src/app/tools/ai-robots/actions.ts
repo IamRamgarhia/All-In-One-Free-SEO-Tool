@@ -1,10 +1,9 @@
 "use server";
 
-import { db } from "@/db/client";
-import { toolFindings } from "@/db/schema";
+
 import { auditAiBotRobots, type RobotsAudit } from "@/lib/ai-bot-robots";
-import { findingRowsFor } from "@/lib/ai-robots-findings";
-import { saveToolRun } from "@/lib/tool-runs";
+import { findingDraftsFor } from "@/lib/ai-robots-findings";
+import { recordToolRun } from "@/lib/tool-findings";
 
 /**
  * Server action: run the AI-bot robots audit. Called by the client form.
@@ -27,24 +26,16 @@ export async function runAiRobotsAudit(
   const audit = await auditAiBotRobots(url);
   if (!audit.ok) return audit;
 
-  // Recording is best-effort throughout. A failure to save must never
-  // lose the user the answer they are looking at.
-  try {
-    const runId = await saveToolRun({
-      toolId: "ai-robots",
-      clientId: clientId ?? null,
-      label: `${url} · ${audit.unaddressedCount} AI bots unaddressed`,
-      input: { url, clientId },
-      result: audit,
-    });
-
-    const rows = findingRowsFor(audit, runId, clientId ?? null);
-    if (rows.length > 0) {
-      await db.insert(toolFindings).values(rows);
-    }
-  } catch {
-    // Swallowed deliberately — see above.
-  }
+  // Recording is best-effort inside recordToolRun: a failure to save
+  // must never lose the user the answer they are looking at.
+  await recordToolRun({
+    toolId: "ai-robots",
+    clientId: clientId ?? null,
+    label: `${url} · ${audit.unaddressedCount} AI bots unaddressed`,
+    input: { url, clientId },
+    result: audit,
+    findings: findingDraftsFor(audit),
+  });
 
   return audit;
 }

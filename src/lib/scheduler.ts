@@ -109,6 +109,16 @@ function runners(): Runner[] {
       run: async () => (await import("./auto-backup")).tickAutoBackup(),
     },
     {
+      // The checks that can run unattended, for every client. Without
+      // this a tool only ever runs when someone opens it, which is the
+      // difference between a tool that finds things and a tool that
+      // would have found things.
+      id: "tool_sweep",
+      label: "Unattended tool sweep",
+      everyMs: 24 * HOUR,
+      run: async () => (await import("./tool-sweep")).tickToolSweep(),
+    },
+    {
       id: "retention_cleanup",
       label: "Data retention cleanup",
       everyMs: 24 * HOUR,

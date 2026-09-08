@@ -15,17 +15,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkRobots, type RobotsResult } from "./actions";
+import { useClientId } from "@/components/client-id-field";
 
 export default function RobotsPage() {
   const [url, setUrl] = useState("");
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<RobotsResult | null>(null);
+  // Set when the tool was opened from a client's rail. Without it the
+  // findings below belong to nobody and reach nothing.
+  const clientId = useClientId();
 
   function run() {
     if (!url.trim()) return;
     setResult(null);
     startTransition(async () => {
-      const r = await checkRobots(url);
+      const r = await checkRobots(url, clientId);
       setResult(r);
     });
   }

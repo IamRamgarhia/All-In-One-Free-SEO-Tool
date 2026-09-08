@@ -14,6 +14,7 @@
  */
 
 import type { RobotsAudit } from "./ai-bot-robots";
+import type { FindingDraft } from "./tool-findings";
 
 /**
  * The findings this audit produces, or none.
@@ -24,23 +25,18 @@ import type { RobotsAudit } from "./ai-bot-robots";
  * on the checklist for work nobody has to do, and the loader that feeds
  * the agent filters those out anyway.
  */
-export function findingRowsFor(
+export function findingDraftsFor(
   audit: Extract<RobotsAudit, { ok: true }>,
-  runId: number,
-  clientId: number | null,
-) {
+): FindingDraft[] {
   const total = audit.bots.length;
   const unaddressed = audit.unaddressedCount;
   if (unaddressed === 0) return [];
 
   const addressed = total - unaddressed;
-  const shared = {
-    runId,
-    clientId,
-    toolId: "ai-robots",
-    category: "ai-visibility",
-    status: "new" as const,
-  };
+  // runId, clientId, toolId and status are recordToolRun's to set. They
+  // were this function's before, and the client id is exactly the field
+  // a caller can forget without anything failing.
+  const shared = { category: "ai-visibility" };
 
   // Nothing at all, versus a policy that covers some and not others.
   // They map to different crawler findings and carry different weights,

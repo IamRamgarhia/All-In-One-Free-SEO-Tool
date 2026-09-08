@@ -18,12 +18,16 @@ import {
   suggestInternalLinks,
   type InternalLinkResult,
 } from "./actions";
+import { useClientId } from "@/components/client-id-field";
 
 export default function InternalLinkingPage() {
   const [targetUrl, setTargetUrl] = useState("");
   const [keyword, setKeyword] = useState("");
   const [result, setResult] = useState<InternalLinkResult | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Set when opened from a client's rail; null from /tools.
+  const clientId = useClientId();
 
   function run() {
     if (!targetUrl.trim() || !keyword.trim()) return;
@@ -33,6 +37,7 @@ export default function InternalLinkingPage() {
         targetUrl,
         targetKeyword: keyword,
         limit: 25,
+        clientId,
       });
       setResult(r);
     });

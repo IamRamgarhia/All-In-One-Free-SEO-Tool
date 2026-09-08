@@ -9,6 +9,7 @@ import { runSxoAudit, type SxoState } from "./actions";
 import { RecentRuns } from "@/components/recent-runs";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
 import { FindingsChecklist } from "@/components/findings-checklist";
+import { ClientIdField } from "@/components/client-id-field";
 
 export default function SxoPage() {
   const [state, formAction, pending] = useActionState<SxoState, FormData>(
@@ -36,6 +37,7 @@ export default function SxoPage() {
         action={formAction}
         className="rounded-xl border border-border bg-card p-5 shadow"
       >
+        <ClientIdField />
         <label className="block space-y-1.5 text-sm">
           <span className="text-muted-foreground">URL to audit</span>
           {/* Input + button on one row, button visually attached to the right */}
