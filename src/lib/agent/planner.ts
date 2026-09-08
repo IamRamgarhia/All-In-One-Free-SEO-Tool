@@ -320,10 +320,27 @@ export async function planForClient(opts: {
   // Most recent completed audit only. Older audits describe a site that
   // may already have been fixed, and acting on a stale finding means
   // editing a page to solve a problem it no longer has.
+  // The latest COMPLETED CRAWL, not the latest row in the table.
+  //
+  // Two things were wrong with taking whatever came last. A crawl that
+  // failed or is still running counts as an audit, so the agent would
+  // read a half-finished one and plan nothing. And the AI site audit
+  // writes into this same table with kind "ai_full" — a different
+  // vocabulary of its own check ids, none of which the planner can fix.
+  // So running an AI audit made the agent stop finding work entirely:
+  // it read 27 AI rows, matched none of them against FIXABLE, and
+  // reported that there was nothing to do while a crawl with 134
+  // findings sat one row above it.
   const [latestAudit] = await db
     .select({ id: audits.id })
     .from(audits)
-    .where(eq(audits.clientId, opts.clientId))
+    .where(
+      and(
+        eq(audits.clientId, opts.clientId),
+        eq(audits.status, "completed"),
+        eq(audits.kind, "crawler"),
+      ),
+    )
     .orderBy(desc(audits.id))
     .limit(1);
 

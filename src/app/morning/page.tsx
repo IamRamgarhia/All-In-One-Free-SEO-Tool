@@ -6,8 +6,13 @@ import { db } from "@/db/client";
 import { audits, clients, keywordRankings, tasks } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { MorningBriefing } from "../morning-briefing";
+import { NextActionsPanel } from "@/components/next-actions-panel";
+import { nextActions } from "@/lib/next-actions";
 
 export default async function MorningPage() {
+  // Across every client. A freelancer's morning question is not "what is
+  // wrong with client 4", it is "where does today go".
+  const ranked = await nextActions({ limit: 12 });
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -93,6 +98,11 @@ export default async function MorningPage() {
           hint="positions 4-15"
         />
       </div>
+
+      {/* The ranked list, above the raw one.
+          This page has always been "what should I do today" and answered
+          it with a list of scores, which is a different question. */}
+      <NextActionsPanel items={ranked} />
 
       <section className="glass-apple relative overflow-hidden rounded-2xl">
         <header className="border-b border-white/[0.06] px-5 py-3">

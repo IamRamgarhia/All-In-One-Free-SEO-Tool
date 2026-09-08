@@ -65,6 +65,11 @@ test.describe("core routes", () => {
     "/settings",
     "/welcome",
     "/automations/overview",
+    // The cross-client ranked list. It runs a query per client per
+    // signal, so it is the page most likely to break on a schema change
+    // and the one whose failure is least visible — an empty list looks
+    // calm rather than broken.
+    "/morning",
   ];
 
   for (const route of ROUTES) {

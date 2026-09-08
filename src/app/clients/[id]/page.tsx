@@ -62,6 +62,8 @@ import {
 import { Dropdown } from "@/components/ui/dropdown";
 import { ClientToolsPanel } from "./client-tools-panel";
 import { StartHere } from "./start-here";
+import { NextActionsPanel } from "@/components/next-actions-panel";
+import { nextActions } from "@/lib/next-actions";
 import { surfacesFor } from "@/lib/engagement-surfaces";
 import { getAiAvailability } from "@/lib/ai-availability";
 import { DeleteClientButton } from "./delete-client-button";
@@ -307,6 +309,10 @@ export default async function ClientDetailPage({
   // not `available` — the rail is asking whether the tool page you are
   // about to open can call a model itself.
   const ai = await getAiAvailability();
+  // Ranked work for this client alone. The Start-here strip above covers
+  // setup; this covers everything after it, and says which half the agent
+  // will take.
+  const ranked = await nextActions({ clientId, limit: 8 });
   const [scheduleRow] = await db
     .select()
     .from(reportSchedules)
@@ -341,6 +347,13 @@ export default async function ClientDetailPage({
         proposalId={approvalDoc?.id ?? null}
         proposalStatus={approvalDoc?.status ?? null}
         onboardingDone={client.onboardingStep === "completed"}
+      />
+
+      <NextActionsPanel
+        items={ranked}
+        heading="What's worth doing for this client"
+        emptyNote="Nothing ranked yet — run an audit and this fills in."
+        showClient={false}
       />
 
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
