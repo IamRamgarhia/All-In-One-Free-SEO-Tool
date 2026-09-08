@@ -33,9 +33,13 @@ import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { toolFindings, toolRuns } from "@/db/schema";
 import {
-  isAuditFindingType,
+  isPlannableFindingType,
   type AuditFindingType,
+  type NonCrawlerFindingType,
 } from "../audit-finding-types";
+
+/** What a tool finding can map onto: any type the agent can plan. */
+type PlannableFindingType = AuditFindingType | NonCrawlerFindingType;
 
 /**
  * Tool finding signature → the crawler finding type it is equivalent to.
@@ -44,13 +48,18 @@ import {
  * that namespaces per-item ("ai-robots.unaddressed.GPTBot") maps through
  * its stem.
  */
-export const TOOL_FINDING_MAP: Record<string, AuditFindingType> = {
+export const TOOL_FINDING_MAP: Record<string, PlannableFindingType> = {
   // The AI-bot robots.txt audit answers precisely the question the
   // crawler's own check asks — which AI crawlers has this site made a
   // decision about — but from a dedicated fetch and parse rather than a
   // regex over whatever the crawl happened to capture.
   "ai-robots.unaddressed": "missing_ai_crawler_policy",
   "ai-robots.partial": "partial_ai_crawler_policy",
+
+  // The single-page health check traces redirects properly — following
+  // every hop — which the crawler does not. Its answer is the better one
+  // and it maps to the same fix: point the first hop at the destination.
+  "health-check.redirect_chain": "redirect_chain",
 };
 
 /**
@@ -61,7 +70,7 @@ export const TOOL_FINDING_MAP: Record<string, AuditFindingType> = {
  * actionable by a human — rather than being forced into an action the
  * agent would have to invent.
  */
-export function mapToolFinding(signature: string): AuditFindingType | null {
+export function mapToolFinding(signature: string): PlannableFindingType | null {
   const exact = TOOL_FINDING_MAP[signature];
   if (exact) return exact;
   // Longest prefix wins, so a more specific key can override a stem.
@@ -75,7 +84,7 @@ export type ActionableToolFinding = {
   findingId: number;
   toolId: string;
   signature: string;
-  type: AuditFindingType;
+  type: PlannableFindingType;
   severity: string;
   /** The page the tool was run against. Null for site-wide findings. */
   url: string | null;
@@ -145,7 +154,7 @@ export async function loadActionableToolFindings(opts: {
 
   for (const r of rows) {
     const type = mapToolFinding(r.signature);
-    if (!type || !isAuditFindingType(type)) continue;
+    if (!type || !isPlannableFindingType(type)) continue;
 
     const url = urlFrom(r.input);
     // Newest run wins. The same tool re-run weekly produces the same

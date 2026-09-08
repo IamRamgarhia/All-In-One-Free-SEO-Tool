@@ -65,6 +65,12 @@ const EXECUTABLE = new Set([
   // executeAction instead of going through writeField — the target is
   // the site, and there is no post id to resolve.
   "write_robots_txt",
+  // Plugin 0.5.0 shipped the endpoints and the revision recording for
+  // both; what was missing until now was anything that turned a finding
+  // into one. Each carries what it changes in targetRef, because six
+  // hardening findings and any number of redirects share one kind.
+  "write_hardening",
+  "write_redirects",
 ]);
 
 /**

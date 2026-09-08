@@ -75,12 +75,7 @@ const WRITE_CAPS: CapabilityId[] = [
  * planned nor listed here, so this cannot become a place capabilities
  * are quietly parked.
  */
-export const NOT_YET_PLANNED: Partial<Record<CapabilityId, string>> = {
-  write_redirects:
-    "The plugin applies redirects, but nothing turns a broken_link or redirect_chain finding into one yet.",
-  write_hardening:
-    "The plugin has the toggles, but nothing maps the wp_* findings onto them yet.",
-};
+export const NOT_YET_PLANNED: Partial<Record<CapabilityId, string>> = {};
 
 export async function detectCapabilities(
   clientId: number,

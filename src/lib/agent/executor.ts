@@ -24,7 +24,17 @@
 
 import { eq } from "drizzle-orm";
 import { AI_BOTS } from "../ai-bot-robots";
-import { getRobotsTxt, setRobotsTxt } from "../wp-bridge";
+import {
+  getHardening,
+  getRedirects,
+  getRobotsTxt,
+  setHardening,
+  setRedirects,
+  setRobotsTxt,
+  HARDENING_KEYS,
+  type WpHardening,
+  type WpRedirect,
+} from "../wp-bridge";
 import { db } from "@/db/client";
 import { agentActions, type AgentAction } from "@/db/schema";
 import {
@@ -99,6 +109,11 @@ export function requiresDraft(kind: string): boolean {
     kind === "write_canonical" ||
     kind === "write_robots_meta" ||
     kind === "write_robots_txt" ||
+    // Both site-wide, both deterministic, both still drafted. Hardening
+    // needs the switch name and redirects need the rule; executing
+    // either with "" would write nothing and verify against nothing.
+    kind === "write_hardening" ||
+    kind === "write_redirects" ||
     kind in DRAFT_SPECS
   );
 }
@@ -125,6 +140,35 @@ export async function draftValue(
       ...AI_BOTS.flatMap((b) => [`User-agent: ${b.ua}`, "Allow: /", ""]),
     ];
     return { ok: true, value: lines.join("\n").trimEnd() + "\n" };
+  }
+
+  // Hardening: the value is the switch to flip, which the planner
+  // already decided from the finding type. Nothing to draft, but it goes
+  // through here so the empty-string path stays closed.
+  if (action.kind === "write_hardening") {
+    const key = hardeningKeyOf(action.targetRef);
+    return key
+      ? { ok: true, value: key }
+      : {
+          ok: false,
+          error:
+            "This change doesn't name a WordPress setting to turn on, so there is nothing to write.",
+        };
+  }
+
+  // A redirect: where from, where to. The planner computes both from the
+  // finding — a 404'd URL and the page it should have been — so there is
+  // nothing for a model to choose.
+  if (action.kind === "write_redirects") {
+    const raw = (action.currentValue ?? "").trim();
+    if (!raw) {
+      return {
+        ok: false,
+        error:
+          "This change doesn't say where the redirect should point, so writing it would send visitors nowhere.",
+      };
+    }
+    return { ok: true, value: raw };
   }
 
   // A canonical is the page's own address. There is no wording to
@@ -469,6 +513,166 @@ export async function executeAction(opts: {
     // accepted; this is what proves the site changed.
     const after = await getRobotsTxt(creds);
     if (after.ok && after.data.served === merged) {
+      await db
+        .update(agentActions)
+        .set({ status: "verified", verifiedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { status: "verified", actionId };
+    }
+    return { status: "applied", actionId };
+  }
+
+  // A hardening toggle. Site-wide, one switch per finding, and the
+  // switch to flip is in targetRef because six findings share this kind.
+  //
+  // Reads the current state first and skips when the switch is already
+  // on. Writing anyway would record an action, verify against a value
+  // that never changed, and report having fixed something it did not
+  // touch — the alt-text failure, in a different costume.
+  if (action.kind === "write_hardening") {
+    const key = hardeningKeyOf(action.targetRef);
+    if (!key) {
+      const id = await insert({
+        status: "failed",
+        error:
+          "This change didn't say which setting to turn on. This is a bug in the agent, not a problem with your site.",
+      });
+      return { status: "failed", actionId: id, error: "No hardening key." };
+    }
+
+    const current = await getHardening(creds);
+    if (!current.ok) {
+      const id = await insert({ status: "failed", error: current.error });
+      return { status: "failed", actionId: id, error: current.error };
+    }
+
+    if (current.data[key]) {
+      const id = await insert({
+        status: "skipped",
+        targetRef: action.targetRef,
+        beforeValue: "on",
+        error:
+          "This setting is already on, so there was nothing to change. The finding may be describing a page cached before it was switched on.",
+      });
+      return { status: "skipped", actionId: id };
+    }
+
+    const res = await setHardening(creds, { [key]: true });
+    if (!res.ok) {
+      const id = await insert({
+        status: "failed",
+        targetRef: action.targetRef,
+        beforeValue: "off",
+        error: res.error,
+      });
+      return {
+        status: "failed",
+        actionId: id,
+        error: res.error ?? "Write failed.",
+      };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: action.targetRef,
+      beforeValue: "off",
+      afterValue: "on",
+      appliedAt: new Date(),
+    });
+
+    // Read it back. An accepted write is not a changed site.
+    const after = await getHardening(creds);
+    if (after.ok && after.data[key]) {
+      await db
+        .update(agentActions)
+        .set({ status: "verified", verifiedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { status: "verified", actionId };
+    }
+    return { status: "applied", actionId };
+  }
+
+  // A redirect. Site-wide, and the rule being added is in targetRef so
+  // two redirects planned in one run are two actions rather than one.
+  //
+  // Adds to the existing list rather than replacing it: the site's other
+  // redirects were put there by somebody, and this has no way to tell a
+  // deliberate one from an accidental one.
+  if (action.kind === "write_redirects") {
+    let rule: WpRedirect;
+    try {
+      const parsed = JSON.parse(opts.newValue);
+      rule = {
+        from: String(parsed.from ?? ""),
+        to: String(parsed.to ?? ""),
+        // 301 unless something explicitly asked for another valid code.
+        // The plugin coerces anything else to 301 anyway; agreeing here
+        // means the value we record is the value the site has.
+        code: redirectCode(parsed.code),
+      };
+    } catch {
+      const id = await insert({
+        status: "failed",
+        error:
+          "The redirect for this change couldn't be read back. This is a bug in the agent.",
+      });
+      return { status: "failed", actionId: id, error: "Malformed redirect." };
+    }
+
+    if (!rule.from || !rule.to) {
+      const id = await insert({
+        status: "failed",
+        error:
+          "A redirect needs both a source and a destination, and one of them was empty.",
+      });
+      return { status: "failed", actionId: id, error: "Incomplete redirect." };
+    }
+
+    const current = await getRedirects(creds);
+    if (!current.ok) {
+      const id = await insert({ status: "failed", error: current.error });
+      return { status: "failed", actionId: id, error: current.error };
+    }
+
+    const existing = current.data;
+    // Somebody already routes this path somewhere. Overwriting their
+    // destination is a decision the agent has no standing to make.
+    const clash = existing.find((r) => samePath(r.from, rule.from));
+    if (clash) {
+      const id = await insert({
+        status: "skipped",
+        targetRef: action.targetRef,
+        beforeValue: `${clash.from} -> ${clash.to}`,
+        error: `This site already redirects ${clash.from} to ${clash.to}. Changing where it points is a decision for you, not the agent.`,
+      });
+      return { status: "skipped", actionId: id };
+    }
+
+    const next = [...existing, rule];
+    const res = await setRedirects(creds, next);
+    if (!res.ok) {
+      const id = await insert({
+        status: "failed",
+        targetRef: action.targetRef,
+        error: res.error,
+      });
+      return {
+        status: "failed",
+        actionId: id,
+        error: res.error ?? "Write failed.",
+      };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: action.targetRef,
+      beforeValue: `${existing.length} redirects`,
+      afterValue: `${rule.from} -> ${rule.to} (${rule.code})`,
+      appliedAt: new Date(),
+    });
+
+    const after = await getRedirects(creds);
+    if (after.ok && after.data.some((r) => samePath(r.from, rule.from))) {
       await db
         .update(agentActions)
         .set({ status: "verified", verifiedAt: new Date() })
@@ -832,6 +1036,62 @@ export async function revertAction(
     return { ok: true };
   }
 
+  // Both site-wide kinds undo by their own route. Their targetRef names
+  // a switch or a path, not a post — falling through to writeField
+  // would call Number() on it and write to whatever post shares that id,
+  // or to NaN. Undo landing somewhere unrelated is worse than no undo,
+  // because the user believes it worked.
+  if (action.kind === "write_hardening") {
+    const key = hardeningKeyOf(action.targetRef);
+    if (!key) {
+      return {
+        ok: false,
+        error: "This change didn't record which setting it turned on.",
+      };
+    }
+    // beforeValue is "on"/"off" — put back exactly what was there.
+    const restore = action.beforeValue === "on";
+    const res = await setHardening(creds, { [key]: restore });
+    if (!res.ok) return { ok: false, error: res.error ?? "Undo failed." };
+    await db
+      .update(agentActions)
+      .set({ status: "reverted", revertedAt: new Date() })
+      .where(eq(agentActions.id, actionId));
+    return { ok: true };
+  }
+
+  if (action.kind === "write_redirects") {
+    // The inverse of "add this rule" is "remove this rule", not "restore
+    // the old list" — anything added since would be thrown away by the
+    // second, and the agent has no claim on somebody else's redirects.
+    const path = (action.targetRef ?? "").replace(/^site:redirect:/, "");
+    if (!path) {
+      return {
+        ok: false,
+        error: "This change didn't record which redirect it added.",
+      };
+    }
+    const current = await getRedirects(creds);
+    if (!current.ok) return { ok: false, error: current.error };
+    const next = current.data.filter((r) => !samePath(r.from, path));
+    if (next.length === current.data.length) {
+      // Already gone. Someone removed it by hand, which is a fine
+      // outcome — say so rather than reporting a failure.
+      await db
+        .update(agentActions)
+        .set({ status: "reverted", revertedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { ok: true };
+    }
+    const res = await setRedirects(creds, next);
+    if (!res.ok) return { ok: false, error: res.error ?? "Undo failed." };
+    await db
+      .update(agentActions)
+      .set({ status: "reverted", revertedAt: new Date() })
+      .where(eq(agentActions.id, actionId));
+    return { ok: true };
+  }
+
   if (action.beforeValue === null) {
     return {
       ok: false,
@@ -1079,4 +1339,54 @@ export function mergeRobotsBlock(existing: string, block: string): string {
 
   const base = existing.trimEnd();
   return (base ? base + "\n\n" : "") + addition + "\n";
+}
+
+/**
+ * The hardening switch a targetRef names, or null.
+ *
+ * targetRef is written as "site:hardening:<key>". Validated against
+ * HARDENING_KEYS rather than trusted, because an unrecognised key sent
+ * to the plugin is ignored: the write returns ok, nothing changes, and
+ * the read-back says the switch is still off — which reads as the site
+ * refusing rather than as the agent asking for something that does not
+ * exist.
+ */
+function hardeningKeyOf(ref: string | null | undefined): keyof WpHardening | null {
+  if (!ref) return null;
+  const key = ref.startsWith("site:hardening:")
+    ? ref.slice("site:hardening:".length)
+    : ref;
+  return (HARDENING_KEYS as readonly string[]).includes(key)
+    ? (key as keyof WpHardening)
+    : null;
+}
+
+/**
+ * Do two redirect sources mean the same path?
+ *
+ * The plugin normalises what it stores — leading slash, no query, no
+ * trailing slash — so a plain string compare against an un-normalised
+ * candidate would miss an existing rule and add a duplicate that the
+ * plugin then silently drops.
+ */
+function samePath(a: string, b: string): boolean {
+  const norm = (v: string) => {
+    let p = v.trim();
+    try {
+      p = new URL(p, "https://x.invalid").pathname;
+    } catch {
+      /* already a path */
+    }
+    p = p.split(/[?#]/)[0];
+    if (!p.startsWith("/")) p = "/" + p;
+    if (p.length > 1) p = p.replace(/\/+$/, "");
+    return p.toLowerCase();
+  };
+  return norm(a) === norm(b);
+}
+
+/** A redirect status the plugin will actually store, defaulting to 301. */
+function redirectCode(v: unknown): WpRedirect["code"] {
+  const n = Number(v);
+  return n === 302 || n === 307 || n === 308 ? n : 301;
 }

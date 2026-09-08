@@ -77,7 +77,31 @@ export type PlannedAction = {
  * there is only one of the thing being edited no matter how many URLs
  * describe it.
  */
-export const SITE_WIDE_KINDS: ReadonlySet<string> = new Set(["write_robots_txt"]);
+export const SITE_WIDE_KINDS: ReadonlySet<string> = new Set([
+  "write_robots_txt",
+  "write_hardening",
+  "write_redirects",
+]);
+
+/**
+ * Which hardening toggle each WordPress finding turns on.
+ *
+ * Six findings, six switches, one per problem. Kept as a map rather than
+ * six near-identical FIXABLE entries carrying the key in prose, because
+ * the executor has to read the key back and a typo in a string literal
+ * would silently toggle nothing while reporting success.
+ *
+ * Every key here must exist in HARDENING_KEYS — hardening-map.test.ts
+ * fails if one does not.
+ */
+export const HARDENING_FOR_FINDING: Record<string, string> = {
+  wp_xmlrpc_exposed: "disable_xmlrpc",
+  wp_version_disclosed: "hide_wp_version",
+  wp_rest_api_advertised: "hide_rest_discovery",
+  wp_emoji_bloat: "disable_emoji",
+  wp_heartbeat_on_frontend: "disable_heartbeat_frontend",
+  wp_author_archive_indexed: "noindex_author_archives",
+};
 
 export type PlannableKind =
   | "write_title"
@@ -91,7 +115,13 @@ export type PlannableKind =
   // Site-wide, plugin 0.5.0 and up. Not a page edit — the target is the
   // site itself, which is why the executor handles it separately and the
   // risk is always needs_review.
-  | "write_robots_txt";
+  | "write_robots_txt"
+  // Site-wide, plugin 0.5.0 and up. Each carries the specific thing it
+  // changes in targetRef — the toggle key, or the 404 being redirected —
+  // because the site is the target and the kind alone does not say what
+  // about it is changing.
+  | "write_hardening"
+  | "write_redirects";
 
 /**
  * Audit finding types the agent can actually fix, and what fixing one is
@@ -296,6 +326,86 @@ const FIXABLE: Record<
     reason:
       "robots.txt names some AI crawlers and not others, so the ones left out fall back to their own defaults rather than the policy that was chosen for the rest.",
   },
+
+  // --- WordPress hardening -------------------------------------------
+  //
+  // Every one is needs_review, at every autonomy level. These change how
+  // the whole site behaves rather than what one page says, and each has
+  // a real if uncommon way to be wrong: a site whose app genuinely calls
+  // XML-RPC, a theme that depends on the emoji script, an author archive
+  // somebody ranks on deliberately. The cost of asking is one click; the
+  // cost of not asking is a site that quietly stopped doing something.
+  wp_xmlrpc_exposed: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 45,
+    risk: "needs_review",
+    reason:
+      "XML-RPC is advertised on this site. It is the endpoint brute-force tools target first, and almost nothing modern uses it — but the Jetpack and WordPress mobile apps do, so this is worth a look before switching it off.",
+  },
+  wp_version_disclosed: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 30,
+    risk: "needs_review",
+    reason:
+      "The exact WordPress version is published in the page source, which tells anyone scanning precisely which known vulnerabilities to try.",
+  },
+  wp_rest_api_advertised: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 25,
+    risk: "needs_review",
+    reason:
+      "The REST API is linked from every page, which enumerates users and content to anyone who follows it. Hiding the link does not disable the API — anything of yours that uses it keeps working.",
+  },
+  wp_emoji_bloat: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 35,
+    risk: "needs_review",
+    reason:
+      "WordPress loads an emoji script on every page to support browsers that have not needed it in years. It is pure weight on Core Web Vitals.",
+  },
+  wp_heartbeat_on_frontend: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 30,
+    risk: "needs_review",
+    reason:
+      "The admin heartbeat is polling on public pages, so every visitor's browser makes a request every fifteen seconds for a feature only logged-in editors use.",
+  },
+  wp_author_archive_indexed: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 40,
+    risk: "needs_review",
+    reason:
+      "Author archives are indexable. On a one-author site they duplicate the blog index exactly, so the two compete for the same searches — but on a site with named expert contributors they can be worth ranking, which is why this asks first.",
+  },
+
+  // --- Redirects -----------------------------------------------------
+  //
+  // Always needs_review, at every autonomy level, for a reason worth
+  // stating plainly: a wrong redirect takes traffic off a page and sends
+  // it somewhere else, and the symptom is a page that quietly stops
+  // earning rather than an error anyone sees.
+  broken_link: {
+    kind: "write_redirects",
+    capability: "write_redirects",
+    weight: 55,
+    risk: "needs_review",
+    reason:
+      "A link on this site points at a URL that returns 404. A redirect sends the people and the link equity somewhere useful instead of into a dead end.",
+  },
+  redirect_chain: {
+    kind: "write_redirects",
+    capability: "write_redirects",
+    weight: 40,
+    risk: "needs_review",
+    reason:
+      "This URL redirects to a URL that redirects again. Each hop costs time and loses a little of what the link passes on, and pointing the first one straight at the destination removes both.",
+  },
 };
 
 export type PlanOutcome = {
@@ -377,6 +487,10 @@ export async function planForClient(opts: {
       risk: spec.risk,
       weight: spec.weight + severityBonus(issue.severity),
       issueId: issue.id,
+      // Site-wide kinds need to say WHICH site-wide thing they change.
+      // Without it six hardening findings dedup down to one and the
+      // executor has no switch to flip.
+      ...siteWideTarget(issue.type, issue.url),
     });
   }
   note("Findings the agent has no way to fix automatically.", notFixable);
@@ -415,6 +529,7 @@ export async function planForClient(opts: {
         reason: `${spec.reason} (found by the ${f.toolId} tool)`,
         risk: spec.risk,
         weight: spec.weight + severityBonus(f.severity),
+        ...siteWideTarget(f.type, f.url),
       });
       fromTools++;
     }
@@ -471,7 +586,13 @@ export async function planForClient(opts: {
   let duplicates = 0;
   for (const a of capable) {
     const key = SITE_WIDE_KINDS.has(a.kind)
-      ? a.kind
+      ? // targetRef distinguishes one site-wide change from another.
+        // robots.txt has none — there is one file — but six hardening
+        // toggles share a kind and a site URL, and keying on either
+        // alone would apply one and silently drop the other five.
+        a.targetRef
+        ? `${a.kind}::${a.targetRef}`
+        : a.kind
       : `${a.kind}::${a.targetUrl}`;
     if (seen.has(key)) {
       duplicates++;
@@ -514,6 +635,49 @@ export async function planForClient(opts: {
   );
 
   return { actions, skipped };
+}
+
+/**
+ * What a site-wide action actually changes, when the kind alone does not
+ * say.
+ *
+ * A per-page action is identified by its URL. A site-wide one is not —
+ * every hardening finding on a site shares the same target, and six of
+ * them share the same kind. targetRef is what tells them apart, through
+ * dedup, through the cooldown, and in the executor which reads the
+ * switch back out of it.
+ *
+ * Redirects additionally carry where to send the 404, which is computed
+ * here rather than drafted: the destination is the site's home page
+ * unless something better is known, and "somewhere on this site" beats
+ * a dead end while still being obvious enough that a person reviewing
+ * it will correct it if it is wrong. Every redirect is needs_review, so
+ * one always does.
+ */
+function siteWideTarget(
+  findingType: string,
+  url: string,
+): Pick<PlannedAction, "targetRef" | "currentValue"> {
+  const toggle = HARDENING_FOR_FINDING[findingType];
+  if (toggle) return { targetRef: `site:hardening:${toggle}` };
+
+  if (findingType === "broken_link" || findingType === "redirect_chain") {
+    let from = url;
+    let home = "/";
+    try {
+      const u = new URL(url);
+      from = u.pathname + u.search;
+      home = u.origin + "/";
+    } catch {
+      /* a relative URL is already a path */
+    }
+    return {
+      targetRef: `site:redirect:${from}`,
+      currentValue: JSON.stringify({ from, to: home, code: 301 }),
+    };
+  }
+
+  return {};
 }
 
 function severityBonus(severity: string): number {
@@ -670,6 +834,10 @@ async function filterCooldown(
     .select({
       kind: agentActions.kind,
       targetUrl: agentActions.targetUrl,
+      // Site-wide actions share a target URL, so without this one
+      // hardening toggle applied on Monday would put the other five on
+      // cooldown until Thursday.
+      targetRef: agentActions.targetRef,
     })
     .from(agentActions)
     .where(
@@ -682,8 +850,14 @@ async function filterCooldown(
       ),
     );
 
-  const blocked = new Set(recent.map((r) => `${r.kind}::${r.targetUrl ?? ""}`));
-  return actions.filter((a) => !blocked.has(`${a.kind}::${a.targetUrl}`));
+  const key = (kind: string, url: string | null, ref: string | null | undefined) =>
+    ref ? `${kind}::${ref}` : `${kind}::${url ?? ""}`;
+  const blocked = new Set(
+    recent.map((r) => key(r.kind, r.targetUrl, r.targetRef)),
+  );
+  return actions.filter(
+    (a) => !blocked.has(key(a.kind, a.targetUrl, a.targetRef)),
+  );
 }
 
 async function countActionsSince(clientId: number, since: Date): Promise<number> {

@@ -108,6 +108,27 @@ export const AUDIT_FINDING_TYPES = [
   "wp_xmlrpc_exposed",
 ] as const;
 
+export type NonCrawlerFindingType = (typeof NON_CRAWLER_FINDING_TYPES)[number];
+
+/**
+ * Every finding type the agent may be asked to plan, from any source.
+ *
+ * The crawler's list is not the whole vocabulary. The redirect tracer
+ * and the Core Web Vitals tool produce their own types, and those are
+ * just as real — a redirect chain found by health-check is the same
+ * problem, with the same fix, as one the crawler would have found if it
+ * looked. Gating the agent on the crawler's list alone left a planned
+ * finding that nothing could ever deliver to it.
+ */
+export function isPlannableFindingType(
+  value: string,
+): value is AuditFindingType | NonCrawlerFindingType {
+  return (
+    TYPE_SET.has(value) ||
+    (NON_CRAWLER_FINDING_TYPES as readonly string[]).includes(value)
+  );
+}
+
 export type AuditFindingType = (typeof AUDIT_FINDING_TYPES)[number];
 
 const TYPE_SET: ReadonlySet<string> = new Set(AUDIT_FINDING_TYPES);

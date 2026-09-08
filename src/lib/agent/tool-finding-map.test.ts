@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TOOL_FINDING_MAP, mapToolFinding } from "./tool-finding-map";
-import { isAuditFindingType } from "../audit-finding-types";
+import { isPlannableFindingType } from "../audit-finding-types";
 import { findingDraftsFor } from "@/lib/ai-robots-findings";
 
 /**
@@ -15,10 +15,38 @@ import { findingDraftsFor } from "@/lib/ai-robots-findings";
  * that looks like coverage.
  */
 
+/**
+ * Every signature a source file can produce.
+ *
+ * Two shapes. Most are written out in full. Some are built from a prefix
+ * and the finding's own type — `signature: \`health-check.${f.type}\`` —
+ * and for those the literal string never appears anywhere, so a naive
+ * scan reads every such mapping as an orphan.
+ *
+ * The prefix comes from the template and the suffixes from the type
+ * names that same file produces, which keeps the guarantee this test
+ * exists for: rename a type and its signature stops being emitted, so
+ * the mapping shows up as the orphan it now is.
+ */
+function signaturesIn(src: string): string[] {
+  const literal = [...src.matchAll(/signature:\s*"([^"]+)"/g)].map((m) => m[1]);
+
+  const prefixes = [...src.matchAll(/signature:\s*`([a-z0-9-]+)\.\$\{/g)].map(
+    (m) => m[1],
+  );
+  const types = [...src.matchAll(/\btype:\s*"([a-z0-9_]+)"/g)].map((m) => m[1]);
+  const templated = prefixes.flatMap((p) => types.map((t) => `${p}.${t}`));
+
+  return [...literal, ...templated];
+}
+
 describe("the map points at things that exist on both ends", () => {
   it("every target is a real finding type", () => {
+    // Plannable, not crawler-only. The redirect tracer and the Core Web
+    // Vitals tool produce real finding types the crawler never emits, so
+    // gating on the crawler's list alone rejected a mapping that works.
     const unreal = Object.values(TOOL_FINDING_MAP).filter(
-      (t) => !isAuditFindingType(t),
+      (t) => !isPlannableFindingType(t),
     );
     expect(
       unreal,
@@ -57,14 +85,12 @@ describe("the map points at things that exist on both ends", () => {
   it("every mapped signature is one a tool actually emits", () => {
     // The direction that rots silently: rename a signature in the tool
     // and the map keeps pointing at a string nothing produces.
-    const sources = ["src/lib/ai-robots-findings.ts"].map((p) =>
-      readFileSync(join(process.cwd(), p), "utf8"),
-    );
-    const emitted = new Set(
-      sources.flatMap((src) =>
-        [...src.matchAll(/signature:\s*"([^"]+)"/g)].map((m) => m[1]),
-      ),
-    );
+    const sources = [
+      "src/lib/ai-robots-findings.ts",
+      "src/app/tools/health-check/actions.ts",
+    ].map((p) => readFileSync(join(process.cwd(), p), "utf8"));
+
+    const emitted = new Set(sources.flatMap(signaturesIn));
     const orphans = Object.keys(TOOL_FINDING_MAP).filter((s) => !emitted.has(s));
     expect(
       orphans,

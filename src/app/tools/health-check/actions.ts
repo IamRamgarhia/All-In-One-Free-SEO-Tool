@@ -8,7 +8,7 @@ import { scanCwv } from "@/lib/pagespeed";
 import { auditImages } from "@/lib/image-audit";
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { saveSnapshot } from "@/lib/snapshots";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
 import { inspectHeaders } from "@/app/tools/headers/actions";
 
 /**
@@ -65,7 +65,10 @@ const sevWeight: Record<HealthFinding["severity"], number> = {
   info: 0,
 };
 
-export async function runHealthCheck(rawUrl: string): Promise<HealthResult> {
+export async function runHealthCheck(
+  rawUrl: string,
+  clientId?: number | null,
+): Promise<HealthResult> {
   if (!rawUrl?.trim()) return { ok: false, error: "URL required" };
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
 
@@ -276,13 +279,57 @@ export async function runHealthCheck(rawUrl: string): Promise<HealthResult> {
     },
     raw: { cwv, robots, hreflang, security, image, headers },
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "health-check",
     label: `${url} · ${score}/100 · ${findings.length} findings`,
-    input: { url },
+    clientId: clientId ?? null,
+    input: { url, clientId },
     result: out,
-  }).catch(() => undefined);
+    findings: healthDrafts(findings),
+  });
   return out;
+}
+
+/**
+ * The tool's findings, as rows that survive the tab closing.
+ *
+ * Signatures are "health-check.<type>", which is what TOOL_FINDING_MAP
+ * keys on — two of them (redirect_chain, broken_link) map onto work the
+ * agent can carry out, and the rest stay here for a person to read. The
+ * type is the stable part; the message carries counts and wording that
+ * change between runs, so matching on it would make every run a fresh
+ * set of findings nobody could ever close.
+ *
+ * One row per type rather than per occurrence: this is a single-page
+ * check, so a type appears once anyway, and grouping keeps that true if
+ * that ever changes.
+ */
+function healthDrafts(findings: HealthFinding[]): FindingDraft[] {
+  // "info" is an observation, not work. Recording it would put grey rows
+  // on a checklist that exists to say what still needs doing. Narrowed
+  // here rather than skipped in the loop so the severity that reaches
+  // FindingDraft is one the findings table actually accepts.
+  type Actionable = HealthFinding & { severity: FindingDraft["severity"] };
+  const isActionable = (f: HealthFinding): f is Actionable =>
+    f.severity !== "info";
+
+  const byType = new Map<string, Actionable[]>();
+  for (const f of findings.filter(isActionable)) {
+    const list = byType.get(f.type);
+    if (list) list.push(f);
+    else byType.set(f.type, [f]);
+  }
+
+  return [...byType.entries()].map(([type, list]) => ({
+    signature: `health-check.${type}`,
+    title: list[0].message,
+    severity: list[0].severity,
+    category: list[0].category,
+    details:
+      list.length > 1
+        ? list.map((f) => f.message).join(" ")
+        : (list[0].url ?? null),
+  }));
 }
 
 export async function saveHealthSnapshot(opts: {
