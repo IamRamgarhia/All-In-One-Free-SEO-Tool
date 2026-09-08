@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { CornerDownRight, Loader2 } from "lucide-react";
 import { runBulk, type BulkState } from "./actions";
+import { ClientIdField } from "@/components/client-id-field";
 
 export function BulkRedirectForm() {
   const [state, formAction, pending] = useActionState<
@@ -23,6 +24,7 @@ export function BulkRedirectForm() {
         action={formAction}
         className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3"
       >
+        <ClientIdField />
         <label className="space-y-1 text-xs">
           <span className="text-muted-foreground">URLs (one per line, max 100)</span>
           <textarea

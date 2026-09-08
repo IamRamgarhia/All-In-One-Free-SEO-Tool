@@ -60,6 +60,11 @@ export const TOOL_FINDING_MAP: Record<string, PlannableFindingType> = {
   // every hop — which the crawler does not. Its answer is the better one
   // and it maps to the same fix: point the first hop at the destination.
   "health-check.redirect_chain": "redirect_chain",
+  // The bulk tracer follows every hop of many URLs at once, so its
+  // answer is more complete than the single-page check's. Matched as a
+  // prefix: each finding appends the URL it traced, because two chains
+  // on two pages are two redirects to write.
+  "redirects-bulk.chain": "redirect_chain",
 };
 
 /**
@@ -156,7 +161,15 @@ export async function loadActionableToolFindings(opts: {
     const type = mapToolFinding(r.signature);
     if (!type || !isPlannableFindingType(type)) continue;
 
-    const url = urlFrom(r.input);
+    // The signature first, the run's input second.
+    //
+    // A per-page tool records one run for one URL, so the run's input is
+    // the right answer. A bulk tool records one run for a hundred, and
+    // its input carries a count rather than an address — so every
+    // finding from it would report the same null URL, collapse to one
+    // key in the dedup below, and ninety-nine redirect chains would
+    // silently become one action.
+    const url = urlInSignature(r.signature) ?? urlFrom(r.input);
     // Newest run wins. The same tool re-run weekly produces the same
     // signature every time, and without this the agent would see six
     // copies of one problem and count them against its per-run cap.
@@ -176,6 +189,28 @@ export async function loadActionableToolFindings(opts: {
   }
 
   return out;
+}
+
+/**
+ * The URL a per-item signature carries, or null.
+ *
+ * A tool that finds many things in one run namespaces each one —
+ * "redirects-bulk.chain.https://example.com/old" — because two chains on
+ * two pages are two separate pieces of work. That URL is the only place
+ * the address survives: the run itself records how many URLs were
+ * traced, not which.
+ *
+ * Returns null for the ordinary case of a signature with no URL in it,
+ * so the caller falls back to the run's own input.
+ */
+export function urlInSignature(signature: string): string | null {
+  const at = signature.search(/https?:\/\//);
+  if (at === -1) return null;
+  try {
+    return new URL(signature.slice(at)).toString();
+  } catch {
+    return null;
+  }
 }
 
 /** The URL a tool was run against, from whatever key it stored it under. */

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { TOOL_FINDING_MAP, mapToolFinding } from "./tool-finding-map";
+import {
+  TOOL_FINDING_MAP,
+  mapToolFinding,
+  urlInSignature,
+} from "./tool-finding-map";
 import { isPlannableFindingType } from "../audit-finding-types";
 import { findingDraftsFor } from "@/lib/ai-robots-findings";
 
@@ -31,13 +35,26 @@ import { findingDraftsFor } from "@/lib/ai-robots-findings";
 function signaturesIn(src: string): string[] {
   const literal = [...src.matchAll(/signature:\s*"([^"]+)"/g)].map((m) => m[1]);
 
-  const prefixes = [...src.matchAll(/signature:\s*`([a-z0-9-]+)\.\$\{/g)].map(
-    (m) => m[1],
-  );
+  // The dotted prefix in front of the interpolation, e.g. "health-check"
+  // or "redirects-bulk.chain".
+  const prefixes = [
+    ...src.matchAll(/signature:\s*`([a-z0-9-]+(?:\.[a-z0-9_-]+)*)\.\$\{/g),
+  ].map((m) => m[1]);
+
   const types = [...src.matchAll(/\btype:\s*"([a-z0-9_]+)"/g)].map((m) => m[1]);
+
+  // Two shapes of interpolation, and both are legitimately emitted.
+  //
+  // The suffix is a finding TYPE — `health-check.${f.type}` — in which
+  // case the whole signature is the prefix plus one of the type names
+  // that file produces, and the map keys on the whole thing.
+  //
+  // Or the suffix is a per-item value like a URL, in which case the map
+  // keys on the prefix alone and mapToolFinding matches it as a stem. So
+  // the prefix itself counts as emitted.
   const templated = prefixes.flatMap((p) => types.map((t) => `${p}.${t}`));
 
-  return [...literal, ...templated];
+  return [...literal, ...templated, ...prefixes];
 }
 
 describe("the map points at things that exist on both ends", () => {
@@ -88,6 +105,7 @@ describe("the map points at things that exist on both ends", () => {
     const sources = [
       "src/lib/ai-robots-findings.ts",
       "src/app/tools/health-check/actions.ts",
+      "src/app/tools/redirects-bulk/actions.ts",
     ].map((p) => readFileSync(join(process.cwd(), p), "utf8"));
 
     const emitted = new Set(sources.flatMap(signaturesIn));
@@ -98,6 +116,34 @@ describe("the map points at things that exist on both ends", () => {
         `signature was renamed, or the mapping was written for a tool that ` +
         `was never wired up.`,
     ).toEqual([]);
+  });
+});
+
+describe("the URL a per-item signature carries", () => {
+  it("pulls the address out of a bulk tool's signature", () => {
+    // Without this every finding from a bulk run reports the same null
+    // URL, and the dedup collapses a hundred redirect chains into one
+    // action. Nothing errors; ninety-nine problems just never get fixed.
+    expect(urlInSignature("redirects-bulk.chain.https://example.com/old")).toBe(
+      "https://example.com/old",
+    );
+  });
+
+  it("keeps a query string, because two URLs can differ only there", () => {
+    expect(
+      urlInSignature("redirects-bulk.chain.https://example.com/p?id=2"),
+    ).toBe("https://example.com/p?id=2");
+  });
+
+  it("returns null for an ordinary signature", () => {
+    // The common case: a per-page tool records one run for one URL, and
+    // the run's own input is the right place to read it from.
+    expect(urlInSignature("ai-robots.unaddressed")).toBeNull();
+    expect(urlInSignature("health-check.redirect_chain")).toBeNull();
+  });
+
+  it("returns null rather than throwing on something unparseable", () => {
+    expect(urlInSignature("tool.x.http://")).toBeNull();
   });
 });
 
