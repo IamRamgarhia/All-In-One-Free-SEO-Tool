@@ -58,6 +58,20 @@ function checks(): SweepCheck[] {
           c.id,
         ),
     },
+    {
+      toolId: "security",
+      label: "Security headers, TLS and certificate expiry",
+      // Two external APIs rather than a fetch of the site, so it is the
+      // slowest thing here — but it is the only check that catches a
+      // certificate about to lapse, which is the failure that takes a
+      // whole site off the internet and always looks fine until it does.
+      // Worth a nightly call; not worth asking somebody to remember.
+      run: async (c) =>
+        (await import("@/app/tools/security/actions")).checkSecurity(
+          c.url,
+          c.id,
+        ),
+    },
   ];
 }
 

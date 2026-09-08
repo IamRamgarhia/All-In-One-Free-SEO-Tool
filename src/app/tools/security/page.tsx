@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkSecurity, type SecurityResult } from "./actions";
+import { useClientId } from "@/components/client-id-field";
 
 export default function SecurityPage() {
   // Seeded from ?url= so opening this from a client keeps the client.
@@ -24,11 +25,14 @@ export default function SecurityPage() {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<SecurityResult | null>(null);
 
+  // Set when opened from a client's rail; null from /tools.
+  const clientId = useClientId();
+
   function run() {
     if (!url.trim()) return;
     setResult(null);
     startTransition(async () => {
-      const r = await checkSecurity(url);
+      const r = await checkSecurity(url, clientId);
       setResult(r);
     });
   }
