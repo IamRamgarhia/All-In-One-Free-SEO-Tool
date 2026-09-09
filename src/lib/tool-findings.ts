@@ -24,6 +24,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { toolFindings, type ToolFinding } from "@/db/schema";
 import { saveToolRun } from "./tool-runs";
+import { clientIdFromRequest } from "./client-context";
 
 export type FindingSeverity = "critical" | "high" | "medium" | "low" | "pass";
 
@@ -77,7 +78,9 @@ export async function recordToolRun<TResult>(opts: {
   result: TResult;
   findings?: FindingDraft[];
 }): Promise<RecordedRun> {
-  const clientId = opts.clientId ?? null;
+  // Same fallback as saveToolRun, and resolved once here so the run and
+  // its findings cannot end up attributed to different clients.
+  const clientId = opts.clientId ?? (await clientIdFromRequest());
 
   try {
     const runId = await saveToolRun({
