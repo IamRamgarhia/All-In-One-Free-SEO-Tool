@@ -330,6 +330,43 @@ export async function generateReportPdf(
     )
     .orderBy(desc(backlinks.placedAt));
 
+  /*
+   * Links that went away, and which we CHECKED had gone.
+   *
+   * Reported, where discovered links deliberately are not. The two are
+   * not the same kind of claim. A discovered link comes from a free,
+   * partial index — it found one link for a site with thousands — so
+   * "you gained 3 links" would understate a month's work to somebody
+   * paying for it. A lost link is evidence: the watchdog fetched the
+   * source page twice, across two runs, and the link was not there
+   * either time.
+   *
+   * Ordered by domain authority so the ones worth an email come first,
+   * which is what "recovery priority" means in practice.
+   */
+  const linksLostThisPeriod = await db
+    .select({
+      id: backlinks.id,
+      sourceUrl: backlinks.sourceUrl,
+      sourceDomain: backlinks.sourceDomain,
+      targetUrl: backlinks.targetUrl,
+      anchorText: backlinks.anchorText,
+      domainAuthority: backlinks.domainAuthority,
+      lastSeen: backlinks.lastSeen,
+    })
+    .from(backlinks)
+    .where(
+      and(
+        eq(backlinks.clientId, clientId),
+        eq(backlinks.status, "lost"),
+        // When we noticed, not when it vanished — the source page could
+        // have been edited any time since the last check, and claiming a
+        // date we do not know would be inventing one.
+        gte(backlinks.updatedAt, periodCutoff),
+      ),
+    )
+    .orderBy(desc(backlinks.domainAuthority), desc(backlinks.updatedAt));
+
   // Tracker submissions that went live in the period — links the user
   // built via the per-client backlink hub.
   const submissionsLiveThisPeriod = await db
@@ -972,6 +1009,47 @@ export async function generateReportPdf(
     }
 
     doc.moveDown(1.5);
+
+    // === Links lost this period ===
+    if (linksLostThisPeriod.length > 0) {
+      drawSectionHeading(doc, "Links lost this period");
+      doc.fillColor(palette.ink).font("Helvetica").fontSize(10);
+      const n = linksLostThisPeriod.length;
+      doc
+        .font("Helvetica-Bold")
+        .text(`${n} link${n === 1 ? "" : "s"} no longer found`);
+      doc
+        .font("Helvetica")
+        .fillColor(palette.mute)
+        .fontSize(9)
+        .text(
+          "Each source page was checked twice and the link was not there either time. " +
+            "These are usually the cheapest links to win back — the publisher already " +
+            "decided once that the site was worth linking to.",
+        );
+      doc.moveDown(0.6);
+      doc.fontSize(10).fillColor(palette.ink);
+      for (const l of linksLostThisPeriod) {
+        ensureSpace(doc, 28);
+        doc.font("Helvetica-Bold").text(`• ${l.sourceDomain}`);
+        const meta: string[] = [];
+        if (l.anchorText) meta.push(`anchor: "${l.anchorText}"`);
+        if (l.domainAuthority !== null && l.domainAuthority !== undefined)
+          meta.push(`DA ${l.domainAuthority}`);
+        if (l.lastSeen)
+          meta.push(`last seen ${new Date(l.lastSeen).toLocaleDateString()}`);
+        if (meta.length > 0) {
+          doc
+            .font("Helvetica")
+            .fillColor(palette.mute)
+            .fontSize(9)
+            .text(meta.join(" · "));
+          doc.fontSize(10).fillColor(palette.ink);
+        }
+        doc.moveDown(0.35);
+      }
+      doc.moveDown(1.2);
+    }
 
     // === Links built this period ===
     if (linksBuiltThisPeriod.length > 0) {
