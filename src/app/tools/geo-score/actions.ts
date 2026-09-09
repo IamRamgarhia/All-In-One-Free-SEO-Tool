@@ -7,7 +7,8 @@ import { scanCwv } from "@/lib/pagespeed";
 import { auditEeat } from "@/lib/eeat-audit";
 import { scoreAllPassages } from "@/lib/aio-passage-scorer";
 import { fetchCruxData } from "@/lib/crux";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { geoScoreFindings } from "@/lib/tool-finding-builders";
 import { guardedFetch } from "@/lib/url-guard";
 
 export type GeoScoreState =
@@ -213,12 +214,20 @@ export async function runGeoScore(
     dimensions: { citability, brandAuthority, contentEeat, technical, schema, platformTactics },
     summary,
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "geo-score",
     label: `${url} · ${composite}/100`,
     input: { url, clientId },
     result,
     clientId,
-  }).catch(() => undefined);
+    findings: geoScoreFindings({
+      citability,
+      brandAuthority,
+      contentEeat,
+      technical,
+      schema,
+      platformTactics,
+    }),
+  });
   return result;
 }

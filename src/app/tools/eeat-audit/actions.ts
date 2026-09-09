@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 import { auditEeat, type EeatResult } from "@/lib/eeat-audit";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { eeatFindings } from "@/lib/tool-finding-builders";
 
 const inputSchema = z.object({
   url: z
@@ -28,12 +29,13 @@ export async function runEeatAudit(
   try {
     const result = await auditEeat({ url: parsed.data.url });
     if (result.error) return { ok: false, error: result.error };
-    await saveToolRun({
+    await recordToolRun({
       toolId: "eeat-audit",
       label: `${parsed.data.url} · ${result.score?.total ?? "?"}/100`,
       input: { url: parsed.data.url },
       result: { ok: true, result },
-    }).catch(() => undefined);
+      findings: eeatFindings(result),
+    });
     return { ok: true, result };
   } catch (err) {
     return {

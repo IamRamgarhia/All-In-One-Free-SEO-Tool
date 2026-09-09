@@ -2,7 +2,8 @@
 
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { callAI } from "@/lib/ai-call";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { aiOverviewFindings } from "@/lib/tool-finding-builders";
 import { guardedFetch } from "@/lib/url-guard";
 
 export type AiOverviewAnalysis =
@@ -155,11 +156,12 @@ export async function analyzeAiOverview(
     weaknesses: (parsed.weaknesses ?? []).map(String).slice(0, 6),
     improvements: (parsed.improvements ?? []).map(String).slice(0, 6),
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "ai-overview",
     label: `${url} · citation ${result.citationScore}/100`,
     input: { url },
     result,
-  }).catch(() => undefined);
+    findings: aiOverviewFindings(result),
+  });
   return result;
 }

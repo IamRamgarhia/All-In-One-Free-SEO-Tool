@@ -511,3 +511,209 @@ export function bulkScanFindings(
 
   return out;
 }
+
+/**
+ * E-E-A-T signals a page does not have.
+ *
+ * Only the `missing` list, which is a list of things checked for and not
+ * found. The four sub-scores beside it are weightings this tool chose,
+ * and recording a number somebody else invented as a finding about a
+ * client's site would be presenting a house opinion as a measurement.
+ */
+export function eeatFindings(result: {
+  missing: readonly string[];
+}): FindingDraft[] {
+  if (result.missing.length === 0) return [];
+  return [
+    {
+      signature: "eeat-audit.missing_signals",
+      title: `${result.missing.length} trust signal${result.missing.length === 1 ? "" : "s"} absent from the page`,
+      // Google's guidance treats these as a cluster rather than
+      // individually, and so does the fix: they are usually added in one
+      // editing pass.
+      severity: result.missing.length >= 4 ? "medium" : "low",
+      category: "e-e-a-t",
+      details:
+        `Not found: ${result.missing.join(", ")}. These are the things a reader — and a ` +
+        "quality rater — look for to decide whether the page was written by somebody who " +
+        "knows the subject.",
+    },
+  ];
+}
+
+/**
+ * Content that has not been touched in a long time.
+ *
+ * Keyed on the verdict rather than the score. The score moves by a point
+ * or two on every re-check as dates roll forward, and a signature built
+ * from it would be a new finding every week.
+ *
+ * "unknown" is not reported. A page with no detectable date is a page we
+ * could not measure, and saying nothing is more honest than implying it
+ * is fresh or stale.
+ */
+export function freshnessFindings(result: {
+  verdict: string;
+  score: number;
+  newestAgeDays: number | null;
+}): FindingDraft[] {
+  if (result.verdict !== "stale" && result.verdict !== "aging") return [];
+
+  const age =
+    typeof result.newestAgeDays === "number"
+      ? `The newest date signal on the page is ${result.newestAgeDays} days old. `
+      : "";
+
+  return [
+    {
+      signature: `freshness.${result.verdict}`,
+      title:
+        result.verdict === "stale"
+          ? "Content has not been updated in a long time"
+          : "Content is starting to age",
+      severity: result.verdict === "stale" ? "medium" : "low",
+      category: "content",
+      details:
+        age +
+        "Freshness matters most on pages about things that change — prices, rankings, " +
+        "software, regulations — and barely at all on pages about things that do not. " +
+        "Worth a look rather than an automatic rewrite.",
+    },
+  ];
+}
+
+/**
+ * Sections of a site whose topic has nothing to do with the rest of it.
+ *
+ * This is Google's "site reputation abuse" — a coupons subdirectory
+ * bolted onto a news site, borrowing its authority. The penalty falls on
+ * the whole domain, which is why a section scoring badly is worth
+ * knowing about even when it earns well.
+ *
+ * Keyed on the path, because each section is a separate decision about
+ * whether it belongs.
+ */
+export function reputationRiskFindings(report: {
+  sections: readonly { path: string; risk: string; pageCount: number; overlap: number }[];
+}): FindingDraft[] {
+  const risky = report.sections.filter(
+    (s) => s.risk === "high" || s.risk === "medium",
+  );
+  if (risky.length === 0) return [];
+
+  return risky.slice(0, 8).map((s) => ({
+    signature: `reputation-abuse-risk.${slug(s.path)}`,
+    title: `${s.path} reads as unrelated to the rest of the site`,
+    severity: s.risk === "high" ? "medium" : "low",
+    category: "site-reputation",
+    details:
+      `${s.pageCount} pages, sharing ${Math.round(s.overlap * 100)}% of their topic ` +
+      "vocabulary with the rest of the site. Google's site reputation abuse policy targets " +
+      "sections hosted on a domain mainly to borrow its authority, and the penalty applies " +
+      "to the whole domain rather than the section.",
+  }));
+}
+
+/**
+ * A video's own SEO checks, which are pass or fail rather than scored.
+ *
+ * Keyed on the check id, which is stable, and grouped by nothing —
+ * each failing check is a separate edit to the video's metadata.
+ *
+ * Recorded against the client rather than the video: the person doing
+ * the work has one YouTube channel per client, and a finding that names
+ * the video in its title is enough to find it again.
+ */
+export function youtubeAuditFindings(result: {
+  checks: readonly {
+    id: string;
+    title: string;
+    pass: boolean;
+    severity: "high" | "medium" | "low";
+    message: string;
+  }[];
+  meta: { title?: string | null } | null;
+}): FindingDraft[] {
+  const video = result.meta?.title ? ` — "${result.meta.title}"` : "";
+  return result.checks
+    .filter((c) => !c.pass)
+    .map((c) => ({
+      signature: `youtube-audit.${c.id}`,
+      title: `${c.title}${video}`,
+      severity: c.severity,
+      category: "video",
+      details: c.message,
+    }));
+}
+
+/**
+ * A page unlikely to be quoted inside an AI Overview.
+ *
+ * The score is recorded; the model's list of weaknesses is not. That
+ * list is free text that comes back worded differently every run, so no
+ * stable signature can be built from it — and a finding whose signature
+ * changes is one nobody can ever mark resolved.
+ *
+ * The provenance goes in the details, because this is an assessment
+ * rather than a measurement and the reader is entitled to know which.
+ * Recording it any other way would put a model's opinion in a client
+ * report wearing the same clothes as a fact.
+ */
+export function aiOverviewFindings(result: {
+  citationScore: number;
+  weaknesses: readonly string[];
+}): FindingDraft[] {
+  // Only when it is genuinely poor. A middling score on a page nobody
+  // is trying to get cited is not work.
+  if (result.citationScore >= 50) return [];
+
+  return [
+    {
+      signature: "ai-overview.low_citability",
+      title: `Unlikely to be cited in AI Overviews (${result.citationScore}/100)`,
+      severity: result.citationScore < 30 ? "medium" : "low",
+      category: "ai-visibility",
+      details:
+        `Assessed by the configured AI model, so the exact number moves between runs — ` +
+        `treat it as a band rather than a measurement. What it flagged: ` +
+        result.weaknesses.slice(0, 3).join("; ") +
+        (result.weaknesses.length > 3 ? "." : "."),
+    },
+  ];
+}
+
+/**
+ * A weak leg in the GEO composite.
+ *
+ * One finding per dimension that scores badly, because the whole point
+ * of the composite is that it forces the weakest leg to be fixed first —
+ * a single overall number hides which one that is.
+ *
+ * Same provenance caveat as above: these are weighted judgements this
+ * tool makes, not measurements of the site.
+ */
+export function geoScoreFindings(dimensions: Record<
+  string,
+  { score: number; weight: number; note: string }
+>): FindingDraft[] {
+  const LABEL: Record<string, string> = {
+    citability: "citability",
+    brandAuthority: "brand authority",
+    contentEeat: "content E-E-A-T",
+    technical: "technical foundation",
+    schema: "structured data",
+    platformTactics: "platform tactics",
+  };
+
+  return Object.entries(dimensions)
+    .filter(([, d]) => d && typeof d.score === "number" && d.score < 50)
+    .map(([key, d]) => ({
+      signature: `geo-score.weak.${slug(key)}`,
+      title: `Weak on ${LABEL[key] ?? key} for AI search (${d.score}/100)`,
+      severity: d.score < 30 ? "medium" : "low",
+      category: "ai-visibility",
+      details:
+        `${d.note} This is a weighted judgement rather than a measurement — the value is ` +
+        "in which leg is weakest, not in the exact number.",
+    }));
+}

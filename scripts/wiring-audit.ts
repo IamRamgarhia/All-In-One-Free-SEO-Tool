@@ -69,6 +69,22 @@ const NOT_A_CHECK = new Set([
   // the findings pipeline would mean inventing an opinion the tool does
   // not hold.
   "link-checker",
+  // Graders of pasted text, not of a site.
+  //
+  // Each of these takes content the user types or pastes — a draft, a
+  // headline, a passage — and scores it. A finding is a statement about
+  // a client's site: it goes in their report, it reaches the agent,
+  // and somebody eventually marks it resolved. None of that is true of
+  // a draft that may never be published, and filing one against the
+  // site would put an opinion about unpublished text into a document
+  // the client reads.
+  //
+  // The two scorers that DO look at a live URL — ai-overview and
+  // geo-score — record findings, with their provenance stated in the
+  // details, because there the page is real even though the judgement
+  // is a model's.
+  "content-score", "content-grader", "news-headline", "plagiarism",
+  "aio-passage",
 ]);
 
 type Score = {
