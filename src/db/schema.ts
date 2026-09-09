@@ -812,6 +812,19 @@ export const backlinks = sqliteTable("backlinks", {
   method: text("method"),
   /** Whether the link is dofollow / nofollow / sponsored / ugc — best guess. */
   rel: text("rel"),
+  /**
+   * Consecutive checks that failed to find the link on the source page.
+   *
+   * A link is only marked lost after more than one miss. One miss is not
+   * evidence: the source may be JS-rendered, behind a consent wall, or
+   * temporarily serving a bot-block page, and every one of those looks
+   * identical to a link that was removed. Flagging on the first miss
+   * fabricated a lost link, a high-priority recovery task, and a line in
+   * the client's report saying work had been undone that never was.
+   *
+   * Reset to zero the moment the link is seen again.
+   */
+  missStreak: integer("miss_streak").notNull().default(0),
   /** Date the user actually placed the link (vs when our tool first saw it). */
   placedAt: integer("placed_at", { mode: "timestamp" }),
   firstSeen: integer("first_seen", { mode: "timestamp" })

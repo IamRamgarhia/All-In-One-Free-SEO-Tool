@@ -1,0 +1,1 @@
+ALTER TABLE `backlinks` ADD `miss_streak` integer DEFAULT 0 NOT NULL;

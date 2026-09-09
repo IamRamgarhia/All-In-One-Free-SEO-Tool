@@ -26,6 +26,7 @@ import {
   auditIssues,
   audits,
   clients,
+  backlinks,
   keywordRankings,
   keywords,
   proposals,
@@ -403,7 +404,32 @@ export async function nextActions(opts: {
       });
     }
 
-    // ---- 8. The client has not been told the plan ---------------------
+    // ---- 8. Backlinks lost since the last look ------------------------
+    // A link that was there and is not is the cheapest one to get back:
+    // somebody already agreed to it once, and a short email asking why
+    // it went recovers a good share of them. It also has a deadline that
+    // nothing else here does — the longer the page stays edited, the
+    // less likely anyone remembers the link was ever deliberate.
+    const [lost] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(backlinks)
+      .where(
+        and(eq(backlinks.clientId, c.id), eq(backlinks.status, "lost")),
+      );
+    if ((lost?.n ?? 0) > 0) {
+      add({
+        id: `lost-links-${c.id}`,
+        title: `${lost.n} backlink${lost.n === 1 ? "" : "s"} disappeared`,
+        why: "Someone already agreed to link to this site once, so asking why it went is a far shorter conversation than earning a new one.",
+        score: rank(70, 30),
+        minutes: 30,
+        owner: "you",
+        href: `/backlinks?clientId=${c.id}&status=lost`,
+        because: `${lost.n} link${lost.n === 1 ? "" : "s"} checked and no longer found on the source page`,
+      });
+    }
+
+    // ---- 9. The client has not been told the plan ---------------------
     const [doc] = await db
       .select({ id: proposals.id, status: proposals.status })
       .from(proposals)

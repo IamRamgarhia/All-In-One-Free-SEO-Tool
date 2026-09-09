@@ -12,10 +12,64 @@ import { db } from "@/db/client";
 import { backlinks, clients, tasks } from "@/db/schema";
 import { logActivity } from "./activity";
 import { getSetting, setSetting } from "./settings-store";
+import { guardedFetch } from "./url-guard";
 
 const RUN_INTERVAL_MS = 6 * 24 * 60 * 60 * 1000;
 const RECHECK_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const PER_RUN_CAP = 100;
+
+/**
+ * How many consecutive misses before a link is called lost.
+ *
+ * One is not enough. A source page that renders its links with
+ * JavaScript, one behind a consent wall, and one temporarily serving a
+ * bot-block page all return 200 with no link in the HTML — identical, to
+ * this check, to a link somebody removed.
+ *
+ * Flagging on the first miss produced a lost link that was not lost, a
+ * high-priority recovery task nobody needed, and a line in the client's
+ * report saying work had been undone. Two misses across two runs costs
+ * at most one extra cycle on a genuinely dead link and removes most of
+ * that.
+ */
+export const MISSES_BEFORE_LOST = 2;
+
+/**
+ * Does this HTML link to the target domain?
+ *
+ * Deliberately conservative about what counts as absent: an empty body
+ * is not a missing link, it is a page we failed to read, and the caller
+ * treats the two differently.
+ */
+export function linkPresent(html: string, targetDomain: string): boolean {
+  if (html.length === 0) return false;
+  return (
+    html.includes(`href="https://${targetDomain}`) ||
+    html.includes(`href="http://${targetDomain}`) ||
+    html.includes(`href="//${targetDomain}`) ||
+    html.includes(`href='https://${targetDomain}`) ||
+    html.includes(`href='http://${targetDomain}`) ||
+    html.includes(`href='//${targetDomain}`)
+  );
+}
+
+/**
+ * What to do about one checked link.
+ *
+ * Pure, so the three outcomes can be tested without the network. Each of
+ * them is a number somebody reads: a false "lost" claims work was undone
+ * that was not, and a missed one hides a link that is genuinely gone.
+ */
+export function decideLink(opts: {
+  present: boolean;
+  missStreak: number;
+}): { action: "seen" | "strike" | "lost"; missStreak: number } {
+  if (opts.present) return { action: "seen", missStreak: 0 };
+  const next = (opts.missStreak ?? 0) + 1;
+  return next >= MISSES_BEFORE_LOST
+    ? { action: "lost", missStreak: next }
+    : { action: "strike", missStreak: next };
+}
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/1.0; +https://example.com/bot)";
 
@@ -36,6 +90,7 @@ export async function runLostLinkCheck(): Promise<{
     .select({
       id: backlinks.id,
       clientId: backlinks.clientId,
+      missStreak: backlinks.missStreak,
       sourceUrl: backlinks.sourceUrl,
       sourceDomain: backlinks.sourceDomain,
       targetUrl: backlinks.targetUrl,
@@ -65,7 +120,9 @@ export async function runLostLinkCheck(): Promise<{
     try {
       const ac = new AbortController();
       const t = setTimeout(() => ac.abort(), 12_000);
-      const res = await fetch(b.sourceUrl, {
+            // Guarded: a source URL is whatever discovery found or a user
+      // typed, and this now runs on a schedule rather than on a click.
+const res = await guardedFetch(b.sourceUrl, {
         headers: { "user-agent": USER_AGENT, accept: "text/html" },
         signal: ac.signal,
         redirect: "follow",
@@ -79,24 +136,45 @@ export async function runLostLinkCheck(): Promise<{
     }
     checked++;
 
-    const stillThere =
-      html.length > 0 &&
-      (html.includes(`href="https://${targetDomain}`) ||
-        html.includes(`href="http://${targetDomain}`) ||
-        html.includes(`href="//${targetDomain}`) ||
-        html.includes(`href='https://${targetDomain}`) ||
-        html.includes(`href='http://${targetDomain}`));
+    // One decision function, used here and tested directly. Writing the
+    // rule twice is how the two drift.
+    const verdict = decideLink({
+      present: linkPresent(html, targetDomain),
+      missStreak: b.missStreak ?? 0,
+    });
+    const streak = verdict.missStreak;
 
-    if (stillThere) {
+    if (verdict.action === "seen") {
       await db
         .update(backlinks)
-        .set({ lastSeen: new Date() })
+        .set({ lastSeen: new Date(), missStreak: 0 })
         .where(eq(backlinks.id, b.id));
-    } else {
+      continue;
+    }
+
+    if (verdict.action === "strike") {
+      // Only the streak. NOT lastSeen — that means "when we last saw the
+      // link", and the candidate query uses it to decide what is due for
+      // a re-check. Touching it here pushed the link outside the
+      // fourteen-day window, so the second strike could never land and
+      // nothing was ever marked lost again.
+      await db
+        .update(backlinks)
+        .set({ missStreak: streak })
+        .where(eq(backlinks.id, b.id));
+      continue;
+    }
+
+    {
       lost++;
       await db
         .update(backlinks)
-        .set({ status: "lost", lastSeen: new Date(), updatedAt: new Date() })
+        .set({
+          status: "lost",
+          missStreak: streak,
+          lastSeen: new Date(),
+          updatedAt: new Date(),
+        })
         .where(eq(backlinks.id, b.id));
 
       if (b.clientId) {

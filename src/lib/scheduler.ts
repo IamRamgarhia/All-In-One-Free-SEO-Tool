@@ -119,6 +119,16 @@ function runners(): Runner[] {
       run: async () => (await import("./tool-sweep")).tickToolSweep(),
     },
     {
+      // Discovery, written into the profile rather than drawn on screen
+      // and thrown away. Weekly because it is the slowest thing here —
+      // a search pass plus a crawl-to-confirm per candidate — and
+      // because a backlink profile does not change by the hour.
+      id: "backlink_sync",
+      label: "Backlink discovery",
+      everyMs: 7 * 24 * HOUR,
+      run: async () => (await import("./backlink-sync")).tickBacklinkSync(),
+    },
+    {
       id: "retention_cleanup",
       label: "Data retention cleanup",
       everyMs: 24 * HOUR,
