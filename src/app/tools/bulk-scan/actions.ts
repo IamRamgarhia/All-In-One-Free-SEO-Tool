@@ -2,7 +2,8 @@
 
 import { runHealthCheck } from "@/app/tools/health-check/actions";
 import { saveSnapshot } from "@/lib/snapshots";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { bulkScanFindings } from "@/lib/tool-finding-builders";
 
 export type BulkRow = {
   url: string;
@@ -133,11 +134,12 @@ export async function runBulkScan(opts: {
     completedAt,
     durationMs: completedAt.getTime() - startedAt.getTime(),
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "bulk-scan",
     label: `${rows.length} URLs · ${rows.filter((r) => r.ok).length} ok`,
     input: { urls: urls.join("\n") },
     result: out,
-  }).catch(() => undefined);
+    findings: bulkScanFindings(rows),
+  });
   return out;
 }

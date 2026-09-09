@@ -1,7 +1,8 @@
 "use server";
 
 import { fetchGscPerformance } from "@/lib/google-oauth";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { cannibalFindings } from "@/lib/tool-finding-builders";
 
 export type CannibalGroup = {
   query: string;
@@ -131,7 +132,7 @@ export async function runCannibalScan(
 
     const highSeverity = groups.filter((g) => g.severity === "high").length;
 
-    await saveToolRun({
+    await recordToolRun({
       toolId: "cannibalization",
       label: `${siteUrl} · ${groups.length} group${groups.length === 1 ? "" : "s"} · ${highSeverity} high`,
       input: { siteUrl },
@@ -140,7 +141,8 @@ export async function runCannibalScan(
         highSeverity,
         queriesAnalyzed: byQuery.size,
       },
-    }).catch(() => undefined);
+      findings: cannibalFindings(groups),
+    });
 
     return {
       ok: true,

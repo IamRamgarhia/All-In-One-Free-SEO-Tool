@@ -51,9 +51,12 @@ describe("docs guides", () => {
         !copyOf(capabilityOf(c.route)),
     ).map((c) => c.route);
 
-    // /tools/geo-swot is reached from a client page and has no card in
-    // the grid, so there is no copy to read. That is legitimate.
-    expect(undocumented).toEqual(["/tools/geo-swot"]);
+    // Nothing is exempt any more. geo-swot used to be: it was reachable
+    // only from a client page, had no card in the grid, and so had no
+    // copy for the parser to read. That was recorded here as legitimate
+    // when it was really a tool nobody could find — it now has a card,
+    // and the exemption went with it.
+    expect(undocumented).toEqual([]);
   });
 
   it("external links are absolute https URLs", () => {

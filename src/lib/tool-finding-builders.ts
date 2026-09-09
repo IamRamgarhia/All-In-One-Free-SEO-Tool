@@ -302,3 +302,212 @@ function slug(s: string): string {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
+
+/**
+ * Pages of a site competing with each other for one query.
+ *
+ * Only where it is actually costing something. Two pages appearing for
+ * the same query is normal — a category and a product legitimately both
+ * rank — and it only becomes cannibalisation when neither wins because
+ * the signals are split between them.
+ *
+ * Keyed on the query, because that is what has to be decided about: one
+ * page gets to own it and the others point at that one. The pages
+ * involved change as a site is edited; the decision does not.
+ */
+export function cannibalFindings(
+  groups: readonly {
+    query: string;
+    pages: readonly { page: string; position: number; clicks: number }[];
+    totalClicks: number;
+  }[],
+): FindingDraft[] {
+  const contested = groups.filter((g) => g.pages.length >= 2);
+  if (contested.length === 0) return [];
+
+  // Worst first: the query with the most traffic at stake is the one
+  // worth an afternoon.
+  const ranked = [...contested].sort((a, b) => b.totalClicks - a.totalClicks);
+
+  return ranked.slice(0, 10).map((g) => ({
+    signature: `cannibalization.${slug(g.query)}`,
+    title: `${g.pages.length} pages compete for "${g.query}"`,
+    // Traffic already arriving is evidence the query matters; a
+    // contested query nobody clicks is a curiosity.
+    severity: g.totalClicks >= 50 ? "medium" : "low",
+    category: "cannibalization",
+    details:
+      `Google is choosing between ${g.pages
+        .slice(0, 4)
+        .map((p) => `${p.page} (#${Math.round(p.position)})`)
+        .join(", ")}` +
+      (g.pages.length > 4 ? ` and ${g.pages.length - 4} more` : "") +
+      `. ${g.totalClicks} clicks are split across them, so no single page ` +
+      "accumulates the signals that would let it win outright.",
+  }));
+}
+
+/**
+ * Core Web Vitals measured in a real browser on this machine.
+ *
+ * Thresholds are Google's own published "good" boundaries rather than
+ * numbers chosen here, because the whole value of this check is that it
+ * matches what Search Console will eventually say.
+ *
+ * Not mapped for the agent. Every fix is a server, theme or image
+ * change, and none of them is reachable through a CMS metadata write.
+ */
+export function cwvFindings(result: {
+  lcpMs: number | null;
+  cls: number | null;
+  ttfbMs?: number | null;
+}): FindingDraft[] {
+  const out: FindingDraft[] = [];
+
+  if (typeof result.lcpMs === "number" && result.lcpMs > 2500) {
+    out.push({
+      signature: "local-cwv.slow_lcp",
+      title: `Largest Contentful Paint is ${(result.lcpMs / 1000).toFixed(1)}s`,
+      // 4s is Google's boundary between "needs improvement" and "poor".
+      severity: result.lcpMs > 4000 ? "high" : "medium",
+      category: "performance",
+      details:
+        "Google treats anything over 2.5 seconds as needing improvement. LCP is the moment " +
+        "the main thing on the page appears, which is what a visitor experiences as the " +
+        "page having loaded.",
+    });
+  }
+
+  if (typeof result.cls === "number" && result.cls > 0.1) {
+    out.push({
+      signature: "local-cwv.layout_shift",
+      title: `Cumulative Layout Shift is ${result.cls.toFixed(2)}`,
+      severity: result.cls > 0.25 ? "high" : "medium",
+      category: "performance",
+      details:
+        "Google treats anything over 0.1 as needing improvement. This is the metric behind " +
+        "content jumping as a page loads, which is why people tap the wrong thing.",
+    });
+  }
+
+  if (typeof result.ttfbMs === "number" && result.ttfbMs > 800) {
+    out.push({
+      signature: "local-cwv.slow_ttfb",
+      title: `Time to First Byte is ${Math.round(result.ttfbMs)}ms`,
+      severity: "medium",
+      category: "performance",
+      details:
+        "Over 800ms and the server is the bottleneck rather than the page. Every other " +
+        "timing measured here starts after this one finishes, so nothing else can be fast.",
+    });
+  }
+
+  return out;
+}
+
+/**
+ * A month-over-month fall in organic clicks.
+ *
+ * The AI diagnosis this tool also produces is deliberately NOT recorded.
+ * It is a model's ranked guess at causes, it varies between runs, and a
+ * guess that persists into a client report reads as a conclusion. The
+ * numbers underneath it do not vary, so those are what is kept.
+ *
+ * A single finding rather than one per query. The drop is one event to
+ * investigate, and the queries and pages that lost most are evidence
+ * for it rather than separate pieces of work.
+ */
+export function trafficDropFindings(result: {
+  recentClicks: number;
+  prevClicks: number;
+  clicksDelta: number;
+  clicksDeltaPct: number;
+  topQueryDrops: readonly { query: string; delta: number }[];
+  topPageDrops: readonly { page: string; delta: number }[];
+  algorithmOverlaps: readonly { name?: string; title?: string }[];
+}): FindingDraft[] {
+  // Up, flat, or noise. Small sites swing by a few percent every month
+  // and reporting that as a finding would cry wolf.
+  if (result.clicksDeltaPct > -10 || result.prevClicks < 50) return [];
+
+  const pct = Math.abs(Math.round(result.clicksDeltaPct));
+  const algo = result.algorithmOverlaps
+    .map((a) => a.name ?? a.title)
+    .filter(Boolean);
+
+  return [
+    {
+      signature: "traffic-drop.clicks_down",
+      title: `Organic clicks down ${pct}% month over month`,
+      // A third of the traffic is a different conversation from a tenth.
+      severity: pct >= 30 ? "high" : "medium",
+      category: "traffic",
+      details:
+        `${result.prevClicks} clicks in the previous 28 days, ${result.recentClicks} in the ` +
+        `most recent. Worst queries: ${result.topQueryDrops
+          .slice(0, 3)
+          .map((q) => `"${q.query}" (${q.delta})`)
+          .join(", ")}. Worst pages: ${result.topPageDrops
+          .slice(0, 3)
+          .map((p) => `${p.page} (${p.delta})`)
+          .join(", ")}.` +
+        (algo.length > 0
+          ? ` A Google update overlaps this window: ${algo.join(", ")}.`
+          : " No announced Google update overlaps this window."),
+    },
+  ];
+}
+
+/**
+ * URLs a bulk scan found problems on.
+ *
+ * One finding for the batch, not one per URL. A bulk scan is a sweep to
+ * find where to look next, and twenty-five findings from one sweep would
+ * bury everything else in the list. The URLs worth opening are named in
+ * the details.
+ */
+export function bulkScanFindings(
+  rows: readonly {
+    url: string;
+    ok: boolean;
+    score: number | null;
+    critical: number;
+    high: number;
+  }[],
+): FindingDraft[] {
+  const out: FindingDraft[] = [];
+
+  const serious = rows.filter((r) => r.ok && (r.critical > 0 || r.high > 0));
+  if (serious.length > 0) {
+    out.push({
+      signature: "bulk-scan.pages_with_serious_issues",
+      title: `${serious.length} of ${rows.length} pages scanned have critical or high issues`,
+      severity: serious.some((r) => r.critical > 0) ? "high" : "medium",
+      category: "audit",
+      details:
+        serious
+          .slice(0, 8)
+          .map((r) => `${r.url} (${r.critical} critical, ${r.high} high)`)
+          .join(", ") + (serious.length > 8 ? ` and ${serious.length - 8} more.` : "."),
+    });
+  }
+
+  // A URL that could not be scanned is not a URL without problems, and
+  // reporting only on the ones that answered would quietly exclude the
+  // pages most likely to be broken.
+  const failed = rows.filter((r) => !r.ok);
+  if (failed.length > 0) {
+    out.push({
+      signature: "bulk-scan.unscannable",
+      title: `${failed.length} URL${failed.length === 1 ? "" : "s"} could not be scanned`,
+      severity: "medium",
+      category: "audit",
+      details:
+        "These returned no result, so nothing is known about them — which is not the same " +
+        `as nothing being wrong: ${failed.slice(0, 8).map((r) => r.url).join(", ")}` +
+        (failed.length > 8 ? ` and ${failed.length - 8} more.` : "."),
+    });
+  }
+
+  return out;
+}

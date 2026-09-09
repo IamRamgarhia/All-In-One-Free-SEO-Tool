@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { measureCwv, type CwvResult } from "@/lib/local-cwv";
 import { measureCwvPsi } from "@/lib/local-cwv-psi";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { cwvFindings } from "@/lib/tool-finding-builders";
 import type { PsiFailure } from "@/lib/psi-error";
 
 const inputSchema = z.object({
@@ -68,7 +69,7 @@ export async function runLocalCwv(
 
     if (!result.ok && result.error)
       return { ok: false, error: result.error, failure: result.failure };
-    await saveToolRun({
+    await recordToolRun({
       toolId: "local-cwv",
       // The label records how it was ACTUALLY measured, not what was
       // asked for. A run that fell back to the local browser is not the
@@ -77,7 +78,8 @@ export async function runLocalCwv(
       label: `${url} · ${device} · ${result.source ?? mode}`,
       input: parsed.data,
       result: { ok: true, result },
-    }).catch(() => undefined);
+      findings: cwvFindings(result),
+    });
     return { ok: true, result };
   } catch (err) {
     return {
