@@ -34,6 +34,7 @@ import {
 } from "@/db/schema";
 import { FIXABLE } from "./agent/planner";
 import { openToolFindings } from "./tool-findings";
+import { findContentDecay, getGscQuickWins } from "./google-data";
 import { loadActionableToolFindings } from "./agent/tool-finding-map";
 
 export type ActionOwner = "agent" | "you";
@@ -402,6 +403,69 @@ export async function nextActions(opts: {
             ? `1 open ${worstTool.severity} finding from ${worstTool.toolId}`
             : `${bad.length} open critical/high findings across the tools`,
       });
+    }
+
+    // ---- 7b. What Search Console knows and nothing here read ----------
+    //
+    // These are the two questions an SEO opens the app to answer, and
+    // until now the ranked list could not: which pages are one nudge
+    // from page one, and which pages used to earn and stopped.
+    //
+    // Both are free — it is the client's own data — and both are skipped
+    // when no property is connected, because such a client already has
+    // "connect Search Console" near the top of this list and a second
+    // row saying the same thing helps nobody.
+    if (c.gscProperty) {
+      try {
+        const striking = await getGscQuickWins({
+          siteUrl: c.gscProperty,
+          limit: 40,
+        });
+        // Positions 4-15: ranking already, on page one or just off it,
+        // and close enough that a better title or a couple of internal
+        // links can move them. Below 15 is a content project.
+        const close = striking.filter(
+          (k) => k.position >= 4 && k.position <= 15,
+        );
+        if (close.length > 0) {
+          const best = [...close].sort(
+            (a, b) => b.impressions - a.impressions,
+          )[0];
+          add({
+            id: `striking-${c.id}`,
+            title: `${close.length} keyword${close.length === 1 ? "" : "s"} sitting just off page one`,
+            why: "These already rank and already get impressions. Moving one from 11 to 8 is a title and a few internal links, not a new page.",
+            score: rank(85, 45),
+            minutes: 45,
+            owner: "you",
+            href: `/keywords/c/${c.id}`,
+            because: `best opportunity: "${best.query}" at #${Math.round(best.position)} on ${best.impressions} impressions`,
+          });
+        }
+      } catch {
+        // A connected property can still be revoked, rate-limited or
+        // slow. None of that is a reason to lose the rest of the list.
+      }
+
+      try {
+        const decayed = await findContentDecay({ siteUrl: c.gscProperty });
+        const worth = decayed.filter((d) => d.recoveryScore >= 40);
+        if (worth.length > 0) {
+          const top = worth[0];
+          add({
+            id: `decay-${c.id}`,
+            title: `${worth.length} page${worth.length === 1 ? "" : "s"} losing traffic they used to earn`,
+            why: "A page that ranked and slipped is the cheapest traffic to win back — it already had whatever it needed once.",
+            score: rank(80, 60),
+            minutes: 60,
+            owner: "you",
+            href: `/tools/refresh?clientId=${c.id}`,
+            because: `worst: ${top.page} down ${Math.abs(Math.round(top.deltaPct))}% from ${top.priorClicks} clicks`,
+          });
+        }
+      } catch {
+        // Same reasoning as above.
+      }
     }
 
     // ---- 8. Backlinks lost since the last look ------------------------

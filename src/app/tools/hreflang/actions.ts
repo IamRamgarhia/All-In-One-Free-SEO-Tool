@@ -148,7 +148,7 @@ export async function checkHreflang(rawUrl: string): Promise<HreflangResult> {
     issues.push(
       "No hreflang tags found. If this site has language/region variants, add them.",
     );
-    return {
+    const empty: HreflangResult = {
       ok: true,
       url,
       finalUrl: res.finalUrl,
@@ -157,6 +157,25 @@ export async function checkHreflang(rawUrl: string): Promise<HreflangResult> {
       hasXDefault: false,
       reciprocal: [],
     };
+    // Record the run even though there is nothing to report.
+    //
+    // This returned before reaching the recorder at the bottom, so a
+    // monolingual site — which is most sites — produced a run that
+    // succeeded and left no trace. The nightly sweep then showed the
+    // check as having run while the history showed it never had, which
+    // is the most confusing possible pair of facts.
+    //
+    // No findings: a site with no hreflang does not have an hreflang
+    // problem, and saying otherwise on every monolingual site is how a
+    // check trains people to ignore it.
+    await recordToolRun({
+      toolId: "hreflang",
+      label: `${url} · no hreflang tags`,
+      input: { url: rawUrl },
+      result: empty,
+      findings: [],
+    });
+    return empty;
   }
 
   if (!hasXDefault) {

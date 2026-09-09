@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { headers } from "next/headers";
 
 /**
@@ -24,7 +25,39 @@ import { headers } from "next/headers";
  * which is visible and fixable. Set against 78 tools that currently file
  * against nothing at all, that is the right trade.
  */
+/**
+ * The client a background job is currently working on.
+ *
+ * The referer trick below only works inside a request, and the nightly
+ * sweep is not one — it is a bare interval in the Node process. Without
+ * this, every swept run would be filed against nobody, which is the
+ * exact failure the referer fallback exists to prevent, arriving through
+ * a different door.
+ *
+ * AsyncLocalStorage rather than a module-level variable because the
+ * sweep runs clients in sequence but the checks inside it are async, and
+ * a plain variable would leak one client's id into another's run the
+ * moment anything ran concurrently.
+ */
+const backgroundClient = new AsyncLocalStorage<number>();
+
+/**
+ * Run `fn` with every tool run inside it attributed to this client.
+ *
+ * Anything the tools call — saveToolRun, recordToolRun — picks the id up
+ * without being passed it, so the sweep can run a tool that has never
+ * heard of clients and still file the result correctly.
+ */
+export function withClientContext<T>(clientId: number, fn: () => Promise<T>) {
+  return backgroundClient.run(clientId, fn);
+}
+
 export async function clientIdFromRequest(): Promise<number | null> {
+  // A background job that declared who it is working for. Checked first
+  // because it is explicit, where the referer is inferred.
+  const fromJob = backgroundClient.getStore();
+  if (typeof fromJob === "number") return fromJob;
+
   let referer: string | null = null;
   try {
     referer = (await headers()).get("referer");

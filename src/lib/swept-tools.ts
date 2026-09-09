@@ -12,6 +12,16 @@
  * the two agree, so this cannot become the second list that drifts.
  */
 
-export const SWEPT_TOOL_IDS = ["robots", "ai-robots", "security"] as const;
+export const SWEPT_TOOL_IDS = [
+  "robots",
+  "ai-robots",
+  "security",
+  "headers",
+  "hreflang",
+  "llms-txt",
+  "freshness",
+  "mobile-friendly",
+  "schema-validate",
+] as const;
 
 export type SweptToolId = (typeof SWEPT_TOOL_IDS)[number];

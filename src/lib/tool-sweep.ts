@@ -28,6 +28,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
+import { withClientContext } from "./client-context";
 
 /**
  * One sweepable check.
@@ -57,6 +58,56 @@ function checks(): SweepCheck[] {
           c.url,
           c.id,
         ),
+    },
+    {
+      toolId: "headers",
+      label: "Redirect chain and response headers",
+      run: async (c) =>
+        (await import("@/app/tools/headers/actions")).inspectHeaders(c.url),
+    },
+    {
+      toolId: "hreflang",
+      label: "Hreflang reciprocity",
+      run: async (c) =>
+        (await import("@/app/tools/hreflang/actions")).checkHreflang(c.url),
+    },
+    {
+      toolId: "llms-txt",
+      label: "llms.txt validity",
+      run: async (c) =>
+        (await import("@/app/tools/llms-txt/actions")).validateLlmsTxt(c.url),
+    },
+    {
+      toolId: "freshness",
+      label: "Content freshness signals",
+      run: async (c) =>
+        (await import("@/app/tools/freshness/actions")).runFreshnessAudit(c.url),
+    },
+    {
+      toolId: "mobile-friendly",
+      label: "Viewport and mobile basics",
+      run: async (c) => {
+        // A form action, so it wants FormData. Built here rather than
+        // reaching past it into the library, because the point of a
+        // sweep is to run the same code path a person would.
+        const form = new FormData();
+        form.set("url", c.url);
+        return (await import("@/app/tools/mobile-friendly/actions")).runMobile(
+          null,
+          form,
+        );
+      },
+    },
+    {
+      toolId: "schema-validate",
+      label: "Structured data validity",
+      run: async (c) => {
+        const form = new FormData();
+        form.set("url", c.url);
+        return (
+          await import("@/app/tools/schema-validate/actions")
+        ).runValidate(null, form);
+      },
     },
     {
       toolId: "security",
@@ -100,7 +151,7 @@ export async function tickToolSweep(): Promise<SweepOutcome[]> {
     if (!c.url) continue;
     for (const check of checks()) {
       try {
-        await check.run(c);
+        await withClientContext(c.id, () => check.run(c));
         out.push({ clientId: c.id, toolId: check.toolId, ok: true });
       } catch (err) {
         out.push({
@@ -137,7 +188,7 @@ export async function sweepClient(clientId: number): Promise<SweepOutcome[]> {
   const out: SweepOutcome[] = [];
   for (const check of checks()) {
     try {
-      await check.run(c);
+      await withClientContext(c.id, () => check.run(c));
       out.push({ clientId: c.id, toolId: check.toolId, ok: true });
     } catch (err) {
       out.push({
