@@ -17,6 +17,8 @@ import {
   tasks,
 } from "@/db/schema";
 import { generateExecSummary } from "./ai-summary";
+import { openToolFindings } from "./tool-findings";
+import { mapToolFinding } from "./agent/tool-finding-map";
 import { ALGO_UPDATES } from "./algorithm-updates";
 import {
   captureClientSnapshot,
@@ -329,6 +331,28 @@ export async function generateReportPdf(
       ),
     )
     .orderBy(desc(backlinks.placedAt));
+
+  /*
+   * What the tools found, minus anything the crawl already reported.
+   *
+   * Some tool findings are the same problem the crawler names in its own
+   * vocabulary — the AI-crawler policy check and the crawler's
+   * missing_ai_crawler_policy are one issue found twice, and listing
+   * both would tell a client they have two problems where they have one.
+   * TOOL_FINDING_MAP already knows which signatures mean which crawler
+   * finding, so it does the matching rather than a second list of pairs.
+   *
+   * Unmapped findings always survive: no mapping means the crawler has
+   * no equivalent, which is exactly when the tool is telling the client
+   * something new.
+   */
+  const crawlerTypes = new Set(allIssues.map((i) => i.type));
+  const toolFindingsForReport = (await openToolFindings(clientId)).filter(
+    (f) => {
+      const equivalent = mapToolFinding(f.signature);
+      return !equivalent || !crawlerTypes.has(equivalent);
+    },
+  );
 
   /*
    * Links that went away, and which we CHECKED had gone.
@@ -973,6 +997,47 @@ export async function generateReportPdf(
       }
       doc.moveDown(0.5);
     }
+  }
+
+  // === Found by the tools, outside the crawl ===
+  //
+  // The crawl is one pass over the site. The tools go deeper and
+  // sideways — robots.txt and sitemap health, a certificate about to
+  // lapse, canonical chains across a two-hundred-page crawl — and until
+  // now none of it reached the client, however serious.
+  if (toolFindingsForReport.length > 0) {
+    ensureSpace(doc, 80);
+    doc.moveDown(0.8);
+    drawSectionHeading(doc, "Found by the tools");
+    doc
+      .font("Helvetica")
+      .fillColor(palette.mute)
+      .fontSize(9)
+      .text(
+        "Checks that run on their own between audits, and that look at things a " +
+          "single crawl does not.",
+      );
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor(palette.ink);
+    for (const f of toolFindingsForReport) {
+      ensureSpace(doc, 34);
+      doc
+        .font("Helvetica-Bold")
+        .fillColor(sevColor[f.severity as keyof typeof sevColor] ?? palette.ink)
+        .fontSize(9)
+        .text(f.severity.toUpperCase(), { continued: true })
+        .fillColor(palette.ink)
+        .fontSize(10)
+        .text(`  ${f.title}`);
+      doc
+        .font("Helvetica")
+        .fillColor(palette.mute)
+        .fontSize(9)
+        .text(`found by ${f.toolId}`);
+      doc.moveDown(0.35);
+      doc.fontSize(10).fillColor(palette.ink);
+    }
+    doc.moveDown(0.8);
   }
 
   // Executive template stops here — short and focused
