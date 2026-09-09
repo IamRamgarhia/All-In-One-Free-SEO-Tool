@@ -69,10 +69,50 @@ type Score = {
   tool: string;
   route: boolean;
   client: boolean;
-  persists: boolean;
+  persists: boolean | null;
   findings: boolean | null;
   reachable: boolean;
+  shape: Shape;
 };
+
+/**
+ * What kind of thing a tool is, derived from its source.
+ *
+ * Three shapes, and only one of them owes a tool_run:
+ *
+ *   run        takes input, computes an answer, shows it. The answer is
+ *              gone when the tab closes unless it is recorded.
+ *   manager    CRUD over a table of its own — uptime targets, redirect
+ *              rules, SERP captures. Already persistent, just not here.
+ *   reference  a client-side page with no server work at all. There is
+ *              no result to keep.
+ *
+ * Derived rather than listed, so a tool added tomorrow is classified
+ * without anyone updating a table — and so this cannot quietly become a
+ * second hardcoded list of what the tools are.
+ *
+ * The distinction is not pedantry. Adding a saveToolRun call to a
+ * reference page would record nothing and move this script's number up,
+ * which is precisely the failure the script exists to catch, committed
+ * by the script itself.
+ */
+type Shape = "run" | "manager" | "reference";
+
+function shapeOf(server: string): Shape {
+  // No server code at all: whatever it does, it does in the browser.
+  if (server.trim() === "") return "reference";
+
+  const ownsATable =
+    /db\s*\.\s*(insert|update|delete)\s*\(/.test(server) &&
+    !/db\s*\.\s*insert\s*\(\s*toolRuns/.test(server);
+  const hasCrudVerbs =
+    /export async function (add|create|delete|remove|toggle|update|save)[A-Z]/.test(
+      server,
+    );
+  if (ownsATable && hasCrudVerbs) return "manager";
+
+  return "run";
+}
 
 function read(p: string): string {
   try {
@@ -130,9 +170,21 @@ function main() {
       client:
         /clientIdFrom|useClientId|ClientIdField|clientId[?]?:\s*number/.test(both) ||
         /saveToolRun|recordToolRun/.test(server),
-      persists: /saveToolRun|recordToolRun/.test(server),
-      findings: NOT_A_CHECK.has(tool) ? null : /recordToolRun/.test(server),
+      // Only "run" tools owe a tool_run. A manager keeps its state in
+      // its own table and a reference page has no state at all, and
+      // adding a saveToolRun call to either would record nothing while
+      // making this number go up — which is the exact failure this
+      // script exists to find, committed by the script itself.
+      persists:
+        shapeOf(server) === "run"
+          ? /saveToolRun|recordToolRun/.test(server)
+          : null,
+      findings:
+        NOT_A_CHECK.has(tool) || shapeOf(server) !== "run"
+          ? null
+          : /recordToolRun/.test(server),
       reachable: linked.has(tool),
+      shape: shapeOf(server),
     };
   });
 
@@ -165,6 +217,11 @@ function main() {
     );
   }
 
+  console.log(c.bold("\nBy shape"));
+  for (const shape of ["run", "manager", "reference"] as const) {
+    const n = scores.filter((s) => s.shape === shape).length;
+    console.log(`  ${shape.padEnd(11)} ${n}`);
+  }
   const fullyWired = scores.filter((s) =>
     cols.every((k) => s[k] === true || s[k] === null),
   ).length;

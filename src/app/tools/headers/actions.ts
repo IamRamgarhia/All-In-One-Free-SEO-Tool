@@ -1,7 +1,7 @@
 "use server";
 
 import { saveSnapshot } from "@/lib/snapshots";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
 import { guardUrl } from "@/lib/url-guard";
 
 export type HeaderHop = {
@@ -85,12 +85,13 @@ export async function inspectHeaders(
           finalUrl: current,
           totalHops: chain.length,
         };
-        await saveToolRun({
+        await recordToolRun({
           toolId: "headers",
           label: `${url} · ${chain.length} hops · ${chain[chain.length - 1]?.status ?? "?"}`,
           input: { url },
           result,
-        }).catch(() => undefined);
+          findings: chainFindings(chain, current),
+        });
         return result;
       }
       current = next;
@@ -130,4 +131,52 @@ export async function saveHeadersSnapshot(opts: {
     primaryMetric: totalHops,
     primaryMetricLabel: "hops",
   });
+}
+
+/**
+ * What the redirect trace is worth telling somebody about.
+ *
+ * `headers.redirect_chain` is mapped onto the crawler's own
+ * redirect_chain in TOOL_FINDING_MAP, which means the agent can act on
+ * it: it now knows how to write a redirect, so a chain found here can
+ * become a rule that points the first hop straight at the destination.
+ *
+ * One finding per run rather than per hop. The chain is one problem with
+ * one fix, and listing every hop would turn a single edit into four
+ * things to close.
+ */
+function chainFindings(
+  chain: HeaderHop[],
+  finalUrl: string,
+): FindingDraft[] {
+  const out: FindingDraft[] = [];
+  const last = chain[chain.length - 1];
+
+  if (chain.length > 1) {
+    out.push({
+      signature: "headers.redirect_chain",
+      title: `${chain.length} redirects before the page loads`,
+      // Two hops is untidy; more than two starts costing crawl budget
+      // and enough milliseconds for a person to notice.
+      severity: chain.length > 2 ? "medium" : "low",
+      category: "redirects",
+      details:
+        `${chain.map((h) => `${h.status}`).join(" → ")} before reaching ${finalUrl}. ` +
+        "Each hop costs time and loses a little of what the link passes on.",
+    });
+  }
+
+  if (last && last.status >= 400) {
+    out.push({
+      signature: "headers.dead_end",
+      title: `The URL ends at ${last.status}`,
+      severity: last.status === 404 ? "high" : "medium",
+      category: "redirects",
+      details:
+        `After ${chain.length} hop${chain.length === 1 ? "" : "s"} the final URL ` +
+        `${finalUrl} returns ${last.status}, so anyone following this link arrives nowhere.`,
+    });
+  }
+
+  return out;
 }

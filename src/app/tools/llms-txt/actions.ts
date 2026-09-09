@@ -4,6 +4,7 @@ import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
 import type { AiFailure } from "@/lib/ai-error";
 import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
 import { guardedFetch } from "@/lib/url-guard";
 
 export type GenerateLlmsResult =
@@ -126,19 +127,61 @@ export async function validateLlmsTxt(
   }
 
   const issues: string[] = [];
+  // The same problems with an identity that survives a re-run. The
+  // strings above carry the file's current length, so a signature built
+  // from one would change every time the file is edited and could never
+  // be marked resolved.
+  const findings: FindingDraft[] = [];
+
   if (!/^#\s+\S/m.test(body)) {
     issues.push("Missing top-level H1 (single # line at the start).");
+    findings.push({
+      signature: "llms-txt.no_h1",
+      title: "llms.txt has no top-level heading",
+      severity: "medium",
+      category: "ai-visibility",
+      details:
+        "The single # line is how a parser learns whose site this is. Without it the file " +
+        "reads as a fragment rather than a directory.",
+    });
   }
   if (!/^>\s+\S/m.test(body)) {
     issues.push("Missing blockquote with the one-sentence value prop.");
+    findings.push({
+      signature: "llms-txt.no_summary",
+      title: "llms.txt has no one-line summary",
+      severity: "low",
+      category: "ai-visibility",
+      details:
+        "The blockquote is the sentence an assistant is most likely to repeat when asked " +
+        "what this site is. Leaving it out means the model writes its own.",
+    });
   }
   if (body.length > 2000) {
     issues.push(
       `File is ${body.length} chars — most parsers expect ≤ 2000.`,
     );
+    findings.push({
+      signature: "llms-txt.too_long",
+      title: "llms.txt is longer than parsers expect",
+      severity: "low",
+      category: "ai-visibility",
+      details:
+        `The file is ${body.length} characters and most parsers expect 2000 or fewer. ` +
+        "Anything past the limit may simply not be read.",
+    });
   }
   if (body.length < 50) {
     issues.push("File looks too short — add a description and key links.");
+    findings.push({
+      signature: "llms-txt.too_short",
+      title: "llms.txt is effectively empty",
+      severity: "medium",
+      category: "ai-visibility",
+      details:
+        "The file exists, which tells an assistant to read it, and then says nothing — " +
+        "which is worse than not having one, because it looks deliberate.",
+    });
   }
 
   const sectionCount = (body.match(/^##\s+/gm) ?? []).length;
@@ -151,11 +194,12 @@ export async function validateLlmsTxt(
     sectionCount,
     linkCount,
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "llms-txt",
     label: `${llmsUrl} · ${issues.length} issues`,
     input: { url: rawUrl },
     result,
-  }).catch(() => undefined);
+    findings,
+  });
   return result;
 }

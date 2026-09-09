@@ -1,6 +1,6 @@
 "use server";
 
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
 import { guardedFetch } from "@/lib/url-guard";
 
 export type HreflangEntry = {
@@ -243,11 +243,83 @@ export async function checkHreflang(rawUrl: string): Promise<HreflangResult> {
     hasXDefault,
     reciprocal,
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "hreflang",
     label: `${url} · ${entries.length} entries · ${issues.length} issues`,
     input: { url: rawUrl },
     result,
-  }).catch(() => undefined);
+    findings: hreflangFindings({ entries, hasXDefault, reciprocal }),
+  });
   return result;
+}
+
+/**
+ * The hreflang problems worth carrying past this page.
+ *
+ * Derived from the structured result rather than from the `issues`
+ * strings above. Those strings carry counts and URLs that change between
+ * runs, and a signature built from one would be a new finding every
+ * time — something nobody could ever mark resolved.
+ *
+ * Not mapped for the agent. Hreflang is a claim about which page serves
+ * which language, and getting it wrong sends the wrong country's
+ * visitors to the wrong page. Which URL should be canonical for a locale
+ * is a decision about the business, not a mechanical edit.
+ */
+function hreflangFindings(r: {
+  entries: HreflangEntry[];
+  hasXDefault: boolean;
+  reciprocal: ReciprocalCheck[];
+}): FindingDraft[] {
+  // A site with no hreflang at all is not a site with an hreflang
+  // problem. Most sites are monolingual and reporting this on every one
+  // of them would train the reader to ignore the section.
+  if (r.entries.length === 0) return [];
+
+  const out: FindingDraft[] = [];
+
+  if (!r.hasXDefault) {
+    out.push({
+      signature: "hreflang.no_x_default",
+      title: "No x-default set for unmatched locales",
+      severity: "low",
+      category: "international",
+      details:
+        "x-default is what Google falls back to for a visitor whose language matches none " +
+        "of the versions listed. Without it, that choice is made for you.",
+    });
+  }
+
+  // The one that actually breaks hreflang. Google discards a cluster
+  // whose members do not agree, so a single missing return link can
+  // silently disable every alternate on the page.
+  const oneWay = r.reciprocal.filter((x) => x.reachable && !x.pointsBack);
+  if (oneWay.length > 0) {
+    out.push({
+      signature: "hreflang.not_reciprocal",
+      title: `${oneWay.length} alternate${oneWay.length === 1 ? " does" : "s do"} not link back`,
+      severity: "high",
+      category: "international",
+      details:
+        "Hreflang has to be mutual. Google ignores a set whose members disagree, so these " +
+        `alternates currently do nothing: ${oneWay.slice(0, 6).map((x) => x.url).join(", ")}` +
+        (oneWay.length > 6 ? ` and ${oneWay.length - 6} more.` : "."),
+    });
+  }
+
+  const unreachable = r.reciprocal.filter((x) => !x.reachable);
+  if (unreachable.length > 0) {
+    out.push({
+      signature: "hreflang.unreachable_alternate",
+      title: `${unreachable.length} alternate URL${unreachable.length === 1 ? "" : "s"} could not be fetched`,
+      severity: "medium",
+      category: "international",
+      details:
+        "An alternate that does not load cannot be indexed, so the visitors it was meant " +
+        `for land on the wrong version: ${unreachable.slice(0, 6).map((x) => x.url).join(", ")}` +
+        (unreachable.length > 6 ? ` and ${unreachable.length - 6} more.` : "."),
+    });
+  }
+
+  return out;
 }

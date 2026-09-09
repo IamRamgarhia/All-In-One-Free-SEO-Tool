@@ -65,6 +65,10 @@ export const TOOL_FINDING_MAP: Record<string, PlannableFindingType> = {
   // prefix: each finding appends the URL it traced, because two chains
   // on two pages are two redirects to write.
   "redirects-bulk.chain": "redirect_chain",
+  // The header inspector traces the same chain for one URL at a time,
+  // and it is the tool somebody reaches for when a single page feels
+  // slow. Same problem, same fix.
+  "headers.redirect_chain": "redirect_chain",
 };
 
 /**

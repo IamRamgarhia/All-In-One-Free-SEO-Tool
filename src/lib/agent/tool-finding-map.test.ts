@@ -106,6 +106,7 @@ describe("the map points at things that exist on both ends", () => {
       "src/lib/ai-robots-findings.ts",
       "src/app/tools/health-check/actions.ts",
       "src/app/tools/redirects-bulk/actions.ts",
+      "src/app/tools/headers/actions.ts",
     ].map((p) => readFileSync(join(process.cwd(), p), "utf8"));
 
     const emitted = new Set(sources.flatMap(signaturesIn));
