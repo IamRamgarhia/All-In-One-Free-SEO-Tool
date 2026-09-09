@@ -18,15 +18,65 @@
  *      every run so the untested surface is a number rather than a
  *      feeling.
  *
+ * The one type this cannot reach is `mixed_content`, which only fires on
+ * a page served over HTTPS. The fixture server speaks plain HTTP, and
+ * giving it TLS means generating a certificate — a dependency and a
+ * trust-store argument on every machine, for one check. Left uncovered
+ * on purpose, and printed as uncovered every run rather than quietly
+ * excluded, because a coverage number that hides its own exceptions is
+ * worth nothing.
+ *
  *     pnpm test:fixtures
  */
 
 import { runAudit, type AuditFinding } from "../src/lib/audit";
 import { AUDIT_FINDING_TYPES } from "../src/lib/audit-finding-types";
+import type { AuditFindingType } from "../src/lib/audit-finding-types";
+
+
 import { FIXTURES, SITE_EXPECTATIONS } from "../fixtures/pages";
 import { startFixtureServer } from "../fixtures/server";
 import { VARIANTS } from "../fixtures/variants";
 import { STACK_SITES } from "../fixtures/stacks";
+
+/**
+ * Audits that never reach a page.
+ *
+ * The most dangerous class of finding in the whole set, because the
+ * failure is silent in the worst direction: an audit that fetched
+ * nothing reports no problems, and a client with an unreachable site
+ * therefore looks like a client with a healthy one.
+ *
+ * No fixture server — having nothing to connect to IS the scenario.
+ */
+const FAILED_AUDITS: {
+  name: string;
+  lesson: string;
+  url: string;
+  allowPrivateHosts?: boolean;
+  expect: AuditFindingType[];
+}[] = [
+  {
+    name: "An address the SSRF guard refuses",
+    lesson:
+      "Audits run on the server, so pointing one at a private address would make it fetch something the person asking could not reach themselves. Refusing has to produce a finding that says so, rather than an empty report.",
+    // Link-local: the cloud metadata endpoint, and the reason the guard
+    // exists at all.
+    url: "http://169.254.169.254/",
+    allowPrivateHosts: false,
+    expect: ["blocked_url"],
+  },
+  {
+    name: "A port with nothing listening",
+    lesson:
+      "A site that is down, a typo in the domain, or a firewall in the way all arrive here. Reporting zero findings would say the site is perfect.",
+    // Reserved for testing and guaranteed not to answer, so this cannot
+    // start passing because somebody happened to run a server.
+    url: "http://127.0.0.1:9/",
+    allowPrivateHosts: true,
+    expect: ["fetch_failed"],
+  },
+];
 
 const c = {
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
@@ -228,15 +278,53 @@ async function main() {
     }
   }
 
+  // ---- audits that never start -----------------------------------------
+  //
+  // Two findings are not about a page. They are what the audit returns
+  // when it never reached one, and they matter more than most: an audit
+  // that fetched nothing reports zero problems, which reads as a healthy
+  // site rather than as a failure. Neither needs a fixture server —
+  // the point is that there is nothing to serve them.
+  console.log(`\n${c.bold("Audits that never start")}`);
+  for (const scenario of FAILED_AUDITS) {
+    const r = await runAudit(scenario.url, {
+      allowPrivateHosts: scenario.allowPrivateHosts ?? false,
+      renderJs: false,
+      maxPages: 3,
+      maxDepth: 0,
+    });
+    const got = new Set(r.findings.map((f) => f.type));
+    const missing = scenario.expect.filter((t) => !got.has(t));
+    checks++;
+    if (missing.length === 0) {
+      console.log(`  ${c.green("ok")}    ${scenario.name}`);
+    } else {
+      failures++;
+      console.log(`  ${c.red("FAIL")}  ${scenario.name}`);
+      console.log(`        ${c.red("not detected:")} ${missing.join(", ")}`);
+      console.log(`        ${c.dim(scenario.lesson)}`);
+    }
+  }
+
   // ---- coverage --------------------------------------------------------
   const declared = new Set([
+    ...FAILED_AUDITS.flatMap((f) => f.expect),
     ...FIXTURES.flatMap((f) => f.expect),
     ...Object.values(SITE_EXPECTATIONS).flat(),
     ...VARIANTS.flatMap((v) => v.expect),
     ...STACK_SITES.flatMap((v) => v.expect),
   ]);
+  // Two different things were both being reported as "no fixture", and
+  // they mean opposite things. A type no fixture declares but that fires
+  // on every crawl is thoroughly exercised and merely undeclared; a type
+  // nothing has ever produced is genuinely untested. Printing them the
+  // same way understated the real coverage and hid the real gap.
+  const exercised = new Set(seenTypes);
   const uncovered = (AUDIT_FINDING_TYPES as readonly string[]).filter(
-    (t) => !declared.has(t as never),
+    (t) => !declared.has(t as never) && !exercised.has(t),
+  );
+  const undeclared = (AUDIT_FINDING_TYPES as readonly string[]).filter(
+    (t) => !declared.has(t as never) && exercised.has(t),
   );
 
   console.log(
@@ -247,8 +335,15 @@ async function main() {
       `finding-type coverage: ${AUDIT_FINDING_TYPES.length - uncovered.length}/${AUDIT_FINDING_TYPES.length}`,
     ),
   );
+  if (undeclared.length) {
+    console.log(
+      c.dim(
+        `  fires on every crawl, declared by no fixture: ${undeclared.join(", ")}`,
+      ),
+    );
+  }
   if (uncovered.length) {
-    console.log(c.dim(`  no fixture yet for: ${uncovered.join(", ")}`));
+    console.log(c.dim(`  never produced by any fixture: ${uncovered.join(", ")}`));
   }
 
   process.exit(failures === 0 ? 0 : 1);

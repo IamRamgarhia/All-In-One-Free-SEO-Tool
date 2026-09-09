@@ -146,6 +146,55 @@ ${Array.from({ length: 60 }, (_, i) => `<script src="http://HOST/_next/static/ch
     tolerate: ["old_image_formats"],
   },
   {
+    name: "A Next.js app that renders nothing without JavaScript",
+    lesson:
+      "The body is markup and no text. A browser fills it in; GPTBot, ClaudeBot and PerplexityBot do not run JavaScript and see the blank page as it is served. Google renders eventually, which is why this survives so long without anyone noticing.",
+    headers: { "x-powered-by": "Next.js" },
+    html: `<!doctype html>
+<html lang="en">
+<head>
+${HEAD("A client-rendered Next.js app")}
+</head>
+<body>
+<div id="__next">
+  <div class="app-shell" data-hydrated="false">
+    <header class="site-header">
+      <div class="logo-slot"></div>
+      <nav class="primary-nav"><ul><li></li><li></li><li></li><li></li></ul></nav>
+      <div class="account-slot"><div class="avatar"></div></div>
+    </header>
+    <main class="content" role="main">
+      <div class="hero-skeleton"><div class="line"></div><div class="line"></div></div>
+      <section class="cards">
+        <article class="card"><div class="thumb"></div><div class="line"></div></article>
+        <article class="card"><div class="thumb"></div><div class="line"></div></article>
+        <article class="card"><div class="thumb"></div><div class="line"></div></article>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="col"></div><div class="col"></div><div class="col"></div>
+    </footer>
+  </div>
+</div>
+<script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{}}}</script>
+<script src="http://HOST/_next/static/chunks/main.js"></script>
+</body>
+</html>`,
+    // The check wants a body over 500 characters of markup carrying under
+    // 200 characters of text — a real app shell with nothing in it, not
+    // an empty file. The wrappers above are what makes it that.
+    expect: ["spa_empty_body"],
+    // A page with no text is also a page with no h1 and nothing to read,
+    // and the crawler is right about all of it. Separate true statements
+    // about the same page, not false positives.
+    tolerate: [
+      "thin_content",
+      "missing_h1",
+      "js_rendered_only",
+      "next_powered_by_header",
+    ],
+  },
+  {
     name: "Shopify with /collections/all and a debug filter left in",
     lesson:
       "/collections/all is a duplicate of every collection at once, and {% liquid %} debug output in a live theme is a template that was never finished.",

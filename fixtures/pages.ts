@@ -331,6 +331,31 @@ export const FIXTURES: Fixture[] = [
     respond: html(page({ canonicalPath: "/content/thin", body: "<p>Three words here.</p>" })),
   },
   {
+    path: "/content/js-rendered",
+    name: "All script, almost no HTML",
+    category: "Content",
+    lesson:
+      "The page reads fine in a browser and is blank to anything that does not run JavaScript — which includes GPTBot, ClaudeBot and PerplexityBot. Google renders, eventually; the AI crawlers do not render at all.",
+    expect: ["js_rendered_only"],
+    // A page this empty is legitimately thin, and the crawler says so.
+    // That is a second true statement about the same page, not a false
+    // positive, so it is tolerated rather than suppressed.
+    tolerate: ["thin_content", "render_blocking_scripts"],
+    respond: html(
+      page({
+        canonicalPath: "/content/js-rendered",
+        // Over 50KB of script with under 80 words of text is the shape
+        // the check looks for. Padded inside a comment rather than with
+        // real code, because the bytes are the point and a reader
+        // opening this file should not have to work out what it does.
+        body: [
+          `<div id="root">Loading…</div>`,
+          `<script>/* ${"x".repeat(60_000)} */ window.__app = 1;</script>`,
+        ].join("\n"),
+      }),
+    ),
+  },
+  {
     path: "/content/no-alt",
     name: "Image with no alt text",
     category: "Content",
