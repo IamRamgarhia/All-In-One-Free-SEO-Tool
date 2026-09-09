@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, auditIssues, clients, tasks } from "@/db/schema";
@@ -143,7 +143,7 @@ export async function runAuditForClient(clientId: number) {
       data: { url: client.url, auditId: auditRow.id },
     });
 
-    revalidatePath(`/clients/${clientId}`);
+    safeRevalidatePath(`/clients/${clientId}`);
     return;
   }
 
@@ -310,7 +310,7 @@ export async function runAuditForClient(clientId: number) {
     // ignore
   }
 
-  revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/");
+  safeRevalidatePath(`/clients/${clientId}`);
+  safeRevalidatePath("/");
   redirect(`/audits/${auditRow.id}`);
 }

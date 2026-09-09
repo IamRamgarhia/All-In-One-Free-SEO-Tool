@@ -1,7 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { db } from "@/db/client";
 import { aiSuggestions, tasks } from "@/db/schema";
 import { runSeoAgent, type AgentRunResult } from "@/lib/seo-agent";
@@ -12,7 +12,7 @@ import {
 
 export async function runAgent(clientId: number): Promise<AgentRunResult> {
   const result = await runSeoAgent(clientId);
-  revalidatePath(`/agent/c/${clientId}`);
+  safeRevalidatePath(`/agent/c/${clientId}`);
   return result;
 }
 
@@ -20,9 +20,9 @@ export async function runAgentExecute(
   clientId: number,
 ): Promise<AgentRunReport> {
   const report = await runAgentActions(clientId);
-  revalidatePath(`/agent/c/${clientId}`);
-  revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/tasks");
+  safeRevalidatePath(`/agent/c/${clientId}`);
+  safeRevalidatePath(`/clients/${clientId}`);
+  safeRevalidatePath("/tasks");
   return report;
 }
 
@@ -39,7 +39,7 @@ export async function applySuggestion(suggestionId: number) {
     .set({ status: "applied", updatedAt: new Date() })
     .where(eq(aiSuggestions.id, suggestionId));
 
-  revalidatePath(`/agent/c/${s.clientId}`);
+  safeRevalidatePath(`/agent/c/${s.clientId}`);
 }
 
 export async function dismissSuggestion(suggestionId: number) {
@@ -55,7 +55,7 @@ export async function dismissSuggestion(suggestionId: number) {
     .set({ status: "dismissed", updatedAt: new Date() })
     .where(eq(aiSuggestions.id, suggestionId));
 
-  revalidatePath(`/agent/c/${s.clientId}`);
+  safeRevalidatePath(`/agent/c/${s.clientId}`);
 }
 
 export async function reopenSuggestion(suggestionId: number) {
@@ -71,7 +71,7 @@ export async function reopenSuggestion(suggestionId: number) {
     .set({ status: "new", updatedAt: new Date() })
     .where(eq(aiSuggestions.id, suggestionId));
 
-  revalidatePath(`/agent/c/${s.clientId}`);
+  safeRevalidatePath(`/agent/c/${s.clientId}`);
 }
 
 /**
@@ -113,7 +113,7 @@ export async function suggestionToTask(suggestionId: number) {
     .set({ status: "applied", updatedAt: new Date() })
     .where(eq(aiSuggestions.id, suggestionId));
 
-  revalidatePath(`/agent/c/${s.clientId}`);
-  revalidatePath(`/clients/${s.clientId}`);
-  revalidatePath("/tasks");
+  safeRevalidatePath(`/agent/c/${s.clientId}`);
+  safeRevalidatePath(`/clients/${s.clientId}`);
+  safeRevalidatePath("/tasks");
 }
