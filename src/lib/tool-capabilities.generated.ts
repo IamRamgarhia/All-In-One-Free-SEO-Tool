@@ -4,7 +4,7 @@
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
 // 221 routes · 99 need AI · 70 use a browser.
-// 91 are /tools/* · 34 need AI · 90 carry copy.
+// 91 are /tools/* · 34 need AI · 91 carry copy.
 
 export const TOOL_CAPABILITIES = [
   { route: "/", needsAI: true, usesBrowser: true },
@@ -167,7 +167,7 @@ export const TOOL_CAPABILITIES = [
   { route: "/tools/freshness", needsAI: false, usesBrowser: false, title: "Freshness audit ⭐", description: "AI-search systems skip undated or stale pages. Fetches every freshness signal (HTTP header, meta tags, JSON-LD dateModified, <time> elements, visible 'Last updated' text) and gives you a ready-to-paste patch." },
   { route: "/tools/gbp-reply", needsAI: true, usesBrowser: false, title: "GBP review reply AI ⭐", description: "Pull GBP reviews, AI drafts a reply per review (tone matched to star rating), you approve or edit, post via the GBP API — full loop in one screen." },
   { route: "/tools/geo-score", needsAI: true, usesBrowser: false, title: "GEO composite score ⭐", description: "Weighted scorecard for AI search visibility — citability, brand authority, content E-E-A-T, technical, schema, platform tactics. Forces you to fix the weakest leg first." },
-  { route: "/tools/geo-swot", needsAI: true, usesBrowser: true },
+  { route: "/tools/geo-swot", needsAI: true, usesBrowser: true, title: "GEO SWOT", description: "Strengths, weaknesses, opportunities and threats for AI-search visibility, reasoned from the last 30 days of AI visibility checks for a client." },
   { route: "/tools/geo-swot/c/[clientId]", needsAI: true, usesBrowser: true },
   { route: "/tools/github-pr", needsAI: false, usesBrowser: false, title: "GitHub PR generator for SEO fixes", description: "For sites without a CMS write-bridge (Next.js / custom code), open a structured PR with a checklist of SEO fixes for your developer to implement." },
   { route: "/tools/gsc-coverage", needsAI: true, usesBrowser: false, title: "GSC index coverage (batch)", description: "Paste 60 URLs, hit GSC URL Inspection for each. See which are indexed, blocked, or excluded — and the reason. Daily indexation check." },

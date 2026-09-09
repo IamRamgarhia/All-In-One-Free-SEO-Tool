@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 import { renderAndCapture, type RenderResult } from "@/lib/render-capture";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { renderFindings } from "@/lib/tool-finding-builders";
 
 const inputSchema = z.object({
   url: z
@@ -49,7 +50,7 @@ export async function runRender(
     });
     if (!result.ok && result.error) return { ok: false, error: result.error };
     // Persist metadata only — screenshot can be very large
-    await saveToolRun({
+    await recordToolRun({
       toolId: "render",
       label: `${parsed.data.url} · ${parsed.data.device}`,
       input: {
@@ -63,7 +64,8 @@ export async function runRender(
         renderedHtmlBytes: result.html?.length ?? 0,
         hasScreenshot: !!result.screenshot,
       },
-    }).catch(() => undefined);
+      findings: renderFindings(result),
+    });
     return { ok: true, result };
   } catch (err) {
     return {

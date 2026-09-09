@@ -4,7 +4,8 @@ import {
   scanWordPressHack,
   type HackScanReport,
 } from "@/lib/wp-hack-scanner";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { wpHackFindings } from "@/lib/tool-finding-builders";
 
 export type WpHackState =
   | { ok: true; report: HackScanReport }
@@ -22,12 +23,13 @@ export async function runWpHackScan(
     if (!report.homepageReachable) {
       return { ok: false, error: `Couldn't reach ${url}.` };
     }
-    await saveToolRun({
+    await recordToolRun({
       toolId: "wp-hack-scan",
       label: `${report.domain} · ${report.riskLevel} (${report.iocs.length} IOCs)`,
       input: { url },
       result: { ok: true, report },
-    }).catch(() => undefined);
+      findings: wpHackFindings(report),
+  });
     return { ok: true, report };
   } catch (e) {
     return {

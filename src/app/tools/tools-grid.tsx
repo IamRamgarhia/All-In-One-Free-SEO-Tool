@@ -792,6 +792,14 @@ const tools = [
   },
   // GEO + SXO + attack briefs (from open-source SEO-skill repos)
   {
+    href: "/tools/geo-swot",
+    icon: Sparkles,
+    title: "GEO SWOT",
+    description:
+      "Strengths, weaknesses, opportunities and threats for AI-search visibility, reasoned from the last 30 days of AI visibility checks for a client.",
+    accent: "violet",
+  },
+  {
     href: "/tools/geo-score",
     icon: Sparkles,
     title: "GEO composite score ⭐",

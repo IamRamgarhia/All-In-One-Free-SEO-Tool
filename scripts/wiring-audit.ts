@@ -63,12 +63,18 @@ const NOT_A_CHECK = new Set([
   "utm-attribution", "ads-funnel", "gsc-coverage", "rank-where", "external",
   "bing", "domain-overview", "robots-history", "link-graph", "pagerank",
   "anchor-distribution", "backlink-discovery",
+  // Analyses the shape of a page's links — how many are external,
+  // how many nofollow, which anchors repeat — and never checks whether
+  // one resolves. There is no problem for it to report, so wiring it to
+  // the findings pipeline would mean inventing an opinion the tool does
+  // not hold.
+  "link-checker",
 ]);
 
 type Score = {
   tool: string;
   route: boolean;
-  client: boolean;
+  client: boolean | null;
   persists: boolean | null;
   findings: boolean | null;
   reachable: boolean;
@@ -102,14 +108,35 @@ function shapeOf(server: string): Shape {
   // No server code at all: whatever it does, it does in the browser.
   if (server.trim() === "") return "reference";
 
+  // A manager keeps a collection over time: it can read the collection
+  // back and it can change it. A run tool has neither — you give it an
+  // input, it hands you an answer, and there is nothing to come back to.
+  //
+  // Matched on the exported verbs rather than on direct db calls,
+  // because several of these delegate the writing to a lib. Looking only
+  // for `db.insert(` in the action file classified three managers as run
+  // tools and produced three gaps that were not real.
+  const readsBack =
+    /export async function (list|load|fetch|get)[A-Z]/.test(server);
+  const mutates =
+    /export async function (add|create|delete|remove|toggle|update|save|submit|import|run)[A-Z]/.test(
+      server,
+    );
+  if (readsBack && mutates) return "manager";
+
+  // Being able to delete something is the giveaway on its own. A run
+  // tool has nothing to delete — you re-run it. Anything offering to
+  // remove an item is keeping a collection, whether or not it also
+  // offers a way to list one.
+  if (/export async function (delete|remove)[A-Z]/.test(server)) {
+    return "manager";
+  }
+
+  // Writes to a table of its own, directly, without being a tool_run.
   const ownsATable =
     /db\s*\.\s*(insert|update|delete)\s*\(/.test(server) &&
     !/db\s*\.\s*insert\s*\(\s*toolRuns/.test(server);
-  const hasCrudVerbs =
-    /export async function (add|create|delete|remove|toggle|update|save)[A-Z]/.test(
-      server,
-    );
-  if (ownsATable && hasCrudVerbs) return "manager";
+  if (ownsATable && mutates) return "manager";
 
   return "run";
 }
@@ -167,9 +194,15 @@ function main() {
       // the referring page when the caller passes none. The referer of a
       // server action is the page the user is on, and the client rail
       // puts the id there. See client-context.ts.
+      // Only asked of tools that record a run. A reference page records
+      // nothing, and a manager's rows are scoped by its own table's
+      // schema — scoring either here invents a gap that has no fix.
       client:
-        /clientIdFrom|useClientId|ClientIdField|clientId[?]?:\s*number/.test(both) ||
-        /saveToolRun|recordToolRun/.test(server),
+        shapeOf(server) !== "run"
+          ? null
+          : /clientIdFrom|useClientId|ClientIdField|clientId[?]?:\s*number/.test(
+              both,
+            ) || /saveToolRun|recordToolRun/.test(server),
       // Only "run" tools owe a tool_run. A manager keeps its state in
       // its own table and a reference page has no state at all, and
       // adding a saveToolRun call to either would record nothing while
