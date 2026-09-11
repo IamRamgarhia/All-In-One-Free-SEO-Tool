@@ -39,8 +39,19 @@ import { withClientContext } from "./client-context";
 type SweepCheck = {
   toolId: string;
   label: string;
-  run: (client: { id: number; url: string }) => Promise<unknown>;
+  /**
+   * What this client must have before the check is worth running.
+   *
+   * A GSC-backed check on a client with no property connected is not a
+   * failure — there is simply nothing to read. Running it anyway would
+   * fill the sweep log with errors that are really just "not set up
+   * yet", and an error log full of expected errors is one nobody reads.
+   */
+  requires?: (client: SweepClient) => boolean;
+  run: (client: SweepClient) => Promise<unknown>;
 };
+
+type SweepClient = { id: number; url: string; gscProperty: string | null };
 
 function checks(): SweepCheck[] {
   return [
@@ -110,6 +121,36 @@ function checks(): SweepCheck[] {
       },
     },
     {
+      toolId: "wp-hack-scan",
+      label: "WordPress compromise indicators",
+      // Cheap, deterministic, and the one check here whose finding is
+      // urgent rather than merely useful. A site serving injected spam
+      // loses its rankings in days, and nobody opens a malware scanner
+      // on a normal Tuesday.
+      run: async (c) => {
+        const form = new FormData();
+        form.set("url", c.url);
+        return (await import("@/app/tools/wp-hack-scan/actions")).runWpHackScan(
+          null,
+          form,
+        );
+      },
+    },
+    {
+      toolId: "cannibalization",
+      label: "Pages competing for the same query",
+      // Search Console data, so free and deterministic — but only where
+      // a property is connected.
+      requires: (c) => Boolean(c.gscProperty),
+      run: async (c) => {
+        const form = new FormData();
+        form.set("site", c.gscProperty ?? "");
+        return (
+          await import("@/app/tools/cannibalization/actions")
+        ).runCannibalScan(null, form);
+      },
+    },
+    {
       toolId: "security",
       label: "Security headers, TLS and certificate expiry",
       // Two external APIs rather than a fetch of the site, so it is the
@@ -143,13 +184,14 @@ export type SweepOutcome = {
  */
 export async function tickToolSweep(): Promise<SweepOutcome[]> {
   const rows = await db
-    .select({ id: clients.id, url: clients.url })
+    .select({ id: clients.id, url: clients.url, gscProperty: clients.gscProperty })
     .from(clients);
 
   const out: SweepOutcome[] = [];
   for (const c of rows) {
     if (!c.url) continue;
     for (const check of checks()) {
+      if (check.requires && !check.requires(c)) continue;
       try {
         await withClientContext(c.id, () => check.run(c));
         out.push({ clientId: c.id, toolId: check.toolId, ok: true });
@@ -180,13 +222,14 @@ export function sweptToolIds(): string[] {
 /** Run the sweep for one client — used after onboarding a new client. */
 export async function sweepClient(clientId: number): Promise<SweepOutcome[]> {
   const [c] = await db
-    .select({ id: clients.id, url: clients.url })
+    .select({ id: clients.id, url: clients.url, gscProperty: clients.gscProperty })
     .from(clients)
     .where(eq(clients.id, clientId));
   if (!c?.url) return [];
 
   const out: SweepOutcome[] = [];
   for (const check of checks()) {
+    if (check.requires && !check.requires(c)) continue;
     try {
       await withClientContext(c.id, () => check.run(c));
       out.push({ clientId: c.id, toolId: check.toolId, ok: true });

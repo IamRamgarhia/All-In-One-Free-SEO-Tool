@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { ToolDot } from "@/components/tool-dot";
-import { NEEDS_HINTS, toolReadiness } from "@/lib/tool-readiness";
+import { toolReadiness } from "@/lib/tool-readiness";
 import { SWEPT_TOOL_IDS } from "@/lib/swept-tools";
 import {
   Activity,
   AlertTriangle,
-  BookOpen,
   Bot,
   ClipboardCheck,
   Code2,
@@ -18,7 +17,6 @@ import {
   Globe,
   Link as LinkIcon,
   Network,
-  RefreshCw,
   ScanLine,
   Search as SearchIcon,
   ShieldCheck,

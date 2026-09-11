@@ -18,8 +18,18 @@ test.describe("tools hub", () => {
 
     // A term no tool matches should empty the grid rather than silently
     // showing everything — the failure mode of a broken filter.
+    //
+    // Scoped to the grid's category sections. The "most used" and
+    // "recently run" rails above it are server-rendered from run history
+    // and deliberately outside the filter, so counting every /tools/ link
+    // on the page made this fail whenever any other spec left a tool run
+    // behind — a failure that pointed at the filter and was nothing to do
+    // with it.
     await filter.fill("zzzznotarealtool");
-    await expect(page.locator("a[href^='/tools/']")).toHaveCount(0);
+    await expect(
+      page.locator("section[id^='cat-'] a[href^='/tools/']"),
+    ).toHaveCount(0);
+    await expect(page.getByText(/No tools match/)).toBeVisible();
   });
 
   test("pinned tools survive a reload", async ({ page, isMobile }) => {

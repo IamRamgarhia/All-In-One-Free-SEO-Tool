@@ -20,7 +20,6 @@ import {
   reportArchives,
   tasks,
 } from "@/db/schema";
-import { configuredProviders } from "@/lib/api-keys";
 import { getAiAvailability } from "@/lib/ai-availability";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { NextStepDismissButton } from "./next-step-dismiss";

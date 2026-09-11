@@ -41,6 +41,27 @@ describe("tool capabilities", () => {
     expect(stale).toEqual([]);
   });
 
+  it("the committed file is byte-for-byte what the generator writes", async () => {
+    // The two checks above compare parsed fields, so the header counts
+    // and the ordering could drift without either noticing.
+    //
+    // This also fails loudly if the generator's run-as-a-script guard
+    // ever stops firing. That guard exists because importing the script
+    // used to write this file, so a run that failed for genuine drift
+    // repaired itself on the way out and the re-run was green.
+    const fs = await import("node:fs/promises");
+    const { renderCapabilities } = await import(
+      "../../scripts/gen-tool-capabilities"
+    );
+    const committed = await fs.readFile(
+      new URL("./tool-capabilities.generated.ts", import.meta.url),
+      "utf8",
+    );
+    // Line endings are the checkout's business, not the generator's.
+    const norm = (s: string) => s.replace(/\r\n/g, "\n");
+    expect(norm(committed)).toBe(norm(renderCapabilities()));
+  });
+
   it("finds a route from a real link target", () => {
     expect(capabilityOf("/tools/health-check")?.route).toBe(
       "/tools/health-check",

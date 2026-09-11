@@ -22,6 +22,8 @@ export const SWEPT_TOOL_IDS = [
   "freshness",
   "mobile-friendly",
   "schema-validate",
+  "wp-hack-scan",
+  "cannibalization",
 ] as const;
 
 export type SweptToolId = (typeof SWEPT_TOOL_IDS)[number];

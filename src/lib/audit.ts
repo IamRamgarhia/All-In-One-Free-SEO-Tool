@@ -150,7 +150,7 @@ function checkHeadingOrder(html: string): boolean {
   return true;
 }
 
-type FetchedPage = {
+export type FetchedPage = {
   url: string;
   finalUrl: string;
   status: number;
@@ -258,7 +258,17 @@ async function fetchText(
 // Per-page checks
 // ───────────────────────────────────────────────────────────────────────────
 
-function checkPage(page: FetchedPage): {
+/**
+ * Every per-page check, on one already-fetched page.
+ *
+ * Exported for tests. Most of what this produces is covered by the
+ * fixture site, which is the better test because it exercises the real
+ * crawl — but a handful of checks need conditions the fixture server
+ * cannot create. mixed_content only fires on an HTTPS page, and giving
+ * the fixture server TLS means a certificate on every machine that runs
+ * the suite, for one rule.
+ */
+export function checkPage(page: FetchedPage): {
   findings: AuditFinding[];
   meta: { title: string | null; description: string | null };
 } {

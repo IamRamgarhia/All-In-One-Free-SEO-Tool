@@ -398,7 +398,11 @@ export async function nextActions(opts: {
         score: rank(worstTool.severity === "critical" ? 80 : 60, 20),
         minutes: 20,
         owner: "you",
-        href: `/tools/${worstTool.toolId}?clientId=${c.id}`,
+        // The findings page, not the tool's own page. It shows every
+        // open finding for this client, not just this tool's, and it is
+        // the only place a finding can be marked resolved or ignored —
+        // which is what stops it coming back next week.
+        href: `/findings/c/${c.id}`,
         because:
           bad.length === 1
             ? `1 open ${worstTool.severity} finding from ${worstTool.toolId}`

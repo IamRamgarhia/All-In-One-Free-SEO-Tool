@@ -727,6 +727,13 @@ export default async function ClientDetailPage({
                         AI agent
                       </Link>
                       <Link
+                        href={`/findings/c/${client.id}`}
+                        className="flex items-center gap-2 border-t border-border px-3 py-2 text-sm hover:bg-accent"
+                      >
+                        <ClipboardList className="size-3.5 text-cyan-300" />
+                        What the tools found
+                      </Link>
+                      <Link
                         href={`/blog/${client.id}`}
                         className="flex items-center gap-2 border-t border-border px-3 py-2 text-sm hover:bg-accent"
                       >

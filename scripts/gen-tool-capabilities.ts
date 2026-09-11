@@ -17,6 +17,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { deriveToolCapabilities } from "../src/lib/tool-capabilities.derive";
 
 export type ToolCopy = { title: string; description: string };
@@ -83,23 +84,35 @@ export function readToolCopy(root = process.cwd()): Map<string, ToolCopy> {
   return out;
 }
 
-const caps = deriveToolCapabilities();
-const copy = readToolCopy();
+/**
+ * The generated source, as a string.
+ *
+ * Deliberately not written to disk here. `tool-capabilities.test.ts`
+ * imports `readToolCopy` from this file, and while the write ran at
+ * module level that import regenerated the very file the test asserts
+ * against: a run that failed because someone added a route and did not
+ * regenerate would repair itself on the way out, and the second run was
+ * green. The drift was real and the suite had already erased the
+ * evidence — the exact shape of failure this repo tests hardest against.
+ */
+export function renderCapabilities(root = process.cwd()): string {
+  const caps = deriveToolCapabilities();
+  const copy = readToolCopy(root);
 
-const rows = caps
-  .map((c) => {
-    const t = copy.get(c.route);
-    const extra = t
-      ? `, title: ${JSON.stringify(t.title)}, description: ${JSON.stringify(t.description)}`
-      : "";
-    return `  { route: ${JSON.stringify(c.route)}, needsAI: ${c.needsAI}, usesBrowser: ${c.usesBrowser}${extra} },`;
-  })
-  .join("\n");
+  const rows = caps
+    .map((c) => {
+      const t = copy.get(c.route);
+      const extra = t
+        ? `, title: ${JSON.stringify(t.title)}, description: ${JSON.stringify(t.description)}`
+        : "";
+      return `  { route: ${JSON.stringify(c.route)}, needsAI: ${c.needsAI}, usesBrowser: ${c.usesBrowser}${extra} },`;
+    })
+    .join("\n");
 
-const tools = caps.filter((c) => /^\/tools\/[^/]+$/.test(c.route));
-const documented = tools.filter((c) => copy.has(c.route)).length;
+  const tools = caps.filter((c) => /^\/tools\/[^/]+$/.test(c.route));
+  const documented = tools.filter((c) => copy.has(c.route)).length;
 
-const out = `// GENERATED FILE — do not edit by hand.
+  return `// GENERATED FILE — do not edit by hand.
 // Run \`pnpm gen:capabilities\` to refresh. Derived by walking the import
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
@@ -111,9 +124,14 @@ export const TOOL_CAPABILITIES = [
 ${rows}
 ] as const;
 `;
+}
 
-const dest = path.resolve(process.cwd(), "src/lib/tool-capabilities.generated.ts");
-fs.writeFileSync(dest, out, "utf8");
-console.log(
-  `wrote ${caps.length} routes (${documented}/${tools.length} tools with copy)`,
-);
+// Only when run as a script. See the note on renderCapabilities.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const dest = path.resolve(
+    process.cwd(),
+    "src/lib/tool-capabilities.generated.ts",
+  );
+  fs.writeFileSync(dest, renderCapabilities(), "utf8");
+  console.log(`wrote ${dest}`);
+}

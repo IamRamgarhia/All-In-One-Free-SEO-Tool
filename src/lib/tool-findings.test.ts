@@ -154,6 +154,7 @@ describe("pickOpenFindings", () => {
   const row = (
     over: Partial<FindingRowForPicking> & { runId: number; toolId: string },
   ): FindingRowForPicking => ({
+    id: 1,
     signature: "sig",
     title: "A finding",
     severity: "high",

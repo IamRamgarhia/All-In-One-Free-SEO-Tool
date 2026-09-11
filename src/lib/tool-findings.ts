@@ -114,10 +114,14 @@ export async function recordToolRun<TResult>(opts: {
 }
 
 export type OpenToolFinding = {
+  /** Needed to act on it — resolve, ignore, reopen. */
+  id: number;
   toolId: string;
   signature: string;
   title: string;
   severity: FindingSeverity;
+  details: string | null;
+  category: string | null;
 };
 
 /**
@@ -136,12 +140,15 @@ export async function openToolFindings(
 ): Promise<OpenToolFinding[]> {
   const rows = await db
     .select({
+      id: toolFindings.id,
       runId: toolFindings.runId,
       toolId: toolFindings.toolId,
       signature: toolFindings.signature,
       title: toolFindings.title,
       severity: toolFindings.severity,
       status: toolFindings.status,
+      details: toolFindings.details,
+      category: toolFindings.category,
     })
     .from(toolFindings)
     .where(eq(toolFindings.clientId, clientId))
@@ -154,12 +161,15 @@ export async function openToolFindings(
 }
 
 export type FindingRowForPicking = {
+  id: number;
   runId: number;
   toolId: string;
   signature: string;
   title: string;
   severity: FindingSeverity;
   status: ToolFinding["status"];
+  details?: string | null;
+  category?: string | null;
 };
 
 /**
@@ -183,10 +193,13 @@ export function pickOpenFindings(
     else if (r.runId !== latest) continue;
     if (r.status !== "new" || r.severity === "pass") continue;
     out.push({
+      id: r.id,
       toolId: r.toolId,
       signature: r.signature,
       title: r.title,
       severity: r.severity,
+      details: r.details ?? null,
+      category: r.category ?? null,
     });
   }
   return out;

@@ -20,11 +20,14 @@
  *
  * The one type this cannot reach is `mixed_content`, which only fires on
  * a page served over HTTPS. The fixture server speaks plain HTTP, and
- * giving it TLS means generating a certificate — a dependency and a
- * trust-store argument on every machine, for one check. Left uncovered
- * on purpose, and printed as uncovered every run rather than quietly
- * excluded, because a coverage number that hides its own exceptions is
- * worth nothing.
+ * giving it TLS means generating a certificate on every machine that
+ * runs the suite — a dependency and a trust-store argument, for one
+ * rule. It is covered by a unit test against checkPage instead
+ * (src/lib/audit-https.test.ts), which is a weaker test than a crawl and
+ * the difference between covered and not covered at all.
+ *
+ * Still printed here every run rather than quietly excluded, because a
+ * coverage number that hides its own exceptions is worth nothing.
  *
  *     pnpm test:fixtures
  */
@@ -343,7 +346,19 @@ async function main() {
     );
   }
   if (uncovered.length) {
-    console.log(c.dim(`  never produced by any fixture: ${uncovered.join(", ")}`));
+    console.log(
+      c.dim(
+        `  no fixture, covered by unit test instead: ${uncovered.join(", ")}`,
+      ),
+    );
+    console.log(
+      c.dim(
+        "Both need a page served over HTTPS, which this server cannot do " +
+          "without a certificate on every machine that runs the suite. " +
+          "Covered by src/lib/audit-https.test.ts, which drives checkPage " +
+          "directly.",
+      ),
+    );
   }
 
   process.exit(failures === 0 ? 0 : 1);
