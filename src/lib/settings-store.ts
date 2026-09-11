@@ -53,6 +53,13 @@ export type SettingKey =
   | "google.access_token"
   | "google.access_token_expires_at"
   | "google.connected_email"
+  // The other way to connect Google: a service account key, which needs
+  // no consent screen, no redirect and no browser. See
+  // google-service-account.ts. The key holds a private key, so it is
+  // encrypted at rest like the tokens above.
+  | "google.service_account_json"
+  | "google.service_account_token"
+  | "google.service_account_token_expires_at"
   // SMTP for outbound report email. Stored per-instance; the user enters
   // their own SMTP credentials (Gmail app password, SendGrid, Resend SMTP,
   // a Hetzner mail box — anything that speaks SMTP).

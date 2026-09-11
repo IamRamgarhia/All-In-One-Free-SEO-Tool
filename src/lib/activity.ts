@@ -19,6 +19,8 @@ export type ActivityKind =
   | "google.connected"
   | "google.disconnected"
   | "google.credentials_cleared"
+  | "google.service_account_saved"
+  | "google.service_account_cleared"
   | "system.update_available"
   | "system.updated";
 

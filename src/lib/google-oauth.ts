@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { decrypt, encrypt } from "@/lib/crypto";
+import { serviceAccountAccessToken } from "./google-service-account";
 
 /**
  * Google OAuth + GSC + GA4 integration.
@@ -270,6 +271,18 @@ export async function getAccessToken(
     // Fall through to workspace tokens
   }
 
+  // A service account, if one is configured, before falling back to the
+  // OAuth credentials. Checked here rather than at each call site
+  // because this function is the only way anything in the app reaches
+  // Google, so one branch covers Search Console, Analytics and
+  // everything built on them.
+  //
+  // Per-client OAuth still wins, above: a workspace-wide service account
+  // must not silently take over a client somebody deliberately connected
+  // to a different Google account.
+  const fromServiceAccount = await serviceAccountAccessToken();
+  if (fromServiceAccount) return fromServiceAccount;
+
   const [clientId, clientSecret, refreshTokenRaw, accessTokenRaw, expiresAtRaw] =
     await Promise.all([
       getSetting<string>("google.client_id"),
@@ -284,7 +297,9 @@ export async function getAccessToken(
   const accessToken = accessTokenRaw ? decrypt(accessTokenRaw) : null;
 
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error("Google not connected — connect it in Settings → Google.");
+    throw new Error(
+      "Google not connected — connect it in Settings → Google, either with a service account key or the OAuth flow.",
+    );
   }
 
   const expiresAt = expiresAtRaw ?? 0;
