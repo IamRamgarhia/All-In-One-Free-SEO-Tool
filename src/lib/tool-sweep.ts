@@ -151,6 +151,29 @@ function checks(): SweepCheck[] {
       },
     },
     {
+      toolId: "traffic-drop",
+      label: "Month-over-month organic clicks",
+      // "GSC sudden drops → auto-alert" is the first line of the morning
+      // health check this tool exists to do for people, and it was the
+      // one thing on that list still waiting for somebody to open a
+      // page. A drop found three weeks late is a report, not an alert.
+      //
+      // The property, not the client's URL: this string goes straight to
+      // Search Console, which knows "sc-domain:example.com" and not
+      // "https://example.com/". Passing the wrong one returns no rows,
+      // which reads as "no drop" — a confidently reassuring answer built
+      // on nothing.
+      requires: (c) => Boolean(c.gscProperty),
+      run: async (c) => {
+        const form = new FormData();
+        form.set("siteUrl", c.gscProperty ?? "");
+        return (await import("@/app/tools/traffic-drop/actions")).runDiagnostic(
+          null,
+          form,
+        );
+      },
+    },
+    {
       toolId: "security",
       label: "Security headers, TLS and certificate expiry",
       // Two external APIs rather than a fetch of the site, so it is the
@@ -175,6 +198,34 @@ export type SweepOutcome = {
 };
 
 /**
+ * Whether a check actually did its job.
+ *
+ * Most of these are form actions, and a form action reports failure by
+ * returning `{ ok: false, error }` rather than by throwing — so catching
+ * exceptions catches almost nothing. The sweep logged a cheerful "ok"
+ * for a check that returned an error and recorded no run at all, which
+ * is the same shape as every other bug this project has had to dig out:
+ * a success report over a no-op.
+ *
+ * Anything that does not look like a state object is taken at face
+ * value. Several checks return a plain result with no `ok` field, and
+ * guessing about those would trade one wrong answer for another.
+ */
+export function outcomeOf(result: unknown): { ok: boolean; error?: string } {
+  if (result && typeof result === "object" && "ok" in result) {
+    const r = result as { ok?: unknown; error?: unknown };
+    if (r.ok === false) {
+      return {
+        ok: false,
+        error:
+          typeof r.error === "string" ? r.error : "the tool reported a failure",
+      };
+    }
+  }
+  return { ok: true };
+}
+
+/**
  * Run every sweepable check for every client.
  *
  * One failure never stops the sweep. A client whose site is down would
@@ -193,8 +244,8 @@ export async function tickToolSweep(): Promise<SweepOutcome[]> {
     for (const check of checks()) {
       if (check.requires && !check.requires(c)) continue;
       try {
-        await withClientContext(c.id, () => check.run(c));
-        out.push({ clientId: c.id, toolId: check.toolId, ok: true });
+        const result = await withClientContext(c.id, () => check.run(c));
+        out.push({ clientId: c.id, toolId: check.toolId, ...outcomeOf(result) });
       } catch (err) {
         out.push({
           clientId: c.id,
@@ -231,8 +282,8 @@ export async function sweepClient(clientId: number): Promise<SweepOutcome[]> {
   for (const check of checks()) {
     if (check.requires && !check.requires(c)) continue;
     try {
-      await withClientContext(c.id, () => check.run(c));
-      out.push({ clientId: c.id, toolId: check.toolId, ok: true });
+      const result = await withClientContext(c.id, () => check.run(c));
+      out.push({ clientId: c.id, toolId: check.toolId, ...outcomeOf(result) });
     } catch (err) {
       out.push({
         clientId: c.id,

@@ -13,7 +13,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SWEPT_TOOL_IDS } from "./swept-tools";
-import { sweptToolIds } from "./tool-sweep";
+import { outcomeOf, sweptToolIds } from "./tool-sweep";
 
 const TOOLS_DIR = path.resolve(__dirname, "../app/tools");
 
@@ -43,5 +43,48 @@ describe("swept tool ids", () => {
     // says so, or — far worse — the rail promises a check that never
     // happens and the user stops doing it by hand.
     expect([...SWEPT_TOOL_IDS].sort()).toEqual(sweptToolIds().sort());
+  });
+});
+
+/**
+ * Most swept checks are form actions, and a form action reports failure
+ * by returning `{ ok: false }` rather than by throwing. The sweep only
+ * caught throws, so it logged "ok" for a traffic-drop check that
+ * returned an error and recorded nothing at all — a success report over
+ * a no-op, which is the failure this whole file exists to prevent.
+ */
+describe("what counts as a check that ran", () => {
+  it("a returned failure is a failure, with its reason kept", () => {
+    expect(outcomeOf({ ok: false, error: "No Search Console connection" })).toEqual({
+      ok: false,
+      error: "No Search Console connection",
+    });
+  });
+
+  it("still a failure when the tool gives no reason", () => {
+    // Silently treating this as success is how the original bug read.
+    expect(outcomeOf({ ok: false }).ok).toBe(false);
+    expect(outcomeOf({ ok: false }).error).toBeTruthy();
+  });
+
+  it("a returned success is a success", () => {
+    expect(outcomeOf({ ok: true, result: { findings: [] } })).toEqual({ ok: true });
+  });
+
+  it("takes a plain result at face value", () => {
+    // Several checks return their own shape with no `ok` field at all.
+    // Guessing about those would trade one wrong answer for another.
+    for (const r of [{ chain: [] }, [1, 2, 3], "fine", 0, null, undefined]) {
+      expect(outcomeOf(r), `${JSON.stringify(r) ?? "undefined"}`).toEqual({
+        ok: true,
+      });
+    }
+  });
+
+  it("does not mistake a nested ok for the tool's own verdict", () => {
+    // `{ result: { ok: false } }` is a tool that succeeded while
+    // reporting something about the site. Only the top level is the
+    // tool's verdict on itself.
+    expect(outcomeOf({ result: { ok: false } })).toEqual({ ok: true });
   });
 });
