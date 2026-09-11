@@ -30,7 +30,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('STB_VERSION', '0.5.0');
+define('STB_VERSION', '0.5.1');
 define('STB_OPTION_KEY', 'stb_connection_key');
 define('STB_OPTION_REVISIONS', 'stb_revisions');
 define('STB_REST_NAMESPACE', 'seo-tool/v1');
@@ -518,6 +518,24 @@ function stb_get_robots_meta(int $post_id): string
 function stb_set_robots_meta(int $post_id, string $value): void
 {
     $tokens = array_filter(array_map('trim', explode(',', strtolower($value))));
+
+    // An empty value means "no directive of ours on this post", so the
+    // keys are deleted rather than written with a default.
+    //
+    // Writing '2' (Yoast's explicit "index") made the field one-way: once
+    // anything had been set, there was no path back to unset, and
+    // stb_get_robots_meta would answer "index,follow" forever. Undo then
+    // could not restore the prior state, and on a site whose post type
+    // defaults to noindex it would have quietly forced the page to be
+    // indexable — an undo that changes the site in the opposite direction
+    // to the one the user asked for.
+    if (!$tokens) {
+        delete_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex');
+        delete_post_meta($post_id, '_yoast_wpseo_meta-robots-nofollow');
+        delete_post_meta($post_id, 'rank_math_robots');
+        return;
+    }
+
     $noindex = in_array('noindex', $tokens, true);
     $nofollow = in_array('nofollow', $tokens, true);
 
