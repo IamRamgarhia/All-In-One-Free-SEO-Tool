@@ -34,6 +34,7 @@ import { getSetting, setSetting } from "./settings-store";
 // Static, unlike the runners themselves: it is a pure string function
 // with no database or tool imports behind it.
 import { summariseSweep } from "./sweep-summary";
+import { summariseGbp } from "./gbp-summary";
 
 type Runner = {
   id: string;
@@ -161,6 +162,21 @@ function runners(): Runner[] {
       // every night having reached nothing, and said so nowhere. The
       // wording lives with the sweep so it can be tested.
       summarise: (result) => summariseSweep(result),
+    },
+    {
+      // Business Profile. Twice a day, because the thing it looks for is
+      // an unanswered review, and the target for replying is 48 hours —
+      // a daily check leaves no margin, and a review that arrives after
+      // the run would sit a full day before anyone heard about it.
+      //
+      // Cheap: one accounts call, one locations call, one reviews call
+      // per client that names a listing. Clients with no listing are not
+      // asked about at all.
+      id: "gbp_monitor",
+      label: "Business Profile checks",
+      everyMs: 12 * HOUR,
+      run: async () => (await import("./gbp-monitor")).tickGbpMonitor(),
+      summarise: (r) => summariseGbp(r),
     },
     {
       // The checks that have to crawl to answer at all — canonical
