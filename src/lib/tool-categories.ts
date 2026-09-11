@@ -113,6 +113,10 @@ export const RETIRED: Record<string, { useInstead: string; why: string }> = {
     useInstead: "/tools/social-preview",
     why: "Social preview already renders how a link appears when shared.",
   },
+  "/tools/auto-link": {
+    useInstead: "/tools/internal-linking",
+    why: "Same job, but this one asks you to paste a list of pages and titles first. Internal linking fetches them itself, records what it finds, and is the one the agent acts on.",
+  },
 };
 
 export function isRetired(href: string): boolean {
