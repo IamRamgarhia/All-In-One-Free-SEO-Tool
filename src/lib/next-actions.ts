@@ -35,6 +35,7 @@ import {
 import { FIXABLE } from "./agent/planner";
 import { openToolFindings } from "./tool-findings";
 import { findContentDecay, getGscQuickWins } from "./google-data";
+import { planProgress } from "./plan-tasks";
 import { loadActionableToolFindings } from "./agent/tool-finding-map";
 
 export type ActionOwner = "agent" | "you";
@@ -466,6 +467,31 @@ export async function nextActions(opts: {
       } catch {
         // Same reasoning as above.
       }
+    }
+
+    // ---- 7c. Delivery against the plan the client approved ------------
+    //
+    // The one thing they are paying for. Everything else in this list is
+    // a problem found; this is whether the work agreed in writing is
+    // actually happening, which is what a client asks at day 90 and what
+    // an engagement is judged on.
+    //
+    // Only when behind. A plan running on schedule needs no row — the
+    // point of this list is what to do next, not a status readout.
+    const plan = await planProgress(c.id);
+    if (plan && plan.overdue > 0) {
+      add({
+        id: `plan-behind-${c.id}`,
+        title: `${plan.overdue} item${plan.overdue === 1 ? "" : "s"} of the approved plan overdue`,
+        why: "This is the work the client signed off, and the monthly report will say whether it happened. Slipping quietly is how an engagement ends.",
+        // High impact and not optional, but it is a session of work
+        // rather than a click.
+        score: rank(90, 60),
+        minutes: 60,
+        owner: "you",
+        href: `/tasks?client=${c.id}`,
+        because: `week ${plan.currentWeek} of ${plan.totalWeeks}${plan.phase ? ` · ${plan.phase}` : ""} — ${plan.done} of ${plan.total} done`,
+      });
     }
 
     // ---- 8. Backlinks lost since the last look ------------------------

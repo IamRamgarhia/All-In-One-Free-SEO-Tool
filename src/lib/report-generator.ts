@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { generateExecSummary } from "./ai-summary";
 import { openToolFindings } from "./tool-findings";
+import { planProgress } from "./plan-tasks";
 import { mapToolFinding } from "./agent/tool-finding-map";
 import { ALGO_UPDATES } from "./algorithm-updates";
 import {
@@ -346,6 +347,11 @@ export async function generateReportPdf(
    * no equivalent, which is exactly when the tool is telling the client
    * something new.
    */
+  // How the engagement is tracking against what the client approved.
+  // Null when there is no sent plan, which is legitimate — not every
+  // client is on one.
+  const planState = await planProgress(clientId);
+
   const crawlerTypes = new Set(allIssues.map((i) => i.type));
   const toolFindingsForReport = (await openToolFindings(clientId)).filter(
     (f) => {
@@ -742,6 +748,43 @@ export async function generateReportPdf(
     .fontSize(11)
     .font("Helvetica")
     .text(exec.prose, { lineGap: 4 });
+
+  // Where we are against the plan, and — in the early months — why the
+  // traffic line is not the thing to read yet.
+  //
+  // Search takes roughly 60 to 90 days to move, so month one's work
+  // appears in month three. A client reading month one, seeing flat
+  // traffic and drawing the obvious conclusion is how engagements end at
+  // exactly the point where nothing could have shown yet. The honest
+  // answer is to point them at what did happen instead.
+  if (planState) {
+    doc.moveDown(0.6);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .fillColor(palette.ink)
+      .text(
+        `Week ${planState.currentWeek} of ${planState.totalWeeks}` +
+          (planState.phase ? ` · ${planState.phase}` : "") +
+          ` — ${planState.done} of ${planState.total} planned items complete` +
+          (planState.overdue > 0 ? `, ${planState.overdue} overdue` : ""),
+      );
+
+    if (planState.currentWeek <= 9) {
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor(palette.mute)
+        .text(
+          "Search engines take roughly 60 to 90 days to re-crawl, re-evaluate and " +
+            "move pages, so the work in this period shows up around month three. " +
+            "For now the honest measure of progress is the plan above, not the " +
+            "traffic line below.",
+          { lineGap: 2 },
+        );
+      doc.fillColor(palette.ink).fontSize(11);
+    }
+  }
 
   // Cite-or-bust: every claim in the prose maps to one of these
   // deterministic data points. The reader can verify each one against

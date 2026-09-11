@@ -560,6 +560,23 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
   await applyNicheTemplatesInternal(row.id, niche);
   await applyStackTemplatesInternal(row.id, techStack);
 
+  // Freeze the starting line now, not tonight.
+  //
+  // The daily agent snapshots any client without one, so a baseline
+  // always arrives eventually — but "eventually" is up to 24 hours, and
+  // anyone who adds a client and starts fixing things the same afternoon
+  // gets a baseline of a site already partly improved. The first monthly
+  // report then understates the work by exactly that much.
+  //
+  // Best-effort: a client that could not be measured is still a client.
+  try {
+    const { captureClientSnapshot } = await import("@/lib/client-snapshots");
+    await captureClientSnapshot({ clientId: row.id, kind: "baseline" });
+  } catch {
+    // The daily agent will take one. Nothing here is worth failing an
+    // add over.
+  }
+
   await logActivity({
     kind: "client.created",
     message: `Quick-added ${meta.name ?? fallbackName} (${meta.url}).`,

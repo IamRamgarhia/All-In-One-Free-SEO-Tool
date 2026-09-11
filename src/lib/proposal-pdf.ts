@@ -421,6 +421,29 @@ export async function generateProposalPdf(
     ensure(120);
     heading(doc, F, "What happens, and when", accent);
 
+    // When to expect results, said before the plan rather than after it.
+    //
+    // Search takes roughly 60 to 90 days to move, which means the work in
+    // month one shows up in month three. A client who is not told that
+    // reads month one's report, sees flat traffic, and concludes it is
+    // not working — at exactly the point where nothing could have shown
+    // yet. Saying it here costs a paragraph and is the difference between
+    // a client who waits and one who leaves.
+    doc
+      .font(F("regular"))
+      .fontSize(9)
+      .fillColor(MUTE)
+      .text(
+        "A note on timing. Most of what follows is built in the first month and " +
+          "shows up in the third: search engines have to re-crawl the pages, " +
+          "re-evaluate them, and then move them. Expect the first ranking " +
+          "movement around day 60 to 90, and read months one and two by whether " +
+          "the work below actually happened rather than by the traffic line.",
+        { lineGap: 2 },
+      );
+    doc.moveDown(0.9);
+    doc.fillColor(INK);
+
     // Phase banners between the weeks.
     //
     // A list of thirteen weeks is a list; the phases are what make it a

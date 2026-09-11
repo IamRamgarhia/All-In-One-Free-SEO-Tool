@@ -199,6 +199,22 @@ export async function updateProposal(
     })
     .where(eq(proposals.id, id));
 
+  // Sending the plan is the moment it stops being a document.
+  //
+  // Its weeks become tasks with real due dates, so everything that
+  // already works on tasks — the board, the overdue count, the ranked
+  // list, "work completed this period" in the report — starts working on
+  // the plan too. Idempotent, so re-sending never doubles the list.
+  if (patch.status === "sent" || patch.status === "accepted") {
+    try {
+      const { materialisePlan } = await import("@/lib/plan-tasks");
+      await materialisePlan(id);
+    } catch {
+      // A plan that fails to expand must not block the send. The
+      // document is still correct and this can be retried.
+    }
+  }
+
   revalidatePath("/proposals");
   revalidatePath(`/proposals/${id}`);
   return { ok: true };
