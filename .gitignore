@@ -128,3 +128,6 @@ CLAUDE.md
 # contain everything — clients, audits, and encrypted API keys. They
 # must never be committed.
 backups/
+
+# Built plugin archive — regenerate with the packaging script, do not commit.
+wordpress-plugin/*.zip
