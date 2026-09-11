@@ -1,5 +1,17 @@
 "use server";
 
+/**
+ * @ai-optional
+ *
+ * Every number here comes from Search Console and is computed without a
+ * model. The only thing AI adds is the prose `diagnosis` sentence, and
+ * the page is complete and correct with that field empty — verified
+ * against a live property with no provider configured.
+ *
+ * See tool-capabilities.derive.ts — this marker is what stops the badge
+ * saying the whole page is unavailable when it is not.
+ */
+
 import { z } from "zod";
 import {
   diagnoseTrafficDrop,

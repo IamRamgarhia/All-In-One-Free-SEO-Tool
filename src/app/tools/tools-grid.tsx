@@ -861,6 +861,11 @@ const badgeTone: Record<ToolBadge["tone"], string> = {
   free: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25",
   chat: "bg-violet-500/10 text-violet-300 ring-violet-400/25",
   key: "bg-amber-500/10 text-amber-300 ring-amber-400/25",
+  // Deliberately between free and key. These pages work — the main check
+  // runs without a model and one feature on them does not — and painting
+  // them the same amber as a tool that does nothing without a key was
+  // what made four working tools look unavailable.
+  partial: "bg-sky-500/10 text-sky-300 ring-sky-400/25",
 };
 
 // CATEGORY_ORDER now lives in lib/tool-categories alongside the labels
@@ -1012,6 +1017,46 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
             {totalMatches} {totalMatches === 1 ? "match" : "matches"}
           </p>
         )}
+        {/*
+          Why, not just what.
+
+          The badge said "Needs a key" and the reason lived in a hover
+          tooltip, so the question people actually asked — "I connected
+          Claude, why does this still want a key?" — went unanswered on
+          the screen where it comes up. Shown once here rather than
+          repeated on thirty-four cards.
+
+          Only when a chat app is connected and a key is not, because
+          that is the exact state the confusion comes from. Somebody with
+          nothing connected is not surprised that AI tools need AI.
+        */}
+        {mode === "mcp" && unusableCount > 0 && (
+          <div className="mt-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+            <p>
+              <strong className="text-foreground">
+                Your chat app is connected, and these tools still need a key.
+              </strong>{" "}
+              That is not a bug. The connection runs one way: your chat app
+              calls <em>into</em> this app to read your SEO data. These pages
+              need to call <em>out</em> to a model, and they have no chat app
+              of their own to ask.
+            </p>
+            <p className="mt-1.5">
+              A key or a local Ollama gives them one — and it is also what
+              lets them run overnight, when no chat is open. Free options
+              exist: Google AI Studio and Groq both issue keys with no card,
+              and Ollama needs no account at all.{" "}
+              <Link
+                href="/settings#ai"
+                className="rounded text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid"
+              >
+                Set one up
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+
         {/* Only worth showing when something is actually being held back.
             Says the number out loud so the grid never silently shrinks. */}
         {unusableCount > 0 && (

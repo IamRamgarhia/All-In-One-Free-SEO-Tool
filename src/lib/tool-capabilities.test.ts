@@ -8,6 +8,7 @@ import {
   AI_TOOL_COUNT,
   FREE_TOOL_COUNT,
   TOTAL_TOOL_COUNT,
+  aiUsageOf,
 } from "./tool-capabilities";
 
 describe("tool capabilities", () => {
@@ -21,6 +22,11 @@ describe("tool capabilities", () => {
     const flagsOnly = TOOL_CAPABILITIES.map((c) => ({
       route: c.route,
       needsAI: c.needsAI,
+      // Included deliberately. This is the field that decides whether a
+      // working page is advertised as unavailable, so leaving it out of
+      // the comparison would let exactly the drift it exists to prevent
+      // go unnoticed.
+      aiUsage: c.aiUsage,
       usesBrowser: c.usesBrowser,
     }));
     expect(deriveToolCapabilities()).toEqual(flagsOnly);
@@ -143,5 +149,95 @@ describe("tool capabilities", () => {
       .map((i) => i.href)
       .filter((href) => capabilityOf(href) === null);
     expect(missing).toEqual([]);
+  });
+});
+
+/**
+ * How load-bearing a model is, as opposed to merely reachable.
+ *
+ * The import graph can see that a page can reach the AI client. It
+ * cannot see whether the answer depends on it, and that distinction was
+ * being lost: traffic-drop reads Search Console, computes every number
+ * without a model, and asks one only to write an optional sentence. The
+ * grid told users it needed a key. Four more pages work for their main
+ * job and lose one feature, and were painted the same colour as a tool
+ * that does nothing at all without one.
+ *
+ * Telling someone a free tool costs money is the safer error than the
+ * reverse, so anything unmarked stays "required".
+ */
+describe("how much a model is actually needed", () => {
+  const usage = (route: string) => aiUsageOf(capabilityOf(route)!);
+
+  it("defaults to required when the file says nothing", () => {
+    // The safe direction. An author who adds an AI call and no marker
+    // gets the cautious answer rather than a page that quietly claims to
+    // be free.
+    expect(usage("/tools/schema")).toBe("required");
+    expect(usage("/tools/image-gen")).toBe("required");
+  });
+
+  it("reports none for a page that never reaches a model", () => {
+    expect(usage("/tools/robots")).toBe("none");
+    expect(usage("/tools/headers")).toBe("none");
+  });
+
+  it("believes a page that declares the model optional", () => {
+    // Verified by running it against a live Search Console property with
+    // no provider configured: every number came back, and only the prose
+    // `diagnosis` field was empty.
+    expect(usage("/tools/traffic-drop")).toBe("optional");
+  });
+
+  it("believes a page that declares the model partial", () => {
+    for (const r of [
+      "/tools/llms-txt",
+      "/tools/gsc-coverage",
+      "/tools/gbp-reply",
+      "/tools/content-score",
+    ]) {
+      expect(usage(r), r).toBe("partial");
+    }
+  });
+});
+
+describe("what the badge tells the user", () => {
+  const badge = (route: string, mode: Parameters<typeof badgeFor>[1]) =>
+    badgeFor(capabilityOf(route), mode)!;
+
+  it("does not call an optional-AI tool unavailable", () => {
+    // The bug this whole mechanism exists for.
+    for (const mode of ["none", "mcp"] as const) {
+      const b = badge("/tools/traffic-drop", mode);
+      expect(b.tone, mode).toBe("free");
+      expect(b.label, mode).not.toMatch(/needs a key/i);
+    }
+    expect(worksIn(capabilityOf("/tools/traffic-drop"), "mcp")).toBe(true);
+  });
+
+  it("distinguishes a partial tool from one that needs a key outright", () => {
+    const partial = badge("/tools/llms-txt", "none");
+    const required = badge("/tools/schema", "none");
+    expect(partial.tone).toBe("partial");
+    expect(required.tone).toBe("key");
+    expect(partial.tone).not.toBe(required.tone);
+  });
+
+  it("says why a subscription is not a substitute", () => {
+    // The question users keep asking. The answer has to be on the badge,
+    // not only in a doc nobody opens.
+    for (const r of ["/tools/schema", "/tools/llms-txt"]) {
+      expect(badge(r, "mcp").detail, r).toMatch(/chat|MCP|other way/i);
+    }
+  });
+
+  it("still never calls a paid tool free", () => {
+    // The invariant that outranks all of the above.
+    for (const c of TOOL_CAPABILITIES) {
+      if (aiUsageOf(c) !== "required") continue;
+      for (const mode of ["none", "mcp"] as const) {
+        expect(badgeFor(c, mode)?.tone, `${c.route} ${mode}`).not.toBe("free");
+      }
+    }
   });
 });

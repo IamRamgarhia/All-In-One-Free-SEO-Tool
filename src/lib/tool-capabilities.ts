@@ -194,11 +194,33 @@ export function isKnownAiPage(route: string): boolean {
   return /^\/tools\/[^/]+$/.test(base) || KNOWN_AI_PAGES.has(base);
 }
 
+/**
+ * How load-bearing a model is for this page.
+ *
+ * Falls back to the old boolean for any row generated before aiUsage
+ * existed, so an out-of-date generated file degrades to the previous
+ * behaviour rather than crashing or silently calling everything free.
+ */
+export function aiUsageOf(
+  cap: ToolCapability,
+): "none" | "optional" | "partial" | "required" {
+  const declared = (cap as { aiUsage?: string }).aiUsage;
+  if (
+    declared === "none" ||
+    declared === "optional" ||
+    declared === "partial" ||
+    declared === "required"
+  ) {
+    return declared;
+  }
+  return cap.needsAI ? "required" : "none";
+}
+
 export type ToolBadge = {
   label: string;
   /** Longer text for the tooltip / title attribute. */
   detail: string;
-  tone: "free" | "chat" | "key";
+  tone: "free" | "chat" | "key" | "partial";
 };
 
 /**
@@ -233,7 +255,9 @@ export function badgeFor(
 ): ToolBadge | null {
   if (!cap) return null;
 
-  if (!cap.needsAI) {
+  const usage = aiUsageOf(cap);
+
+  if (usage === "none") {
     return cap.usesBrowser
       ? {
           label: "Free · runs locally",
@@ -245,6 +269,35 @@ export function badgeFor(
           label: "Free",
           detail: "No AI credits — this one never calls a model.",
           tone: "free",
+        };
+  }
+
+  // The model is reachable but nothing depends on it. Calling this
+  // "needs a key" told users a working page was unavailable —
+  // traffic-drop reads Search Console, computes every number without a
+  // model, and asks one only for an optional prose sentence.
+  if (usage === "optional") {
+    return {
+      label: "Free · AI optional",
+      detail:
+        "Works fully without a key. A model is used only to add a written summary, and everything else is computed from your own data.",
+      tone: "free",
+    };
+  }
+
+  if (usage === "partial") {
+    return mode === "api" || mode === "both"
+      ? {
+          label: "Partly uses credits",
+          detail:
+            "Some of this page calls your AI provider and the rest does not, so it costs less per run than a fully AI tool.",
+          tone: "key",
+        }
+      : {
+          label: "Partly needs a key",
+          detail:
+            "The main check here runs without a model. One feature on this page needs an API key or Ollama, and that feature alone is unavailable — a connected chat subscription does not supply it, because MCP runs the other way round.",
+          tone: "partial",
         };
   }
 
@@ -279,7 +332,15 @@ export function badgeFor(
  */
 export function worksIn(cap: ToolCapability | null, mode: ConnectionMode): boolean {
   if (!cap) return true;
-  if (!cap.needsAI) return true;
+  const usage = aiUsageOf(cap);
+  // "Will the page run", not "is every feature on it available". A page
+  // whose main check works and whose one AI extra does not is a page
+  // that runs, and calling it unavailable is what sent users away from
+  // four working tools. The badge carries the nuance; this is the blunt
+  // "can I click this" answer the readiness dots need.
+  if (usage === "none" || usage === "optional" || usage === "partial") {
+    return true;
+  }
   // A subscription does NOT make these work.
   //
   // This returned true for "mcp" and that was wrong. MCP runs the other

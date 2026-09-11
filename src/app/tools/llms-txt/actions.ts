@@ -1,5 +1,15 @@
 "use server";
 
+/**
+ * @ai-partial
+ *
+ * Generating a file needs a model. Validating one does not, and
+ * validation is what the nightly sweep runs.
+ *
+ * See tool-capabilities.derive.ts — this marker is what stops the badge
+ * saying the whole page is unavailable when it is not.
+ */
+
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
 import type { AiFailure } from "@/lib/ai-error";

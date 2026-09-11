@@ -24,9 +24,58 @@ export type DerivedCapability = {
   route: string;
   /** A model has to produce words for this page to do its job. */
   needsAI: boolean;
+  /**
+   * How much of the page a model is actually load-bearing for.
+   *
+   * The import graph can see that a model is reachable. It cannot see
+   * whether the answer depends on it, and that distinction was being
+   * lost: `traffic-drop` is marked as needing AI and does not — it reads
+   * Search Console, computes every number without a model, and asks one
+   * only to write an optional prose sentence. The page told users it was
+   * unavailable while working perfectly.
+   *
+   * So a file that reaches the AI client may declare `@ai-optional` or
+   * `@ai-partial` in a comment, next to the code that knows. Nothing is
+   * listed centrally, because every hand-kept list in this repo has
+   * drifted.
+   *
+   *   "required" — nothing useful happens without a model. The default,
+   *                because the safe error is telling someone a free tool
+   *                costs money, never the reverse.
+   *   "partial"  — some features need one, the rest work.
+   *   "optional" — the answer is complete without one; a model only adds
+   *                commentary.
+   *   "none"     — never reaches a model at all.
+   */
+  aiUsage: "none" | "optional" | "partial" | "required";
   /** Drives headless Chromium — runs locally, costs no AI credits. */
   usesBrowser: boolean;
 };
+
+/**
+ * Read the author's own statement about how load-bearing the model is.
+ *
+ * Deliberately a marker in the file that calls AI, rather than a table
+ * somewhere else. CLAUDE.md's fourth standing rule exists because every
+ * pair of lists in this codebase had already drifted by the time anyone
+ * found it, and a central "these tools are optional" list would be the
+ * seventh.
+ */
+function declaredAiUsage(
+  files: readonly string[],
+): "optional" | "partial" | null {
+  for (const f of files) {
+    let src = "";
+    try {
+      src = fs.readFileSync(f, "utf8");
+    } catch {
+      continue;
+    }
+    if (/@ai-optional\b/.test(src)) return "optional";
+    if (/@ai-partial\b/.test(src)) return "partial";
+  }
+  return null;
+}
 
 function repoRoot(): string {
   let dir = process.cwd();
@@ -144,9 +193,14 @@ export function deriveToolCapabilities(): DerivedCapability[] {
         fs.existsSync(f),
       );
 
+      const reachesAi = entries.some((f) => aiDependents.has(f));
       routes.push({
         route: segments.length === 0 ? "/" : `/${segments.join("/")}`,
-        needsAI: entries.some((f) => aiDependents.has(f)),
+        // Unchanged meaning: a model is reachable from here. Kept so the
+        // existing badge and counts keep working while callers move over
+        // to aiUsage.
+        needsAI: reachesAi,
+        aiUsage: reachesAi ? (declaredAiUsage(entries) ?? "required") : "none",
         usesBrowser: entries.some((f) => browserDependents.has(f)),
       });
     }

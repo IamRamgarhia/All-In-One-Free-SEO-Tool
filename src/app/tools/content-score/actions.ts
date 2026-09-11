@@ -1,5 +1,14 @@
 "use server";
 
+/**
+ * @ai-partial
+ *
+ * Scoring asks a model. Saving a snapshot of an existing score does not.
+ *
+ * See tool-capabilities.derive.ts — this marker is what stops the badge
+ * saying the whole page is unavailable when it is not.
+ */
+
 import { callAI } from "@/lib/ai-call";
 import { saveToolRun } from "@/lib/tool-runs";
 

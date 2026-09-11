@@ -105,7 +105,7 @@ export function renderCapabilities(root = process.cwd()): string {
       const extra = t
         ? `, title: ${JSON.stringify(t.title)}, description: ${JSON.stringify(t.description)}`
         : "";
-      return `  { route: ${JSON.stringify(c.route)}, needsAI: ${c.needsAI}, usesBrowser: ${c.usesBrowser}${extra} },`;
+      return `  { route: ${JSON.stringify(c.route)}, needsAI: ${c.needsAI}, aiUsage: ${JSON.stringify(c.aiUsage)}, usesBrowser: ${c.usesBrowser}${extra} },`;
     })
     .join("\n");
 

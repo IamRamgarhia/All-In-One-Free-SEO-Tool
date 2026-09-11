@@ -1,5 +1,15 @@
 "use server";
 
+/**
+ * @ai-partial
+ *
+ * Reading the coverage report needs no model. Suggesting fixes for what
+ * it found does.
+ *
+ * See tool-capabilities.derive.ts — this marker is what stops the badge
+ * saying the whole page is unavailable when it is not.
+ */
+
 import { inspectGscUrl, type UrlInspection } from "@/lib/google-oauth";
 import { saveToolRun } from "@/lib/tool-runs";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
