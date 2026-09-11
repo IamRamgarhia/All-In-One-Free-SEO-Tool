@@ -48,6 +48,20 @@ type SweepCheck = {
    * yet", and an error log full of expected errors is one nobody reads.
    */
   requires?: (client: SweepClient) => boolean;
+  /**
+   * How often this is worth paying for.
+   *
+   * "daily" is the bar the header describes: a handful of requests.
+   * "weekly" is for checks that have to crawl to answer at all —
+   * canonical chains across a site, soft 404s, orphan pages. Those
+   * genuinely cannot be cheap, and the alternative to running them
+   * weekly was a button nobody pressed, which is not a cheaper answer,
+   * it is no answer.
+   *
+   * Nothing runs both tiers, and the weekly tier is a separate scheduler
+   * job so a slow crawl cannot delay the nightly checks.
+   */
+  cadence?: "daily" | "weekly";
   run: (client: SweepClient) => Promise<unknown>;
 };
 
@@ -174,6 +188,44 @@ function checks(): SweepCheck[] {
       },
     },
     {
+      toolId: "canonical-audit",
+      label: "Canonical tags across the site",
+      // Weekly, because it crawls. A canonical chain is invisible from
+      // any single page — you only see it by following one page's
+      // canonical to another page and reading that one's. No per-page
+      // check can find it, which is why this was a button nobody pressed.
+      cadence: "weekly",
+      run: async (c) => {
+        const form = new FormData();
+        form.set("startUrl", c.url);
+        // Well under the tool's own 80 default. This runs unattended for
+        // every client, and the shape of a site's canonical problems is
+        // visible in the first few dozen pages.
+        form.set("maxPages", "40");
+        return (
+          await import("@/app/tools/canonical-audit/actions")
+        ).runCanonical(null, form);
+      },
+    },
+    {
+      toolId: "soft-404",
+      label: "Pages that say not-found with a 200",
+      // Also weekly and also a crawl. A soft 404 is the failure that
+      // wastes crawl budget silently: Google keeps requesting a page
+      // that has nothing on it because the server keeps saying it is
+      // fine.
+      cadence: "weekly",
+      run: async (c) => {
+        const form = new FormData();
+        form.set("startUrl", c.url);
+        form.set("maxPages", "40");
+        return (await import("@/app/tools/soft-404/actions")).runSoft404(
+          null,
+          form,
+        );
+      },
+    },
+    {
       toolId: "security",
       label: "Security headers, TLS and certificate expiry",
       // Two external APIs rather than a fetch of the site, so it is the
@@ -233,7 +285,9 @@ export function outcomeOf(result: unknown): { ok: boolean; error?: string } {
  * list — the kind of failure that looks like "the scheduler stopped
  * working" months later.
  */
-export async function tickToolSweep(): Promise<SweepOutcome[]> {
+export async function tickToolSweep(
+  cadence: "daily" | "weekly" = "daily",
+): Promise<SweepOutcome[]> {
   const rows = await db
     .select({ id: clients.id, url: clients.url, gscProperty: clients.gscProperty })
     .from(clients);
@@ -242,6 +296,9 @@ export async function tickToolSweep(): Promise<SweepOutcome[]> {
   for (const c of rows) {
     if (!c.url) continue;
     for (const check of checks()) {
+      // Default daily, so a check that says nothing about cadence keeps
+      // the behaviour it had before the tier existed.
+      if ((check.cadence ?? "daily") !== cadence) continue;
       if (check.requires && !check.requires(c)) continue;
       try {
         const result = await withClientContext(c.id, () => check.run(c));

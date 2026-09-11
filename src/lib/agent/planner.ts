@@ -310,6 +310,24 @@ const FIXABLE: Record<
   // takes a whole site out of Google, and unlike a page edit there is no
   // partial blast radius to limit it.
 
+  missing_robots_txt: {
+    kind: "write_robots_txt",
+    capability: "write_robots_txt",
+    weight: 80,
+    // Still needs_review despite being an absence rather than a
+    // judgement. Everything that writes robots.txt is, because one wrong
+    // Disallow takes a whole site out of Google and there is no partial
+    // blast radius to limit it.
+    risk: "needs_review",
+    reason:
+      "This site serves no robots.txt at all. Crawlers cope, but nothing points them at the sitemap and there is nowhere to say anything when you need to.",
+  },
+  // invalid_robots_txt is deliberately NOT here. "Invalid" means lines
+  // that do not parse, and repairing those requires knowing what the
+  // author meant — a Disallow with a typo could be protecting something.
+  // Guessing would be the one mistake in this file that can deindex a
+  // site, so it stays a finding a person reads.
+
   missing_ai_crawler_policy: {
     kind: "write_robots_txt",
     capability: "write_robots_txt",
@@ -660,6 +678,20 @@ function siteWideTarget(
 ): Pick<PlannedAction, "targetRef" | "currentValue"> {
   const toggle = HARDENING_FOR_FINDING[findingType];
   if (toggle) return { targetRef: `site:hardening:${toggle}` };
+
+  // robots.txt findings share a kind and need different content written,
+  // so the drafter is told which one this is. Without it, "create the
+  // missing file" and "add an AI policy" are indistinguishable by the
+  // time they reach draftValue, and dedup would collapse them into one.
+  if (findingType === "missing_robots_txt") {
+    return { targetRef: "site:robots_txt:create" };
+  }
+  if (
+    findingType === "missing_ai_crawler_policy" ||
+    findingType === "partial_ai_crawler_policy"
+  ) {
+    return { targetRef: "site:robots_txt:ai_policy" };
+  }
 
   if (findingType === "broken_link" || findingType === "redirect_chain") {
     let from = url;

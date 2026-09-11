@@ -21,6 +21,7 @@ export type ActivityKind =
   | "google.credentials_cleared"
   | "google.service_account_saved"
   | "google.service_account_cleared"
+  | "agent.level_chosen"
   | "system.update_available"
   | "system.updated";
 

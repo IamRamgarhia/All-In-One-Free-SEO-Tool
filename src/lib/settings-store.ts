@@ -31,6 +31,10 @@ export type SettingKey =
   | "ui.theme"
   /** Autonomy level and guardrails for the agent. See lib/agent/autonomy.ts. */
   | "agent.settings"
+  // Whether anyone has ever been ASKED what autonomy level they want, as
+  // opposed to silently receiving the cautious default. See
+  // hasChosenAutonomy in agent/autonomy.ts.
+  | "agent.level_chosen"
   | "api.openai"
   | "api.anthropic"
   | "api.gemini"

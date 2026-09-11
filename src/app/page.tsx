@@ -31,6 +31,7 @@ import { PortfolioQuickWinsPanel } from "./portfolio-quick-wins-panel";
 import { MorningBriefing } from "./morning-briefing";
 import { AgencyWeekInReview } from "./agency-week";
 import { OnboardingChecklistPanel } from "./onboarding-checklist-panel";
+import { AutonomyPrompt } from "./autonomy-prompt";
 import { startScheduler, tickScheduler } from "@/lib/scheduler";
 import { redirect } from "next/navigation";
 import { getSetting } from "@/lib/settings-store";
@@ -323,6 +324,14 @@ export default async function DashboardPage() {
           />
         </div>
       )}
+
+      {/* Asked once, above everything, because it decides whether the
+          rest of the agent's work reaches the site at all. Renders
+          nothing once answered, and nothing at all before the first
+          client exists. */}
+      <Suspense fallback={null}>
+        <AutonomyPrompt />
+      </Suspense>
 
       {/* GET STARTED — two-column on fresh state (checklist + features),
           single column once user has clients (checklist auto-hides when done). */}

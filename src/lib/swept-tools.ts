@@ -25,6 +25,10 @@ export const SWEPT_TOOL_IDS = [
   "wp-hack-scan",
   "cannibalization",
   "traffic-drop",
+  // Weekly rather than nightly — both crawl to answer. See the cadence
+  // note in tool-sweep.ts.
+  "canonical-audit",
+  "soft-404",
 ] as const;
 
 export type SweptToolId = (typeof SWEPT_TOOL_IDS)[number];

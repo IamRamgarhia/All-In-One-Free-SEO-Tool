@@ -109,6 +109,27 @@ function runners(): Runner[] {
       run: async () => (await import("./report-mailer")).tickScheduleRunner(),
     },
     {
+      // The uptime pinger, which has always stored history and never
+      // been called by anything. A monitor you have to press is not a
+      // monitor: the whole value is noticing the outage you were not
+      // watching for, and until now the only pings on record were ones
+      // somebody clicked for.
+      //
+      // Fifteen minutes rather than hourly. An hour of downtime found
+      // 59 minutes late is the same as not finding it.
+      id: "uptime_ping",
+      label: "Uptime checks",
+      everyMs: 15 * MINUTE,
+      run: async () => (await import("./uptime")).pingAll(),
+      summarise: (r) => {
+        const s = r as { total?: number; failed?: number } | null;
+        if (!s || typeof s.total !== "number" || s.total === 0) return null;
+        return s.failed
+          ? `${s.failed} of ${s.total} targets down`
+          : `${s.total} target${s.total === 1 ? "" : "s"} up`;
+      },
+    },
+    {
       id: "page_monitor",
       label: "Page monitor",
       everyMs: 60 * MINUTE,
@@ -134,12 +155,26 @@ function runners(): Runner[] {
       id: "tool_sweep",
       label: "Unattended tool sweep",
       everyMs: 24 * HOUR,
-      run: async () => (await import("./tool-sweep")).tickToolSweep(),
+      run: async () => (await import("./tool-sweep")).tickToolSweep("daily"),
       // The one runner where "finished without throwing" and "did the
       // job" came apart badly: against an unreachable site it completed
       // every night having reached nothing, and said so nowhere. The
       // wording lives with the sweep so it can be tested.
       summarise: (result) => summariseSweep(result),
+    },
+    {
+      // The checks that have to crawl to answer at all — canonical
+      // chains, soft 404s. They cannot meet the nightly sweep's "handful
+      // of requests" bar and never will, and the alternative was a button
+      // nobody pressed, which is not a cheaper answer but no answer.
+      //
+      // Its own job rather than a branch inside the nightly one, so a
+      // slow crawl across every client cannot delay the cheap checks.
+      id: "tool_sweep_weekly",
+      label: "Weekly crawl-based checks",
+      everyMs: 7 * 24 * HOUR,
+      run: async () => (await import("./tool-sweep")).tickToolSweep("weekly"),
+      summarise: (r) => summariseSweep(r),
     },
     {
       // Discovery, written into the profile rather than drawn on screen

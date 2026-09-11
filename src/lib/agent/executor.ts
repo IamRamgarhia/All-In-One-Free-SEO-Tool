@@ -134,6 +134,35 @@ export async function draftValue(
   // business decision with revenue attached, and it is far easier to
   // flip a written Allow to Disallow than to notice a silent one.
   if (action.kind === "write_robots_txt") {
+    // Which robots.txt job this is. The planner puts it in targetRef
+    // because both jobs share a kind and need different content written.
+    if (action.targetRef === "site:robots_txt:create") {
+      // A site with no robots.txt at all. The only thing worth asserting
+      // is where the sitemap is. Everything else this could add would be
+      // a rule nobody asked for, and allow-all is already what a missing
+      // file meant — so nothing is newly blocked, and the file has
+      // somewhere obvious to grow from.
+      let sitemap = "/wp-sitemap.xml";
+      try {
+        sitemap = new URL("/wp-sitemap.xml", action.targetUrl).toString();
+      } catch {
+        /* keep the relative path — robots.txt accepts one */
+      }
+      return {
+        ok: true,
+        value:
+          [
+            "# robots.txt — created by SEO Tool.",
+            "# Allow-all is what a missing file already meant, so nothing",
+            "# is newly blocked here. Add Disallow rules as you need them.",
+            "User-agent: *",
+            "Allow: /",
+            "",
+            `Sitemap: ${sitemap}`,
+          ].join("\n") + "\n",
+      };
+    }
+
     const lines = [
       "# AI crawler policy — added by SEO Tool. Change Allow to Disallow",
       "# for any of these you would rather keep out.",
