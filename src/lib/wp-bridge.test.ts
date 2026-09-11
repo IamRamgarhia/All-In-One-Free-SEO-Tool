@@ -299,3 +299,69 @@ describe("SSRF guard", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The revision ids, which the writers used to accept and drop.
+ *
+ * Every one of these functions typed the plugin's revision id in its
+ * response and then returned `{ ok: true }`, so a write succeeded and
+ * left nothing to point at for undo. Against the real site the schema
+ * write landed on the page and could not be taken off again: the
+ * revision existed in WordPress, and nothing here knew its number.
+ */
+describe("revision ids come back from writes", () => {
+  it("setPostSeo returns one per field the plugin changed", async () => {
+    respond({
+      ok: true,
+      changes: [
+        { field: "title", rev_id: 7 },
+        { field: "meta_description", rev_id: 8 },
+      ],
+    });
+    const r = await setPostSeo(creds, 1, { title: "x", metaDescription: "y" });
+    expect(r.ok).toBe(true);
+    expect(r.changes).toEqual([
+      { field: "title", revId: 7 },
+      { field: "meta_description", revId: 8 },
+    ]);
+  });
+
+  it("setPostSeo drops entries with no usable id rather than passing NaN", async () => {
+    // An undo aimed at NaN is a request to restore nothing that reports
+    // success, which is worse than saying there is nothing to undo.
+    respond({
+      ok: true,
+      changes: [{ field: "title", rev_id: null }, { field: "robots", rev_id: 9 }],
+    });
+    const r = await setPostSeo(creds, 1, { title: "x", robots: "noindex" });
+    expect(r.changes).toEqual([{ field: "robots", revId: 9 }]);
+  });
+
+  it("setPostSeo reports an empty list when nothing changed", async () => {
+    // The plugin's answer when the new value already matched the old: a
+    // success with nothing to undo, not a failure.
+    respond({ ok: true, changes: [] });
+    const r = await setPostSeo(creds, 1, { title: "same" });
+    expect(r.ok).toBe(true);
+    expect(r.changes).toEqual([]);
+  });
+
+  it("setPostSchema returns the revision it recorded", async () => {
+    respond({ ok: true, rev_id: 16 });
+    const r = await setPostSchema(creds, 1, '{"@type":"FAQPage"}');
+    expect(r).toEqual({ ok: true, revId: 16 });
+  });
+
+  it("setPostSchema treats the plugin's null as nothing to undo", async () => {
+    respond({ ok: true, rev_id: null, note: "no change" });
+    const r = await setPostSchema(creds, 1, '{"@type":"FAQPage"}');
+    expect(r.ok).toBe(true);
+    expect(r.revId).toBeUndefined();
+  });
+
+  it("setAttachmentAlt returns the revision it recorded", async () => {
+    respond({ ok: true, rev_id: 21 });
+    const r = await setAttachmentAlt(creds, 8055, "a description");
+    expect(r).toEqual({ ok: true, revId: 21 });
+  });
+});

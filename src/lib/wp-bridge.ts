@@ -224,7 +224,25 @@ export async function setPostSeo(
     canonical: string;
     robots: string;
   }>,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  /**
+   * The WordPress revision the plugin recorded per field it changed.
+   *
+   * The plugin has always returned these and this function has always
+   * thrown them away while typing them in the response — so a caller had
+   * a successful write and no way to name the revision behind it. Undo
+   * still worked for the agent, which re-writes the value it saved
+   * before the change, but that is the weaker undo: it overwrites
+   * whatever is there now, so an edit somebody made in between is lost
+   * without a word. A revision id restores the exact prior state.
+   *
+   * Empty when the plugin changed nothing because the new value already
+   * matched the old — a success with nothing to undo.
+   */
+  changes?: { field: string; revId: number }[];
+}> {
   // snake_case on the wire. Sending `metaDescription` meant the plugin's
   // `isset($body['meta_description'])` was false, so it changed nothing
   // and still answered `{ok: true, changes: []}` — a write that reported
@@ -250,45 +268,66 @@ export async function setPostSeo(
   if (Object.keys(body).length === 0) {
     return { ok: false, error: "Nothing to write." };
   }
-  const r = await wpFetch<{ ok: boolean; changes?: unknown[] }>(
-    creds,
-    `/post/${postId}/seo`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
+  const r = await wpFetch<{
+    ok: boolean;
+    changes?: { field?: unknown; rev_id?: unknown }[];
+  }>(creds, `/post/${postId}/seo`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true };
+  // snake_case on the wire, camelCase in here, same as everywhere else
+  // on this boundary. Entries without a numeric rev_id are dropped
+  // rather than passed on as NaN — an undo aimed at NaN would be a
+  // request to restore nothing that reports success.
+  const changes = (r.data.changes ?? []).flatMap((c) =>
+    typeof c?.rev_id === "number" && Number.isFinite(c.rev_id)
+      ? [{ field: String(c.field ?? ""), revId: c.rev_id }]
+      : [],
+  );
+  return { ok: true, changes };
 }
 
 export async function setAttachmentAlt(
   creds: WpCreds,
   attachmentId: number,
   alt: string,
-): Promise<{ ok: boolean; error?: string }> {
-  const r = await wpFetch<{ ok: boolean }>(
+): Promise<{ ok: boolean; error?: string; revId?: number }> {
+  const r = await wpFetch<{ ok: boolean; rev_id?: number | null }>(
     creds,
     `/attachment/${attachmentId}/alt`,
     { method: "POST", body: JSON.stringify({ alt }) },
   );
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true };
+  // Same as the schema and SEO writers: the revision exists in
+  // WordPress either way, and throwing the id away is what made it
+  // unreachable from here.
+  const revId = r.data.rev_id;
+  return typeof revId === "number" ? { ok: true, revId } : { ok: true };
 }
 
 export async function setPostSchema(
   creds: WpCreds,
   postId: number,
   schemaJsonLd: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; revId?: number }> {
   // The plugin reads `jsonld`, all lowercase. Sending `jsonLd` meant it
   // saw an empty value and answered 400 "jsonld required" — so every
   // schema write the agent could plan would have failed on a real site,
   // including the one the contract test asserts is now executable.
-  const r = await wpFetch<{ ok: boolean }>(
+  const r = await wpFetch<{ ok: boolean; rev_id?: number | null }>(
     creds,
     `/post/${postId}/schema`,
     { method: "POST", body: JSON.stringify({ jsonld: schemaJsonLd }) },
   );
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true };
+  // The plugin records a revision and returns its id. Dropping it, as
+  // this did, left a write that had succeeded and could not be pointed
+  // at for undo — the schema stayed on the page with nothing to name it.
+  // Null is the plugin's "nothing changed", which is a success with
+  // nothing to undo rather than a missing id.
+  const revId = r.data.rev_id;
+  return typeof revId === "number" ? { ok: true, revId } : { ok: true };
 }
 
 /**
