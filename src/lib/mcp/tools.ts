@@ -34,6 +34,12 @@ import {
   updateCuratedContext,
   type CuratedPatch,
 } from "@/lib/client-knowledge";
+import {
+  listReviewQueue,
+  reviewCounts,
+  saveDraftReply,
+  sendReply,
+} from "@/lib/gbp-review-queue";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -837,4 +843,137 @@ function trimmed(v: string | null | undefined, max: number): string | null {
   if (v == null) return null;
   const s = v.replace(/\s+/g, " ").trim().slice(0, max);
   return s || null;
+}
+
+// =====================================================================
+// Business Profile reviews
+// =====================================================================
+
+/**
+ * The review backlog for a client's Google Business Profile.
+ *
+ * Reads what is stored, never Google. An assistant asking "what needs
+ * answering" should get the same answer the screen shows, and a live
+ * fetch here would return whatever fifty reviews the API felt like
+ * returning — a different set each call, which is not a queue.
+ *
+ * Says plainly when nothing has been pulled. Zero unanswered because
+ * everything is answered, and zero because nobody has ever looked, are
+ * the same number and opposite facts.
+ */
+export async function getReviewBacklog(opts: {
+  clientId: number;
+  filter?: "unanswered" | "drafted" | "answered" | "all";
+  limit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const counts = await reviewCounts(opts.clientId);
+  if (counts.total === 0) {
+    return {
+      ok: true,
+      data: {
+        client: { id: client.id, name: client.name },
+        reviews: [],
+        note: client.gbpLocationName
+          ? "No reviews have been pulled from Google yet. Open the review desk in the app and press 'Pull reviews'."
+          : "This client has no Business Profile listing selected, so reviews have never been pulled. That is not the same as having no reviews.",
+      },
+    };
+  }
+
+  const rows = await listReviewQueue({
+    clientId: opts.clientId,
+    filter: opts.filter ?? "unanswered",
+    limit: Math.min(Math.max(opts.limit ?? 20, 1), 100),
+  });
+
+  return {
+    ok: true,
+    data: {
+      client: { id: client.id, name: client.name },
+      counts: {
+        held: counts.total,
+        needingAReply: counts.unanswered,
+        ofThoseRatedThreeOrLess: counts.unansweredNegative,
+        draftedNotSent: counts.drafted,
+        // Named apart on purpose. A reply typed into Google's own app is
+        // a reply, and counting it as ours would let this tool claim
+        // work it did not do.
+        repliedByThisTool: counts.sentByUs,
+        repliedSomewhereElse: counts.answeredElsewhere,
+        averageRating: counts.averageRating,
+      },
+      reviews: rows.map((r) => ({
+        reviewId: r.reviewId,
+        reviewer: r.reviewerName,
+        stars: r.starRating,
+        text: r.comment,
+        left: freshness(r.createTime),
+        replyOnGoogle: r.replyComment,
+        replySentByThisTool: Boolean(r.sentAt),
+        ourUnsentDraft: r.draftReply,
+        noLongerOnGoogle: Boolean(r.removedAt),
+      })),
+      howToReply:
+        "Write the reply yourself and call reply_to_review. It goes straight to Google under the business's name, so read the review first and do not promise anything the business has not authorised.",
+    },
+  };
+}
+
+/**
+ * Publish a reply to one review.
+ *
+ * Goes live on Google immediately, under the business's name. There is
+ * no draft state here on purpose — `save_review_draft` exists for that,
+ * and collapsing the two would mean an assistant exploring the backlog
+ * could publish by accident.
+ */
+export async function replyToReview(opts: {
+  clientId: number;
+  reviewId: string;
+  text: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const res = await sendReply({
+    clientId: opts.clientId,
+    reviewId: opts.reviewId,
+    text: opts.text,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  return {
+    ok: true,
+    data: {
+      reviewId: opts.reviewId,
+      published: true,
+      note: "Live on Google now, under the business's name. Replies can be replaced by sending another, but not withdrawn.",
+    },
+  };
+}
+
+/** Store a reply for a person to read before it is sent. */
+export async function saveReviewDraft(opts: {
+  clientId: number;
+  reviewId: string;
+  text: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  await saveDraftReply({
+    clientId: opts.clientId,
+    reviewId: opts.reviewId,
+    text: opts.text,
+  });
+  return {
+    ok: true,
+    data: {
+      reviewId: opts.reviewId,
+      note: "Saved as a draft. Nothing has been sent — it shows in the review desk for a person to approve.",
+    },
+  };
 }

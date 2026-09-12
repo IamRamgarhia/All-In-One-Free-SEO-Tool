@@ -253,6 +253,20 @@
       "when": 1789231481116,
       "tag": "0066_client_context",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "6",
+      "when": 1789233122546,
+      "tag": "0067_gbp_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "6",
+      "when": 1789233417765,
+      "tag": "0068_gbp_location_name",
+      "breakpoints": true
     }
   ]
 }

@@ -30,6 +30,9 @@ import {
   listClients,
   listProposedFixes,
   getClientKnowledge,
+  getReviewBacklog,
+  replyToReview,
+  saveReviewDraft,
   logClientResearch,
   revertAgentActionById,
   updateClientKnowledge,
@@ -268,6 +271,64 @@ const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: false },
     handler: (a: { clientId: number; summary: string; by?: string }) =>
       logClientResearch(a),
+  },
+  {
+    name: "get_review_backlog",
+    description:
+      "Reviews on this client's Google Business Profile and which still need an answer, worst-rated first. Reads what has been pulled and stored, not Google — so it is the same queue the app shows, and it says plainly when nothing has ever been pulled. Distinguishes replies this tool sent from replies typed into Google's own app.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number", description: "Which site. Get ids from list_clients." },
+        filter: {
+          type: "string",
+          enum: ["unanswered", "drafted", "answered", "all"],
+          description: "Default 'unanswered'.",
+        },
+        limit: { type: "number", description: "Default 20, max 100." },
+      },
+      required: ["clientId"],
+    },
+    annotations: { readOnlyHint: true },
+    handler: (a: {
+      clientId: number;
+      filter?: "unanswered" | "drafted" | "answered" | "all";
+      limit?: number;
+    }) => getReviewBacklog(a),
+  },
+  {
+    name: "save_review_draft",
+    description:
+      "Store a reply for a person to read before it goes anywhere. Sends nothing. Use this rather than reply_to_review whenever you have not been asked to publish — a reply on Google is under the business's name and cannot be withdrawn.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        reviewId: { type: "string", description: "From get_review_backlog." },
+        text: { type: "string", description: "The reply. Under 80 words." },
+      },
+      required: ["clientId", "reviewId", "text"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+    handler: (a: { clientId: number; reviewId: string; text: string }) =>
+      saveReviewDraft(a),
+  },
+  {
+    name: "reply_to_review",
+    description:
+      "Publish a reply to one review. It appears on Google immediately, under the business's name, and cannot be withdrawn — only replaced. Ask the user before calling this. Never promise refunds, discounts or compensation, and never dispute the reviewer's account of what happened.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        reviewId: { type: "string", description: "From get_review_backlog." },
+        text: { type: "string", description: "The reply. Under 80 words." },
+      },
+      required: ["clientId", "reviewId", "text"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    handler: (a: { clientId: number; reviewId: string; text: string }) =>
+      replyToReview(a),
   },
 ];
 

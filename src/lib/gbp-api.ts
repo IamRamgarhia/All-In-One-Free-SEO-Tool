@@ -147,9 +147,35 @@ export async function listGbpReviews(opts: {
   locationName: string;
   pageSize?: number;
   clientIdScope?: number;
+  /** Continue a previous page. Returned as `nextPageToken`. */
+  pageToken?: string;
 }): Promise<GbpReview[]> {
+  return (await listGbpReviewPage(opts)).reviews;
+}
+
+/**
+ * One page of reviews, plus the token for the next.
+ *
+ * Split out because "did we see every review" is a question with real
+ * consequences: a sync that marks unseen reviews as deleted must know
+ * whether it reached the end, or it will mark everything past the first
+ * fifty as gone.
+ */
+export async function listGbpReviewPage(opts: {
+  locationName: string;
+  pageSize?: number;
+  clientIdScope?: number;
+  pageToken?: string;
+}): Promise<{
+  reviews: GbpReview[];
+  nextPageToken: string | null;
+  averageRating: number | null;
+  totalReviewCount: number | null;
+}> {
   const token = await getAccessToken(opts.clientIdScope);
-  const url = `https://mybusiness.googleapis.com/v4/${opts.locationName}/reviews?pageSize=${opts.pageSize ?? 50}`;
+  const params = new URLSearchParams({ pageSize: String(opts.pageSize ?? 50) });
+  if (opts.pageToken) params.set("pageToken", opts.pageToken);
+  const url = `https://mybusiness.googleapis.com/v4/${opts.locationName}/reviews?${params}`;
   const res = await fetch(url, {
     headers: { authorization: `Bearer ${token}` },
   });
@@ -168,10 +194,11 @@ export async function listGbpReviews(opts: {
   };
   const data = (await res.json()) as {
     reviews?: RawReview[];
+    nextPageToken?: string;
     averageRating?: number;
     totalReviewCount?: number;
   };
-  return (data.reviews ?? []).map((r) => ({
+  const reviews = (data.reviews ?? []).map((r) => ({
     reviewId: r.reviewId ?? "",
     reviewer: {
       displayName: r.reviewer?.displayName ?? "Anonymous",
@@ -188,6 +215,50 @@ export async function listGbpReviews(opts: {
         }
       : null,
   }));
+  return {
+    reviews,
+    nextPageToken: data.nextPageToken ?? null,
+    averageRating: data.averageRating ?? null,
+    totalReviewCount: data.totalReviewCount ?? null,
+  };
+}
+
+/**
+ * Every review on a location, paged to the end.
+ *
+ * `complete` says whether it really got to the end. It is false when the
+ * page cap was hit, and the sync uses it to decide whether it is allowed
+ * to mark anything as deleted — the difference between "this review is
+ * gone" and "I stopped reading" is the whole queue.
+ */
+export async function fetchAllGbpReviews(opts: {
+  locationName: string;
+  clientIdScope?: number;
+  /** Safety stop. 20 pages of 50 is a thousand reviews. */
+  maxPages?: number;
+}): Promise<{
+  reviews: GbpReview[];
+  complete: boolean;
+  averageRating: number | null;
+  totalReviewCount: number | null;
+}> {
+  const maxPages = opts.maxPages ?? 20;
+  const all: GbpReview[] = [];
+  let pageToken: string | undefined;
+  let averageRating: number | null = null;
+  let totalReviewCount: number | null = null;
+
+  for (let page = 0; page < maxPages; page++) {
+    const res = await listGbpReviewPage({ ...opts, pageSize: 50, pageToken });
+    all.push(...res.reviews);
+    averageRating ??= res.averageRating;
+    totalReviewCount ??= res.totalReviewCount;
+    if (!res.nextPageToken) {
+      return { reviews: all, complete: true, averageRating, totalReviewCount };
+    }
+    pageToken = res.nextPageToken;
+  }
+  return { reviews: all, complete: false, averageRating, totalReviewCount };
 }
 
 /**

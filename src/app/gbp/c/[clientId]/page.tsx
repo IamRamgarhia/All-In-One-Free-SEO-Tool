@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Circle,
   ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
@@ -75,6 +76,30 @@ export default async function PerClientGbpPage({
             <ExternalLink className="size-3" />
           </Link>
         </div>
+
+        {/* There are two ways in and only one of them needs that link.
+            The share link drives the scraper, which reads the public
+            page; connecting Google drives the review desk, which can
+            actually answer reviews. Hiding the second behind the first
+            left the connected path — the one that writes — unreachable
+            for anybody who had connected Google and not pasted a URL. */}
+        <Link
+          href={`/gbp/c/${client.id}/reviews`}
+          className="glass-apple flex items-center justify-between gap-3 rounded-2xl px-5 py-4 transition-colors hover:bg-white/[0.04]"
+        >
+          <div className="text-left">
+            <h2 className="flex items-center gap-1.5 text-base font-semibold">
+              <MessageSquare className="size-4" />
+              Review desk
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              No share link needed. If you have connected Google with the
+              Business Profile permission, reviews can be read and answered
+              from here.
+            </p>
+          </div>
+          <span className="shrink-0 text-xs text-muted-foreground">Open →</span>
+        </Link>
       </div>
     );
   }
@@ -115,6 +140,27 @@ export default async function PerClientGbpPage({
           shortDescription: client.description?.split(".")[0] ?? null,
         }}
       />
+
+      {/* The connected path. Everything below this reads the public
+          profile and asks you to paste replies into Google yourself;
+          this one answers them. */}
+      <Link
+        href={`/gbp/c/${client.id}/reviews`}
+        className="glass-apple flex items-center justify-between gap-3 rounded-2xl px-5 py-4 transition-colors hover:bg-white/[0.04]"
+      >
+        <div>
+          <h2 className="flex items-center gap-1.5 text-base font-semibold">
+            <MessageSquare className="size-4" />
+            Review desk
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Every review, which ones still need an answer, and replies sent
+            straight to Google. Needs the Business Profile permission on your
+            Google connection.
+          </p>
+        </div>
+        <span className="shrink-0 text-xs text-muted-foreground">Open →</span>
+      </Link>
 
       <GbpRunner clientId={client.id} clientName={client.name} />
 

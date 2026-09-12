@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const timestamps = {
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -28,6 +28,15 @@ export const clients = sqliteTable("clients", {
   email: text("email"),
   socialLinks: text("social_links", { mode: "json" }).$type<ClientSocialLinks>(),
   gbpUrl: text("gbp_url"),
+  /**
+   * The chosen Business Profile location: accounts/{a}/locations/{l}.
+   *
+   * Null until somebody picks one. The connected path used to resolve
+   * "first account, first location" on every call, which is right for
+   * one business with one listing and quietly wrong for anyone with
+   * two — replies would go wherever Google happened to list first.
+   */
+  gbpLocationName: text("gbp_location_name"),
   // Targeting — every recommendation, rank check, SERP scan, autocomplete
   // fan-out, and citation suggestion uses these. country defaults to "US"
   // for back-compat with rows created before this column existed.
@@ -2411,3 +2420,73 @@ export const clientResearchLog = sqliteTable("client_research_log", {
     .default(sql`(unixepoch())`),
 });
 export type ClientResearchLogEntry = typeof clientResearchLog.$inferSelect;
+
+/**
+ * Reviews on a client's Google Business Profile, kept.
+ *
+ * They were fetched live on every page load and never stored, which
+ * looked fine and quietly cost four things: there was no durable queue
+ * of what still needs answering, no record that we answered it, no way
+ * for a report or the agent to see any of it, and a reply drafted but
+ * not yet sent was lost the moment the page reloaded.
+ *
+ * `replyComment` and `sentAt` are deliberately separate. The first is
+ * whatever reply is live on Google right now, which may have been typed
+ * by the owner in Google's own interface; the second is only set when
+ * this tool sent it. Collapsing them into one "replied" flag would make
+ * the tool claim credit for work somebody else did, and — worse — would
+ * make "we have answered everything" unfalsifiable.
+ */
+export const gbpReviews = sqliteTable(
+  "gbp_reviews",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** Format: accounts/{account}/locations/{location} */
+    locationName: text("location_name").notNull(),
+    /** Google's id for the review, unique within a location. */
+    reviewId: text("review_id").notNull(),
+    reviewerName: text("reviewer_name"),
+    reviewerPhotoUrl: text("reviewer_photo_url"),
+    /** 1-5, or null when Google sent something unparseable. */
+    starRating: integer("star_rating"),
+    comment: text("comment"),
+    createTime: integer("create_time", { mode: "timestamp" }),
+    updateTime: integer("update_time", { mode: "timestamp" }),
+
+    /** The reply live on Google now, whoever wrote it. */
+    replyComment: text("reply_comment"),
+    replyUpdateTime: integer("reply_update_time", { mode: "timestamp" }),
+
+    /** Written by us, not yet on Google. Survives a page reload. */
+    draftReply: text("draft_reply"),
+    draftedAt: integer("drafted_at", { mode: "timestamp" }),
+    /** Only set when this tool sent the reply. See the note above. */
+    sentAt: integer("sent_at", { mode: "timestamp" }),
+
+    /**
+     * Set when a complete sync no longer saw this review — the reviewer
+     * deleted it, or Google removed it. Kept rather than deleted so the
+     * reply we sent does not vanish from the record with it.
+     *
+     * Only ever set by a sync that paged to the end. A partial fetch
+     * cannot tell "gone" from "on a page I did not read", and marking
+     * the difference would empty the queue of everything but the most
+     * recent fifty.
+     */
+    removedAt: integer("removed_at", { mode: "timestamp" }),
+
+    firstSeenAt: integer("first_seen_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    lastSyncedAt: integer("last_synced_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex("gbp_reviews_client_review_idx").on(t.clientId, t.reviewId),
+  ],
+);
+export type GbpReviewRow = typeof gbpReviews.$inferSelect;

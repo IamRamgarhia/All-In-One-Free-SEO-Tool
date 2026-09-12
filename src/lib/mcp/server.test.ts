@@ -23,6 +23,8 @@ const WRITERS = new Set([
   "apply_fix",
   "revert_agent_action",
   "update_client_knowledge",
+  "save_review_draft",
+  "reply_to_review",
   "log_client_research",
 ]);
 
@@ -38,10 +40,10 @@ describe("tool annotations", () => {
     ).toEqual([]);
   });
 
-  it("marks the three that touch a live site as destructive", () => {
+  it("marks everything that touches a live surface as destructive", () => {
     // Every one records an undo, which makes them reversible, not
     // harmless. The hint is about whether to ask first.
-    for (const name of ["run_agent", "apply_fix", "revert_agent_action"]) {
+    for (const name of ["run_agent", "apply_fix", "revert_agent_action", "reply_to_review"]) {
       const tool = MCP_TOOL_LIST.find((t) => t.name === name);
       expect(tool, name).toBeDefined();
       expect(

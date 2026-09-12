@@ -485,9 +485,38 @@ async function main() {
   // review what is being claimed.
   const LOCAL_ONLY_WRITERS = new Set([
     "update_client_knowledge",
+    // Stores a reply for a person to read. Sends nothing.
+    "save_review_draft",
   ]);
+
+  // Publishes to a public surface that is NOT the customer's website,
+  // and therefore does not belong to the agent's gates.
+  //
+  // Listed rather than allowed by naming, because "it did not match the
+  // regex" is not a safety property. A Business Profile reply goes out
+  // under the business's name and cannot be withdrawn, only replaced —
+  // so its gate is that a person calls it deliberately, and its tool
+  // description has to say both of those things or the gate is not real.
+  const PUBLIC_WRITERS = new Set(["reply_to_review"]);
+  for (const name of PUBLIC_WRITERS) {
+    const t = tools.find((x) => x.name === name);
+    if (!t) {
+      bad("PUBLIC WRITER IS NOT REGISTERED", name);
+    } else if (/cannot be withdrawn/i.test(t.description) && /ask the user/i.test(t.description)) {
+      ok(`${name} warns that it is public and irreversible`);
+    } else {
+      bad(
+        "PUBLIC WRITER DOES NOT SAY SO",
+        `${name} publishes under the business's name and its description does not warn about it`,
+      );
+    }
+  }
+
   const writeTools = tools.filter(
-    (t) => /^(set|write|update|edit)_/.test(t.name) && !LOCAL_ONLY_WRITERS.has(t.name),
+    (t) =>
+      /^(set|write|update|edit|publish|send|post|reply)_|_to_review$/.test(t.name) &&
+      !LOCAL_ONLY_WRITERS.has(t.name) &&
+      !PUBLIC_WRITERS.has(t.name),
   );
   if (writeTools.length === 0) {
     ok(
@@ -622,6 +651,56 @@ async function main() {
     ok("refuses a write with nothing in it", emptyWrite.text.slice(0, 46));
   } else {
     bad("ACCEPTED AN EMPTY WRITE", "reports success having stored nothing");
+  }
+
+  section("Business Profile reviews");
+
+  const backlog = payload(
+    await send("tools/call", {
+      name: "get_review_backlog",
+      arguments: { clientId: client.id },
+    }),
+  );
+  // Zero because everything is answered, and zero because nobody has
+  // ever looked, are the same number and opposite facts. An assistant
+  // that cannot tell them apart will report a clean slate for a business
+  // whose reviews have never been fetched.
+  if (typeof backlog.json?.note === "string" && /never|no reviews/i.test(String(backlog.json.note))) {
+    ok("says nothing has been pulled", String(backlog.json.note).slice(0, 56));
+  } else {
+    bad(
+      "EMPTY BACKLOG READS AS 'ALL ANSWERED'",
+      JSON.stringify(backlog.json).slice(0, 90),
+    );
+  }
+
+  const backlogTool = tools.find((t) => t.name === "get_review_backlog");
+  if (backlogTool && /typed into google/i.test(backlogTool.description)) {
+    ok("distinguishes our replies from the owner's", "in the tool description");
+  } else {
+    bad(
+      "NO DISTINCTION BETWEEN OUR REPLIES AND ANYONE ELSE'S",
+      "the tool can claim credit for work it did not do",
+    );
+  }
+
+  const draftTool = tools.find((t) => t.name === "save_review_draft");
+  if (draftTool && /sends nothing/i.test(draftTool.description)) {
+    ok("offers a draft path that publishes nothing");
+  } else {
+    bad("NO DRAFT PATH", "the only way to write a reply is to publish it");
+  }
+
+  const badReply = payload(
+    await send("tools/call", {
+      name: "reply_to_review",
+      arguments: { clientId: client.id, reviewId: "does-not-exist", text: "Thanks!" },
+    }),
+  );
+  if (badReply.isError) {
+    ok("refuses a review it does not hold", badReply.text.slice(0, 46));
+  } else {
+    bad("CLAIMED TO REPLY TO A REVIEW THAT DOES NOT EXIST", badReply.text.slice(0, 80));
   }
 
   section("Failures are readable");
