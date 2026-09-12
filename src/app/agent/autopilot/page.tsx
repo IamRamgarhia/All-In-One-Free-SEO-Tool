@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/shell/page-header";
 import { getAgentSettings } from "@/lib/agent/autonomy";
 import { clientScope } from "@/lib/client-scope";
 import { AutopilotPanel } from "./panel";
+import { BulkPanel } from "./bulk-panel";
+import { groupForBulk } from "@/lib/agent/bulk";
 
 export default async function AutopilotPage() {
   const settings = await getAgentSettings();
@@ -63,6 +65,28 @@ export default async function AutopilotPage() {
 
   const nameOf = new Map(visibleClients.map((c) => [c.id, c.name]));
 
+  // Grouped per client, because approving a class of change is a
+  // per-site decision — "apply all missing descriptions" means something
+  // different on a client you have reviewed before than on one you have
+  // not, and merging them would hide which site is about to change.
+  const bulkByClient = visibleClients
+    .map((c) => ({
+      client: c,
+      groups: groupForBulk(
+        pending
+          .filter((a) => a.clientId === c.id)
+          .map((a) => ({
+            id: a.id,
+            kind: a.kind,
+            risk: a.risk as "safe" | "needs_review",
+            status: a.status,
+            targetUrl: a.targetUrl,
+            afterValue: a.afterValue,
+          })),
+      ),
+    }))
+    .filter((g) => g.groups.length > 0);
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
@@ -72,6 +96,13 @@ export default async function AutopilotPage() {
         accent="violet"
         crumbs={[{ href: "/agent", label: "Agent" }, { label: "Autopilot" }]}
       />
+      {bulkByClient.map(({ client, groups }) => (
+        <div key={client.id} className="space-y-2">
+          <p className="px-1 text-xs text-muted-foreground">{client.name}</p>
+          <BulkPanel clientId={client.id} groups={groups} />
+        </div>
+      ))}
+
       <AutopilotPanel
         settings={settings}
         clients={visibleClients}
