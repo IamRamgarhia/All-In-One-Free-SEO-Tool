@@ -10,6 +10,12 @@ export type SettingKey =
    * time a background job is added — the prefix keeps it namespaced.
    */
   | `scheduler.${string}`
+  /**
+   * Cached one-line AI narratives: `narrative.<id>`. Open-ended for the
+   * same reason as the scheduler keys above — the callers live beside
+   * the pages that render them, not in this union.
+   */
+  | `narrative.${string}`
   | "webhook.url"
   | "webhook.notify_on_audit_complete"
   | "webhook.notify_on_score_drop"

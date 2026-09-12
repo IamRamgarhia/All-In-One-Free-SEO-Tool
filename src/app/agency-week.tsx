@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { db } from "@/db/client";
+import { cachedNarrative } from "@/lib/cached-narrative";
 import {
   backlinks,
   brandMentions,
@@ -97,30 +98,34 @@ export async function AgencyWeekInReview() {
     .limit(5);
 
   // AI Monday-morning narrative: 1-2 short sentences synthesising the
-  // numbers above. Stays silent when there's no AI provider configured.
-  let aiSummary: string | null = null;
-  try {
-    const { callAI } = await import("@/lib/ai-call");
-    aiSummary = await callAI({
-      system:
-        "You write 1-2 sentence Monday-morning briefings for an SEO agency owner. Use the numbers exactly. Lead with the most important signal. No fluff, no headers, no preamble — just the briefing.",
-      user: `Last 7 days across the portfolio (${clientCount} clients):
+  // numbers above.
+  //
+  // Cached, and the render never waits for it. This used to call the
+  // model inline on every dashboard load. Measured on a warm production
+  // build: the page shell arrived in 33ms, the data panels took 4ms and
+  // 430ms, and this call took 1,448ms — so a decorative sentence was
+  // most of the time it took the home page to finish, on every visit,
+  // and it was paid for every time.
+  //
+  // Null here means "not generated for these numbers yet", not "no AI".
+  // The section renders without it and the next visit has it.
+  const facts = `Last 7 days across the portfolio (${clientCount} clients):
 - Tasks completed: ${tasksDone}
 - Links built: ${linksBuilt}
 - Short-link clicks: ${clicksRecent}
 - Brand mentions: ${mentionsRecent} (${positiveMentions} positive)
 - Page changes: ${pageChangesRecent}
-- Active clients (had completions): ${recentActiveClients.length}/${clientCount}
+- Active clients (had completions): ${recentActiveClients.length}/${clientCount}`;
+
+  const aiSummary = await cachedNarrative({
+    id: "agency_week",
+    facts,
+    system:
+      "You write 1-2 sentence Monday-morning briefings for an SEO agency owner. Use the numbers exactly. Lead with the most important signal. No fluff, no headers, no preamble — just the briefing.",
+    user: `${facts}
 
 Write the Monday-morning briefing. Highlight any anomalies (zero activity = silent clients; high mentions but few completions = leverage opportunity). 1-2 sentences max.`,
-      maxTokens: 200,
-      temperature: 0.4,
-      timeoutMs: 12_000,
-      feature: "general",
-    });
-  } catch {
-    aiSummary = null;
-  }
+  });
 
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">
