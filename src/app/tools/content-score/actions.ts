@@ -9,7 +9,7 @@
  * saying the whole page is unavailable when it is not.
  */
 
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
 import { saveToolRun } from "@/lib/tool-runs";
 
 export type ContentScoreResult =
@@ -101,7 +101,7 @@ export async function scoreContent(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Set up an API key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up an API key in Settings.",
     };
   }
 

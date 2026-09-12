@@ -8,7 +8,7 @@
  * These hand off to whichever AI provider is configured.
  */
 
-import { callAI } from "./ai-call";
+import { callAI, lastAiFailure } from "./ai-call";
 
 const IMAGE_PROMPT_SYSTEM = `You write image-generation prompts for blog post / landing page cover images. Each prompt should:
 - Describe a clear, single composition. No multiple separate scenes.
@@ -63,7 +63,7 @@ export async function generateCoverImagePrompts(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Set up a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up a key in Settings.",
     };
   }
   return parseJsonArray<ImagePromptIdea>(raw, (v) =>
@@ -122,7 +122,7 @@ export async function suggestCategoriesAndTags(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Set up a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up a key in Settings.",
     };
   }
 

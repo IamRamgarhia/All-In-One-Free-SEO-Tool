@@ -19,7 +19,7 @@
  */
 
 import { analyseInternalLinks } from "./internal-link-graph";
-import { callAI } from "./ai-call";
+import { callAI, lastAiFailure } from "./ai-call";
 
 export type LinkSuggestion = {
   anchorText: string;
@@ -142,7 +142,7 @@ export async function suggestInternalLinks(opts: {
     return {
       suggestions: [],
       candidateCount: candidates.length,
-      error: "AI provider didn't respond. Configure one in Settings → API keys.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Configure one in Settings → API keys.",
     };
   }
 

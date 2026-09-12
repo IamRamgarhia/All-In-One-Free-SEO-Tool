@@ -1,7 +1,7 @@
 "use server";
 
 import { fetchSiteMetadata } from "@/lib/site-metadata";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
 import { recordToolRun } from "@/lib/tool-findings";
 import { aiOverviewFindings } from "@/lib/tool-finding-builders";
 import { guardedFetch } from "@/lib/url-guard";
@@ -119,7 +119,7 @@ export async function analyzeAiOverview(
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Check Settings → AI provider keys.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Check Settings → AI provider keys.",
     };
   }
 

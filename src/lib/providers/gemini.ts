@@ -68,6 +68,25 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
     generationConfig: {
       maxOutputTokens: opts.maxTokens,
       temperature: opts.temperature,
+      /**
+       * Thinking off, because its tokens come out of the same budget.
+       *
+       * gemini-2.5-flash reasons before answering by default, and those
+       * tokens are billed against maxOutputTokens rather than sitting
+       * outside it. So a 600-token budget for a short JSON summary was
+       * spent thinking, and the answer came back cut off at 87
+       * characters with no closing brace.
+       *
+       * Every caller here wants structured output — JSON an app parses,
+       * a title, alt text — not a chain of reasoning. On the first run
+       * against a real Gemini key this truncated 10 of 19 AI tools, and
+       * each one reported it as "AI returned an unexpected format",
+       * which points the user at the model rather than the budget.
+       *
+       * Ignored by models that do not think, including the 2.0 fallback,
+       * so it is safe to send unconditionally.
+       */
+      thinkingConfig: { thinkingBudget: 0 },
     },
   });
 
@@ -108,6 +127,20 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
             ?.map((p) => p.text ?? "")
             .join("")
             .trim() || null;
+
+        // Truncated, not malformed. Returning the fragment let every
+        // caller's JSON parser fail with "AI returned an unexpected
+        // format", which blames the model for what is a budget the
+        // caller set. Half an answer is also worse than none: a summary
+        // cut mid-sentence reads as a real answer to anyone skimming.
+        if (reply && data.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+          lastError =
+            `Gemini [${model}] ran out of output tokens before finishing. ` +
+            `Raise maxTokens for this call — it is currently ${opts.maxTokens}.`;
+          opts.onFailure?.(200, lastError);
+          continue;
+        }
+
         if (reply) return reply;
         // 200 OK with empty body — usually a safety filter or maxTokens=0.
         // Falling through to the next model lets users escape Gemini's

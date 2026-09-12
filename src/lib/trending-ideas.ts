@@ -14,7 +14,7 @@
  * sources hit JSON endpoints that don't require headless).
  */
 
-import { callAI } from "./ai-call";
+import { callAI, lastAiFailure } from "./ai-call";
 import { scanSerp } from "./serp-scanner";
 
 const USER_AGENT =
@@ -149,7 +149,7 @@ export async function findTrendingIdeas(opts: {
       country,
       signals,
       ideas: [],
-      error: "AI provider didn't respond. Configure a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Configure a key in Settings.",
     };
   }
 

@@ -12,7 +12,7 @@
 
 import { detectTechStack, type DetectionResult } from "./tech-detect";
 import { crawlSite } from "./sitemap-generator";
-import { callAI } from "./ai-call";
+import { callAI, lastAiFailure } from "./ai-call";
 import { searchDuckDuckGo } from "./link-prospector";
 import { citationsForCountry, type CitationEntry } from "./citations-data";
 
@@ -444,7 +444,7 @@ async function synthesiseGap(
   if (!text) {
     return {
       text: null,
-      error: "AI provider didn't respond. Set up a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up a key in Settings.",
     };
   }
   return { text };

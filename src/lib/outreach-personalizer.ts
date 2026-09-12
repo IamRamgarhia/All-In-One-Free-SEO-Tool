@@ -9,7 +9,7 @@
  * template feel.
  */
 
-import { callAI } from "./ai-call";
+import { callAI, lastAiFailure } from "./ai-call";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/1.0; +https://example.com/bot)";
@@ -87,7 +87,7 @@ export async function personalizeOutreach(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Configure a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Configure a key in Settings.",
     };
   }
 

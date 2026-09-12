@@ -3,7 +3,7 @@
  * generator, News SEO headline tester, paste-from-Docs content scorer.
  */
 
-import { callAI } from "./ai-call";
+import { callAI, lastAiFailure } from "./ai-call";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/1.0; +https://example.com/bot)";
@@ -43,7 +43,7 @@ export async function summarizeContent(opts: {
     feature: "general",
     clientId: opts.clientId ?? null,
   });
-  if (!raw) return { ok: false, error: "AI provider didn't respond." };
+  if (!raw) return { ok: false, error: lastAiFailure()?.message ?? "AI provider didn't respond." };
   return parseSummary(raw);
 }
 
@@ -140,7 +140,7 @@ export async function generateBulkAlt(opts: {
     feature: "content_idea",
     clientId: opts.clientId ?? null,
   });
-  if (!raw) return { ok: false, error: "AI provider didn't respond." };
+  if (!raw) return { ok: false, error: lastAiFailure()?.message ?? "AI provider didn't respond." };
 
   const cleaned = raw
     .trim()
@@ -384,7 +384,7 @@ export async function suggestAutoLinks(opts: {
     feature: "general",
     clientId: opts.clientId ?? null,
   });
-  if (!raw) return { ok: false, error: "AI provider didn't respond." };
+  if (!raw) return { ok: false, error: lastAiFailure()?.message ?? "AI provider didn't respond." };
 
   const cleaned = raw
     .trim()
