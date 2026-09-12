@@ -97,11 +97,17 @@ export default async function ClientPlanPage({
               {plan.weeks.length} week{plan.weeks.length === 1 ? "" : "s"}
             </span>
             <a
-              href={`/clients/${clientId}/plan/export.csv`}
+              href={`/clients/${clientId}/plan/plan.pdf`}
               className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs hover:bg-muted/70"
             >
               <Download className="size-3.5" />
-              Download as CSV
+              Download PDF
+            </a>
+            <a
+              href={`/clients/${clientId}/plan/export.csv`}
+              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              CSV
             </a>
             <Link
               href={`/tasks?client=${clientId}`}

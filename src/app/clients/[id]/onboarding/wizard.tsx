@@ -729,8 +729,11 @@ function CompletedStep({ client }: { client: WizardClient }) {
             <a href={`/clients/${client.id}/plan`} className="font-medium underline">
               Read the 30-day plan →
             </a>
-            <a href={`/clients/${client.id}/plan/export.csv`} className="underline">
-              Download as CSV
+            <a href={`/clients/${client.id}/plan/plan.pdf`} className="underline">
+              Download PDF
+            </a>
+            <a href={`/clients/${client.id}/plan/export.csv`} className="underline opacity-80">
+              CSV
             </a>
             <a href={`/tasks?client=${client.id}`} className="underline opacity-80">
               Tasks board

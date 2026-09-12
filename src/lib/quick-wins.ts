@@ -196,7 +196,8 @@ export async function buildQuickWinTasks(opts: {
       recurringInterval: null,
       estimatedMinutes: cfg.minutes,
       actualMinutes: null,
-      source: "quick_win",
+      toolPath: "/keywords",
+    source: "quick_win",
       sourceRef: planRef,
     });
   }

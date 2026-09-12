@@ -1,0 +1,12 @@
+-- Where to go to do the task.
+--
+-- The 30-day plan generator knows which tool each task needs — 27 of its
+-- 30 entries carry a toolPath — and it was writing that into the
+-- description as the literal string "Open: /tools/schema". So the app
+-- held a working link and rendered it as prose, leaving the reader to
+-- retype a path they could have clicked.
+--
+-- Its own column rather than parsing it back out of the description,
+-- because a description is free text a user can edit, and a link that
+-- breaks when somebody rewords their own note is worse than no link.
+ALTER TABLE `tasks` ADD `tool_path` text;

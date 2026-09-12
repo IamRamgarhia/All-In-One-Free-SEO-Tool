@@ -12,6 +12,7 @@ import {
   Sparkles,
   Trash2,
   X,
+  ArrowUpRight,
 } from "lucide-react";
 import {
   bulkDeleteTasks,
@@ -59,6 +60,8 @@ export type BulkTask = {
   id: number;
   title: string;
   whyItMatters: string | null;
+  /** Where to go to do it. See TaskRowData. */
+  toolPath?: string | null;
   priority: string;
   status: string;
   dueDate: Date | null;
@@ -413,6 +416,21 @@ function Row({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+            {task.toolPath && task.status !== "done" && (
+              // Carries the client, so the tool opens already pointed at
+              // the right site rather than asking which one again.
+              <Link
+                href={
+                  task.clientId
+                    ? `${task.toolPath}${task.toolPath.includes("?") ? "&" : "?"}clientId=${task.clientId}`
+                    : task.toolPath
+                }
+                className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary ring-1 ring-inset ring-primary/20 hover:bg-primary/20"
+              >
+                Open the tool
+                <ArrowUpRight className="size-3" />
+              </Link>
+            )}
             {task.clientName && task.clientId && (
               <Link
                 href={`/clients/${task.clientId}`}

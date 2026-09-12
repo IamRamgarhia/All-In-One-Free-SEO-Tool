@@ -47,6 +47,7 @@ export default async function TasksPage({
       id: tasks.id,
       title: tasks.title,
       whyItMatters: tasks.whyItMatters,
+      toolPath: tasks.toolPath,
       priority: tasks.priority,
       status: tasks.status,
       dueDate: tasks.dueDate,

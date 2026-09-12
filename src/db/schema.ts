@@ -175,6 +175,17 @@ export const tasks = sqliteTable("tasks", {
   title: text("title").notNull(),
   description: text("description"),
   whyItMatters: text("why_it_matters"),
+  /**
+   * Where in the app to go and do this.
+   *
+   * The plan generator knows which tool each task needs and was writing
+   * it into the description as the string "Open: /tools/schema" — a
+   * working link rendered as prose, which the reader then had to retype.
+   * Its own column rather than parsed back out, because a description is
+   * free text somebody can edit and a link that breaks when they reword
+   * their own note is worse than no link.
+   */
+  toolPath: text("tool_path"),
   priority: text("priority", { enum: ["high", "medium", "low"] })
     .notNull()
     .default("medium"),

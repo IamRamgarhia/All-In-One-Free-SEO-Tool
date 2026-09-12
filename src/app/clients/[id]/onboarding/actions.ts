@@ -386,7 +386,10 @@ export async function generateMonthlyCalendar(
     (t) => ({
       clientId: c.id,
       title: t.title,
-      description: t.toolPath ? `Open: ${t.toolPath}` : null,
+      // The path goes in its own column now, so the description is free
+      // for something a person wrote rather than a link rendered as text.
+      description: null,
+      toolPath: t.toolPath ?? null,
       whyItMatters: t.whyItMatters,
       priority: t.priority,
       status: "todo",
