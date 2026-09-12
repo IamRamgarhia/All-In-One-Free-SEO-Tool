@@ -2320,3 +2320,94 @@ export const proposals = sqliteTable("proposals", {
     .default(sql`(unixepoch())`),
 });
 export type Proposal = typeof proposals.$inferSelect;
+
+/**
+ * What we know about a client's business, kept between runs.
+ *
+ * Every part of this tool that needs to know what a business sells has
+ * been working it out again from scratch, every time, and getting a
+ * different answer. Keyword discovery reads the site. The title drafter
+ * reads the `description` column. The niche is whatever somebody picked
+ * from a dropdown in ten seconds. On one real client those three
+ * disagreed: the dropdown said local, the site says manufacturer, and
+ * the drafter — seeing only a title tag that reads "Home Page" — wrote
+ * headlines for a mobile game that shares two words with the company.
+ *
+ * Two halves, kept apart on purpose.
+ *
+ *   The `read*` columns are what the site said, machine-read, replaced
+ *   wholesale by the next read.
+ *
+ *   The rest is what a person or an agent concluded, and a read must
+ *   never overwrite it. Somebody who corrects "we are not a retailer"
+ *   should not have that erased by a crawl at 3am, and an agent that
+ *   cannot tell a fact it was told from a fact it inferred will keep
+ *   re-inferring the thing it was corrected on.
+ */
+export const clientContext = sqliteTable("client_context", {
+  clientId: integer("client_id")
+    .primaryKey()
+    .references(() => clients.id, { onDelete: "cascade" }),
+
+  // --- Read off the site. Overwritten by each read. ---
+  /** Homepage `<title>` and meta description, verbatim. */
+  selfDescription: text("self_description"),
+  /** Terms the site uses for what it sells, most corroborated first. */
+  products: text("products", { mode: "json" }).$type<ContextProduct[]>(),
+  pagesRead: integer("pages_read"),
+  urlsRead: text("urls_read", { mode: "json" }).$type<string[]>(),
+  readAt: integer("read_at", { mode: "timestamp" }),
+  /** Why the read produced nothing, when it produced nothing. */
+  readNote: text("read_note"),
+
+  // --- Written by a person or an agent. A read never touches these. ---
+  businessOverview: text("business_overview"),
+  audience: text("audience"),
+  keyPages: text("key_pages", { mode: "json" }).$type<ContextKeyPage[]>(),
+  notes: text("notes"),
+  curatedAt: integer("curated_at", { mode: "timestamp" }),
+  /** Who last wrote the curated half: "app", "agent", or an MCP client. */
+  curatedBy: text("curated_by"),
+
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type ClientContext = typeof clientContext.$inferSelect;
+
+export type ContextProduct = {
+  term: string;
+  /** 0-100. Above 45 means more than one part of the site agreed. */
+  confidence: number;
+  sources: string[];
+};
+
+export type ContextKeyPage = {
+  url: string;
+  /** Why this page matters, in the words of whoever added it. */
+  why?: string;
+};
+
+/**
+ * What has already been looked into, so it is not looked into again.
+ *
+ * Append-only. An agent asked the same question about the same client in
+ * three sessions running will otherwise re-run the same crawl, the same
+ * SERP checks and the same AI calls, and on an install with a spend cap
+ * that is the cap gone on work already done. Reading this first is
+ * cheaper than every tool it saves.
+ */
+export const clientResearchLog = sqliteTable("client_research_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  /** One line: what was looked into and what it concluded. */
+  summary: text("summary").notNull(),
+  /** "app", "agent", or the MCP client's name. */
+  source: text("source"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type ClientResearchLogEntry = typeof clientResearchLog.$inferSelect;

@@ -28,6 +28,12 @@
  */
 
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import {
+  appendResearchLog,
+  getClientContext,
+  updateCuratedContext,
+  type CuratedPatch,
+} from "@/lib/client-knowledge";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -683,4 +689,152 @@ export async function applyProposedFix(opts: {
       undoWith: `revert_agent_action with actionId ${outcome.actionId}`,
     },
   };
+}
+
+// =====================================================================
+// What we know about the business
+// =====================================================================
+
+/**
+ * Everything known about a client's business, and where each part came
+ * from.
+ *
+ * The provenance is not decoration here, it is the whole point. An
+ * assistant handed "manufacturer of adhesive tape" with no source treats
+ * a guess and a stated fact identically, and the guess is the one that
+ * produces a confident wrong title. So the read half and the curated
+ * half arrive as separate objects and stay that way.
+ */
+export async function getClientKnowledge(opts: {
+  clientId: number;
+  researchLimit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const view = await getClientContext(opts.clientId, {
+    researchLimit: Math.min(Math.max(opts.researchLimit ?? 20, 1), 50),
+  });
+
+  return {
+    ok: true,
+    data: {
+      client: { id: client.id, name: client.name, url: client.url, niche: client.niche },
+      confirmedByAPerson: view.curated
+        ? {
+            businessOverview: view.curated.businessOverview,
+            audience: view.curated.audience,
+            keyPages: view.curated.keyPages,
+            notes: view.curated.notes,
+            lastWrittenBy: view.curated.curatedBy,
+            lastWritten: freshness(view.curated.curatedAt),
+          }
+        : null,
+      readFromTheSite: view.site
+        ? {
+            howTheSiteDescribesItself: view.site.selfDescription,
+            // Confidence travels with every term. A term one heading
+            // mentioned once is not the same claim as one the nav, the
+            // title and the Product schema all agree on, and a model
+            // given a bare list cannot tell them apart.
+            products: view.site.products,
+            confidenceScale:
+              "0-100. 45 and above means more than one part of the site agreed; below that it appeared once, in one place.",
+            pagesRead: view.site.pagesRead,
+            lastRead: freshness(view.site.readAt),
+            note: view.site.note,
+          }
+        : null,
+      alreadyLookedInto: view.research.map((r) => ({
+        summary: r.summary,
+        by: r.source,
+        when: freshness(r.createdAt),
+      })),
+      note:
+        !view.curated && !view.site
+          ? "Nothing is known about this business yet. Reading the site happens during keyword discovery; anything you establish yourself, write back with update_client_knowledge so the next session does not work it out again."
+          : undefined,
+    },
+  };
+}
+
+/**
+ * Record what you concluded about the business.
+ *
+ * Writes only the half a person or an agent owns. It cannot reach the
+ * columns a site read fills, and a site read cannot reach these — which
+ * is what keeps a scheduled crawl from quietly erasing a correction
+ * somebody typed.
+ */
+export async function updateClientKnowledge(opts: {
+  clientId: number;
+  businessOverview?: string | null;
+  audience?: string | null;
+  notes?: string | null;
+  keyPages?: { url: string; why?: string }[];
+  by?: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const patch: CuratedPatch = {};
+  // Only fields actually supplied are touched. A caller that knows one
+  // thing should not have to restate the rest, and an omitted field
+  // must never read as "clear this".
+  if ("businessOverview" in opts) patch.businessOverview = trimmed(opts.businessOverview, 2000);
+  if ("audience" in opts) patch.audience = trimmed(opts.audience, 1000);
+  if ("notes" in opts) patch.notes = trimmed(opts.notes, 4000);
+  if (opts.keyPages) {
+    patch.keyPages = opts.keyPages
+      .filter((p) => typeof p.url === "string" && /^https?:\/\//i.test(p.url))
+      .slice(0, 40)
+      .map((p) => ({ url: p.url.trim(), why: trimmed(p.why, 300) ?? undefined }));
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return {
+      ok: false,
+      error:
+        "Nothing to write. Supply at least one of businessOverview, audience, notes or keyPages.",
+    };
+  }
+
+  const view = await updateCuratedContext(opts.clientId, patch, opts.by?.trim() || "mcp");
+  return {
+    ok: true,
+    data: {
+      written: Object.keys(patch),
+      confirmedByAPerson: view.curated,
+      note: "Stored. A site read will not overwrite this.",
+    },
+  };
+}
+
+/** Add a line to what has already been looked into for this client. */
+export async function logClientResearch(opts: {
+  clientId: number;
+  summary: string;
+  by?: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const line = trimmed(opts.summary, 500);
+  if (!line) return { ok: false, error: "The summary is empty." };
+
+  await appendResearchLog(opts.clientId, line, opts.by?.trim() || "mcp");
+  return {
+    ok: true,
+    data: {
+      logged: line,
+      note: "Read this back with get_client_knowledge before repeating work.",
+    },
+  };
+}
+
+/** Null for absent or blank, so a cleared field and an omitted one differ. */
+function trimmed(v: string | null | undefined, max: number): string | null {
+  if (v == null) return null;
+  const s = v.replace(/\s+/g, " ").trim().slice(0, max);
+  return s || null;
 }

@@ -269,6 +269,16 @@ describe("telling the company apart from what it sells", () => {
   it("does not treat the TLD as a brand word", () => {
     const b = brandFilterFor(null, "https://x.co.uk");
     expect(b.distinctive.has("uk")).toBe(false);
+    expect(b.distinctive.has("co")).toBe(false);
+  });
+
+  it("finds the brand in a subdomain rather than the subdomain itself", () => {
+    // A real staging site. Taking only the first label read the brand as
+    // "d", too short to keep, so the real brand was never filtered — and
+    // the site's own title, "d.dicecodes.com", came out as a product.
+    const b = brandFilterFor(null, "https://d.dicecodes.com");
+    expect(b.distinctive.has("dicecodes")).toBe(true);
+    expect(normaliseTerm("d.dicecodes.com", b)).toBeNull();
   });
 });
 

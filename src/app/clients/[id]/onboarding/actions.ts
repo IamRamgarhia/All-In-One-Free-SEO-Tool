@@ -13,6 +13,7 @@ import {
   tasks,
   type Task,
 } from "@/db/schema";
+import { appendResearchLog, ensureSiteRead } from "@/lib/client-knowledge";
 import { discoverKeywords, type DiscoveredKeyword } from "@/lib/auto-keywords";
 import { generateCalendar } from "@/lib/seo-calendar";
 import { getGscQuickWins } from "@/lib/google-data";
@@ -181,6 +182,16 @@ export async function runKeywordDiscovery(
     domain = c.url;
   }
 
+  // Read the site once and keep it. Discovery used to read it, use it,
+  // and throw it away, so every later run paid for the same thirteen
+  // page fetches and the title drafter — which needs exactly this — was
+  // still working from a single meta tag.
+  const { vocab, fromCache } = await ensureSiteRead({
+    clientId: id,
+    url: c.url,
+    brand: c.name,
+  });
+
   const result = await discoverKeywords({
     clientName: c.name,
     domain,
@@ -191,7 +202,20 @@ export async function runKeywordDiscovery(
     businessTypeFromDesc: c.businessType ?? undefined,
     gscProperty: c.gscProperty,
     limit: 60,
+    siteVocabulary: vocab ?? undefined,
+    // Already read, or deliberately not readable. Either way discovery
+    // must not fetch the site a second time inside the same request.
+    readSite: false,
   });
+
+  await appendResearchLog(
+    id,
+    `Keyword discovery: ${result.keywords.length} found from ${result.seedsUsed.length} seeds` +
+      (vocab
+        ? `, site read ${fromCache ? "reused" : "fresh"} (${vocab.pagesRead} pages)`
+        : ", site could not be read"),
+    "app",
+  );
 
   return {
     ok: true,

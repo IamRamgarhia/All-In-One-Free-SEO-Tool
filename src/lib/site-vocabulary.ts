@@ -238,6 +238,18 @@ export type BrandFilter = {
   distinctive: Set<string>;
 };
 
+/**
+ * Host labels that identify nobody.
+ *
+ * Not a complete public-suffix list and does not need to be: the cost of
+ * missing one is a brand word that is also a real product word being
+ * kept, and the cost of a false positive is a genuine brand not being
+ * filtered. Both are survivable; a dependency on a 10,000-entry list
+ * that has to stay current is not.
+ */
+const PUBLIC_SUFFIX =
+  /^(com|net|org|edu|gov|mil|int|io|co|in|uk|us|au|ca|nz|de|fr|es|it|nl|be|se|no|dk|fi|pl|pt|gr|cz|ru|ua|tr|jp|cn|kr|hk|tw|sg|my|th|id|ph|vn|br|mx|ar|cl|za|ng|ke|ae|sa|il|info|biz|dev|app|xyz|online|site|store|tech|shop|blog|cloud|www)$/i;
+
 /** Corporate suffixes that are nobody's distinctive word. */
 const CORPORATE = new Set([
   "the", "and", "group", "ltd", "limited", "inc", "llc", "plc", "co",
@@ -263,11 +275,19 @@ export function brandFilterFor(
 
   try {
     const host = new URL(url).hostname.replace(/^www\./, "");
-    // "prateektapes.com" → "prateektapes". The TLD is not a brand word.
-    const label = host.split(".")[0];
-    if (label.length >= 3) {
-      phrases.push(label);
-      distinctive.add(label);
+    // The whole host, because some sites use it as their page title
+    // verbatim — a staging site titled "d.dicecodes.com" put exactly
+    // that string in the product list.
+    phrases.push(host);
+    // Then every label that is neither a public suffix nor a
+    // one-character subdomain. Taking the first label alone read
+    // "d.dicecodes.com" as the brand word "d", which is too short to
+    // keep, so the real brand was never filtered at all.
+    for (const label of host.split(".")) {
+      if (label.length >= 3 && !PUBLIC_SUFFIX.test(label)) {
+        phrases.push(label);
+        distinctive.add(label);
+      }
     }
   } catch {
     // A malformed URL contributes no brand words, which is correct.

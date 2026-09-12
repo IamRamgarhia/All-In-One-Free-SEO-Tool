@@ -238,3 +238,63 @@ describe("draftValue — alt text", () => {
     expect(prompt.user).toContain("handmade-soap-bars.jpg");
   });
 });
+
+/**
+ * Telling the model what the business is.
+ *
+ * Without it the drafter sees a domain, a URL and the broken title it is
+ * replacing — and when the broken title is "Home Page" that is genuinely
+ * all there is. On a real client it filled the gap from the company name
+ * and proposed "Dice Codes: Free Monopoly GO Dice Links & Codes", a
+ * headline for a mobile game that shares two words with a web agency.
+ * The model was not malfunctioning: nobody had told it anything, and a
+ * model with no facts and a required output produces plausible ones.
+ */
+describe("the business context reaches the model", () => {
+  const titleAction = {
+    kind: "write_title" as const,
+    targetUrl: "https://dicecodes.com/",
+    reason: "The title is 'Home Page', which says nothing.",
+    risk: "safe" as const,
+    currentValue: "Home Page",
+    weight: 10,
+  };
+
+  it("is in the prompt when we know it", async () => {
+    reply("Web design and SEO for small businesses in Punjab");
+    await draftValue(titleAction, {
+      siteName: "Dice Codes",
+      pageUrl: "https://dicecodes.com/",
+      business:
+        "The business (confirmed by the user): web design agency\nWhat the site calls its own products and services: website development, seo services",
+    });
+    const prompt = callAIResult.mock.calls[0]?.[0] as { user: string };
+    expect(prompt.user).toContain("website development");
+    expect(prompt.user).toContain("confirmed by the user");
+  });
+
+  it("leads with the facts and ends with the instruction", async () => {
+    reply("Web design and SEO for small businesses in Punjab");
+    await draftValue(titleAction, {
+      siteName: "Dice Codes",
+      pageUrl: "https://dicecodes.com/",
+      business: "The business (confirmed by the user): web design agency",
+    });
+    const { user } = callAIResult.mock.calls[0]?.[0] as { user: string };
+    expect(user.indexOf("About this business")).toBeLessThan(
+      user.indexOf("Write the replacement title"),
+    );
+  });
+
+  it("sends no heading at all when nothing is known", async () => {
+    // An empty "About this business:" reads to a model as "this is known
+    // to be nothing", which is worse than silence.
+    reply("Web design and SEO for small businesses in Punjab");
+    await draftValue(titleAction, {
+      siteName: "Dice Codes",
+      pageUrl: "https://dicecodes.com/",
+    });
+    const prompt = callAIResult.mock.calls[0]?.[0] as { user: string };
+    expect(prompt.user).not.toContain("About this business");
+  });
+});

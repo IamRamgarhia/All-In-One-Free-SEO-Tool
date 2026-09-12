@@ -118,9 +118,47 @@ export function requiresDraft(kind: string): boolean {
   );
 }
 
+/**
+ * What the drafter knows about the page it is rewriting.
+ *
+ * `business` is the late addition and the important one. Without it a
+ * model rewriting a title sees a domain, a URL and the broken title it
+ * is replacing — and when the broken title is "Home Page", that is
+ * genuinely all there is. On a real client it filled the gap from the
+ * company's name and proposed "Dice Codes: Free Monopoly GO Dice Links
+ * & Codes", a headline for a mobile game that shares two words with a
+ * web agency in Punjab. The model was not malfunctioning; nobody had
+ * told it what the business does, and a model with no facts and a
+ * required output will produce plausible ones.
+ */
+export type DraftContext = {
+  siteName: string;
+  pageUrl: string;
+  pageTitle?: string | null;
+  /**
+   * What the business is, from client-knowledge.ts, already marked up
+   * with where each part came from. Null when nothing is known, in which
+   * case the section is left out of the prompt entirely rather than sent
+   * empty — an empty heading reads to a model as "known to be nothing".
+   */
+  business?: string | null;
+};
+
+/**
+ * The business block, or "" so it adds no blank lines when absent.
+ *
+ * Leads the user message rather than trailing it, so every prompt reads
+ * as facts first and instruction last. Prepended in one place instead of
+ * threaded through each spec's template: four near-identical strings is
+ * how a fifth one gets added later without it.
+ */
+function businessBlock(c: DraftContext): string {
+  return c.business ? `About this business:\n${c.business}\n\n` : "";
+}
+
 export async function draftValue(
   action: PlannedAction,
-  context: { siteName: string; pageTitle?: string | null; pageUrl: string },
+  context: DraftContext,
 ): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
   // robots.txt: the block of directives that must be present.
   //
@@ -262,7 +300,7 @@ export async function draftValue(
 
   const res = await callAIResult({
     system: spec.system,
-    user: spec.user(action, context),
+    user: `${businessBlock(context)}${spec.user(action, context)}`,
     maxTokens: 200,
     feature: "general",
   });
@@ -339,7 +377,7 @@ const DRAFT_SPECS: Record<
   string,
   {
     system: string;
-    user: (a: PlannedAction, c: { siteName: string; pageUrl: string; pageTitle?: string | null }) => string;
+    user: (a: PlannedAction, c: DraftContext) => string;
     validate: (v: string) => string | null;
   }
 > = {

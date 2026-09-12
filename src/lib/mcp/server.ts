@@ -29,7 +29,10 @@ import {
   listAuditIssues,
   listClients,
   listProposedFixes,
+  getClientKnowledge,
+  logClientResearch,
   revertAgentActionById,
+  updateClientKnowledge,
   runAgent,
   type McpToolResult,
 } from "./tools";
@@ -152,6 +155,7 @@ const TOOLS = [
     description:
       "Ask the automated agent to work on a site now: find fixable problems, draft the fixes, and apply what the configured autonomy level permits. It cannot exceed that level from here — at the default 'suggest' setting nothing is written to the live site, and every applied change records an undo. The response states which level was in force and what that meant.",
     inputSchema: clientIdArg,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     handler: (a: { clientId: number }) => runAgent(a.clientId),
   },
   {
@@ -183,6 +187,7 @@ const TOOLS = [
       },
       required: ["fixId", "newValue"],
     },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     handler: (a: { fixId: number; newValue: string }) => applyProposedFix(a),
   },
   {
@@ -196,14 +201,98 @@ const TOOLS = [
       },
       required: ["actionId"],
     },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     handler: (a: { actionId: number }) => revertAgentActionById(a.actionId),
   },
+  {
+    name: "get_client_knowledge",
+    description:
+      "What is known about this business: what it sells, who it sells to, which pages matter, and what has already been looked into. Every part says where it came from — confirmed by a person, or read off the site — because a guess and a stated fact must not be treated alike. Call this before writing any copy or proposing keywords for a client.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number", description: "Which site. Get ids from list_clients." },
+        researchLimit: { type: "number", description: "Log entries to return. Default 20, max 50." },
+      },
+      required: ["clientId"],
+    },
+    annotations: { readOnlyHint: true },
+    handler: (a: { clientId: number; researchLimit?: number }) => getClientKnowledge(a),
+  },
+  {
+    name: "update_client_knowledge",
+    description:
+      "Record what you established about the business, so the next session does not work it out again. Writes only the half a person owns — a scheduled crawl of the site can never overwrite it. Omitted fields are left alone; pass null to clear one. Write what you confirmed, not what you assumed.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        businessOverview: {
+          type: "string",
+          description: "What the business does, in a sentence or two.",
+        },
+        audience: { type: "string", description: "Who it sells to." },
+        notes: { type: "string", description: "Anything else that should not be re-derived." },
+        keyPages: {
+          type: "array",
+          description: "Pages that matter, and why.",
+          items: {
+            type: "object",
+            properties: { url: { type: "string" }, why: { type: "string" } },
+            required: ["url"],
+          },
+        },
+        by: { type: "string", description: "Who is writing this. Defaults to 'mcp'." },
+      },
+      required: ["clientId"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    handler: (a: Parameters<typeof updateClientKnowledge>[0]) => updateClientKnowledge(a),
+  },
+  {
+    name: "log_client_research",
+    description:
+      "Note that something has been looked into, in one line, with what it concluded. Read back by get_client_knowledge. Three sessions asking the same question about the same client will otherwise re-run the same crawl and the same AI calls, and on an install with a spend cap that is the cap gone on work already done.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        summary: {
+          type: "string",
+          description: "What was looked into and what it concluded. One line.",
+        },
+        by: { type: "string", description: "Who looked. Defaults to 'mcp'." },
+      },
+      required: ["clientId", "summary"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+    handler: (a: { clientId: number; summary: string; by?: string }) =>
+      logClientResearch(a),
+  },
 ];
+
+/**
+ * What each tool does to the world, for clients that gate on it.
+ *
+ * Everything here reads unless it says otherwise. Three tools do not:
+ * `run_agent` and `apply_fix` change a live website, and
+ * `revert_agent_action` changes it back. An assistant deciding whether
+ * to ask permission has no way to tell those from a lookup unless we say
+ * so, and "rewrote the homepage title without asking" is not a mistake
+ * worth finding out about afterwards.
+ *
+ * `destructiveHint` is true only where the change overwrites something
+ * that was there. An undo is recorded for every one of them, which makes
+ * them reversible, not harmless.
+ */
+const DEFAULT_ANNOTATIONS = { readOnlyHint: true } as const;
+
 /** Tool names and schemas, without the handlers. */
 export const MCP_TOOL_LIST = TOOLS.map((t) => ({
   name: t.name,
   description: t.description,
   inputSchema: t.inputSchema,
+  annotations: t.annotations ?? DEFAULT_ANNOTATIONS,
 }));
 
 /**
