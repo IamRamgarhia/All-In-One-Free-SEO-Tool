@@ -153,7 +153,14 @@ export async function saveSurfacesStep(
 // =============== Auto keyword discovery ===============
 
 export type DiscoverState =
-  | { ok: true; keywords: DiscoveredKeyword[]; gscRowsUsed: number; seedsUsed: string[] }
+  | {
+      ok: true;
+      keywords: DiscoveredKeyword[];
+      gscRowsUsed: number;
+      seedsUsed: string[];
+      /** What reading the site produced, so the user can see it happened. */
+      siteRead: { pagesRead: number; termsFound: number; seeds: string[]; note?: string };
+    }
   | { ok: false; error: string };
 
 export async function runKeywordDiscovery(
@@ -191,6 +198,7 @@ export async function runKeywordDiscovery(
     keywords: result.keywords,
     gscRowsUsed: result.gscRowsUsed,
     seedsUsed: result.seedsUsed,
+    siteRead: result.siteRead,
   };
 }
 

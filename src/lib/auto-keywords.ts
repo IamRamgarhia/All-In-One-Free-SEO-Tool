@@ -2,15 +2,26 @@
  * Auto keyword discovery for a client. Combines every free signal we
  * have access to:
  *
- *   1. **GSC** — if connected, real top queries the site already ranks for
+ *   1. **The site itself** — the navigation, page titles, h1s and any
+ *      Product schema across the main pages. This runs first and its
+ *      seeds go first, because it is the only source that is the
+ *      business's own words for the things it sells.
+ *   2. **GSC** — if connected, real top queries the site already ranks for
  *      (positions 1-30, last 28 days). Highest signal possible.
- *   2. **Brand-derived seeds** — extracted from the site description /
- *      meta tags / niche tag. These become the autocomplete fan-out seeds.
- *   3. **AI seed expansion** — if an AI provider is configured, the LLM
- *      proposes 8-15 more seed phrases informed by the brand description.
- *   4. **Google autocomplete fan-out** — for every seed, alphabet + LSI
+ *   3. **Brand-derived seeds** — from the description and niche tag, for
+ *      sites the reader could not get anything out of.
+ *   4. **AI seed expansion** — if an AI provider is configured, the LLM
+ *      proposes more seed phrases, shown the site's own vocabulary so it
+ *      extends the range rather than inventing one.
+ *   5. **Google autocomplete fan-out** — for every seed, alphabet + LSI
  *      modifier expansion (the same engine the keyword research page uses).
- *   5. **Wikipedia + Reddit** — entity / discussion phrase mining.
+ *
+ * Order matters and it changed for a reason. Discovery used to start at
+ * step 3, seeding itself from `<meta name="description">` and nothing
+ * else. On a client whose description happened to list its whole range
+ * that produced excellent keywords, which hid the mechanism; a vague
+ * description produced "welcome website near me" and a missing one
+ * produced nothing at all.
  *
  * Output: ranked, deduped keyword list with intent + recommended priority,
  * scored on a simple model (longer-tail + commercial intent + local
@@ -21,6 +32,12 @@ import { researchKeywords, type KeywordSuggestion } from "./keyword-research";
 import { getGscTopQueries } from "./google-data";
 import { callAI } from "./ai-call";
 import { expandProductList, looksB2B } from "./product-list";
+import {
+  readSiteVocabulary,
+  vocabularySeeds,
+  type SiteVocabulary,
+  SEED_CONFIDENCE_FLOOR,
+} from "./site-vocabulary";
 
 export type AutoKeywordSource =
   | "gsc"
@@ -55,6 +72,14 @@ export type DiscoveryInput = {
   gscProperty?: string | null;
   /** Maximum total keywords to return. */
   limit?: number;
+  /**
+   * An already-read vocabulary. Supplied by callers that read the site
+   * for their own reasons (onboarding, the audit) so it is not fetched
+   * twice, and by tests so this is runnable without a network.
+   */
+  siteVocabulary?: SiteVocabulary;
+  /** Set false to skip reading the site. Default is to read it. */
+  readSite?: boolean;
 };
 
 export async function discoverKeywords(
@@ -63,9 +88,37 @@ export async function discoverKeywords(
   keywords: DiscoveredKeyword[];
   seedsUsed: string[];
   gscRowsUsed: number;
+  /** What reading the site produced, for provenance in the UI. */
+  siteRead: {
+    pagesRead: number;
+    termsFound: number;
+    seeds: string[];
+    note?: string;
+  };
 }> {
   const limit = input.limit ?? 80;
   const seenQueries = new Map<string, DiscoveredKeyword>();
+
+  // 0. Read the site.
+  //
+  // First, and its seeds go first, because the navigation and page
+  // titles are the business naming its own products. Everything below
+  // is a weaker proxy for that, and the tag this used to rely on is the
+  // weakest of them.
+  let vocab = input.siteVocabulary ?? null;
+  if (!vocab && input.readSite !== false) {
+    try {
+      vocab = await readSiteVocabulary(input.domain, {
+        brand: input.clientName,
+      });
+    } catch {
+      // An unreadable site is a fallback, not a failure. The seeds
+      // below still run.
+      vocab = null;
+    }
+  }
+  const siteSeeds = vocab ? vocabularySeeds(vocab, { limit: 8 }) : [];
+  const enriched: DiscoveryInput = { ...input, siteVocabulary: vocab ?? undefined };
 
   // 1. GSC seed (if connected)
   let gscRowsUsed = 0;
@@ -95,10 +148,10 @@ export async function discoverKeywords(
   }
 
   // 2. AI seed expansion
-  const aiSeeds = await aiSeedKeywords(input);
+  const aiSeeds = await aiSeedKeywords(enriched);
 
   // 3. Brand seeds — derived from niche + description + (optionally) city
-  const baseSeeds = brandSeeds(input);
+  const baseSeeds = brandSeeds(enriched);
 
   // The brand name is deliberately NOT a seed.
   //
@@ -117,6 +170,9 @@ export async function discoverKeywords(
   const allSeeds = Array.from(
     new Set(
       [
+        // The site's own words first, so the cap below can never drop
+        // them in favour of something inferred from a meta tag.
+        ...siteSeeds,
         ...baseSeeds,
         ...aiSeeds,
       ]
@@ -199,6 +255,12 @@ export async function discoverKeywords(
     keywords,
     seedsUsed: allSeeds,
     gscRowsUsed,
+    siteRead: {
+      pagesRead: vocab?.pagesRead ?? 0,
+      termsFound: vocab?.terms.length ?? 0,
+      seeds: siteSeeds,
+      note: vocab?.note ?? (vocab ? undefined : "the site was not read"),
+    },
   };
 }
 
@@ -251,6 +313,17 @@ const ACTION_WORDS = new Set([
  * about what the company does is not a phrase anyone types.
  */
 export function servicePhrases(input: DiscoveryInput): string[] {
+  // What the site itself calls its products, when it was readable.
+  //
+  // Ahead of everything below because it is the only source that is not
+  // an inference. A nav label is a name the owner typed for a thing they
+  // sell; every line after this one is an attempt to recover that from
+  // prose, and each of them has been wrong on a real client.
+  const fromSite = input.siteVocabulary
+    ? vocabularySeeds(input.siteVocabulary, { limit: 6 })
+    : [];
+  if (fromSite.length > 0) return fromSite;
+
   const desc = (input.description ?? "").trim();
   if (!desc) return [];
 
@@ -286,6 +359,34 @@ export function servicePhrases(input: DiscoveryInput): string[] {
   return out.slice(0, 5);
 }
 
+/**
+ * Everything the business says about itself, in one string.
+ *
+ * The description plus every term read off its pages. Used for the
+ * questions that are about the business rather than about one phrase —
+ * is this trade or retail — where more of its own words is strictly
+ * better evidence than one tag.
+ */
+export function businessVoice(input: DiscoveryInput): string {
+  // Corroborated terms only. A bakery with "Bulk orders" in its nav and
+  // nowhere else would otherwise read as a trade supplier and lose
+  // "near me" from every seed — a false positive that costs a local
+  // business the searches its customers actually type.
+  const corroborated = (input.siteVocabulary?.terms ?? [])
+    .filter((t) => t.confidence >= SEED_CONFIDENCE_FLOOR)
+    .map((t) => t.term);
+  return [
+    input.description ?? "",
+    // The homepage title, which is where a trade supplier says so. This
+    // client's reads "Prateek Tapes — Adhesive Tape Manufacturer India
+    // Since 1987" and is the only place on the site that says it.
+    input.siteVocabulary?.selfDescription ?? "",
+    ...corroborated,
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
+
 export function brandSeeds(input: DiscoveryInput): string[] {
   const seeds: string[] = [];
   // Strip stop-suffixes from the brand for a cleaner seed
@@ -305,7 +406,12 @@ export function brandSeeds(input: DiscoveryInput): string[] {
     // Nobody sourcing industrial tape types that; they type a city, a
     // country, or neither. The description decides, not the tag, because
     // the tag is one dropdown somebody picked in ten seconds.
-    const b2b = looksB2B(input.description);
+    // Decided on everything the site said about itself, not on the
+    // description alone. Plenty of manufacturers have a description that
+    // never uses the word — but their nav says "Wholesale enquiry" and
+    // their title says "…Manufacturer & Exporter", and getting this
+    // wrong appends "near me" to every seed a trade supplier has.
+    const b2b = looksB2B(businessVoice(input));
     const nicheTerms: Record<string, string[]> = {
       local: b2b
         ? ["manufacturer", "supplier", "wholesale"]
@@ -406,22 +512,36 @@ function scoreKeyword(opts: {
   };
 }
 
-const AI_SEED_SYSTEM = `You are a senior SEO. Given a website's name, domain, niche, and a short description, propose 8-12 SEED keyword phrases that the site should target.
+const AI_SEED_SYSTEM = `You are a senior SEO. Given a website's name, domain, niche, a short description, and the words the site itself uses for what it sells, propose 8-12 SEED keyword phrases that the site should target.
 
 Rules:
 - 1-4 words each
 - Mix of generic (1-2 word) and specific (3-4 word)
 - Reflect what real customers search for, not what the company calls itself internally
 - Avoid the brand name itself (those are navigational)
+- Stay inside the business the site's own words describe. If those words say the company manufactures industrial tape, do not propose retail or hobby searches. Extend the range; do not invent a different one.
+- If you cannot tell what the business sells, output nothing rather than guessing.
 - One phrase per line. No numbering, no bullets, no quotes.
 - Lowercase.`;
 
 async function aiSeedKeywords(input: DiscoveryInput): Promise<string[]> {
+  // The site's own vocabulary, given to the model as the thing to stay
+  // inside. Without it the model has a name and a domain and fills the
+  // gap: on a client whose title tag read "Home Page" it proposed
+  // keywords for a mobile game that shares two words with the company.
+  const ownWords = (input.siteVocabulary?.terms ?? [])
+    .filter((t) => t.confidence >= SEED_CONFIDENCE_FLOOR)
+    .slice(0, 20)
+    .map((t) => t.term);
+
   const userPrompt = [
     `Site: ${input.clientName}`,
     `Domain: ${input.domain}`,
     input.niche ? `Niche: ${input.niche}` : "",
     input.description ? `Description: ${input.description.slice(0, 300)}` : "",
+    ownWords.length > 0
+      ? `What the site calls its own products and services: ${ownWords.join(", ")}`
+      : "",
     input.city ? `City: ${input.city}` : "",
     "",
     "Output 8-12 seed keyword phrases. Lowercase, one per line, no numbering.",

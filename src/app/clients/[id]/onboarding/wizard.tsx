@@ -295,8 +295,25 @@ function KeywordsStep({
             {state.gscRowsUsed > 0 && (
               <span>· {state.gscRowsUsed} from real GSC data</span>
             )}
+            {/* Where the words came from. The old version read one meta
+                tag and said nothing about it, so a client whose tag was
+                vague got bad keywords with no way to tell why. */}
+            {state.siteRead.pagesRead > 0 && (
+              <span>
+                · read {state.siteRead.pagesRead}{" "}
+                {state.siteRead.pagesRead === 1 ? "page" : "pages"} of the site
+              </span>
+            )}
             <span>· {state.seedsUsed.length} seeds used</span>
           </div>
+
+          {state.siteRead.note && (
+            <p className="text-xs text-amber-300/80">
+              We could not read the site&rsquo;s own words for what it sells:{" "}
+              {state.siteRead.note}. These keywords come from the description
+              and niche instead, so check them carefully before tracking any.
+            </p>
+          )}
 
           <div className="grid max-h-[420px] gap-1.5 overflow-y-auto pr-2 sm:grid-cols-2">
             {all.map((k) => {
