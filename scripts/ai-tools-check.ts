@@ -258,12 +258,46 @@ function verdict(r: unknown): { ok: boolean; note: string } {
   return { ok: true, note: JSON.stringify(r).slice(0, 90) };
 }
 
+/**
+ * Watch what the provider layer logs, so a quota refusal is not counted
+ * as a broken tool.
+ *
+ * Without this the harness lied in exactly the way the tools it tests
+ * used to: a 429 and a genuine bug both printed FAIL, so the summary
+ * said "12 failed" when the honest answer was "the free tier ran out
+ * after seven". Two runs of identical code gave two different verdicts,
+ * which makes the whole report worthless.
+ *
+ * lastAiFailure() would be the direct way to ask, but it is scoped with
+ * React's cache() and returns null outside a request, which a script is.
+ * The provider already logs the status, so this reads that.
+ */
+function watchProviderErrors(): { blocked: () => boolean; reset: () => void } {
+  const real = console.error;
+  let sawLimit = false;
+  console.error = (...args: unknown[]) => {
+    const line = args.map(String).join(" ");
+    if (/\b429\b|exceeded your current quota|rate.?limit/i.test(line)) {
+      sawLimit = true;
+    }
+    real(...args);
+  };
+  return {
+    blocked: () => sawLimit,
+    reset: () => {
+      sawLimit = false;
+    },
+  };
+}
+
 async function main() {
   const only = process.argv.slice(2);
   const list = cases().filter((c) => only.length === 0 || only.includes(c.id));
+  const watch = watchProviderErrors();
   let pass = 0;
   let fail = 0;
   let skipped = 0;
+  let blocked = 0;
 
   for (const c of list) {
     if (c.skip) {
@@ -272,25 +306,39 @@ async function main() {
       continue;
     }
     const started = Date.now();
+    watch.reset();
     try {
       const r = await c.run();
       const v = verdict(r);
       const secs = ((Date.now() - started) / 1000).toFixed(1);
-      console.log(
-        `${v.ok ? "ok  " : "FAIL"}  ${c.id.padEnd(24)} ${secs}s  ${v.note}`,
-      );
-      if (v.ok) pass++;
-      else fail++;
+      if (!v.ok && watch.blocked()) {
+        // Says nothing about the tool either way.
+        console.log(
+          `limit ${c.id.padEnd(24)} ${secs}s  provider refused on quota — not a verdict`,
+        );
+        blocked++;
+      } else {
+        console.log(
+          `${v.ok ? "ok  " : "FAIL"}  ${c.id.padEnd(24)} ${secs}s  ${v.note}`,
+        );
+        if (v.ok) pass++;
+        else fail++;
+      }
     } catch (err) {
       console.log(`THREW ${c.id.padEnd(24)} ${(err as Error).message.slice(0, 90)}`);
       fail++;
     }
-    // Gemini's free tier is rate limited per minute. Pacing beats
-    // reporting a quota refusal as a broken tool.
-    await sleep(1500);
+    // Free Gemini allows a handful of requests a minute. The old 1.5s
+    // was not pacing, it was a queue into the rate limiter.
+    await sleep(Number(process.env.AI_CHECK_DELAY_MS ?? 8000));
   }
 
-  console.log(`\n${pass} ok, ${fail} failed, ${skipped} skipped`);
+  console.log(
+    `\n${pass} ok, ${fail} failed, ${blocked} blocked by quota, ${skipped} skipped`,
+  );
+  if (blocked > 0) {
+    console.log("Blocked ones were not tested. Re-run them when quota resets.");
+  }
 }
 
 main().then(() => process.exit(0));

@@ -83,8 +83,8 @@ export const MODEL_PRESETS: Record<ActiveProvider, ModelPreset[]> = {
       outputPer1M: 2.5,
     },
     {
-      id: "gemini-2.5-flash-lite",
-      label: "Gemini 2.5 Flash Lite",
+      id: "gemini-flash-lite-latest",
+      label: "Gemini Flash Lite (latest)",
       hint: "Cheapest · separate free quota",
       inputPer1M: 0.1,
       outputPer1M: 0.4,
