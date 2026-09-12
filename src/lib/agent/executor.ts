@@ -360,6 +360,35 @@ Rules:
       return null;
     },
   },
+  /**
+   * The share title. One field, deliberately.
+   *
+   * A social card wants a headline that reads well out of context, on a
+   * phone, next to an image — which is a different job from a search
+   * title, where the same words compete against nine other blue links.
+   * Drafting only og:title and letting the description and image fall
+   * back to the page's own is the smaller, safer change: Open Graph
+   * inherits sensibly, and inventing an image URL is how you get a
+   * broken card instead of no card.
+   */
+  write_social_meta: {
+    system: `You write the Open Graph title for a web page — the headline someone sees when the page is shared on Facebook, LinkedIn, WhatsApp or X. Output ONLY the title, no quotes and no explanation.
+
+Rules:
+- Between 20 and 70 characters. Longer gets cut off in the card.
+- It is read on its own, with no surrounding page, so it must make sense cold.
+- Say what the page actually is. Do not invent offers, prices, statistics or locations you were not given.
+- No clickbait, no ALL CAPS, no "You won't believe".
+- Plainer than a search title. This is a sentence a person reads, not a keyword slot.`,
+    user: (a, c) =>
+      `Site: ${c.siteName}\nPage: ${c.pageUrl}\nPage title: ${c.pageTitle ?? "(unknown)"}\nProblem: ${a.reason}\n\nWrite the Open Graph title.`,
+    validate: (v) => {
+      if (v.length > 70)
+        return `The share title is ${v.length} characters and gets cut off past 70.`;
+      if (v.length < 15) return "The share title is too short to say anything.";
+      return null;
+    },
+  },
   write_image_alt: {
     system: `You write alt text for images. Output ONLY the alt text — no quotes, no explanation, no "image of".
 
@@ -1201,6 +1230,17 @@ function readField(
   // markup first, or the agent would silently destroy hand-written
   // structured data with no way back.
   if (kind === "write_schema") return "";
+  // Social meta: empty string, for the same reason as schema and with the
+  // same limit. The only findings that trigger this are missing_og_tags
+  // and missing_twitter_card — the page has no such tag by definition, so
+  // the previous state is "" and the undo is to write "" back, which the
+  // plugin turns into deleting the keys rather than storing a blank
+  // override.
+  //
+  // If a "wrong og:title" finding is ever added, this must read the real
+  // value first. Writing "" back would delete a tag somebody wrote by
+  // hand, and report success doing it.
+  if (kind === "write_social_meta") return "";
   return null;
 }
 
@@ -1240,6 +1280,18 @@ async function writeField(
     return setPostSeo(creds, postId, { canonical: value });
   if (kind === "write_robots_meta")
     return setPostSeo(creds, postId, { robots: value });
+  // og:title only, and twitter:title set to match.
+  //
+  // The plugin accepts six social fields; the agent writes the two that
+  // can be drafted from the page itself. A description would duplicate
+  // the meta description it already manages, and an image URL would have
+  // to be invented — which produces a broken share card rather than the
+  // plain one the page has now.
+  if (kind === "write_social_meta")
+    return setPostSeo(creds, postId, {
+      ogTitle: value,
+      twitterTitle: value,
+    });
   // Alt text never reaches here — it has its own branch in executeAction
   // and in revertAction, because it targets an attachment rather than a
   // post and postId would be the wrong id entirely.

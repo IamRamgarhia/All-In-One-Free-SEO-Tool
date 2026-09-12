@@ -3,7 +3,7 @@
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/SEO-Tool
  * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, internal links, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.5.2
+ * Version: 0.6.0
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -582,6 +582,7 @@ function stb_rest_ping(): WP_REST_Response
             'redirects' => true,
             'canonical' => true,
             'robots' => true,
+            'social_meta' => true,
             'robots_txt' => true,
             'hardening' => true,
         ],
@@ -622,6 +623,58 @@ function stb_set_meta_description(int $post_id, string $value): void
  * tag, and we cannot know which, so we read the first that has a value
  * and write all of them.
  */
+/**
+ * Open Graph and Twitter fields, across the three SEO plugins.
+ *
+ * Same shape as stb_get_canonical: read whichever plugin has a value,
+ * write to all of them so the answer sticks regardless of which is
+ * active — and regardless of which one the site switches to later.
+ *
+ * These back two findings the crawler has reported since it was written
+ * and nothing could ever fix: missing_og_tags and missing_twitter_card.
+ * A page with no og:title is one a social platform renders from whatever
+ * text it scrapes, which is usually the navigation.
+ */
+function stb_social_meta_keys(string $field): array
+{
+    $map = [
+        'og_title' => ['_yoast_wpseo_opengraph-title', 'rank_math_facebook_title', '_aioseo_og_title'],
+        'og_description' => ['_yoast_wpseo_opengraph-description', 'rank_math_facebook_description', '_aioseo_og_description'],
+        'og_image' => ['_yoast_wpseo_opengraph-image', 'rank_math_facebook_image', '_aioseo_og_image_custom_url'],
+        'twitter_title' => ['_yoast_wpseo_twitter-title', 'rank_math_twitter_title', '_aioseo_twitter_title'],
+        'twitter_description' => ['_yoast_wpseo_twitter-description', 'rank_math_twitter_description', '_aioseo_twitter_description'],
+        'twitter_image' => ['_yoast_wpseo_twitter-image', 'rank_math_twitter_image', '_aioseo_twitter_image_custom_url'],
+    ];
+    return $map[$field] ?? [];
+}
+
+function stb_get_social_meta(int $post_id, string $field): string
+{
+    foreach (stb_social_meta_keys($field) as $key) {
+        $val = get_post_meta($post_id, $key, true);
+        if (!empty($val)) {
+            return (string)$val;
+        }
+    }
+    return '';
+}
+
+function stb_set_social_meta(int $post_id, string $field, string $value): void
+{
+    foreach (stb_social_meta_keys($field) as $key) {
+        if ($value === '') {
+            // Empty means "no value of ours here", so the keys are
+            // deleted rather than written blank. Writing '' leaves the
+            // SEO plugin treating it as a deliberate empty override,
+            // which is a different thing from unset — the same trap the
+            // robots directive fell into.
+            delete_post_meta($post_id, $key);
+        } else {
+            update_post_meta($post_id, $key, $value);
+        }
+    }
+}
+
 function stb_get_canonical(int $post_id): string
 {
     $candidates = [
@@ -805,6 +858,82 @@ function stb_rest_update_post_seo(WP_REST_Request $req): WP_REST_Response
             stb_set_canonical($id, $new);
             $rev_id = stb_record_revision('canonical', "post:$id", $old, $new);
             $changes[] = ['field' => 'canonical', 'rev_id' => $rev_id];
+        }
+    }
+
+    // Open Graph and Twitter, written out one branch per field.
+    //
+    // A foreach over a list of field names was shorter and is not worth
+    // it: plugin-contract.test.ts verifies this wire contract by finding
+    // each isset on the request body literally, and a loop is invisible
+    // to it.
+    // That check is the only thing standing between a renamed field and
+    // a write that reports success while changing nothing, which has
+    // already happened here twice.
+
+    if (isset($body['og_title'])) {
+        $new = sanitize_text_field($body['og_title']);
+        $old = stb_get_social_meta($id, 'og_title');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'og_title', $new);
+            $rev_id = stb_record_revision('og_title', "post:$id", $old, $new);
+            $changes[] = ['field' => 'og_title', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['og_description'])) {
+        $new = sanitize_text_field($body['og_description']);
+        $old = stb_get_social_meta($id, 'og_description');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'og_description', $new);
+            $rev_id = stb_record_revision('og_description', "post:$id", $old, $new);
+            $changes[] = ['field' => 'og_description', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['og_image'])) {
+        // esc_url_raw, not sanitize_text_field: an og:image that is not a
+        // URL renders as a broken share card rather than no card, which
+        // is the worse of the two outcomes.
+        $new = esc_url_raw(trim((string)$body['og_image']));
+        $old = stb_get_social_meta($id, 'og_image');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'og_image', $new);
+            $rev_id = stb_record_revision('og_image', "post:$id", $old, $new);
+            $changes[] = ['field' => 'og_image', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['twitter_title'])) {
+        $new = sanitize_text_field($body['twitter_title']);
+        $old = stb_get_social_meta($id, 'twitter_title');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'twitter_title', $new);
+            $rev_id = stb_record_revision('twitter_title', "post:$id", $old, $new);
+            $changes[] = ['field' => 'twitter_title', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['twitter_description'])) {
+        $new = sanitize_text_field($body['twitter_description']);
+        $old = stb_get_social_meta($id, 'twitter_description');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'twitter_description', $new);
+            $rev_id = stb_record_revision('twitter_description', "post:$id", $old, $new);
+            $changes[] = ['field' => 'twitter_description', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['twitter_image'])) {
+        // esc_url_raw, not sanitize_text_field: an og:image that is not a
+        // URL renders as a broken share card rather than no card, which
+        // is the worse of the two outcomes.
+        $new = esc_url_raw(trim((string)$body['twitter_image']));
+        $old = stb_get_social_meta($id, 'twitter_image');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'twitter_image', $new);
+            $rev_id = stb_record_revision('twitter_image', "post:$id", $old, $new);
+            $changes[] = ['field' => 'twitter_image', 'rev_id' => $rev_id];
         }
     }
 

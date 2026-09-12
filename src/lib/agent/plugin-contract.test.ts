@@ -99,7 +99,21 @@ describe("the client and the plugin agree on what can be written", () => {
     // instead of `meta_description` is a bug that already shipped: the
     // isset() was false, nothing changed, and the response still said ok.
     const handled = handledSeoFields();
-    for (const field of ["title", "meta_description", "canonical", "robots"]) {
+    for (const field of [
+      "title",
+      "meta_description",
+      "canonical",
+      "robots",
+      // Advertised as social_meta in the capability map. A flag that is
+      // true while the handler ignores the field is the exact bug this
+      // file was written for — canonical and robots shipped that way.
+      "og_title",
+      "og_description",
+      "og_image",
+      "twitter_title",
+      "twitter_description",
+      "twitter_image",
+    ]) {
       expect(
         handled.has(field),
         `The client can send "${field}" but the plugin's handler never ` +
@@ -200,6 +214,11 @@ describe("what the plugin says it can do matches what it registered", () => {
     meta_descriptions: "stb_rest_update_post_seo",
     canonical: "stb_rest_update_post_seo",
     robots: "stb_rest_update_post_seo",
+    // Open Graph and Twitter ride the same endpoint as the rest of the
+    // per-post metadata, so they need no route of their own — but they
+    // do need the handler to actually read the fields, which the test
+    // below checks by name.
+    social_meta: "stb_rest_update_post_seo",
     image_alt: "stb_rest_update_alt",
     schema: "stb_rest_set_schema",
     internal_links: "stb_rest_insert_links",

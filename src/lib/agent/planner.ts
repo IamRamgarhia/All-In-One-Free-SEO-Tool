@@ -109,6 +109,7 @@ export type PlannableKind =
   | "write_image_alt"
   | "write_schema"
   | "write_internal_links"
+  | "write_social_meta"
   // Per-page metadata, plugin 0.5.0 and up.
   | "write_canonical"
   | "write_robots_meta"
@@ -309,6 +310,34 @@ const FIXABLE: Record<
   // Site-wide, so needs_review without exception. One wrong Disallow line
   // takes a whole site out of Google, and unlike a page edit there is no
   // partial blast radius to limit it.
+
+  // ---- Social previews ------------------------------------------------
+  //
+  // Both are `safe`: the page has no Open Graph or Twitter tags at all,
+  // so there is nothing to overwrite and no judgement about whether the
+  // existing wording was better. Adding an absent tag cannot be worse
+  // than the platform scraping the navigation for a title, which is what
+  // it does now.
+  //
+  // Deliberately low weight. A share card nobody has shared yet is worth
+  // less than a title Google is already showing, and this list is
+  // ordered by what changes most per minute spent.
+  missing_og_tags: {
+    kind: "write_social_meta",
+    capability: "write_social_meta",
+    weight: 30,
+    risk: "safe",
+    reason:
+      "This page has no Open Graph tags, so anyone sharing it gets whatever text the platform scrapes — usually the navigation menu rather than the page.",
+  },
+  missing_twitter_card: {
+    kind: "write_social_meta",
+    capability: "write_social_meta",
+    weight: 20,
+    risk: "safe",
+    reason:
+      "No Twitter card tags. X falls back to Open Graph, so this is the smaller half of the same job — worth doing while the page is open.",
+  },
 
   missing_robots_txt: {
     kind: "write_robots_txt",

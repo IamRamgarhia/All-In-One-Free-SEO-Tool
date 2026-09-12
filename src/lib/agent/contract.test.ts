@@ -55,6 +55,12 @@ const EXECUTABLE = new Set([
   // per-page check, because the problem is the absence of a link on a
   // different page. planInternalLinks in planner.ts produces these.
   "write_internal_links",
+  // Plugin 0.6.0 added the six Open Graph / Twitter fields to
+  // POST /post/{id}/seo. The agent writes two of them — og:title and
+  // twitter:title — because those are the only ones it can draft from
+  // the page itself. A description would duplicate the meta description
+  // it already manages, and an image URL would have to be invented.
+  "write_social_meta",
   // Plugin 0.5.0 wired both into POST /post/{id}/seo, and
   // GET returns them so a write can be verified and undone. Before that
   // the handler read neither and answered ok to a write that changed

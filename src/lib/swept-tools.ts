@@ -25,6 +25,7 @@ export const SWEPT_TOOL_IDS = [
   "wp-hack-scan",
   "cannibalization",
   "traffic-drop",
+  "facet-trap",
   // Weekly rather than nightly — both crawl to answer. See the cadence
   // note in tool-sweep.ts.
   "canonical-audit",

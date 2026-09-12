@@ -223,6 +223,20 @@ export async function setPostSeo(
     metaDescription: string;
     canonical: string;
     robots: string;
+    /**
+     * Open Graph and Twitter card fields, added in plugin 0.6.0.
+     *
+     * These back missing_og_tags and missing_twitter_card, two findings
+     * the crawler has reported since it was written and nothing could
+     * act on. A page with no og:title is one a social platform renders
+     * from whatever text it scrapes, which is usually the navigation.
+     */
+    ogTitle: string;
+    ogDescription: string;
+    ogImage: string;
+    twitterTitle: string;
+    twitterDescription: string;
+    twitterImage: string;
   }>,
 ): Promise<{
   ok: boolean;
@@ -264,6 +278,21 @@ export async function setPostSeo(
   // never quietly go back to being a lie.
   if (patch.canonical !== undefined) body.canonical = patch.canonical;
   if (patch.robots !== undefined) body.robots = patch.robots;
+
+  // snake_case on the wire, like every other field here. The one time
+  // this boundary was crossed in camelCase the plugin's isset() was
+  // false, nothing changed, and the response still said ok — which is
+  // why the mapping is explicit rather than a loop over the object.
+  if (patch.ogTitle !== undefined) body.og_title = patch.ogTitle;
+  if (patch.ogDescription !== undefined) {
+    body.og_description = patch.ogDescription;
+  }
+  if (patch.ogImage !== undefined) body.og_image = patch.ogImage;
+  if (patch.twitterTitle !== undefined) body.twitter_title = patch.twitterTitle;
+  if (patch.twitterDescription !== undefined) {
+    body.twitter_description = patch.twitterDescription;
+  }
+  if (patch.twitterImage !== undefined) body.twitter_image = patch.twitterImage;
 
   if (Object.keys(body).length === 0) {
     return { ok: false, error: "Nothing to write." };

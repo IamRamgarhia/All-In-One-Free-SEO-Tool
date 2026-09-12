@@ -31,6 +31,7 @@ export type CapabilityId =
   | "write_robots_txt"
   | "write_redirects"
   | "write_hardening"
+  | "write_social_meta"
   | "read_gsc"
   | "generate_text";
 
@@ -171,6 +172,17 @@ export async function detectCapabilities(
     { id: "write_redirects", needs: "redirects" },
     { id: "write_hardening", needs: "WordPress hardening settings" },
   ];
+
+  // Open Graph and Twitter, added in plugin 0.6.0. Gated separately
+  // from the 0.5.0 group above so a site on 0.5.x keeps everything it
+  // already had and is told only that this one needs an update.
+  set(
+    "write_social_meta",
+    wpOk && hasPluginVersion(wpVersion, "0.6.0"),
+    wpOk
+      ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Writing Open Graph and Twitter tags needs 0.6.0 or newer. Update the plugin.`
+      : wpError,
+  );
   for (const { id, needs } of NEW_WRITES) {
     set(
       id,

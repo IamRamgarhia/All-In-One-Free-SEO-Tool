@@ -188,6 +188,23 @@ function checks(): SweepCheck[] {
       },
     },
     {
+      toolId: "facet-trap",
+      label: "Faceted URLs eating crawl budget",
+      // Cheap and keyless: it reads the page and looks for the parameter
+      // patterns that generate infinite URL space. Worth nightly because
+      // the damage compounds — every day a filter combination stays
+      // crawlable is another day of budget spent on pages nobody wants
+      // indexed, and nothing about it is visible from the front end.
+      run: async (c) => {
+        const form = new FormData();
+        form.set("url", c.url);
+        return (await import("@/app/tools/facet-trap/actions")).runFacetTrap(
+          null,
+          form,
+        );
+      },
+    },
+    {
       toolId: "canonical-audit",
       label: "Canonical tags across the site",
       // Weekly, because it crawls. A canonical chain is invisible from
