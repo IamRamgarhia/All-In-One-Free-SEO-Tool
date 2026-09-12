@@ -178,10 +178,27 @@ export default async function ClientDetailPage({
     .orderBy(desc(audits.createdAt))
     .limit(5);
 
+  // The crawl, specifically.
+  //
+  // The AI site audit writes into this same table with its own checks and
+  // its own scale, so "most recent completed audit" picked whichever ran
+  // last. On a client audited today that meant the hero showed the AI
+  // audit's 77/100 and 6 issues while the onboarding screen showed the
+  // crawl's 93/100 and 50 issues — two numbers for the same site, both
+  // labelled health score, seventeen seconds apart.
+  //
+  // next-actions.ts already filters on kind for the same reason and says
+  // so in its own comment. This is the second place that needed it.
   const [latestCompleted] = await db
     .select()
     .from(audits)
-    .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
+    .where(
+      and(
+        eq(audits.clientId, clientId),
+        eq(audits.status, "completed"),
+        eq(audits.kind, "crawler"),
+      ),
+    )
     .orderBy(desc(audits.completedAt))
     .limit(1);
 
@@ -727,6 +744,13 @@ export default async function ClientDetailPage({
                         AI agent
                       </Link>
                       <Link
+                        href={`/clients/${client.id}/plan`}
+                        className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                      >
+                        <Layers className="size-3.5 text-violet-300" />
+                        30-day plan
+                      </Link>
+                      <Link
                         href={`/findings/c/${client.id}`}
                         className="flex items-center gap-2 border-t border-border px-3 py-2 text-sm hover:bg-accent"
                       >
@@ -1015,6 +1039,9 @@ export default async function ClientDetailPage({
         clientId={client.id}
         isConnected={Boolean(client.wpEndpoint && client.wpKey)}
         endpoint={client.wpEndpoint ?? null}
+        looksLikeWordPress={(client.techStack ?? []).some((t) =>
+          String(t).toLowerCase().includes("wordpress"),
+        )}
       />
 
       {/* SCHEDULED REPORTS */}

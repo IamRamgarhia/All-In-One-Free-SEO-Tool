@@ -3,7 +3,7 @@
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
-// 222 routes · 99 need AI · 70 use a browser.
+// 223 routes · 99 need AI · 70 use a browser.
 // 91 are /tools/* · 34 need AI · 91 carry copy.
 
 export const TOOL_CAPABILITIES = [
@@ -48,6 +48,7 @@ export const TOOL_CAPABILITIES = [
   { route: "/clients/[id]/automations", needsAI: true, aiUsage: "required", usesBrowser: false },
   { route: "/clients/[id]/edit", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/clients/[id]/onboarding", needsAI: true, aiUsage: "required", usesBrowser: false },
+  { route: "/clients/[id]/plan", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/clients/[id]/queue", needsAI: true, aiUsage: "required", usesBrowser: false },
   { route: "/clients/import", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/clients/new", needsAI: true, aiUsage: "required", usesBrowser: true },

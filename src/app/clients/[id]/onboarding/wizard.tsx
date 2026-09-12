@@ -715,10 +715,27 @@ function CompletedStep({ client }: { client: WizardClient }) {
           <code className="rounded bg-black/30 px-1.5 py-0.5 text-xs">
             {planState.planRef}
           </code>
-          .{" "}
-          <a href={`/tasks?client=${client.id}`} className="underline">
-            View on the tasks board →
-          </a>
+          .
+          <span className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {/*
+              The plan first, the board second.
+
+              This used to link only to the tasks board, where thirty
+              tasks with due dates spread across a month land as
+              undifferentiated rows among everything else — so the
+              screen said "a plan was generated" and the place it sent
+              you showed no plan at all.
+            */}
+            <a href={`/clients/${client.id}/plan`} className="font-medium underline">
+              Read the 30-day plan →
+            </a>
+            <a href={`/clients/${client.id}/plan/export.csv`} className="underline">
+              Download as CSV
+            </a>
+            <a href={`/tasks?client=${client.id}`} className="underline opacity-80">
+              Tasks board
+            </a>
+          </span>
         </div>
       ) : (
         <button
