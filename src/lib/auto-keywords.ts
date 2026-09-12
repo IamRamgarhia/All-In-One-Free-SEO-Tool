@@ -20,6 +20,7 @@
 import { researchKeywords, type KeywordSuggestion } from "./keyword-research";
 import { getGscTopQueries } from "./google-data";
 import { callAI } from "./ai-call";
+import { expandProductList, looksB2B } from "./product-list";
 
 export type AutoKeywordSource =
   | "gsc"
@@ -142,6 +143,19 @@ export async function discoverKeywords(
     /\b(discount code|coupon|promo code|voucher|redeem|mod apk|apk|cheat|hack|free spins|dice roll)\b/i;
 
   // 4. Google autocomplete fan-out (small LSI mode for each seed)
+  // Every seed gets a share, rather than the first one taking the lot.
+  //
+  // The loop used to break out entirely at limit * 2, and autocomplete
+  // returns plenty for any seed — so the first seed filled the quota and
+  // the rest never ran. On a client selling five kinds of tape, all
+  // twenty-four discovered keywords were about the first one. The other
+  // four products, each a real search, were invisible.
+  //
+  // A floor of four, because a seed that contributes one keyword may as
+  // well not have run, and dividing by a long seed list would do that to
+  // all of them.
+  const perSeed = Math.max(4, Math.ceil((limit * 2) / Math.max(1, allSeeds.length)));
+
   for (const seed of allSeeds) {
     try {
       const result = await researchKeywords(seed, {
@@ -149,6 +163,7 @@ export async function discoverKeywords(
         mode: "lsi",
         source: "google",
       });
+      let fromThisSeed = 0;
       for (const s of result.suggestions) {
         const key = s.query.toLowerCase();
         if (seenQueries.has(key)) continue;
@@ -165,9 +180,11 @@ export async function discoverKeywords(
             city: input.city,
           }),
         );
-        if (seenQueries.size >= limit * 2) break;
+        fromThisSeed++;
+        if (fromThisSeed >= perSeed) break;
       }
-      if (seenQueries.size >= limit * 2) break;
+      // The total cap still applies, so a long seed list cannot run away.
+      if (seenQueries.size >= limit * 3) break;
     } catch {
       continue;
     }
@@ -237,6 +254,17 @@ export function servicePhrases(input: DiscoveryInput): string[] {
   const desc = (input.description ?? "").trim();
   if (!desc) return [];
 
+  // The product range, when the description names one.
+  //
+  // Sliding a two-word window over the text after stripping punctuation
+  // produced "tissue polyester" on a real client — two words adjacent
+  // only because the comma between them had been deleted. The list
+  // structure carries the meaning, so it is read before the punctuation
+  // goes. Returns nothing unless it is confident, and the window below
+  // still runs for descriptions that are prose rather than a range.
+  const products = expandProductList(desc);
+  if (products.length > 0) return products.slice(0, 6);
+
   const brandWords = new Set(
     input.clientName.toLowerCase().split(/\s+/).filter(Boolean),
   );
@@ -269,8 +297,19 @@ export function brandSeeds(input: DiscoveryInput): string[] {
 
   const niche = input.niche;
   if (niche) {
+    // "near me" only for businesses whose customers are nearby.
+    //
+    // A tape manufacturer was tagged local, so every seed got "near me"
+    // and all twelve discovered keywords were retail searches — "adhesive
+    // tape shop near me" — for a company that manufactures and exports.
+    // Nobody sourcing industrial tape types that; they type a city, a
+    // country, or neither. The description decides, not the tag, because
+    // the tag is one dropdown somebody picked in ten seconds.
+    const b2b = looksB2B(input.description);
     const nicheTerms: Record<string, string[]> = {
-      local: ["near me", "service", "local"],
+      local: b2b
+        ? ["manufacturer", "supplier", "wholesale"]
+        : ["near me", "service", "local"],
       ecommerce: ["buy", "shop", "online"],
       saas: ["software", "platform", "tool"],
       blog: ["guide", "tips", "blog"],
