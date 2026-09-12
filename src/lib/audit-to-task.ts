@@ -1,4 +1,5 @@
 import type { AuditFinding, Severity } from "./audit";
+import { toolForFinding } from "./finding-tool-map";
 
 type TaskBlueprint = {
   title: string;
@@ -105,6 +106,14 @@ export type GeneratedTask = {
   description: string;
   whyItMatters: string;
   priority: "high" | "medium" | "low";
+  /**
+   * Where to go and fix it, or null when no tool helps.
+   *
+   * Null is a real answer and the common one for platform findings — a
+   * Next.js issue is fixed in that repo, not here — and a button opening
+   * something irrelevant costs the click and the trust.
+   */
+  toolPath: string | null;
 };
 
 export function findingsToTasks(findings: AuditFinding[]): GeneratedTask[] {
@@ -138,6 +147,10 @@ export function findingsToTasks(findings: AuditFinding[]): GeneratedTask[] {
         description: f.message,
         whyItMatters: f.message,
         priority: severityToPriority[f.severity],
+        // Null for anything with no tool that helps, which is honest —
+        // a button opening something irrelevant costs the click and the
+        // trust. See finding-tool-map.ts.
+        toolPath: toolForFinding(f.type),
       };
     }
     return {
@@ -145,6 +158,7 @@ export function findingsToTasks(findings: AuditFinding[]): GeneratedTask[] {
       description: f.message,
       whyItMatters: blueprint.whyItMatters,
       priority: severityToPriority[f.severity],
+      toolPath: toolForFinding(f.type),
     };
   });
 }

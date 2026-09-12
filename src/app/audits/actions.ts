@@ -201,6 +201,7 @@ export async function runAuditForClient(clientId: number) {
           description: t.description,
           whyItMatters: t.whyItMatters,
           priority: t.priority,
+          toolPath: t.toolPath,
           status: "todo" as const,
           dueDate:
             t.priority === "high"
