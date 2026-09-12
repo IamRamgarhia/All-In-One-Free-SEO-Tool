@@ -35,6 +35,8 @@ export type SettingKey =
   // opposed to silently receiving the cautious default. See
   // hasChosenAutonomy in agent/autonomy.ts.
   | "agent.level_chosen"
+  // Bearer token an edge worker authenticates with. See edge-token.ts.
+  | "edge.token"
   | "api.openai"
   | "api.anthropic"
   | "api.gemini"

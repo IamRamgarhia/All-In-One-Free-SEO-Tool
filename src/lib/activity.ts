@@ -22,6 +22,7 @@ export type ActivityKind =
   | "google.service_account_saved"
   | "google.service_account_cleared"
   | "agent.level_chosen"
+  | "edge.token_rotated"
   | "system.update_available"
   | "system.updated";
 
