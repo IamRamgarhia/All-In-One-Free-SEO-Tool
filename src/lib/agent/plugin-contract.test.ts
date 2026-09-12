@@ -318,3 +318,60 @@ describe("the version is written down once", () => {
     expect(fn.slice(0, 1200)).toMatch(/return ['"]0['"];/);
   });
 });
+
+/**
+ * Every field the plugin can write, it can also take back.
+ *
+ * This has now shipped broken twice, both times the same way: a field
+ * added to the writer without its mirror in the undo switch. Canonical
+ * and robots went first — their case blocks still carry a comment saying
+ * they were "added late, and only because the plugin was finally run".
+ * Then the six Open Graph fields did exactly the same thing, and the
+ * live round-trip found it inside a minute: the write landed on the
+ * rendered page and the undo answered 400 "Unsupported field".
+ *
+ * Writing works and taking it back does not is the worse half to get
+ * wrong, because the tool offers an undo button for it either way.
+ */
+describe("every written field can be undone", () => {
+  /** Fields the SEO handler records a revision for. */
+  function writtenFields(): string[] {
+    const start = source.indexOf("function stb_rest_update_post_seo");
+    const body = source.slice(start, source.indexOf("\nfunction ", start + 10));
+    return [
+      ...new Set(
+        [...body.matchAll(/stb_record_revision\('([a-z_]+)'/g)].map((m) => m[1]),
+      ),
+    ];
+  }
+
+  /** Fields the undo switch has a case for. */
+  function undoableFields(): Set<string> {
+    const start = source.indexOf("Unsupported field");
+    // The switch sits above the default arm, so search backwards from it.
+    const region = source.slice(Math.max(0, start - 6000), start);
+    return new Set(
+      [...region.matchAll(/case '([a-z_]+)':/g)].map((m) => m[1]),
+    );
+  }
+
+  it("has an undo case for every field the SEO handler writes", () => {
+    const undoable = undoableFields();
+    const orphaned = writtenFields().filter((f) => !undoable.has(f));
+    expect(
+      orphaned,
+      `${orphaned.join(", ")} can be written but has no case in the undo ` +
+        `switch, so it falls through to "Unsupported field" and answers 400. ` +
+        `The tool shows an undo button for it regardless.`,
+    ).toEqual([]);
+  });
+
+  it("still knows about the fields that broke this before", () => {
+    // Guards the guard: an empty writtenFields() would pass the test
+    // above while proving nothing.
+    const undoable = undoableFields();
+    for (const f of ["title", "meta_description", "canonical", "robots"]) {
+      expect(undoable.has(f), `${f} lost its undo case`).toBe(true);
+    }
+  });
+});

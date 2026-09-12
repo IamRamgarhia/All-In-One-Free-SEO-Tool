@@ -3,7 +3,7 @@
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/SEO-Tool
  * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, internal links, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.6.0
+ * Version: 0.6.1
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -1977,6 +1977,23 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
             break;
         case 'robots':
             stb_set_robots_meta($object_id, (string)$previous);
+            break;
+        case 'og_title':
+        case 'og_description':
+        case 'og_image':
+        case 'twitter_title':
+        case 'twitter_description':
+        case 'twitter_image':
+            // One case per field rather than a fallthrough with a lookup,
+            // so this switch stays greppable — the same reason the write
+            // side is written out branch by branch.
+            //
+            // stb_set_social_meta deletes the keys for an empty value, so
+            // undoing "a tag was added to a page that had none" removes
+            // it rather than storing a blank override. Those are
+            // different states to an SEO plugin, and only one of them is
+            // what the page looked like before.
+            stb_set_social_meta($object_id, $field, (string)$previous);
             break;
         case 'alt':
             update_post_meta($object_id, '_wp_attachment_image_alt', (string)$previous);
