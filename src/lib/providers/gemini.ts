@@ -58,7 +58,20 @@ export type GeminiCallOpts = {
  * guaranteed 404s — two extra round trips on the way to every failure,
  * and a misleading "tried 4 models" in the logs.
  */
-const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"] as const;
+const FALLBACK_MODELS = [
+  "gemini-2.5-flash",
+  // Was gemini-2.0-flash, which Google has now retired too — it answers
+  // 404, so the only thing standing behind an exhausted 2.5 quota was a
+  // model that did not exist. The symptom was every AI tool failing with
+  // a 429 naming 2.5-flash, while a working model sat one line away.
+  //
+  // These two are deliberately different in kind, not just in name: an
+  // alias that tracks whatever Flash currently is, and the lite tier,
+  // which carries its own free quota. A list of three sibling versions
+  // would have died together the same way the 1.5 family did.
+  "gemini-flash-latest",
+  "gemini-2.5-flash-lite",
+] as const;
 
 export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
   // Build the Gemini contents payload once — reused across all retries.

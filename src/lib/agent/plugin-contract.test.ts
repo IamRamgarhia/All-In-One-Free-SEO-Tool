@@ -127,9 +127,14 @@ describe("the client and the plugin agree on what can be written", () => {
 });
 
 describe("the version the client requires is the version that ships", () => {
-  it("STB_VERSION is at least every floor capabilities.ts gates on", () => {
-    const shipped = source.match(/define\('STB_VERSION',\s*'([\d.]+)'\)/)?.[1];
-    expect(shipped, "STB_VERSION is missing").toBeTruthy();
+  it("the plugin header version is at least every floor capabilities.ts gates on", () => {
+    // The header, not the constant. STB_VERSION is derived from it now,
+    // because the two were separate literals and had already drifted —
+    // the header said 0.5.0 while the constant said 0.5.1, so WordPress
+    // showed the site owner one version while /ping told the tool
+    // another, and capability gating reads /ping.
+    const shipped = source.match(/^\s*\*\s*Version:\s*([\d.]+)/m)?.[1];
+    expect(shipped, "the plugin header has no Version").toBeTruthy();
 
     const caps = readFileSync(
       join(process.cwd(), "src/lib/agent/capabilities.ts"),
@@ -240,5 +245,57 @@ describe("what the plugin says it can do matches what it registered", () => {
         `as unavailable, so callers are told the plugin cannot do ` +
         `something it does.`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * The plugins screen, which is the first thing anyone sees.
+ *
+ * The row read "Deactivate | Check this plugin" and nothing else, so the
+ * only route to the connection key was knowing it lives under Tools.
+ * Every plugin a site owner has installed puts its settings one click
+ * from that row; leaving it out reads as unfinished software.
+ */
+describe("what the plugins screen shows", () => {
+  it("adds a Settings link to the plugin row", () => {
+    expect(source).toContain("plugin_action_links_");
+    expect(source).toContain("tools.php?page=seo-tool-bridge");
+  });
+
+  it("links out to the project rather than nowhere", () => {
+    expect(source).toContain("plugin_row_meta");
+    expect(source).toMatch(/github\.com\/IamRamgarhia\/SEO-Tool/);
+  });
+
+  it("says when nothing has ever connected", () => {
+    // An unfinished setup otherwise looks exactly like a working one:
+    // the plugin sits there active and silent either way.
+    expect(source).toContain("after_plugin_row_");
+    expect(source).toContain("STB_OPTION_LAST_SEEN");
+  });
+
+  it("records proof of life on the request whose job that is", () => {
+    // The banner above is only honest if something actually writes the
+    // option. Asserted here because a banner that never clears is worse
+    // than no banner.
+    const ping = source.slice(source.indexOf("function stb_rest_ping"));
+    expect(ping.slice(0, 600)).toContain("update_option(STB_OPTION_LAST_SEEN");
+  });
+});
+
+describe("the version is written down once", () => {
+  it("derives STB_VERSION from the header instead of repeating it", () => {
+    // These were two literals and they drifted. The header has to stay a
+    // literal because WordPress parses the file as text, so the header
+    // wins and the constant is read from it.
+    expect(source).not.toMatch(/define\('STB_VERSION',\s*'[\d.]+'\)/);
+    expect(source).toContain("stb_read_header_version(__FILE__)");
+  });
+
+  it("fails closed when the header cannot be read", () => {
+    // Returning a guess would open capability gates the plugin may not
+    // support. "0" closes every one of them.
+    const fn = source.slice(source.indexOf("function stb_read_header_version"));
+    expect(fn.slice(0, 1200)).toMatch(/return ['"]0['"];/);
   });
 });

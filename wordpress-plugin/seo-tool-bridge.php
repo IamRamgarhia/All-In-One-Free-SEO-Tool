@@ -3,7 +3,7 @@
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/SEO-Tool
  * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, internal links, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.5.0
+ * Version: 0.5.1
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -30,13 +30,51 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('STB_VERSION', '0.5.1');
+/**
+ * The version, read from the plugin header rather than typed twice.
+ *
+ * These were two separate literals and they had already drifted: the
+ * header said 0.5.0 while this said 0.5.1. WordPress shows the header on
+ * the plugins screen and uses it for updates; /ping returns this one,
+ * and the SEO Tool gates every capability on what /ping says. So the
+ * site reported one version to its owner and a different one to the
+ * tool deciding what it was allowed to do.
+ *
+ * CLAUDE.md's fourth standing rule is never to add a second hardcoded
+ * copy of something that already exists. The header has to be a literal
+ * because WordPress parses the file as text, so the header wins and this
+ * is derived from it.
+ */
+define('STB_VERSION', stb_read_header_version(__FILE__));
+
+function stb_read_header_version(string $file): string
+{
+    // get_plugin_data() lives in an admin-only file and this constant is
+    // needed on REST requests too, so the header is read directly. Only
+    // the first 8KB, which is all WordPress itself reads.
+    $handle = @fopen($file, 'r');
+    if ($handle) {
+        $head = fread($handle, 8192);
+        fclose($handle);
+        if (is_string($head) && preg_match('/^\s*\*\s*Version:\s*([0-9.]+)/mi', $head, $m)) {
+            return $m[1];
+        }
+    }
+    // Unreadable header. Returning '0' rather than a guess means
+    // capability gating fails closed: the SEO Tool will say a feature is
+    // unavailable instead of trying a write the plugin cannot do.
+    return '0';
+}
 define('STB_OPTION_KEY', 'stb_connection_key');
 define('STB_OPTION_REVISIONS', 'stb_revisions');
 define('STB_REST_NAMESPACE', 'seo-tool/v1');
 define('STB_OPTION_ROBOTS', 'stb_robots_txt');
 define('STB_OPTION_REDIRECTS', 'stb_redirects');
 define('STB_OPTION_HARDENING', 'stb_hardening');
+// When an SEO Tool last called /ping. Absent means the connection was
+// never completed, which the plugins screen says out loud — an
+// unfinished setup otherwise looks exactly like a working one.
+define('STB_OPTION_LAST_SEEN', 'stb_last_seen');
 
 /**
  * Site-level things the agent can change, and the option each lives in.
@@ -83,6 +121,87 @@ add_action('admin_menu', function () {
     );
 });
 
+/**
+ * A Settings link on the plugins screen.
+ *
+ * The row read "Deactivate | Check this plugin" and nothing else, so the
+ * only way to reach the connection key was to know it lives under Tools.
+ * Every plugin a site owner has ever installed puts its settings one
+ * click from this row; leaving it out reads as the plugin being
+ * unfinished, and it is the first screen anybody sees after activating.
+ */
+add_filter(
+    'plugin_action_links_' . plugin_basename(__FILE__),
+    function (array $links): array {
+        $settings = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url(admin_url('tools.php?page=seo-tool-bridge')),
+            esc_html__('Settings', 'seo-tool-bridge')
+        );
+        // Prepended, because WordPress puts Deactivate first and the
+        // convention everywhere else is Settings before it.
+        array_unshift($links, $settings);
+        return $links;
+    }
+);
+
+/**
+ * The second row of links, under the description.
+ *
+ * Where the plugin came from and where to get help. Both point at the
+ * project rather than a vendor page: this is MIT software somebody is
+ * self-hosting, and the useful destination is the repository.
+ */
+add_filter(
+    'plugin_row_meta',
+    function (array $links, string $file): array {
+        if ($file !== plugin_basename(__FILE__)) {
+            return $links;
+        }
+        $links[] = sprintf(
+            '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
+            esc_url('https://github.com/IamRamgarhia/SEO-Tool'),
+            esc_html__('Documentation', 'seo-tool-bridge')
+        );
+        $links[] = sprintf(
+            '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
+            esc_url('https://github.com/IamRamgarhia/SEO-Tool/issues'),
+            esc_html__('Report an issue', 'seo-tool-bridge')
+        );
+        return $links;
+    },
+    10,
+    2
+);
+
+/**
+ * Say so on the plugins screen when the key has never been used.
+ *
+ * A connection that was set up and never completed looks identical to
+ * one that is working: the plugin sits there active and silent. This is
+ * the row the site owner is already looking at, so it is where the
+ * unfinished half of the setup belongs.
+ */
+add_action(
+    'after_plugin_row_' . plugin_basename(__FILE__),
+    function (): void {
+        if (get_option(STB_OPTION_LAST_SEEN)) {
+            return;
+        }
+        printf(
+            '<tr class="plugin-update-tr active"><td colspan="4" class="plugin-update colspanchange">'
+            . '<div class="update-message notice inline notice-warning notice-alt"><p>%s <a href="%s">%s</a></p></div>'
+            . '</td></tr>',
+            esc_html__(
+                'No SEO Tool has connected to this site yet. Copy the connection key and paste it into your SEO Tool.',
+                'seo-tool-bridge'
+            ),
+            esc_url(admin_url('tools.php?page=seo-tool-bridge')),
+            esc_html__('Open settings', 'seo-tool-bridge')
+        );
+    }
+);
+
 function stb_render_admin_page(): void
 {
     if (!current_user_can('manage_options')) {
@@ -101,8 +220,39 @@ function stb_render_admin_page(): void
     $rest_url = rest_url(STB_REST_NAMESPACE);
     ?>
     <div class="wrap">
-        <h1>SEO Tool Bridge</h1>
+        <h1 style="display:flex;align-items:center;gap:10px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:7px;background:#1e1b4b;color:#a5b4fc;font:700 13px/1 -apple-system,system-ui,sans-serif;letter-spacing:-0.5px;">ST</span>
+            SEO Tool Bridge
+            <span style="font:400 12px/1 -apple-system,system-ui,sans-serif;color:#646970;">v<?php echo esc_html(STB_VERSION); ?></span>
+        </h1>
         <p>Connects this WordPress site to your self-hosted SEO Tool, so AI suggestions can be applied with one click instead of copy-paste.</p>
+
+        <?php
+        // Whether this has ever actually worked, said plainly at the top.
+        // Every field below can be filled in correctly and the connection
+        // still never completed — a wrong URL in the SEO Tool, a firewall,
+        // a key pasted with a space. Until something calls /ping, none of
+        // that is distinguishable from a working setup by looking.
+        $last_seen = get_option(STB_OPTION_LAST_SEEN);
+        if ($last_seen) {
+            printf(
+                '<div class="notice notice-success inline" style="margin:12px 0;"><p>%s</p></div>',
+                sprintf(
+                    /* translators: %s: human-readable time difference, e.g. "2 hours" */
+                    esc_html__("Connected. An SEO Tool last checked in %s ago.", "seo-tool-bridge"),
+                    esc_html(human_time_diff(strtotime($last_seen)))
+                )
+            );
+        } else {
+            printf(
+                '<div class="notice notice-warning inline" style="margin:12px 0;"><p>%s</p></div>',
+                esc_html__(
+                    "Not connected yet. Paste the endpoint and key below into your SEO Tool, then run any check — this will switch to Connected.",
+                    "seo-tool-bridge"
+                )
+            );
+        }
+        ?>
 
         <h2>Connection details</h2>
         <table class="form-table">
@@ -408,6 +558,11 @@ function stb_check_key(WP_REST_Request $req): bool
 
 function stb_rest_ping(): WP_REST_Response
 {
+    // Proof of life, recorded on the one request whose whole purpose is
+    // to confirm the connection works. autoload off: nothing reads it on
+    // a front-end page load.
+    update_option(STB_OPTION_LAST_SEEN, gmdate("c"), false);
+
     return new WP_REST_Response([
         'ok' => true,
         'plugin_version' => STB_VERSION,
