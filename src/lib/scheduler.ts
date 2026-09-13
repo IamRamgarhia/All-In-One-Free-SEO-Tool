@@ -203,6 +203,20 @@ function runners(): Runner[] {
       run: async () => (await import("./backlink-sync")).tickBacklinkSync(),
     },
     {
+      // Google's own list of ranking updates, which traffic-drop
+      // diagnosis, reports and the weekly digest line changes up against.
+      // The hand-kept list this replaced was nine months stale by the
+      // time anyone checked. One small JSON request a day.
+      id: "google_updates",
+      label: "Google ranking updates",
+      everyMs: 24 * HOUR,
+      run: async () => (await import("./google-updates-store")).refreshRankingUpdates(),
+      summarise: (r) => {
+        const s = r as { added?: number } | null;
+        return s?.added ? `${s.added} update${s.added === 1 ? "" : "s"} newer than the shipped history` : null;
+      },
+    },
+    {
       id: "retention_cleanup",
       label: "Data retention cleanup",
       everyMs: 24 * HOUR,

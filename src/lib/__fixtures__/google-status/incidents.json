@@ -1,0 +1,439 @@
+[
+ {
+  "id": "LEubPCm2octf2uMqCFKE",
+  "number": "453832737276420062",
+  "begin": "2026-08-18T16:27:00+00:00",
+  "created": "2026-08-18T16:28:47+00:00",
+  "end": "2026-08-21T08:49:00+00:00",
+  "modified": "2026-08-21T08:50:34+00:00",
+  "external_desc": "August 2026 spam update",
+  "updates": [
+   {
+    "created": "2026-08-21T08:49:58+00:00",
+    "modified": "2026-08-21T08:50:34+00:00",
+    "when": "2026-08-21T08:49:58+00:00",
+    "text": "The rollout was complete as of August 21, 2026.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2026-08-18T16:28:47+00:00",
+    "modified": "2026-08-21T08:49:58+00:00",
+    "when": "2026-08-18T16:28:47+00:00",
+    "text": "Released the August 2026 spam update <https://developers.google.com/search/docs/appearance/spam-updates>, which applies globally and to all languages. The rollout may take a few days to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-08-21T08:49:58+00:00",
+   "modified": "2026-08-21T08:50:34+00:00",
+   "when": "2026-08-21T08:49:58+00:00",
+   "text": "The rollout was complete as of August 21, 2026.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/LEubPCm2octf2uMqCFKE"
+ },
+ {
+  "id": "YUX1peHev5a4fkxLDiUQ",
+  "number": "2381576199721870042",
+  "begin": "2026-06-24T16:00:00+00:00",
+  "created": "2026-06-24T16:03:11+00:00",
+  "end": "2026-06-26T17:00:00+00:00",
+  "modified": "2026-06-26T17:58:18+00:00",
+  "external_desc": "June 2026 spam update",
+  "updates": [
+   {
+    "created": "2026-06-26T17:58:02+00:00",
+    "modified": "2026-06-26T17:58:18+00:00",
+    "when": "2026-06-26T17:58:02+00:00",
+    "text": "The rollout was complete as of June 26, 2026.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2026-06-24T16:03:11+00:00",
+    "modified": "2026-06-26T17:58:02+00:00",
+    "when": "2026-06-24T16:03:11+00:00",
+    "text": "Released the June 2026 spam update <https://developers.google.com/search/docs/appearance/spam-updates>, which applies globally and to all languages. The rollout may take a few days to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-06-26T17:58:02+00:00",
+   "modified": "2026-06-26T17:58:18+00:00",
+   "when": "2026-06-26T17:58:02+00:00",
+   "text": "The rollout was complete as of June 26, 2026.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/YUX1peHev5a4fkxLDiUQ"
+ },
+ {
+  "id": "wdAXJk6LRRihEjpzEeWE",
+  "number": "16339707297824723546",
+  "begin": "2026-05-21T15:40:00+00:00",
+  "created": "2026-05-21T15:43:28+00:00",
+  "end": "2026-06-02T12:40:00+00:00",
+  "modified": "2026-06-02T12:44:24+00:00",
+  "external_desc": "May 2026 core update",
+  "updates": [
+   {
+    "created": "2026-06-02T12:43:57+00:00",
+    "modified": "2026-06-02T12:44:24+00:00",
+    "when": "2026-06-02T12:43:57+00:00",
+    "text": "The rollout was complete as of June 2, 2026.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2026-05-21T15:43:28+00:00",
+    "modified": "2026-06-02T12:43:57+00:00",
+    "when": "2026-05-21T15:43:28+00:00",
+    "text": "Released the May 2026 core update <https://developers.google.com/search/updates/core-updates>. The rollout may take up to 2 weeks to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-06-02T12:43:57+00:00",
+   "modified": "2026-06-02T12:44:24+00:00",
+   "when": "2026-06-02T12:43:57+00:00",
+   "text": "The rollout was complete as of June 2, 2026.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/wdAXJk6LRRihEjpzEeWE"
+ },
+ {
+  "id": "7eTbAa2jWdToLkraZj5y",
+  "number": "13289721749890919295",
+  "begin": "2026-03-27T09:00:00+00:00",
+  "created": "2026-03-27T09:14:16+00:00",
+  "end": "2026-04-08T13:00:00+00:00",
+  "modified": "2026-04-08T13:12:36+00:00",
+  "external_desc": "March 2026 core update",
+  "updates": [
+   {
+    "created": "2026-04-08T13:12:36+00:00",
+    "modified": "2026-04-08T13:12:36+00:00",
+    "when": "2026-04-08T13:12:36+00:00",
+    "text": "The rollout was complete as of April 8, 2026.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2026-03-27T09:14:16+00:00",
+    "modified": "2026-04-08T13:12:36+00:00",
+    "when": "2026-03-27T09:14:16+00:00",
+    "text": "Released the March 2026 core update <https://developers.google.com/search/updates/core-updates>. The rollout may take up to 2 weeks to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-04-08T13:12:36+00:00",
+   "modified": "2026-04-08T13:12:36+00:00",
+   "when": "2026-04-08T13:12:36+00:00",
+   "text": "The rollout was complete as of April 8, 2026.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/7eTbAa2jWdToLkraZj5y"
+ },
+ {
+  "id": "VbnSXAH4SmEcxPtx4YSD",
+  "number": "13414367078126622091",
+  "begin": "2026-03-24T19:00:00+00:00",
+  "created": "2026-03-24T19:18:08+00:00",
+  "end": "2026-03-25T14:30:00+00:00",
+  "modified": "2026-03-25T14:39:46+00:00",
+  "external_desc": "March 2026 spam update",
+  "updates": [
+   {
+    "created": "2026-03-25T14:39:33+00:00",
+    "modified": "2026-03-25T14:39:46+00:00",
+    "when": "2026-03-25T14:39:33+00:00",
+    "text": "The rollout was complete as of March 25, 2026.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2026-03-24T19:18:08+00:00",
+    "modified": "2026-03-25T14:39:33+00:00",
+    "when": "2026-03-24T19:18:08+00:00",
+    "text": "Released the March 2026 spam update <https://developers.google.com/search/docs/appearance/spam-updates>, which applies globally and to all languages. The rollout may take a few days to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-03-25T14:39:33+00:00",
+   "modified": "2026-03-25T14:39:46+00:00",
+   "when": "2026-03-25T14:39:33+00:00",
+   "text": "The rollout was complete as of March 25, 2026.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/VbnSXAH4SmEcxPtx4YSD"
+ },
+ {
+  "id": "TZF4pLmbzFdoBPP6o3iv",
+  "number": "8891693348028902943",
+  "begin": "2026-02-25T03:55:00+00:00",
+  "created": "2026-02-25T06:33:39+00:00",
+  "end": "2026-02-25T04:10:00+00:00",
+  "modified": "2026-02-25T06:34:29+00:00",
+  "external_desc": "Serving was experiencing an issue",
+  "updates": [
+   {
+    "created": "2026-02-25T06:34:29+00:00",
+    "modified": "2026-02-25T06:34:29+00:00",
+    "when": "2026-02-25T06:34:29+00:00",
+    "text": "We fixed the issue with serving search results. There will be no more updates.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2026-02-25T06:33:39+00:00",
+    "modified": "2026-02-25T06:34:29+00:00",
+    "when": "2026-02-25T06:33:39+00:00",
+    "text": "Serving was experiencing an issue.",
+    "status": "SERVICE_DISRUPTION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-02-25T06:34:29+00:00",
+   "modified": "2026-02-25T06:34:29+00:00",
+   "when": "2026-02-25T06:34:29+00:00",
+   "text": "We fixed the issue with serving search results. There will be no more updates.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_DISRUPTION",
+  "severity": "medium",
+  "service_key": "pKUD9XkLn3TBLquSpQMD",
+  "service_name": "Serving",
+  "affected_products": [
+   {
+    "title": "Serving",
+    "id": "pKUD9XkLn3TBLquSpQMD"
+   }
+  ],
+  "uri": "incidents/TZF4pLmbzFdoBPP6o3iv"
+ },
+ {
+  "id": "mYbNTqV1ytDc2fA8hUz4",
+  "number": "5843514163606495786",
+  "begin": "2026-02-05T17:00:00+00:00",
+  "created": "2026-02-05T17:03:04+00:00",
+  "end": "2026-02-27T10:00:00+00:00",
+  "modified": "2026-02-27T10:03:01+00:00",
+  "external_desc": "February 2026 Discover update",
+  "updates": [
+   {
+    "created": "2026-02-27T10:02:36+00:00",
+    "modified": "2026-02-27T10:03:01+00:00",
+    "when": "2026-02-27T10:02:36+00:00",
+    "text": "The rollout was complete as of February 27, 2026.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2026-02-05T17:03:04+00:00",
+    "modified": "2026-02-27T10:02:36+00:00",
+    "when": "2026-02-05T17:03:04+00:00",
+    "text": "Released the February 2026 Discover core update <https://developers.google.com/search/blog/2026/02/discover-core-update> for English language users in the US (will look to expand it to all countries and languages in the future). This update is designed to improve the quality of Discover overall. Our guidance about general core updates <https://developers.google.com/search/docs/appearance/core-updates> and Discover <https://developers.google.com/search/docs/appearance/google-discover> applies. The rollout may take up to 2 weeks to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2026-02-27T10:02:36+00:00",
+   "modified": "2026-02-27T10:03:01+00:00",
+   "when": "2026-02-27T10:02:36+00:00",
+   "text": "The rollout was complete as of February 27, 2026.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/mYbNTqV1ytDc2fA8hUz4"
+ },
+ {
+  "id": "DsirqJ1gpPRgVQeccPRv",
+  "number": "2777525196159791873",
+  "begin": "2025-12-11T17:25:00+00:00",
+  "created": "2025-12-11T17:25:48+00:00",
+  "end": "2025-12-29T19:00:00+00:00",
+  "modified": "2025-12-29T19:05:57+00:00",
+  "external_desc": "December 2025 core update",
+  "updates": [
+   {
+    "created": "2025-12-29T19:05:33+00:00",
+    "modified": "2025-12-29T19:05:57+00:00",
+    "when": "2025-12-29T19:05:33+00:00",
+    "text": "The rollout was complete as of December 29, 2025.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2025-12-11T17:25:48+00:00",
+    "modified": "2025-12-29T19:05:33+00:00",
+    "when": "2025-12-11T17:25:48+00:00",
+    "text": "Released the December 2025 core update <https://developers.google.com/search/updates/core-updates>. The rollout may take up to 3 weeks to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2025-12-29T19:05:33+00:00",
+   "modified": "2025-12-29T19:05:57+00:00",
+   "when": "2025-12-29T19:05:33+00:00",
+   "text": "The rollout was complete as of December 29, 2025.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/DsirqJ1gpPRgVQeccPRv"
+ },
+ {
+  "id": "pW6WN7Ymo49q7z8pKk9w",
+  "number": "13659202675197012648",
+  "begin": "2025-10-03T20:00:00+00:00",
+  "created": "2025-10-03T21:21:11+00:00",
+  "end": "2025-10-06T20:40:00+00:00",
+  "modified": "2025-10-06T20:40:37+00:00",
+  "external_desc": "Serving is experiencing an ongoing issue",
+  "updates": [
+   {
+    "created": "2025-10-06T20:40:14+00:00",
+    "modified": "2025-10-06T20:40:37+00:00",
+    "when": "2025-10-06T20:40:14+00:00",
+    "text": "The issue with serving has resolved itself. There will be no more updates.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2025-10-04T19:22:50+00:00",
+    "modified": "2025-10-06T20:40:14+00:00",
+    "when": "2025-10-04T19:22:50+00:00",
+    "text": "We've identified an issue with serving and have been working on a fix. The next update will be within 48 hours.",
+    "status": "SERVICE_DISRUPTION"
+   },
+   {
+    "created": "2025-10-03T21:21:11+00:00",
+    "modified": "2025-10-04T19:22:50+00:00",
+    "when": "2025-10-03T21:21:11+00:00",
+    "text": "There's an ongoing data center issue that may impact serving of some pages in some locales. We're working on identifying the root cause. The next update will be within 24 hours.",
+    "status": "SERVICE_DISRUPTION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2025-10-06T20:40:14+00:00",
+   "modified": "2025-10-06T20:40:37+00:00",
+   "when": "2025-10-06T20:40:14+00:00",
+   "text": "The issue with serving has resolved itself. There will be no more updates.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_DISRUPTION",
+  "severity": "medium",
+  "service_key": "pKUD9XkLn3TBLquSpQMD",
+  "service_name": "Serving",
+  "affected_products": [
+   {
+    "title": "Serving",
+    "id": "pKUD9XkLn3TBLquSpQMD"
+   }
+  ],
+  "uri": "incidents/pW6WN7Ymo49q7z8pKk9w"
+ },
+ {
+  "id": "a7Aainy6E9rZsmfq82xt",
+  "number": "10431133316204073730",
+  "begin": "2025-08-26T16:00:00+00:00",
+  "created": "2025-08-26T16:02:38+00:00",
+  "end": "2025-09-22T07:00:00+00:00",
+  "modified": "2025-09-22T06:14:57+00:00",
+  "external_desc": "August 2025 spam update",
+  "updates": [
+   {
+    "created": "2025-09-22T06:14:22+00:00",
+    "modified": "2025-09-22T06:14:57+00:00",
+    "when": "2025-09-22T06:14:22+00:00",
+    "text": "The rollout was complete as of September 22, 2025.",
+    "status": "AVAILABLE"
+   },
+   {
+    "created": "2025-08-26T16:02:38+00:00",
+    "modified": "2025-09-22T06:14:22+00:00",
+    "when": "2025-08-26T16:02:38+00:00",
+    "text": "Released the August 2025 spam update <https://developers.google.com/search/docs/appearance/spam-updates>, which applies globally and to all languages. The rollout may take a few weeks to complete.",
+    "status": "SERVICE_INFORMATION"
+   }
+  ],
+  "most_recent_update": {
+   "created": "2025-09-22T06:14:22+00:00",
+   "modified": "2025-09-22T06:14:57+00:00",
+   "when": "2025-09-22T06:14:22+00:00",
+   "text": "The rollout was complete as of September 22, 2025.",
+   "status": "AVAILABLE"
+  },
+  "status_impact": "SERVICE_INFORMATION",
+  "severity": "low",
+  "service_key": "rGHU1u87FJnkP6W2GwMi",
+  "service_name": "Ranking",
+  "affected_products": [
+   {
+    "title": "Ranking",
+    "id": "rGHU1u87FJnkP6W2GwMi"
+   }
+  ],
+  "uri": "incidents/a7Aainy6E9rZsmfq82xt"
+ }
+]

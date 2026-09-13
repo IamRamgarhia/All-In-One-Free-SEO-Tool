@@ -20,7 +20,8 @@ import { generateExecSummary } from "./ai-summary";
 import { openToolFindings } from "./tool-findings";
 import { planProgress } from "./plan-tasks";
 import { mapToolFinding } from "./agent/tool-finding-map";
-import { ALGO_UPDATES } from "./algorithm-updates";
+import type { AlgoUpdate } from "./algorithm-updates";
+import { getRankingUpdates } from "./google-updates-store";
 import {
   captureClientSnapshot,
   loadSnapshotComparison,
@@ -932,6 +933,7 @@ export async function generateReportPdf(
       ga4Daily.map((r) => r.sessions),
       {
         dates: ga4Daily.map((r) => new Date(r.date + "T00:00:00Z")),
+        updates: await getRankingUpdates(),
       },
     );
     doc.moveDown(1.5);
@@ -1658,7 +1660,7 @@ function drawKeywordTable(
 function drawTrafficSparkline(
   doc: PDFKit.PDFDocument,
   values: number[],
-  opts?: { dates?: Date[] },
+  opts?: { dates?: Date[]; updates?: readonly AlgoUpdate[] },
 ) {
   if (values.length < 2) return;
   const left = doc.page.margins.left;
@@ -1684,11 +1686,9 @@ function drawTrafficSparkline(
     const firstT = opts.dates[0].getTime();
     const lastT = opts.dates[opts.dates.length - 1].getTime();
     if (lastT > firstT) {
-      // Was a lazy `require()` "so the module graph isn't forced to pull
-      // algorithm-updates at import time" — but that module is a static
-      // array with zero imports of its own, so the deferral saved
-      // nothing and cost a synchronous require inside a draw loop.
-      for (const u of ALGO_UPDATES) {
+      // The caller loads the list — it is Google's record plus the daily
+      // refresh, which lives in the database — because this draw is sync.
+      for (const u of opts.updates ?? []) {
         const startT = new Date(u.date + "T00:00:00Z").getTime();
         if (isNaN(startT)) continue;
         if (startT < firstT || startT > lastT) continue;

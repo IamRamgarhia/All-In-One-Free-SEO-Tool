@@ -1,99 +1,65 @@
 /**
- * Curated Google algorithm-update timeline used by the traffic-drop
- * diagnostic to correlate drops with rollouts.
+ * Google's ranking updates, for lining a traffic change up against them.
  *
- * Stays in sync (manually) with the /algorithm-updates page's CURATED list.
- * If a drop overlaps the rollout window of any of these, that's the most
- * likely culprit — at least more likely than internal site changes.
+ * The list is Google's, not ours. google-ranking-updates.json is built
+ * from the Search Status Dashboard by scripts/sync-google-updates.ts, and
+ * google-updates-store.ts adds whatever the daily refresh has seen since.
+ * Every entry links to Google's incident page and carries Google's own
+ * announcement — not a note on which kinds of site won or lost, because
+ * Google does not publish that, and a client report should not present
+ * a guess about it as a fact.
+ *
+ * This replaced two hand-kept lists (here and on the /algorithm-updates
+ * page) that disagreed with each other and with Google: see
+ * google-status.ts for what was wrong.
  */
 
-export type AlgoUpdate = {
-  date: string; // YYYY-MM-DD start
-  endDate?: string; // YYYY-MM-DD end (rollout completes)
-  name: string;
-  type:
-    | "core"
-    | "spam"
-    | "helpful_content"
-    | "product_review"
-    | "ai"
-    | "other";
-  summary: string;
-};
+import shipped from "./google-ranking-updates.json";
+import type { RankingUpdate } from "./google-status";
 
-export const ALGO_UPDATES: AlgoUpdate[] = [
-  {
-    date: "2025-12-04",
-    endDate: "2025-12-19",
-    name: "December 2025 Core Update",
-    type: "core",
-    summary: "Routine core update — typical 2-3 week rollout, broad ranking shifts.",
-  },
-  {
-    date: "2025-09-08",
-    endDate: "2025-09-22",
-    name: "September 2025 Core Update",
-    type: "core",
-    summary:
-      "Significant shifts on commercial queries; many sites that gained from earlier helpful-content adjustments saw partial recovery.",
-  },
-  {
-    date: "2025-06-30",
-    endDate: "2025-07-17",
-    name: "June 2025 Core Update",
-    type: "core",
-    summary: "Core update with broader weighting toward original content.",
-  },
-  {
-    date: "2025-03-13",
-    endDate: "2025-03-27",
-    name: "March 2025 Core Update",
-    type: "core",
-    summary: "Targeted thin / unhelpful content; many AI-generated sites took hits.",
-  },
-  {
-    date: "2024-11-11",
-    endDate: "2024-12-05",
-    name: "November 2024 Core Update",
-    type: "core",
-    summary: "Broad core update with publisher-tier shifts.",
-  },
-  {
-    date: "2024-08-15",
-    endDate: "2024-09-03",
-    name: "August 2024 Core Update",
-    type: "core",
-    summary: "Reversed some Helpful Content System over-corrections.",
-  },
-  {
-    date: "2024-03-05",
-    endDate: "2024-04-19",
-    name: "March 2024 Core + Spam Updates",
-    type: "core",
-    summary:
-      "Largest spam crackdown in years — site-wide manual actions for AI-generated, scaled-content, expired-domain abuse.",
-  },
-];
+export type AlgoUpdate = RankingUpdate;
 
 /**
- * Find updates that overlap a given date range. A drop on date D is "near"
- * an update if the update window contains D or starts/ends within ±3 days.
+ * The history as of the last sync script run. Most callers want
+ * getRankingUpdates() from google-updates-store.ts, which adds the daily
+ * refresh on top.
  */
-export function updatesNearRange(
+export const ALGO_UPDATES: readonly AlgoUpdate[] = shipped.updates as AlgoUpdate[];
+
+/** When the shipped history was read from Google. */
+export const SHIPPED_UPDATES_FETCHED_AT: string = shipped.fetchedAt;
+
+/**
+ * Updates whose rollout overlaps a date range, widened by a margin on
+ * each side. An update with no end date is still rolling out, so it
+ * counts as running until now.
+ */
+export function updatesNear(
+  updates: readonly AlgoUpdate[],
   startISO: string,
   endISO: string,
+  marginDays = 3,
 ): AlgoUpdate[] {
   const start = new Date(startISO).getTime();
   const end = new Date(endISO).getTime();
-  const windowMs = 3 * 24 * 60 * 60 * 1000;
-  const out: AlgoUpdate[] = [];
-  for (const u of ALGO_UPDATES) {
+  const margin = marginDays * 86_400_000;
+  return updates.filter((u) => {
     const us = new Date(u.date).getTime();
-    const ue = new Date(u.endDate ?? u.date).getTime();
-    // Overlap with ±3 day buffer
-    if (us - windowMs <= end && ue + windowMs >= start) {
-      out.push(u);
-    }
-  }
-  return out;
+    const ue = u.endDate ? new Date(u.endDate).getTime() : Date.now();
+    return us - margin <= end && ue + margin >= start;
+  });
+}
+
+/**
+ * One entry per incident, newest first. A later list wins, so a refresh
+ * that has seen an update finish replaces the shipped "still rolling out".
+ */
+export function mergeUpdates(
+  ...lists: readonly (readonly AlgoUpdate[])[]
+): AlgoUpdate[] {
+  const byId = new Map<string, AlgoUpdate>();
+  for (const list of lists) for (const u of list) byId.set(u.id, u);
+  return [...byId.values()].sort(
+    (a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name),
+  );
 }

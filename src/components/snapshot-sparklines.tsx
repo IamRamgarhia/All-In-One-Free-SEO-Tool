@@ -2,7 +2,8 @@ import { db } from "@/db/client";
 import { clientMetricSnapshots } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { TrendingDown, TrendingUp } from "lucide-react";
-import { ALGO_UPDATES } from "@/lib/algorithm-updates";
+import { updatesNear } from "@/lib/algorithm-updates";
+import { getRankingUpdates } from "@/lib/google-updates-store";
 
 /**
  * Server component that pulls every snapshot for a client (sorted oldest
@@ -48,11 +49,12 @@ export async function SnapshotSparklines({ clientId }: { clientId: number }) {
   // Overlapping algo-update windows for annotation
   const minTs = Math.min(...dates.map((d) => d.getTime()));
   const maxTs = Math.max(...dates.map((d) => d.getTime()));
-  const algoOverlaps = ALGO_UPDATES.filter((u) => {
-    const start = new Date(u.date).getTime();
-    const end = new Date(u.endDate ?? u.date).getTime();
-    return start <= maxTs && end >= minTs;
-  });
+  const algoOverlaps = updatesNear(
+    await getRankingUpdates(),
+    new Date(minTs).toISOString(),
+    new Date(maxTs).toISOString(),
+    0,
+  );
 
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">

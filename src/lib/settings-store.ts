@@ -65,6 +65,11 @@ export type SettingKey =
   | "google.access_token"
   | "google.access_token_expires_at"
   | "google.connected_email"
+  /**
+   * Google's ranking updates as last read from its Search Status
+   * Dashboard: `{ fetchedAt, updates }`. See google-updates-store.ts.
+   */
+  | "google.ranking_updates"
   // The other way to connect Google: a service account key, which needs
   // no consent screen, no redirect and no browser. See
   // google-service-account.ts. The key holds a private key, so it is
