@@ -30,7 +30,10 @@ describe("tool capabilities", () => {
       usesBrowser: c.usesBrowser,
     }));
     expect(deriveToolCapabilities()).toEqual(flagsOnly);
-  });
+    // Reads every page in the source tree. About 0.6s alone, but it timed
+    // out at vitest's 5s default during a full parallel run, so it gets
+    // room rather than failing for a reason unrelated to what it checks.
+  }, 30_000);
 
   it("the committed copy still matches the tools grid", async () => {
     // The docs render these strings. If someone edits a tool's card and
@@ -66,7 +69,8 @@ describe("tool capabilities", () => {
     // Line endings are the checkout's business, not the generator's.
     const norm = (s: string) => s.replace(/\r\n/g, "\n");
     expect(norm(committed)).toBe(norm(renderCapabilities()));
-  });
+    // Also scans the whole tree; see the first test in this block.
+  }, 30_000);
 
   it("finds a route from a real link target", () => {
     expect(capabilityOf("/tools/health-check")?.route).toBe(

@@ -115,6 +115,29 @@ function pathOf(url: string): string {
   }
 }
 
+const SEVERITY_WEIGHT = { critical: 4, high: 3, medium: 2 } as const;
+
+/**
+ * The findings that qualify as quick wins, most severe first.
+ *
+ * Low severity is out, as the header of this file has always said. Every
+ * task built from these is given high priority and called high impact,
+ * but the filter let low findings through, so a long meta description or
+ * missing Open Graph tags landed in "Fix today" as exactly that. An
+ * unrecognised severity is out too, rather than scored as the lowest.
+ */
+export function rankQuickWins<T extends { type: string; severity: string }>(
+  issues: readonly T[],
+): (T & { score: number })[] {
+  return issues
+    .filter((i) => QUICK_WIN_TYPES[i.type] && i.severity in SEVERITY_WEIGHT)
+    .map((i) => ({
+      ...i,
+      score: SEVERITY_WEIGHT[i.severity as keyof typeof SEVERITY_WEIGHT],
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
 /**
  * Attribution columns are omitted too: these tasks are generated from an
  * audit, not by a person, so they start unassigned and whoever picks one
@@ -167,15 +190,7 @@ export async function buildQuickWinTasks(opts: {
       ),
   );
 
-  // Score: severity weight × quick-win fit. Higher first.
-  const sevWeight = { critical: 4, high: 3, medium: 2, low: 1 } as const;
-  const scored = issues
-    .filter((i) => QUICK_WIN_TYPES[i.type])
-    .map((i) => ({
-      ...i,
-      score: sevWeight[i.severity as keyof typeof sevWeight] ?? 1,
-    }))
-    .sort((a, b) => b.score - a.score);
+  const scored = rankQuickWins(issues);
 
   // Dedupe: only one task per (type, url) pair so we don't spam if the
   // same issue lands on a hundred URLs.
