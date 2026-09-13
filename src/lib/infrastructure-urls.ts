@@ -44,3 +44,23 @@ export function isInfrastructureUrl(url: string): boolean {
   }
   return INFRASTRUCTURE_PATHS.some((p) => path.startsWith(p));
 }
+
+/**
+ * The same rule, applied to anything that carries a URL.
+ *
+ * The crawler skips these now, but an audit saved before that fix still
+ * holds them, and every reader of audit_issues trusted what it found. On
+ * one real client every critical and high finding in the latest audit
+ * was /cdn-cgi/l/email-protection, and four separate generators turned
+ * them into tasks — one titled "Remove noindex from homepage robots meta"
+ * for a homepage that was never noindexed.
+ *
+ * Applied at each reader rather than trusting the stored rows, because
+ * old audits are not rewritten and a non-crawler source can still
+ * produce one.
+ */
+export function withoutInfrastructure<T extends { url: string | null }>(
+  rows: readonly T[],
+): T[] {
+  return rows.filter((r) => !r.url || !isInfrastructureUrl(r.url));
+}

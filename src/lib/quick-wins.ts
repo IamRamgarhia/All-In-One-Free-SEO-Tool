@@ -22,6 +22,7 @@ import {
   type Task,
 } from "@/db/schema";
 import { logActivity } from "./activity";
+import { withoutInfrastructure } from "./infrastructure-urls";
 
 /**
  * Issue types that are nearly always trivial to fix and high impact.
@@ -147,20 +148,24 @@ export async function buildQuickWinTasks(opts: {
     .limit(1);
   if (!latest) return [];
 
-  const issues = await db
-    .select({
-      type: auditIssues.type,
-      severity: auditIssues.severity,
-      message: auditIssues.message,
-      url: auditIssues.url,
-    })
-    .from(auditIssues)
-    .where(
-      and(
-        eq(auditIssues.auditId, latest.id),
-        eq(auditIssues.status, "new"),
+  // Infrastructure rows out — this produced "Write a meta description for
+  // /cdn-cgi/l/email-protection" as a "Fix today" quick win.
+  const issues = withoutInfrastructure(
+    await db
+      .select({
+        type: auditIssues.type,
+        severity: auditIssues.severity,
+        message: auditIssues.message,
+        url: auditIssues.url,
+      })
+      .from(auditIssues)
+      .where(
+        and(
+          eq(auditIssues.auditId, latest.id),
+          eq(auditIssues.status, "new"),
+        ),
       ),
-    );
+  );
 
   // Score: severity weight × quick-win fit. Higher first.
   const sevWeight = { critical: 4, high: 3, medium: 2, low: 1 } as const;

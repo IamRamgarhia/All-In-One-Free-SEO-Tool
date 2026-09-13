@@ -14,6 +14,7 @@
 
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { contextForPrompt, getClientContext } from "@/lib/client-knowledge";
+import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -363,16 +364,21 @@ async function createTasksFromUnfixable(
     .limit(1);
   if (!latest) return 0;
 
-  const issues = await db
-    .select()
-    .from(auditIssues)
-    .where(
-      and(
-        eq(auditIssues.auditId, latest.id),
-        eq(auditIssues.status, "new"),
-        inArray(auditIssues.severity, ["critical", "high", "medium"]),
+  // Infrastructure rows out. An audit saved before the crawler learned to
+  // skip them still holds them, and this pass turned a Cloudflare
+  // email-protection link into "Bad status on /cdn-cgi/l/email-protection".
+  const issues = withoutInfrastructure(
+    await db
+      .select()
+      .from(auditIssues)
+      .where(
+        and(
+          eq(auditIssues.auditId, latest.id),
+          eq(auditIssues.status, "new"),
+          inArray(auditIssues.severity, ["critical", "high", "medium"]),
+        ),
       ),
-    );
+  );
 
   if (issues.length === 0) return 0;
 

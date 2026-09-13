@@ -15,7 +15,8 @@ import {
 } from "@/db/schema";
 import { appendResearchLog, ensureSiteRead } from "@/lib/client-knowledge";
 import { discoverKeywords, type DiscoveredKeyword } from "@/lib/auto-keywords";
-import { generateCalendar } from "@/lib/seo-calendar";
+import { generateCalendar, summariseTopIssues } from "@/lib/seo-calendar";
+import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { getGscQuickWins } from "@/lib/google-data";
 import { logActivity } from "@/lib/activity";
 import { ymd } from "@/lib/utils-date";
@@ -355,11 +356,15 @@ export async function generateMonthlyCalendar(
       .orderBy(desc(audits.completedAt))
       .limit(1);
     if (latestAudit) {
+      // No limit before summarising. This took an arbitrary thirty rows
+      // and THEN sorted them, so on a site with twenty heading-order rows
+      // the critical findings could fall outside the thirty entirely.
       const rows = await db
         .select({
           severity: auditIssues.severity,
           type: auditIssues.type,
           message: auditIssues.message,
+          url: auditIssues.url,
         })
         .from(auditIssues)
         .where(
@@ -367,20 +372,8 @@ export async function generateMonthlyCalendar(
             eq(auditIssues.auditId, latestAudit.id),
             eq(auditIssues.status, "new"),
           ),
-        )
-        .limit(30);
-      const sevRank = { critical: 0, high: 1, medium: 2, low: 3 } as const;
-      topIssues = rows
-        .map((r) => ({
-          severity: r.severity as "critical" | "high" | "medium" | "low",
-          title: r.message || r.type,
-        }))
-        .sort(
-          (a, b) =>
-            sevRank[a.severity] - sevRank[b.severity] ||
-            a.title.localeCompare(b.title),
-        )
-        .slice(0, 5);
+        );
+      topIssues = summariseTopIssues(withoutInfrastructure(rows), 5);
     }
   } catch {
     topIssues = [];

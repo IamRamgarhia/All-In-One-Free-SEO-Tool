@@ -90,9 +90,14 @@ export function buildProspectQueries(opts: {
  */
 export async function searchDuckDuckGo(
   query: string,
-  opts?: { signal?: AbortSignal },
+  opts?: { signal?: AbortSignal; region?: string },
 ): Promise<{ url: string; title: string; snippet: string | null }[]> {
   const params = new URLSearchParams({ q: query });
+  // DuckDuckGo's region. Without it every search is answered as if from
+  // the US, which is how an Indian tape manufacturer's suggested
+  // competitors came back as Walmart, Target and Home Depot. Verified
+  // live: the same query with kl=in-en returns Indian manufacturers.
+  if (opts?.region) params.set("kl", opts.region);
   const res = await fetch(
     `https://html.duckduckgo.com/html/?${params.toString()}`,
     {
@@ -106,6 +111,33 @@ export async function searchDuckDuckGo(
   if (!res.ok) return [];
   const html = await res.text();
   return parseDuckDuckGoHtml(html);
+}
+
+/**
+ * DuckDuckGo's `kl` region code for an ISO country, or undefined.
+ *
+ * Most markets are `<cc>-en`; the UK is `uk-en`, not `gb-en`; and a few
+ * large non-English markets use their own language. An unrecognised code
+ * is simply ignored by DuckDuckGo, so a miss degrades to no region
+ * rather than to an error.
+ */
+export function duckDuckGoRegion(
+  country: string | null | undefined,
+): string | undefined {
+  const cc = (country ?? "").trim().toLowerCase();
+  if (!/^[a-z]{2}$/.test(cc)) return undefined;
+  const special: Record<string, string> = {
+    gb: "uk-en",
+    de: "de-de",
+    fr: "fr-fr",
+    es: "es-es",
+    it: "it-it",
+    nl: "nl-nl",
+    jp: "jp-jp",
+    br: "br-pt",
+    mx: "mx-es",
+  };
+  return special[cc] ?? `${cc}-en`;
 }
 
 /**

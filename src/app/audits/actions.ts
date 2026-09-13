@@ -2,11 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { safeRevalidatePath } from "@/lib/safe-revalidate";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, like, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, auditIssues, clients, tasks } from "@/db/schema";
 import { runAudit } from "@/lib/audit";
 import { findingsToTasks } from "@/lib/audit-to-task";
+import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { confidenceForIssue } from "@/lib/audit-confidence";
 import { notify, type NotificationField } from "@/lib/notifier";
 import { logActivity } from "@/lib/activity";
@@ -147,7 +148,15 @@ export async function runAuditForClient(clientId: number) {
     return;
   }
 
-  if (result.findings.length > 0) {
+  // Infrastructure URLs out before anything is stored or turned into work.
+  //
+  // The crawler skips them now, but this is the one place every finding
+  // passes through on its way into the database, so a guard here catches
+  // every source. Before it, a Cloudflare email-protection link became a
+  // "critical" finding on every crawl and four generators made tasks of it.
+  const realFindings = withoutInfrastructure(result.findings);
+
+  if (realFindings.length > 0) {
     // Carry forward issue status (ignored / resolved / false_positive)
     // from prior audits — same (type, url) on the same client. Without
     // this, every re-run resurrects issues the user previously dismissed.
@@ -170,7 +179,7 @@ export async function runAuditForClient(clientId: number) {
       if (p.type && p.url) statusByKey.set(`${p.type}::${p.url}`, p.status);
     }
     await db.insert(auditIssues).values(
-      result.findings.map((f) => {
+      realFindings.map((f) => {
         const inheritedStatus = statusByKey.get(`${f.type}::${f.url}`);
         return {
           auditId: auditRow.id,
@@ -190,27 +199,51 @@ export async function runAuditForClient(clientId: number) {
       }),
     );
 
-    const generatedTasks = findingsToTasks(result.findings);
+    const generatedTasks = findingsToTasks(realFindings);
     if (generatedTasks.length > 0) {
+      // One open task per finding type, however many times the site is
+      // audited. This inserted every blueprint again on every run and
+      // tagged none of them, so a client audited twice had "Fix server
+      // error on homepage" twice — and one audited weekly would have had
+      // it fifty times. A task somebody finished may come back if the
+      // problem does; an open one is never doubled.
+      const open = await db
+        .select({ sourceRef: tasks.sourceRef })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.clientId, clientId),
+            like(tasks.sourceRef, "audit:%"),
+            inArray(tasks.status, ["todo", "in_progress"]),
+          ),
+        );
+      const alreadyOpen = new Set(open.map((t) => t.sourceRef));
+      const fresh = generatedTasks.filter(
+        (t) => !alreadyOpen.has(`audit:${t.type}`),
+      );
+
       const now = Date.now();
       const dayMs = 86_400_000;
-      await db.insert(tasks).values(
-        generatedTasks.map((t) => ({
-          clientId,
-          title: t.title,
-          description: t.description,
-          whyItMatters: t.whyItMatters,
-          priority: t.priority,
-          toolPath: t.toolPath,
-          status: "todo" as const,
-          dueDate:
-            t.priority === "high"
-              ? new Date(now + 7 * dayMs)
-              : t.priority === "medium"
-                ? new Date(now + 30 * dayMs)
-                : null,
-        })),
-      );
+      if (fresh.length > 0) {
+        await db.insert(tasks).values(
+          fresh.map((t) => ({
+            clientId,
+            title: t.title,
+            description: t.description,
+            whyItMatters: t.whyItMatters,
+            priority: t.priority,
+            toolPath: t.toolPath,
+            status: "todo" as const,
+            sourceRef: `audit:${t.type}`,
+            dueDate:
+              t.priority === "high"
+                ? new Date(now + 7 * dayMs)
+                : t.priority === "medium"
+                  ? new Date(now + 30 * dayMs)
+                  : null,
+          })),
+        );
+      }
     }
   }
 
@@ -219,7 +252,7 @@ export async function runAuditForClient(clientId: number) {
     .set({
       status: "completed",
       score: result.score,
-      issuesCount: result.findings.length,
+      issuesCount: realFindings.length,
       pagesCrawled: result.pagesCrawled,
       completedAt: new Date(),
       updatedAt: new Date(),
@@ -283,7 +316,7 @@ export async function runAuditForClient(clientId: number) {
       auditId: auditRow.id,
       score,
       previousScore,
-      issuesCount: result.findings.length,
+      issuesCount: realFindings.length,
       topIssue: topIssue ?? "",
     },
   });

@@ -33,6 +33,7 @@ import type { AgentSettings } from "./autonomy";
 import { has, type ClientCapabilities } from "./capabilities";
 import { analyseInternalLinks } from "../internal-link-graph";
 import { loadActionableToolFindings } from "./tool-finding-map";
+import { withoutInfrastructure } from "../infrastructure-urls";
 import { pickAnchor } from "./anchor-text";
 
 export type PlannedAction = {
@@ -508,15 +509,20 @@ export async function planForClient(opts: {
     };
   }
 
-  const issues = await db
-    .select()
-    .from(auditIssues)
-    .where(
-      and(
-        eq(auditIssues.auditId, latestAudit.id),
-        eq(auditIssues.status, "new"),
+  // Infrastructure rows out. The planner writes to live sites, and an old
+  // audit's /cdn-cgi/ finding would have it drafting a meta description
+  // for a Cloudflare redirect that no CMS has a post for.
+  const issues = withoutInfrastructure(
+    await db
+      .select()
+      .from(auditIssues)
+      .where(
+        and(
+          eq(auditIssues.auditId, latestAudit.id),
+          eq(auditIssues.status, "new"),
+        ),
       ),
-    );
+  );
 
   // 1. Only findings we know how to fix.
   const candidates: PlannedAction[] = [];
