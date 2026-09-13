@@ -267,6 +267,13 @@
       "when": 1789233417765,
       "tag": "0068_gbp_location_name",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1789285242451,
+      "tag": "0069_bot_verification",
+      "breakpoints": true
     }
   ]
 }

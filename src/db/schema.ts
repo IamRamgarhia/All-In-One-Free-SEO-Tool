@@ -1183,6 +1183,18 @@ export const botLogUploads = sqliteTable("bot_log_uploads", {
   botCounts: text("bot_counts", { mode: "json" }).$type<
     Record<string, number>
   >(),
+  /**
+   * For each crawler that publishes its address ranges, how many of its
+   * hits came from inside them. botCounts is what user agents claimed;
+   * this is how much of it checked out. See lib/crawler-verify.ts. Null
+   * for uploads from before the check existed.
+   */
+  botVerification: text("bot_verification", { mode: "json" }).$type<
+    Record<
+      string,
+      { verified: number; unverified: number; noAddress: number; listError?: string }
+    >
+  >(),
   uploadedAt: integer("uploaded_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
