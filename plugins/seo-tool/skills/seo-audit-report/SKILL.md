@@ -30,6 +30,12 @@ is usually in the agent action log rather than in the rankings.
 - `get_citation_landscape` — who they cite instead.
 - `get_recent_agent_runs` and `list_agent_actions` — what has already
   been changed, and when.
+- `compare_search_periods` — clicks and position against the previous
+  period, and what moved, from Search Console.
+- `check_indexing` — whether the pages Google shows most are indexed,
+  and why not. `inspect_url` for one page, `list_sitemaps` for what was
+  submitted. All four need a connected Search Console property and say so
+  when there is none.
 
 ## Reading the numbers honestly
 
@@ -53,11 +59,19 @@ This is most of the job.
 - **Correlate changes with dates.** If rankings moved, check
   `list_agent_actions` for what changed and when before attributing it to
   anything else.
+- **Search Console's newest days are unfinished.** `compare_search_periods`
+  ends both periods on the last day Google finished counting. Do not
+  restate its numbers as "the last 28 days" by the calendar, and do not
+  call a partial day a drop.
+- **An inspection is Google's record from its last crawl.** A fix made
+  this week will not show in `inspect_url` or `check_indexing` until
+  Google recrawls the page. Say when the page was last crawled.
 
 ## Workflow
 
 1. `get_client_knowledge`, then `get_client_overview`.
-2. Pull the findings, the rankings and the AI checks.
+2. Pull the findings, the rankings and the AI checks. If Search Console is
+   connected, `compare_search_periods` and `check_indexing` too.
 3. `get_recent_agent_runs` and `list_agent_actions` for what has already
    been done, so the report does not recommend work that is finished.
 4. Verify anything you plan to state about a specific page by fetching

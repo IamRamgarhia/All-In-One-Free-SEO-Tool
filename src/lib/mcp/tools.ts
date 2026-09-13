@@ -40,6 +40,18 @@ import {
   saveDraftReply,
   sendReply,
 } from "@/lib/gbp-review-queue";
+import {
+  fetchGscPerformance,
+  inspectGscUrl,
+  listGscSitemaps,
+} from "@/lib/google-oauth";
+import {
+  comparableWindows,
+  comparePeriods,
+  summariseInspections,
+  topPagesByImpressions,
+  windowTotals,
+} from "@/lib/gsc-insights";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -976,4 +988,234 @@ export async function saveReviewDraft(opts: {
       note: "Saved as a draft. Nothing has been sent — it shows in the review desk for a person to approve.",
     },
   };
+}
+
+// =====================================================================
+// Search Console — read live from Google, read-only
+// =====================================================================
+//
+// Modelled on the tools in mcp-gsc (MIT). Everything here reads: the
+// Google connection holds only the webmasters.readonly scope, so this
+// install cannot submit or delete a sitemap, and no tool pretends to.
+
+const DAY_MS = 86_400_000;
+const isoDaysAgo = (n: number) => new Date(Date.now() - n * DAY_MS).toISOString().slice(0, 10);
+const clamp = (n: number | undefined, fallback: number, min: number, max: number) =>
+  Math.min(Math.max(Math.trunc(n ?? fallback), min), max);
+
+async function gscClient(
+  clientId: number,
+): Promise<
+  | { error: string }
+  | { client: { id: number; name: string }; siteUrl: string }
+> {
+  const client = await resolveClient(clientId);
+  if (!client) return { error: `No client with id ${clientId}.` };
+  if (!client.gscProperty) {
+    return {
+      error: `${client.name} has no Search Console property connected, so there is nothing to read. Connect one in the app first.`,
+    };
+  }
+  return { client: { id: client.id, name: client.name }, siteUrl: client.gscProperty };
+}
+
+/**
+ * Google's index record for one URL.
+ *
+ * What Google stored at its last crawl, not a live test: a fix made
+ * yesterday does not show here until Google recrawls the page.
+ */
+export async function inspectUrl(opts: { clientId: number; url: string }): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+
+  const r = await inspectGscUrl({
+    siteUrl: g.siteUrl,
+    inspectionUrl: opts.url,
+    clientIdScope: g.client.id,
+  });
+  if (r.error) return { ok: false, error: `Search Console could not inspect ${opts.url}: ${r.error}` };
+
+  return {
+    ok: true,
+    data: {
+      ...r,
+      indexed: r.verdict === "PASS",
+      canonicalMismatch: Boolean(
+        r.googleCanonical && r.userCanonical && r.googleCanonical !== r.userCanonical,
+      ),
+      lastCrawled: r.lastCrawlTime
+        ? freshness(new Date(r.lastCrawlTime))
+        : "no successful crawl on record",
+      provenance:
+        "Google's URL Inspection API: the index record from Google's last crawl, not a live test of the page as it is now.",
+    },
+  };
+}
+
+/**
+ * Inspect the pages Google shows most and sort them by what is wrong.
+ *
+ * One at a time. Google allows 600 inspections a minute and 2,000 a day
+ * per property, so twenty in a row is well inside both, and running them
+ * in parallel would save seconds at the cost of a quota error mid-audit.
+ */
+export async function checkIndexing(opts: { clientId: number; limit?: number }): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+  const n = clamp(opts.limit, 10, 1, 20);
+
+  let pages: string[];
+  try {
+    const rows = await fetchGscPerformance({
+      siteUrl: g.siteUrl,
+      startDate: isoDaysAgo(30),
+      endDate: isoDaysAgo(1),
+      dimensions: ["page"],
+      rowLimit: 1000,
+      clientIdScope: g.client.id,
+    });
+    pages = topPagesByImpressions(rows, n);
+  } catch (err) {
+    return { ok: false, error: `Search Console performance query failed: ${(err as Error).message}` };
+  }
+
+  if (pages.length === 0) {
+    return {
+      ok: true,
+      data: {
+        client: g.client,
+        audit: null,
+        note: "No page had impressions in Search Console over the last 30 days, so there was nothing to inspect. That says nothing either way about whether pages are indexed.",
+      },
+    };
+  }
+
+  const results = [];
+  for (const url of pages) {
+    results.push(
+      await inspectGscUrl({ siteUrl: g.siteUrl, inspectionUrl: url, clientIdScope: g.client.id }),
+    );
+  }
+
+  return {
+    ok: true,
+    data: {
+      client: g.client,
+      selection: `The ${pages.length} pages with the most Search Console impressions over the last 30 days.`,
+      audit: summariseInspections(results),
+      quota: "Each page inspected counts against Google's limit of 2,000 URL inspections a day per property.",
+      provenance: "Google's URL Inspection API, read live on this call: index records from Google's last crawl of each page.",
+    },
+  };
+}
+
+/**
+ * Two back-to-back periods from Search Console, with the rows that moved
+ * most. See gsc-insights.ts for why the windows end on the newest
+ * finished day and why totals come from daily rows.
+ */
+export async function compareSearchPeriods(opts: {
+  clientId: number;
+  days?: number;
+  dimension?: "query" | "page";
+  limit?: number;
+}): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+  const days = clamp(opts.days, 28, 1, 180);
+  const dimension = opts.dimension === "page" ? "page" : "query";
+  const limit = clamp(opts.limit, 10, 1, 50);
+  const ROW_CAP = 5000;
+
+  try {
+    const lookback = 2 * days + 7;
+    const dateRows = await fetchGscPerformance({
+      siteUrl: g.siteUrl,
+      startDate: isoDaysAgo(lookback),
+      endDate: isoDaysAgo(0),
+      dimensions: ["date"],
+      rowLimit: 1000,
+      dataState: "final",
+      clientIdScope: g.client.id,
+    });
+    const windows = comparableWindows(
+      dateRows.map((r) => r.keys[0]),
+      days,
+    );
+    if (!windows) {
+      return {
+        ok: true,
+        data: {
+          client: g.client,
+          note: `Search Console returned no finished days with impressions in the last ${lookback} days, so there is nothing to compare.`,
+        },
+      };
+    }
+
+    const rowsFor = (w: { start: string; end: string }) =>
+      fetchGscPerformance({
+        siteUrl: g.siteUrl,
+        startDate: w.start,
+        endDate: w.end,
+        dimensions: [dimension],
+        rowLimit: ROW_CAP,
+        dataState: "final",
+        clientIdScope: g.client.id,
+      });
+    const [current, previous] = await Promise.all([
+      rowsFor(windows.current),
+      rowsFor(windows.previous),
+    ]);
+
+    const notes = [
+      `Both periods are ${days} days and end on ${windows.current.end}, the newest day Search Console had finished processing. Days still being counted are left out, because they read as a drop.`,
+      dimension === "query"
+        ? "Totals come from daily figures and include anonymised queries; query rows leave those out, so the rows will not add up to the totals."
+        : "Totals are per site and page rows per URL, so the page rows will not add up exactly to the totals.",
+    ];
+    if (current.length === ROW_CAP || previous.length === ROW_CAP) {
+      notes.push(
+        `A period reached the ${ROW_CAP.toLocaleString()}-row limit, so a ${dimension} near the bottom can show as new or lost when it only fell outside the limit.`,
+      );
+    }
+
+    return {
+      ok: true,
+      data: {
+        client: g.client,
+        dimension,
+        current: windowTotals(dateRows, windows.current),
+        previous: windowTotals(dateRows, windows.previous),
+        ...comparePeriods(current, previous, limit),
+        notes,
+        provenance: "Google Search Console Search Analytics API, finished days only, read live on this call.",
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `Search Console query failed: ${(err as Error).message}` };
+  }
+}
+
+/** Sitemaps submitted in Search Console, as Google last read them. */
+export async function listSitemaps(opts: { clientId: number }): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+  try {
+    const sitemaps = await listGscSitemaps({ siteUrl: g.siteUrl, clientIdScope: g.client.id });
+    return {
+      ok: true,
+      data: {
+        client: g.client,
+        sitemaps,
+        ...(sitemaps.length === 0
+          ? { note: "No sitemaps are submitted for this property in Search Console." }
+          : {}),
+        provenance:
+          "Search Console's sitemaps report. Google marks the API's per-sitemap indexed count as deprecated, so only submitted URLs are given — use check_indexing or inspect_url for what is indexed.",
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `Search Console sitemaps query failed: ${(err as Error).message}` };
+  }
 }

@@ -37,6 +37,10 @@ import {
   revertAgentActionById,
   updateClientKnowledge,
   runAgent,
+  checkIndexing,
+  compareSearchPeriods,
+  inspectUrl,
+  listSitemaps,
   type McpToolResult,
 } from "./tools";
 const clientIdArg = {
@@ -329,6 +333,73 @@ const TOOLS = [
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     handler: (a: { clientId: number; reviewId: string; text: string }) =>
       replyToReview(a),
+  },
+  {
+    name: "inspect_url",
+    description:
+      "Google's index record for one URL on this client's site, from Search Console's URL Inspection API: whether it is indexed and why not, the canonical Google chose versus the one the page declares, robots.txt and fetch state, rich result issues, and the last crawl. It is Google's record from its last crawl, not a live test — a fix made today shows only after Google recrawls. Needs a connected Search Console property.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number", description: "Which site. Get ids from list_clients." },
+        url: {
+          type: "string",
+          description: "Full URL, inside the client's Search Console property.",
+        },
+      },
+      required: ["clientId", "url"],
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    handler: (a: { clientId: number; url: string }) => inspectUrl(a),
+  },
+  {
+    name: "check_indexing",
+    description:
+      "Inspect the pages Google shows most for this client (top by Search Console impressions over 30 days) and sort them into indexed, not indexed, blocked by robots.txt, noindex, fetch problems, and pages where Google chose a different canonical from the declared one. Each page uses one of the property's 2,000 daily URL inspections.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number", description: "Which site. Get ids from list_clients." },
+        limit: { type: "number", description: "Pages to inspect. Default 10, max 20." },
+      },
+      required: ["clientId"],
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    handler: (a: { clientId: number; limit?: number }) => checkIndexing(a),
+  },
+  {
+    name: "compare_search_periods",
+    description:
+      "Clicks, impressions, CTR and average position for two back-to-back periods from Search Console, plus the queries or pages that gained and lost the most clicks. Both periods end on the newest day Search Console has finished counting, so a day still being processed never shows up as a drop.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number", description: "Which site. Get ids from list_clients." },
+        days: { type: "number", description: "Length of each period. Default 28, max 180." },
+        dimension: {
+          type: "string",
+          enum: ["query", "page"],
+          description: "Compare by query or by page. Default 'query'.",
+        },
+        limit: { type: "number", description: "Gainers and losers to return. Default 10, max 50." },
+      },
+      required: ["clientId"],
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    handler: (a: {
+      clientId: number;
+      days?: number;
+      dimension?: "query" | "page";
+      limit?: number;
+    }) => compareSearchPeriods(a),
+  },
+  {
+    name: "list_sitemaps",
+    description:
+      "Sitemaps submitted in Search Console for this client: when Google last read each one, its errors and warnings, and how many URLs it submits. Google's API no longer reports how many sitemap URLs are indexed, so this does not either — use check_indexing for that. This install cannot submit sitemaps; its Google connection is read-only.",
+    inputSchema: clientIdArg,
+    annotations: { readOnlyHint: true, openWorldHint: true },
+    handler: (a: { clientId: number }) => listSitemaps(a),
   },
 ];
 

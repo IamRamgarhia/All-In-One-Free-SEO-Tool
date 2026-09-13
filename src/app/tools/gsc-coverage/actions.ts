@@ -10,7 +10,7 @@
  * saying the whole page is unavailable when it is not.
  */
 
-import { inspectGscUrl, type UrlInspection } from "@/lib/google-oauth";
+import { inspectGscUrl, inspectionFailure, type UrlInspection } from "@/lib/google-oauth";
 import { saveToolRun } from "@/lib/tool-runs";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
 import type { AiFailure } from "@/lib/ai-error";
@@ -55,20 +55,7 @@ export async function runCoverage(
         });
         rows.push(r);
       } catch (err) {
-        rows.push({
-          url: u,
-          indexingState: null,
-          verdict: null,
-          crawledAs: null,
-          lastCrawlTime: null,
-          pageFetchState: null,
-          robotsTxtState: null,
-          coverageState: null,
-          coverageStateReason: null,
-          referringUrls: [],
-          sitemap: [],
-          error: (err as Error).message,
-        });
+        rows.push(inspectionFailure(u, (err as Error).message));
       }
       await new Promise((r) => setTimeout(r, 250));
     }
@@ -159,7 +146,8 @@ export async function analyzeFixesForCoverage(
   const compact = batch.map((r) => ({
     url: r.url,
     coverageState: r.coverageState,
-    coverageStateReason: r.coverageStateReason,
+    googleCanonical: r.googleCanonical,
+    userCanonical: r.userCanonical,
     indexingState: r.indexingState,
     pageFetchState: r.pageFetchState,
     robotsTxtState: r.robotsTxtState,
