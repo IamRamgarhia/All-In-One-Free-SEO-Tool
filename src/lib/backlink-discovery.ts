@@ -91,8 +91,8 @@ export async function discoverBacklinks(opts: {
         if (ddgResults.has(r.url)) continue;
         ddgResults.set(r.url, { title: r.title, snippet: r.snippet });
       }
-    } catch {
-      errors.push(`DDG search failed for: ${q}`);
+    } catch (err) {
+      errors.push(`DuckDuckGo search failed for ${q}: ${(err as Error).message}`);
     }
   }
 

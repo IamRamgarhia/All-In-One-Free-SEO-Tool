@@ -8,6 +8,8 @@
  * unauthenticated, and returns a clean result list.
  */
 
+import { captchaUserMessage, detectCaptcha, emptyResultsReason } from "./captcha-detect";
+
 export type ProspectQuery = {
   /** A built search query, e.g. `intitle:"resources" "digital marketing"` */
   q: string;
@@ -108,9 +110,29 @@ export async function searchDuckDuckGo(
       signal: opts?.signal,
     },
   );
-  if (!res.ok) return [];
   const html = await res.text();
-  return parseDuckDuckGoHtml(html);
+
+  // Throw rather than return []. Every caller reads an empty list as
+  // "nothing out there" — no competitors, no prospects, not listed in a
+  // directory. A bot challenge (HTTP 202, so `res.ok` was true) or an
+  // error page is not that, and every caller already catches.
+  const cap = detectCaptcha(html);
+  if (cap.blocked) throw new SearchUnavailableError(captchaUserMessage(cap.reason));
+  if (!res.ok) throw new SearchUnavailableError(`DuckDuckGo returned HTTP ${res.status}.`);
+  const results = parseDuckDuckGoHtml(html);
+  if (results.length === 0) {
+    const reason = emptyResultsReason("duckduckgo", html);
+    if (reason) throw new SearchUnavailableError(reason);
+  }
+  return results;
+}
+
+/** A search that could not be read, as opposed to one with no results. */
+export class SearchUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SearchUnavailableError";
+  }
 }
 
 /**
@@ -233,6 +255,14 @@ export async function findProspects(opts: {
         return { query: q, results: limited };
       }),
     );
+    // Every query failing is not "no prospects" — say why instead.
+    const failed = settled.filter(
+      (s): s is PromiseRejectedResult => s.status === "rejected",
+    );
+    if (failed.length > 0 && failed.length === settled.length) {
+      const reason = failed[0].reason;
+      throw reason instanceof Error ? reason : new Error(String(reason));
+    }
     for (const s of settled) {
       if (s.status !== "fulfilled") continue;
       for (const r of s.value.results) {

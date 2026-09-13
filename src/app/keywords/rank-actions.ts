@@ -120,6 +120,14 @@ export async function checkRankAction(
     ...locale,
   });
 
+  // A check that could not read a results page has no position to
+  // record. Storing its null wrote "fell out of the top 100" into the
+  // history — and into every chart and report built from it — for what
+  // was really a blocked request.
+  if (result.error && result.position === null) {
+    return { ok: false, error: result.error };
+  }
+
   await db.insert(keywordRankings).values({
     keywordId,
     position: result.position,

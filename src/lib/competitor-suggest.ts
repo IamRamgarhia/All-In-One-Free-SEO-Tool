@@ -299,6 +299,12 @@ export type SuggestOutcome = {
   region?: string;
   /** Set when the suggester chose not to search at all, and why. */
   declined?: string;
+  /**
+   * Set when too few searches could run to rank anything — a bot
+   * challenge, a block, a page we couldn't read — and why. Not the same
+   * as searching and finding no rivals, and must not be shown as that.
+   */
+  unavailable?: string;
 };
 
 export async function suggestCompetitorsFromKeywords(opts: {
@@ -351,12 +357,30 @@ export async function suggestCompetitorsFromKeywords(opts: {
 
   const region = duckDuckGoRegion(c.country);
   const searches: { query: string; results: SerpResult[] }[] = [];
+  const failures: string[] = [];
   for (const query of seeds) {
     try {
       searches.push({ query, results: await searchDuckDuckGo(query, { region }) });
-    } catch {
+    } catch (err) {
       // One failed search is not a reason to throw away the others.
+      failures.push(err instanceof Error ? err.message : String(err));
     }
+  }
+
+  // A competitor has to turn up in two searches, so with fewer than two
+  // that ran, nothing can qualify. Returned as "no competitors", that
+  // tells the user their market is empty when the searches were blocked.
+  if (failures.length > 0 && searches.length < 2) {
+    const unavailable = `only ${searches.length} of ${seeds.length} searches could run. ${failures[0]}`;
+    if (!opts.dryRun) {
+      await logActivity({
+        kind: "client.created",
+        message: `Competitor suggestions could not run: ${unavailable}`,
+        clientId: opts.clientId,
+        entityType: "competitor",
+      });
+    }
+    return { ...none, seeds, searches: searches.length, region, unavailable };
   }
 
   const exclude = new Set(

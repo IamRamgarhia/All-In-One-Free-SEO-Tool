@@ -1,6 +1,6 @@
 import { type Page } from "playwright";
 import { withBrowserContext } from "./browser-pool";
-import { captchaUserMessage, detectCaptcha } from "./captcha-detect";
+import { captchaUserMessage, detectCaptcha, emptyResultsReason } from "./captcha-detect";
 
 export type RankCheckResult = {
   query: string;
@@ -299,6 +299,28 @@ async function checkOnGoogle(
     const filtered = collected;
     resultsScanned = filtered.length;
 
+    // Zero results is only "not ranking" when Google said it had none.
+    // Otherwise the page was an interstitial or a layout the selectors no
+    // longer match, and "not ranking" would put a drop in the history
+    // that never happened.
+    if (filtered.length === 0) {
+      const reason = emptyResultsReason("google", await page.content());
+      if (reason) {
+        return {
+          query,
+          domain,
+          engine: "google",
+          position: null,
+          url: null,
+          checkedAt,
+          device,
+          resultsScanned: 0,
+          screenshotBuffer,
+          error: reason,
+        };
+      }
+    }
+
     for (let i = 0; i < filtered.length; i++) {
       if (urlMatches(filtered[i], domain)) {
         return {
@@ -436,42 +458,8 @@ async function checkOnDuckDuckGo(
       },
     );
 
-    if (!res.ok) {
-      return {
-        ...base,
-        position: null,
-        url: null,
-        resultsScanned: 0,
-        error: `DuckDuckGo returned HTTP ${res.status}.`,
-      };
-    }
-
     const html = await res.text();
-
-    // Unwrap DDG's /l/?uddg= redirector and drop ad slots. Without this
-    // every href looks like a duckduckgo.com link and the old filter
-    // discarded all of them — which is why DDG checks always returned
-    // "not ranking".
-    const filtered = dedupeResults(
-      extractDuckDuckGoHrefs(html)
-        .map(unwrapDuckDuckGoUrl)
-        .filter((h): h is string => h !== null),
-    );
-
-    const resultsScanned = filtered.length;
-
-    for (let i = 0; i < filtered.length; i++) {
-      if (urlMatches(filtered[i], domain)) {
-        return {
-          ...base,
-          position: i + 1,
-          url: filtered[i],
-          resultsScanned,
-        };
-      }
-    }
-
-    return { ...base, position: null, url: null, resultsScanned };
+    return { ...base, ...readDuckDuckGoResponse(res.status, html, domain) };
   } catch (err) {
     return {
       ...base,
@@ -483,6 +471,54 @@ async function checkOnDuckDuckGo(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Turn a DuckDuckGo HTML response into a rank reading.
+ *
+ * Separate from the fetch so it can be run against captured pages. The
+ * bug it exists for: DuckDuckGo's bot challenge arrives as HTTP 202,
+ * which passed the old `res.ok` check, parsed to zero results, and was
+ * returned as "not ranking" with no error — on the fallback that runs
+ * whenever Google blocks the browser.
+ */
+export function readDuckDuckGoResponse(
+  status: number,
+  html: string,
+  domain: string,
+): Pick<RankCheckResult, "position" | "url" | "resultsScanned" | "error"> {
+  const failed = (error: string) => ({
+    position: null,
+    url: null,
+    resultsScanned: 0,
+    error,
+  });
+
+  const cap = detectCaptcha(html);
+  if (cap.blocked) return failed(captchaUserMessage(cap.reason));
+  if (status < 200 || status >= 300) {
+    return failed(`DuckDuckGo returned HTTP ${status}.`);
+  }
+
+  // Unwrap DDG's /l/?uddg= redirector and drop ad slots. Without this
+  // every href looks like a duckduckgo.com link and the old filter
+  // discarded all of them — which is why DDG checks always returned
+  // "not ranking".
+  const filtered = dedupeResults(
+    extractDuckDuckGoHrefs(html)
+      .map(unwrapDuckDuckGoUrl)
+      .filter((h): h is string => h !== null),
+  );
+
+  if (filtered.length === 0) {
+    const reason = emptyResultsReason("duckduckgo", html);
+    if (reason) return failed(reason);
+  }
+
+  const i = filtered.findIndex((h) => urlMatches(h, domain));
+  return i >= 0
+    ? { position: i + 1, url: filtered[i], resultsScanned: filtered.length }
+    : { position: null, url: null, resultsScanned: filtered.length };
 }
 
 /**
@@ -552,7 +588,15 @@ export async function checkRank(
   if (google.error || google.resultsScanned === 0) {
     const ddg = await checkOnDuckDuckGo(query, domain, device);
     // Prefer DDG result if Google was blocked, else return Google's null result
-    if (!ddg.error || google.error) return ddg;
+    if (!ddg.error) return ddg;
+    // Both failed: name both. The fallback's reason alone hides that
+    // Google was the first thing to go wrong.
+    if (google.error) {
+      return {
+        ...ddg,
+        error: `Google: ${google.error} DuckDuckGo fallback: ${ddg.error}`,
+      };
+    }
   }
   return google;
 }
