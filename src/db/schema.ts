@@ -755,6 +755,14 @@ export const monitoredPages = sqliteTable("monitored_pages", {
   lastH1: text("last_h1"),
   lastCanonical: text("last_canonical"),
   lastContentHash: text("last_content_hash"),
+  /**
+   * Null on rows snapshotted before status, robots and structured data
+   * were recorded; see diffSnapshots in lib/page-monitor.ts.
+   */
+  lastStatus: integer("last_status"),
+  lastRobots: text("last_robots"),
+  lastSchemaTypes: text("last_schema_types"),
+  lastSchemaHash: text("last_schema_hash"),
   lastCheckedAt: integer("last_checked_at", { mode: "timestamp" }),
   ...timestamps,
 });
@@ -765,8 +773,10 @@ export const pageChanges = sqliteTable("page_changes", {
     .notNull()
     .references(() => monitoredPages.id, { onDelete: "cascade" }),
   field: text("field", {
-    enum: ["title", "description", "h1", "canonical", "content"],
+    enum: ["status", "title", "description", "h1", "canonical", "robots", "schema", "content"],
   }).notNull(),
+  /** Null on changes recorded before severity existed. */
+  severity: text("severity", { enum: ["critical", "warning", "info"] }),
   oldValue: text("old_value"),
   newValue: text("new_value"),
   detectedAt: integer("detected_at", { mode: "timestamp" })

@@ -482,28 +482,34 @@ export async function generateReportPdf(
   }
   rankMovements.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
-  // Page changes detected via the page-monitor scheduler in the period
-  const pageChangeRows = await db
+  // Page changes detected via the page-monitor scheduler in the period.
+  //
+  // Filtered by client in the query. It used to filter by date only and
+  // then keep every row with a URL, on the belief that the join limited
+  // it to this client. It did not: each client's report would have listed
+  // every client's monitored pages.
+  const pageChangesForClient = await db
     .select({
       field: pageChanges.field,
+      severity: pageChanges.severity,
       oldValue: pageChanges.oldValue,
       newValue: pageChanges.newValue,
       detectedAt: pageChanges.detectedAt,
       url: monitoredPages.url,
     })
     .from(pageChanges)
-    .leftJoin(
+    .innerJoin(
       monitoredPages,
       eq(pageChanges.monitoredPageId, monitoredPages.id),
     )
-    .where(gte(pageChanges.detectedAt, periodCutoff))
+    .where(
+      and(
+        eq(monitoredPages.clientId, clientId),
+        gte(pageChanges.detectedAt, periodCutoff),
+      ),
+    )
     .orderBy(desc(pageChanges.detectedAt))
     .limit(50);
-
-  const pageChangesForClient = pageChangeRows.filter((r) => {
-    // monitor table is per-client; we only see this client's via the join
-    return Boolean(r.url);
-  });
 
   // Capture a fresh monthly snapshot every time a report is generated, then
   // load the comparison so the report can render "since baseline" + "since
@@ -1322,11 +1328,19 @@ export async function generateReportPdf(
     if (pageChangesForClient.length > 0) {
       drawSectionHeading(doc, "Page changes detected");
       doc.font("Helvetica").fontSize(10).fillColor(palette.ink);
-      for (const c of pageChangesForClient.slice(0, 10)) {
+      // Critical first: ten rows by date alone could leave out the one
+      // change that took a page out of search.
+      const rank = { critical: 0, warning: 1, info: 2 } as const;
+      const ordered = [...pageChangesForClient].sort(
+        (a, b) =>
+          rank[a.severity ?? "info"] - rank[b.severity ?? "info"] ||
+          b.detectedAt.getTime() - a.detectedAt.getTime(),
+      );
+      for (const c of ordered.slice(0, 10)) {
         ensureSpace(doc, 26);
         doc
           .font("Helvetica-Bold")
-          .text(`${c.field} changed`, { continued: true })
+          .text(`${c.severity === "critical" ? "Critical: " : ""}${c.field} changed`, { continued: true })
           .font("Helvetica")
           .fillColor(palette.mute)
           .fontSize(9)

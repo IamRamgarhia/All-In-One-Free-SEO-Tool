@@ -274,6 +274,13 @@
       "when": 1789285242451,
       "tag": "0069_bot_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1789286252189,
+      "tag": "0070_page_monitor_severity",
+      "breakpoints": true
     }
   ]
 }

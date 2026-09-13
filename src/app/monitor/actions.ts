@@ -93,6 +93,10 @@ async function checkPageChangesInternal(
       lastH1: monitoredPages.lastH1,
       lastCanonical: monitoredPages.lastCanonical,
       lastContentHash: monitoredPages.lastContentHash,
+      lastStatus: monitoredPages.lastStatus,
+      lastRobots: monitoredPages.lastRobots,
+      lastSchemaTypes: monitoredPages.lastSchemaTypes,
+      lastSchemaHash: monitoredPages.lastSchemaHash,
       clientId: monitoredPages.clientId,
       clientName: clients.name,
     })
@@ -103,65 +107,94 @@ async function checkPageChangesInternal(
 
   if (!page) return { changes: 0, error: "Page not found" };
 
-  const snap = await fetchSnapshot(page.url);
-  if (!snap) {
-    return { changes: 0, error: "Couldn't fetch the page" };
+  const fetched = await fetchSnapshot(page.url);
+  if (!fetched.ok) {
+    // Not reachable at all, so nothing is known about the page — not
+    // the same as a page answering with an error, which is recorded.
+    return { changes: 0, error: fetched.error };
   }
+  const snap = fetched.snapshot;
 
-  const prevSnapshot = page.lastContentHash
+  const hasSnapshot = page.lastContentHash !== null || page.lastStatus !== null;
+  const prevSnapshot = hasSnapshot
     ? {
         title: page.lastTitle,
         description: page.lastDescription,
         h1: page.lastH1,
         canonical: page.lastCanonical,
-        contentHash: page.lastContentHash,
+        contentHash: page.lastContentHash ?? undefined,
+        // Rows from before these were recorded leave them out, which
+        // tells diffSnapshots not to compare them.
+        ...(page.lastStatus !== null
+          ? {
+              status: page.lastStatus,
+              robots: page.lastRobots,
+              schemaTypes: page.lastSchemaTypes,
+              schemaHash: page.lastSchemaHash,
+            }
+          : {}),
       }
     : null;
 
   const diffs = diffSnapshots(prevSnapshot, snap);
 
-  // Persist changes
   if (diffs.length > 0) {
     await db.insert(pageChanges).values(
       diffs.map((d) => ({
         monitoredPageId: page.id,
         field: d.field,
+        severity: d.severity,
         oldValue: d.oldValue,
         newValue: d.newValue,
       })),
     );
   }
 
-  // Update snapshot fields
+  const checkedAt = new Date();
   await db
     .update(monitoredPages)
-    .set({
-      lastTitle: snap.title,
-      lastDescription: snap.description,
-      lastH1: snap.h1,
-      lastCanonical: snap.canonical,
-      lastContentHash: snap.contentHash,
-      lastCheckedAt: new Date(),
-      updatedAt: new Date(),
-    })
+    .set(
+      snap.status >= 400
+        ? // Keep the last good snapshot, so that when the page comes back
+          // it is compared with what it was, not with an error page.
+          { lastStatus: snap.status, lastCheckedAt: checkedAt, updatedAt: checkedAt }
+        : {
+            lastTitle: snap.title,
+            lastDescription: snap.description,
+            lastH1: snap.h1,
+            lastCanonical: snap.canonical,
+            lastContentHash: snap.contentHash,
+            lastStatus: snap.status,
+            lastRobots: snap.robots,
+            lastSchemaTypes: snap.schemaTypes,
+            lastSchemaHash: snap.schemaHash,
+            lastCheckedAt: checkedAt,
+            updatedAt: checkedAt,
+          },
+    )
     .where(eq(monitoredPages.id, page.id));
 
-  // Notify if there are non-content changes (those are the meaningful SEO ones).
   // Silent mode (initial seed) skips notifications.
   if (!silent) {
-    const meaningful = diffs.filter((d) => d.field !== "content");
-    if (meaningful.length > 0) {
-      const label = page.label ?? page.url;
+    const label = page.label ?? page.url;
+    const alerts = diffs.filter((d) => d.severity !== "info");
+    if (alerts.length > 0) {
+      const critical = alerts.filter((d) => d.severity === "critical").length;
       notify({
-        title: `Page changed — ${page.clientName ?? "Client"}`,
-        body: `${meaningful.length} field${meaningful.length === 1 ? "" : "s"} changed on ${label}.`,
-        level: "warning",
-        fields: meaningful.slice(0, 4).map((d) => ({
-          label: d.field,
-          value: `"${(d.oldValue ?? "—").slice(0, 60)}" → "${(d.newValue ?? "—").slice(0, 60)}"`,
+        title: `${critical > 0 ? "Critical page change" : "Page changed"} — ${page.clientName ?? "Client"}`,
+        body: `${alerts.length} change${alerts.length === 1 ? "" : "s"} on ${label}${critical > 0 ? `, ${critical} critical` : ""}.`,
+        level: critical > 0 ? "error" : "warning",
+        fields: alerts.slice(0, 4).map((d) => ({
+          label: `${d.field} · ${d.severity}`,
+          value: `${d.reason} "${(d.oldValue ?? "—").slice(0, 40)}" → "${(d.newValue ?? "—").slice(0, 40)}"`,
         })),
       }).catch(() => {});
+    }
 
+    // Automations keep their original trigger — any change other than
+    // body text — so workflows people already built fire as before.
+    const meaningful = diffs.filter((d) => d.field !== "content");
+    if (meaningful.length > 0) {
       await runAutomations("page_change", {
         clientId: page.clientId,
         clientName: page.clientName,
@@ -169,6 +202,7 @@ async function checkPageChangesInternal(
           url: page.url,
           fields: meaningful.map((d) => d.field).join(", "),
           changeCount: meaningful.length,
+          criticalCount: meaningful.filter((d) => d.severity === "critical").length,
         },
       });
     }
