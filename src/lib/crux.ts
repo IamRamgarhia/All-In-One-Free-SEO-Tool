@@ -235,7 +235,8 @@ type RawCruxResponse = {
       string,
       {
         histogram?: RawHistogramBin[];
-        percentiles?: { p75?: number };
+        /** A number, except CLS: Google sends it as a string, e.g. "0.05". */
+        percentiles?: { p75?: number | string | null };
       }
     >;
     collectionPeriod?: {
@@ -245,7 +246,7 @@ type RawCruxResponse = {
   };
 };
 
-function parseCruxResponse(
+export function parseCruxResponse(
   data: RawCruxResponse,
   scope: "url" | "origin",
 ): CruxResult {
@@ -284,23 +285,216 @@ function parseMetric(
   raw:
     | {
         histogram?: RawHistogramBin[];
-        percentiles?: { p75?: number };
+        percentiles?: { p75?: number | string | null };
       }
     | undefined,
 ): CruxMetric | undefined {
   if (!raw || !raw.histogram) return undefined;
+  // CLS arrives as a string: Google's API docs call it "a double encoded
+  // as a string". Passed through as-is it reached `.toFixed` on the CrUX
+  // page, which threw, and the URL-vs-origin gap and the origin summary
+  // both skipped CLS for not being a number. A missing percentile is no
+  // data; it used to become 0, which rates as "good".
+  const p75 = toNumber(raw.percentiles?.p75);
+  if (p75 === null) return undefined;
   return {
     histogram: raw.histogram.map((b) => ({
       start: b.start ?? 0,
       end: b.end ?? null,
       density: b.density ?? 0,
     })),
-    p75: raw.percentiles?.p75 ?? 0,
+    p75,
   };
+}
+
+/** A CrUX value as a number, or null for missing, empty or "NaN". */
+function toNumber(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+const fmtDate = (d?: { year: number; month: number; day: number }) =>
+  d ? `${d.year}-${pad(d.month)}-${pad(d.day)}` : "";
+
+// =====================
+// CrUX History API
+// =====================
+//
+// https://developer.chrome.com/docs/crux/history-api — weekly collection
+// periods, each a 28-day window, 25 by default and up to 40. Updated on
+// Mondays. Same API key as the daily endpoint.
+
+const HISTORY_ENDPOINT =
+  "https://chromeuxreport.googleapis.com/v1/records:queryHistoryRecord";
+
+type CwvKind = "lcp" | "inp" | "cls" | "fcp" | "ttfb";
+
+const METRIC_NAMES: Record<CwvKind, string> = {
+  lcp: "largest_contentful_paint",
+  inp: "interaction_to_next_paint",
+  cls: "cumulative_layout_shift",
+  fcp: "first_contentful_paint",
+  ttfb: "experimental_time_to_first_byte",
+};
+
+export type CruxHistory = {
+  hasData: boolean;
+  scope: "url" | "origin" | null;
+  formFactor: CruxFormFactor | null;
+  /** Oldest first. Neighbouring windows share three weeks of data. */
+  periods: { start: string; end: string }[];
+  /** One p75 per period, oldest first; null where CrUX had too little data. */
+  metrics: Partial<Record<CwvKind, { p75s: (number | null)[] }>>;
+  error?: string;
+};
+
+type RawHistoryResponse = {
+  record?: {
+    key?: { formFactor?: CruxFormFactor };
+    metrics?: Record<
+      string,
+      { percentilesTimeseries?: { p75s?: (number | string | null)[] } }
+    >;
+    collectionPeriods?: {
+      firstDate?: { year: number; month: number; day: number };
+      lastDate?: { year: number; month: number; day: number };
+    }[];
+  };
+};
+
+export function parseCruxHistory(data: unknown, scope: "url" | "origin"): CruxHistory {
+  const record = (data as RawHistoryResponse | null)?.record;
+  if (!record) {
+    return { hasData: false, scope, formFactor: null, periods: [], metrics: {} };
+  }
+  const metrics: CruxHistory["metrics"] = {};
+  for (const kind of Object.keys(METRIC_NAMES) as CwvKind[]) {
+    const series = record.metrics?.[METRIC_NAMES[kind]]?.percentilesTimeseries?.p75s;
+    if (series) metrics[kind] = { p75s: series.map(toNumber) };
+  }
+  return {
+    hasData: true,
+    scope,
+    formFactor: record.key?.formFactor ?? null,
+    periods: (record.collectionPeriods ?? []).map((p) => ({
+      start: fmtDate(p.firstDate),
+      end: fmtDate(p.lastDate),
+    })),
+    metrics,
+  };
+}
+
+export type CwvTrend = {
+  latest: number | null;
+  latestPeriod: { start: string; end: string } | null;
+  /**
+   * Four periods back: the most recent 28-day window that shares no days
+   * with the latest one. Nearer windows overlap it, so a change against
+   * them is partly the same weeks counted twice.
+   */
+  earlier: number | null;
+  earlierPeriod: { start: string; end: string } | null;
+  /** Percent change from earlier to latest. Higher is worse for every one of these metrics. */
+  changePct: number | null;
+  /** More than 20% worse — the threshold claude-seo's drift rules (MIT) use for Core Web Vitals. */
+  regressed: boolean;
+};
+
+export function cwvTrend(
+  p75s: readonly (number | null)[],
+  periods: readonly { start: string; end: string }[],
+): CwvTrend {
+  const i = p75s.length - 1;
+  const j = i - 4;
+  const latest = i >= 0 ? p75s[i] : null;
+  const earlier = j >= 0 ? p75s[j] : null;
+  const changePct =
+    latest !== null && earlier !== null && earlier > 0
+      ? Math.round(((latest - earlier) / earlier) * 1000) / 10
+      : null;
+  return {
+    latest,
+    latestPeriod: periods[i] ?? null,
+    earlier,
+    earlierPeriod: j >= 0 ? (periods[j] ?? null) : null,
+    changePct,
+    regressed: changePct !== null && changePct > 20,
+  };
+}
+
+/** Weekly p75 history for a URL, or its origin when the URL has too little traffic. */
+export async function fetchCruxHistory(opts: {
+  url: string;
+  formFactor?: CruxFormFactor;
+  periods?: number;
+}): Promise<CruxHistory> {
+  const none = (error: string): CruxHistory => ({
+    hasData: false,
+    scope: null,
+    formFactor: null,
+    periods: [],
+    metrics: {},
+    error,
+  });
+  const key = await getPageSpeedKey();
+  if (!key) {
+    return none("CrUX API requires a Google API key (same as PageSpeed Insights). Add one in Settings.");
+  }
+  let origin: string;
+  try {
+    origin = new URL(opts.url).origin;
+  } catch {
+    return none("Invalid URL");
+  }
+  const body = {
+    formFactor: opts.formFactor ?? "PHONE",
+    collectionPeriodCount: Math.min(Math.max(Math.trunc(opts.periods ?? 25), 1), 40),
+  };
+  const byUrl = await queryHistory(key, { ...body, url: opts.url });
+  if (byUrl.hasData || byUrl.error) return byUrl;
+  return queryHistory(key, { ...body, origin });
+}
+
+async function queryHistory(
+  key: string,
+  body: { url?: string; origin?: string; formFactor: CruxFormFactor; collectionPeriodCount: number },
+): Promise<CruxHistory> {
+  const scope = body.url ? "url" : "origin";
+  try {
+    const res = await fetch(`${HISTORY_ENDPOINT}?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...body, metrics: METRIC_KEYS }),
+    });
+    if (res.status === 404) {
+      return { hasData: false, scope, formFactor: body.formFactor, periods: [], metrics: {} };
+    }
+    if (!res.ok) {
+      return {
+        hasData: false,
+        scope: null,
+        formFactor: null,
+        periods: [],
+        metrics: {},
+        error: `CrUX ${res.status}: ${(await res.text()).slice(0, 200)}`,
+      };
+    }
+    return parseCruxHistory(await res.json(), scope);
+  } catch (err) {
+    return {
+      hasData: false,
+      scope: null,
+      formFactor: null,
+      periods: [],
+      metrics: {},
+      error: (err as Error).message,
+    };
+  }
 }
 
 /**
