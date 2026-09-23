@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { createMcpServer } from "@/lib/mcp/server";
+import { createMcpServer, type McpScope } from "@/lib/mcp/server";
+import { MCP_RATE_LIMIT, rateLimit } from "@/lib/mcp/rate-limit";
 import { getSetting } from "@/lib/settings-store";
 
 /**
@@ -69,15 +71,19 @@ function originAllowed(req: Request): boolean {
   }
 }
 
-async function authorize(req: Request): Promise<Response | null> {
+/** What the caller proved they may do, once past every check. */
+type Allowed = { scope: McpScope };
+
+async function authorize(req: Request): Promise<Response | Allowed> {
   if (!originAllowed(req)) {
     return new NextResponse("Forbidden: cross-origin request refused", {
       status: 403,
     });
   }
 
-  const expected = await getSetting<string>("mcp.access_token");
-  if (!expected) {
+  const full = (await getSetting<string>("mcp.access_token")) ?? "";
+  const readOnly = (await getSetting<string>("mcp.readonly_token")) ?? "";
+  if (!full && !readOnly) {
     return NextResponse.json(
       {
         error:
@@ -89,7 +95,13 @@ async function authorize(req: Request): Promise<Response | null> {
 
   const header = req.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (!token || !tokensMatch(token, expected)) {
+  // Which token it is decides what the connection may do. Both are
+  // compared even once one matches, so a wrong token cannot be told
+  // apart from a read-only one by how long the answer took.
+  const isFull = Boolean(token) && Boolean(full) && tokensMatch(token, full);
+  const isReadOnly =
+    Boolean(token) && Boolean(readOnly) && tokensMatch(token, readOnly);
+  if (!isFull && !isReadOnly) {
     // Deliberately a plain Bearer challenge, with no `resource_metadata`
     // pointer.
     //
@@ -109,12 +121,30 @@ async function authorize(req: Request): Promise<Response | null> {
       headers: { "WWW-Authenticate": 'Bearer realm="seo-tool"' },
     });
   }
-  return null;
+
+  // Capped per token rather than per address: the token is the identity
+  // here, and every connector behind one tunnel shares an address with
+  // everything else on it. Hashed so the secret is not also a map key.
+  const rateKey = createHash("sha256").update(token).digest("hex").slice(0, 16);
+  const verdict = rateLimit(rateKey, MCP_RATE_LIMIT);
+  if (!verdict.ok) {
+    return NextResponse.json(
+      {
+        error: `Too many requests on this token. Try again in ${verdict.retryAfterSeconds} second${verdict.retryAfterSeconds === 1 ? "" : "s"}.`,
+      },
+      {
+        status: 429,
+        headers: { "retry-after": String(verdict.retryAfterSeconds) },
+      },
+    );
+  }
+
+  return { scope: isFull ? "full" : "read_only" };
 }
 
 async function handle(req: Request): Promise<Response> {
-  const denied = await authorize(req);
-  if (denied) return denied;
+  const allowed = await authorize(req);
+  if (allowed instanceof Response) return allowed;
   // Contact is recorded by the shared server on tools/list and
   // tools/call — one writer, and it fires for stdio clients too.
 
@@ -127,7 +157,10 @@ async function handle(req: Request): Promise<Response> {
     enableJsonResponse: true,
   });
 
-  const server = createMcpServer(req.headers.get("user-agent") ?? "remote client");
+  const server = createMcpServer(
+    req.headers.get("user-agent") ?? "remote client",
+    allowed.scope,
+  );
   await server.connect(transport);
 
   try {

@@ -428,6 +428,28 @@ export const MCP_TOOL_LIST = TOOLS.map((t) => ({
 }));
 
 /**
+ * What a connection is allowed to do.
+ *
+ * The remote endpoint issues two tokens. A read-only one is for the case
+ * the endpoint exists for — asking questions from a chat — and cannot
+ * reach anything that writes, including `run_agent`. stdio is always
+ * full: spawning the process already proves you own the machine.
+ */
+export type McpScope = "full" | "read_only";
+
+/**
+ * The tools a read-only connection may see, derived from the annotations
+ * rather than listed again here. A second list is how a write tool added
+ * later ends up quietly readable — every such pair in this repo had
+ * already drifted by the time anyone checked.
+ */
+export const READ_ONLY_TOOLS = MCP_TOOL_LIST.filter(
+  (t) => t.annotations.readOnlyHint !== false,
+);
+
+const READ_ONLY_NAMES = new Set(READ_ONLY_TOOLS.map((t) => t.name));
+
+/**
  * A configured server, ready to connect to any transport.
  *
  * A fresh instance per call: the Streamable HTTP transport is per-session,
@@ -463,11 +485,12 @@ async function noteContact(source: string): Promise<void> {
  *   e.g. "stdio (Claude Desktop / Cursor)" or a remote client's
  *   user-agent.
  */
-export function createMcpServer(source = "unknown"): Server {
+export function createMcpServer(source = "unknown", scope: McpScope = "full"): Server {
   const server = new Server(
     { name: "seo-tool", version: "0.1.0" },
     { capabilities: { tools: {} } },
   );
+  const visibleTools = scope === "read_only" ? READ_ONLY_TOOLS : MCP_TOOL_LIST;
 
   /**
    * Who is on the other end, in the client's own words.
@@ -488,11 +511,25 @@ export function createMcpServer(source = "unknown"): Server {
     // Listing tools is the first thing every client does after the
     // handshake, so this is the earliest honest evidence of a connection.
     void noteContact(who());
-    return { tools: MCP_TOOL_LIST };
+    return { tools: visibleTools };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     void noteContact(who());
+    // Checked on the call as well as hidden from the list: a client that
+    // remembers a tool name from a full connection, or guesses one, must
+    // not get through on a read-only token.
+    if (scope === "read_only" && !READ_ONLY_NAMES.has(req.params.name)) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text" as const,
+            text: `${req.params.name} changes something, and this connection uses a read-only token. Reconnect with the full token from Settings → AI connection if that is what you intend.`,
+          },
+        ],
+      };
+    }
     const tool = TOOLS.find((t) => t.name === req.params.name);
     if (!tool) {
       return {

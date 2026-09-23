@@ -335,6 +335,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ **It can act, and undo** — `run_agent` respects your autonomy setting exactly as the scheduler does, so at the default nothing is written to a live site  
 ✅ **Numbers arrive with their provenance.** A Search Console average and a browser scrape are different measurements, so movement between them is reported as *not comparable* rather than as a confident "up 6 places" that never happened  
 ✅ **stdio by default** — no port, nothing listening, runs as whoever owns the database file. A remote endpoint (`/api/mcp`, Streamable HTTP) exists for connectors and stays off until you generate a token  
+✅ **Read-only tokens for chat apps** — the remote endpoint issues a token that can read everything and change nothing, so a connector cannot edit a live site. Requests are capped per token  
 
 ### 🔌 Integrations
 ✅ **One setup page** (`/connect`) — every connection in one place, with what each one gets you, what you lose without it, how long it takes, and step-by-step instructions written for someone who's never seen that vendor's console  

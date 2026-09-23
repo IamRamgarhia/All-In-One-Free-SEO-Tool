@@ -282,15 +282,19 @@ jobs:
           export SEO_DB_PATH="${{ runner.temp }}/mcp-http.db"
           export SEO_DATA_DIR="${{ runner.temp }}"
           node scripts/migrate.cjs
-          TOKEN=$(node -e 'const D=require("better-sqlite3");const c=require("crypto");const db=new D(process.env.SEO_DB_PATH);const t=c.randomBytes(24).toString("hex");db.prepare("INSERT OR REPLACE INTO workspace_settings (key, value, updated_at) VALUES (?, ?, ?)").run("mcp.access_token", JSON.stringify(t), Math.floor(Date.now()/1000));process.stdout.write(t);')
+          TOKENS=$(node -e 'const D=require("better-sqlite3");const c=require("crypto");const db=new D(process.env.SEO_DB_PATH);const put=db.prepare("INSERT OR REPLACE INTO workspace_settings (key, value, updated_at) VALUES (?, ?, ?)");const now=Math.floor(Date.now()/1000);const full=c.randomBytes(24).toString("hex");const ro=c.randomBytes(24).toString("hex");put.run("mcp.access_token", JSON.stringify(full), now);put.run("mcp.readonly_token", JSON.stringify(ro), now);process.stdout.write(full+" "+ro);')
+          set -- $TOKENS
+          TOKEN=$1
+          READ_ONLY_TOKEN=$2
           echo "::add-mask::$TOKEN"
+          echo "::add-mask::$READ_ONLY_TOKEN"
           PORT=63140 pnpm start &
           server=$!
           for i in $(seq 1 60); do
             curl -fsS http://localhost:63140/api/v1/health >/dev/null 2>&1 && break
             sleep 1
           done
-          pnpm exec tsx scripts/mcp-http-check.ts "$TOKEN"
+          pnpm exec tsx scripts/mcp-http-check.ts "$TOKEN" "$READ_ONLY_TOKEN"
           status=$?
           kill $server 2>/dev/null || true
           exit $status

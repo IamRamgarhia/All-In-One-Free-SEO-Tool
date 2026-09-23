@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { MCP_TOOL_LIST } from "./server";
+import { MCP_TOOL_LIST, READ_ONLY_TOOLS } from "./server";
 
 /** Tools that change a live website or this install's data. */
 const WRITERS = new Set([
@@ -98,5 +98,37 @@ describe("the tool list itself", () => {
     for (const t of MCP_TOOL_LIST) {
       expect(t.description?.length ?? 0, t.name).toBeGreaterThan(40);
     }
+  });
+});
+
+/**
+ * The read-only token exists so a chat app can be given something that
+ * answers questions and cannot edit a live website. What makes that true
+ * is this list, and it is derived from the annotations — so the test
+ * that matters is whether a writer can end up in it.
+ */
+describe("what a read-only connection can reach", () => {
+  it("excludes every tool that writes", () => {
+    const leaked = READ_ONLY_TOOLS.filter((t) => WRITERS.has(t.name)).map((t) => t.name);
+    expect(
+      leaked,
+      `${leaked.join(", ")} changes something and would be callable with a ` +
+        `read-only token, which is the one promise that token makes.`,
+    ).toEqual([]);
+  });
+
+  it("still answers the questions the endpoint exists for", () => {
+    const names = READ_ONLY_TOOLS.map((t) => t.name);
+    for (const n of ["list_clients", "get_client_overview", "list_audit_issues", "compare_search_periods"]) {
+      expect(names, n).toContain(n);
+    }
+  });
+
+  it("is smaller than the full list, and not empty", () => {
+    // Guards the guard: an empty list would pass the exclusion test, and
+    // a list equal to the full one would mean the filter does nothing.
+    expect(READ_ONLY_TOOLS.length).toBeGreaterThan(0);
+    expect(READ_ONLY_TOOLS.length).toBeLessThan(MCP_TOOL_LIST.length);
+    expect(MCP_TOOL_LIST.length - READ_ONLY_TOOLS.length).toBe(WRITERS.size);
   });
 });

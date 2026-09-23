@@ -124,6 +124,15 @@ export type SettingKey =
    */
   | "mcp.access_token"
   /**
+   * A second bearer token for the same endpoint, allowed to call only the
+   * tools annotated read-only — never run_agent or apply_fix.
+   *
+   * This is the token to paste into a chat app: asking questions is what
+   * the endpoint exists for, and a token that can also edit a live
+   * website is a bad thing to leave in someone's connector settings.
+   */
+  | "mcp.readonly_token"
+  /**
    * When an MCP client last called /api/mcp successfully — an ISO string.
    *
    * This is the only honest signal that a subscription is actually

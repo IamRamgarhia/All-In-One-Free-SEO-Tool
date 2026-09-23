@@ -34,8 +34,10 @@ export async function getConnectionMode(): Promise<ConnectionMode> {
 export type McpStatus = {
   /** A token exists, so /api/mcp will answer. */
   enabled: boolean;
-  /** The token itself. Only ever sent to the settings page. */
+  /** The full-access token. Only ever sent to the settings page. */
   token: string | null;
+  /** The read-only token, which cannot reach run_agent or apply_fix. */
+  readOnlyToken: string | null;
   /** ISO timestamp of the last successful call, if any. */
   lastSeenAt: string | null;
   /** User-agent of the last caller, trimmed. */
@@ -75,19 +77,21 @@ function relativeTime(iso: string): string {
 const CONNECTED_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function getMcpStatus(): Promise<McpStatus> {
-  const token = (await getSetting<string>("mcp.access_token")) ?? null;
+  const token = (await getSetting<string>("mcp.access_token")) || null;
+  const readOnlyToken = (await getSetting<string>("mcp.readonly_token")) || null;
   const lastSeenAt = (await getSetting<string>("mcp.last_seen_at")) ?? null;
   const lastClient = (await getSetting<string>("mcp.last_client")) ?? null;
 
   const seenMs = lastSeenAt ? Date.parse(lastSeenAt) : NaN;
   const connected =
-    Boolean(token) &&
+    Boolean(token || readOnlyToken) &&
     Number.isFinite(seenMs) &&
     Date.now() - seenMs < CONNECTED_WINDOW_MS;
 
   return {
-    enabled: Boolean(token),
+    enabled: Boolean(token || readOnlyToken),
     token,
+    readOnlyToken,
     lastSeenAt,
     lastClient,
     connected,
@@ -113,6 +117,25 @@ export async function revokeMcpToken(): Promise<void> {
   await setSetting("mcp.access_token", "");
   // Deliberately keeps last_seen_at: it is a record of what happened, and
   // clearing it would make a revoked connector look like it never existed.
+  revalidatePath("/settings");
+}
+
+/**
+ * The token to hand a chat app.
+ *
+ * It reaches only the tools annotated read-only, so a connector holding
+ * it can answer questions about every client and change nothing. Prefixed
+ * differently so the two are not mistaken for each other at a glance.
+ */
+export async function generateMcpReadOnlyToken(): Promise<{ token: string }> {
+  const token = `seo_mcp_ro_${randomBytes(32).toString("hex")}`;
+  await setSetting("mcp.readonly_token", token);
+  revalidatePath("/settings");
+  return { token };
+}
+
+export async function revokeMcpReadOnlyToken(): Promise<void> {
+  await setSetting("mcp.readonly_token", "");
   revalidatePath("/settings");
 }
 

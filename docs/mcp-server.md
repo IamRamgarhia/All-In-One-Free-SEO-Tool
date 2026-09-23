@@ -56,14 +56,23 @@ protocol to it against a throwaway database.
 
 ### Remote (Streamable HTTP)
 
-Off until you turn it on. Settings → AI connection generates a token;
-without one the endpoint answers 503.
+Off until you turn it on. Settings → AI connection generates tokens;
+until one exists the endpoint answers 503.
+
+There are two, and the difference matters:
+
+- **Read-only** — reaches only the tools that read. It cannot run the
+  agent or apply a fix. This is the one to paste into a chat app.
+- **Full access** — everything, within your autonomy setting. Generate it
+  only if you want to drive changes from a chat.
 
 ```
 claude mcp add -t http seo-tool http://localhost:PORT/api/mcp -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-Check it with `pnpm test:mcp:http YOUR_TOKEN` against a running app.
+Check it with `pnpm test:mcp:http FULL_TOKEN READ_ONLY_TOKEN` against a
+running app. The second argument is optional; passing it also checks that
+the read-only token is refused when it tries to write.
 
 ## What it can do
 
@@ -164,6 +173,12 @@ clients can attach, and it is off until you generate a token. After that:
 
 - every request needs an Authorization Bearer header; anything else gets
   a 401
+- a read-only token reaches only the tools that read. The write tools are
+  not listed to it and are refused if called by name anyway, so a token
+  living in someone's connector settings cannot edit a live website
+- requests are capped per token — 120 a minute, answered with a 429 and a
+  Retry-After when exceeded. A person asking questions never meets it; a
+  loop burning the property's 2,000 daily Search Console inspections does
 - a browser request from another origin is refused, which the transport
   spec requires — otherwise a page you have open could reach a server
   running on your own machine

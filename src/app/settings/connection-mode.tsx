@@ -10,7 +10,12 @@ import {
 } from "@/lib/tool-capabilities";
 import { clientToTab } from "@/lib/mcp-clients";
 import type { AiConnectionStatus, McpStatus } from "./connection-mode-actions";
-import { generateMcpToken, revokeMcpToken } from "./connection-mode-actions";
+import {
+  generateMcpReadOnlyToken,
+  generateMcpToken,
+  revokeMcpReadOnlyToken,
+  revokeMcpToken,
+} from "./connection-mode-actions";
 import { McpSetup } from "./mcp-setup";
 import { ModePreview } from "./mode-preview";
 
@@ -209,11 +214,44 @@ export function ConnectionModePicker({
           </p>
 
           <div className="space-y-2 rounded-lg border border-border bg-card/60 p-3">
-            <p className="text-xs font-medium">Endpoint and token</p>
+            <p className="text-xs font-medium">Endpoint and tokens</p>
+            {mcp.enabled && <CopyRow label="Server URL" value={remoteUrl} />}
+
+            {/* The read-only token first: it is the one almost everyone
+                should be pasting into a chat app. */}
+            {mcp.readOnlyToken ? (
+              <>
+                <CopyRow
+                  label="Read-only token"
+                  value={mcp.readOnlyToken}
+                  secret
+                />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Reads everything, changes nothing — it cannot run the agent or
+                  apply a fix. This is the one to give a chat app.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => start(() => void revokeMcpReadOnlyToken())}
+                  className="text-[11px] text-rose-300 underline decoration-dotted underline-offset-2 hover:decoration-solid"
+                >
+                  Revoke the read-only token
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => start(() => void generateMcpReadOnlyToken())}
+                className="inline-flex h-8 items-center rounded-lg bg-violet-500/15 px-3 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+              >
+                Generate a read-only token
+              </button>
+            )}
+
             {mcp.token ? (
               <>
-                <CopyRow label="Server URL" value={remoteUrl} />
-                <CopyRow label="Access token" value={mcp.token} secret />
+                <CopyRow label="Full-access token" value={mcp.token} secret />
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   Anyone who can reach that URL with this token can read every
                   client and change live websites — treat it like a password.
@@ -234,23 +272,31 @@ export function ConnectionModePicker({
                   onClick={() => start(() => void revokeMcpToken())}
                   className="text-[11px] text-rose-300 underline decoration-dotted underline-offset-2 hover:decoration-solid"
                 >
-                  Revoke this token
+                  Revoke the full-access token
                 </button>
               </>
             ) : (
               <>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  The endpoint is closed until you generate a token.
+                  A full-access token also lets a connected app run the agent
+                  and apply fixes, within your autonomy setting. Only generate
+                  one if you want that from a chat.
                 </p>
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => start(() => void generateMcpToken())}
-                  className="inline-flex h-8 items-center rounded-lg bg-violet-500/15 px-3 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+                  className="inline-flex h-8 items-center rounded-lg bg-white/5 px-3 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-white/10 hover:bg-white/10 hover:text-foreground disabled:opacity-50"
                 >
-                  Generate a token
+                  Generate a full-access token
                 </button>
               </>
+            )}
+            {!mcp.enabled && (
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                The endpoint stays closed until one of these exists. Requests
+                are capped per token.
+              </p>
             )}
           </div>
 
