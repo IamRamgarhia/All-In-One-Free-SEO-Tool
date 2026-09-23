@@ -13,7 +13,7 @@
 [![Stack](https://img.shields.io/badge/Next.js_16-React_19-cyan.svg)](#-tech-stack)
 [![Self-Hosted](https://img.shields.io/badge/self_hosted-✓-green.svg)](#-install-in-one-command)
 [![Free Forever](https://img.shields.io/badge/free-forever-violet.svg)](#-how-much-you-save)
-[![Star us](https://img.shields.io/github/stars/IamRamgarhia/SEO-Tool?style=social)](https://github.com/IamRamgarhia/SEO-Tool)
+[![Star us](https://img.shields.io/github/stars/IamRamgarhia/All-In-One-Free-SEO-Tool?style=social)](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool)
 
 > **Use cases:** free seo tool · all in one seo · ahrefs alternative · semrush alternative · moz alternative · open source seo · self-hosted seo · rank tracker · keyword research · technical seo · local seo · AI search optimization (GEO) · LLM citation tracking · backlink checker · content brief generator · white-label client reports · SEO automation for freelancers and small agencies
 
@@ -77,21 +77,30 @@ No Git. No Node knowledge. No setup wizard. The installer auto-detects Docker / 
 
 ### 🪟 Windows (PowerShell)
 ```powershell
-iwr -useb https://raw.githubusercontent.com/IamRamgarhia/SEO-Tool/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.ps1 | iex
 ```
 
 ### 🐧🍎 macOS / Linux
 ```bash
-curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/SEO-Tool/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.sh | bash
 ```
 
 ### 🐳 Docker manually
 ```bash
-git clone https://github.com/IamRamgarhia/SEO-Tool.git && cd seo
+git clone https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool.git && cd All-In-One-Free-SEO-Tool
 docker compose up -d
 ```
 
 Open <http://localhost:3000>. That's it.
+
+### 📦 Or download a release
+
+Prefer a file to a command, or want to pin a version?
+**[Download the latest release zip](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases/latest)** — the
+whole project, no Git needed. Unzip it, then either `docker compose up -d`
+or `npm install && npm run build && npm start`.
+
+Every release ships a `.sha256` next to the zip if you want to verify it.
 
 ### 💻 Running it on your own PC (free, and the most private)
 
@@ -307,6 +316,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Kanban + List + Calendar views  
 ✅ Niche-aware task templates (Local, E-commerce, SaaS, Blog, Services)  
 ✅ Tech-stack-aware overrides (WordPress, Shopify, Next.js, Webflow, Wix)  
+✅ **Templates read your site before making work** — homepage, robots.txt, sitemap and response headers are checked first, so you aren't handed tasks you finished years ago. The evidence goes in your activity log, and anything it can't verify stays on the list  
 ✅ Auto-task generation from audit findings  
 ✅ Recurring task scheduler  
 ✅ Time tracking per task  
@@ -317,11 +327,13 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ **Four autonomy levels**, defaulting to the cautious one: off · suggest only · fix the obvious things · full autopilot. "Suggest only" never touches a live site  
 ✅ **Every change is reversible** — the previous value is read from the CMS before writing, and one click puts it back. If the previous value can't be read, the change doesn't happen  
 ✅ **"Applied" and "verified" are different states** — a CMS accepting a change isn't the same as it taking effect, and the UI shows which  
-✅ **Five things it fixes on its own**: page titles · meta descriptions · image alt text (one action per image, not per page) · schema markup · **internal links to orphan pages**  
+✅ **It can fix 29 of the crawler's 72 finding types on its own** — page titles · meta descriptions · image alt text (one action per image, not per page) · canonical tags · robots directives · Open Graph and Twitter tags · schema markup · redirects · site hardening · your robots.txt AI-crawler policy · **internal links to orphan pages**. A test holds 29 as a floor, so coverage can't quietly regress  
+✅ **Any site behind Cloudflare**, not just WordPress — and a page the agent can't edit is reported as a skip, not a failure  
 ✅ **Orphan-page linking** — finds pages nothing on your site links to, picks the most relevant existing page, and links it using a phrase already in that article. No model invents the anchor text, so it can't write words you didn't. Body edits need review unless you turn autonomy all the way up  
 ✅ Guardrails: changes-per-run, changes-per-day, and a cooldown so it can't thrash the same page  
 ✅ Full audit trail — what it did, why, what it looked like before  
 ✅ **Daily agent runs ~17 automated jobs per client every day** — rank checks, audit deltas, content decay, backlink scans, GBP monitoring, alert generation  
+✅ **Nightly tool sweeps** — checks run on their own and keep what they find, so a finding outlives the browser tab you ran it in  
 ✅ Workflow builder (drag-and-drop trigger → conditions → actions)  
 ✅ Pre-built workflow templates  
 ✅ Page change monitoring (alert on meta / H1 / title changes)  
@@ -343,6 +355,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Google Search Console (free OAuth)  
 ✅ Google Analytics 4 (free OAuth)  
 ✅ Google Business Profile (free OAuth)  
+✅ **Google via service account** — connect without a consent screen or a browser, which is what you want on a server  
 ✅ Bing Webmaster Tools  
 ✅ WordPress plugin — read/write meta, schema, redirects, alt text, robots.txt  
 ✅ Shopify integration  
@@ -601,7 +614,7 @@ This entire SEO platform (99 dedicated tools, AI daily agent, headless browser p
 
 Solo-built. No VC. No growth team. Just one developer trying to make pro-grade SEO tooling permanently free for everyone.
 
-**🌐** [dicecodes.com](https://dicecodes.com) · **📧** [Contact@dicecodes.com](mailto:Contact@dicecodes.com) · **🐙** [GitHub](https://github.com/IamRamgarhia/SEO-Tool)
+**🌐** [dicecodes.com](https://dicecodes.com) · **📧** [Contact@dicecodes.com](mailto:Contact@dicecodes.com) · **🐙** [GitHub](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool)
 
 ---
 
