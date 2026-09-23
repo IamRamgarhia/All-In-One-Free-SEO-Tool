@@ -409,6 +409,194 @@ function admin_url($p = '')
     return home_url('/wp-admin/' . $p);
 }
 
+// WordPress return-shape constants, used by get_page_by_path and friends.
+define('OBJECT', 'OBJECT');
+define('ARRAY_A', 'ARRAY_A');
+define('ARRAY_N', 'ARRAY_N');
+
+// ------------------------------------------------------------ media
+
+function get_post_thumbnail_id($post_id = 0)
+{
+    return (int)get_post_meta((int)$post_id, '_thumbnail_id', true);
+}
+
+/** Attachments whose parent is this post, filtered by mime prefix. */
+function get_attached_media($type, $post_id = 0): array
+{
+    $out = [];
+    foreach ($GLOBALS['wp_posts'] as $p) {
+        if (
+            ($p->post_type ?? '') === 'attachment'
+            && (int)($p->post_parent ?? 0) === (int)$post_id
+            && str_starts_with((string)($p->post_mime_type ?? 'image/jpeg'), (string)$type)
+        ) {
+            $out[] = $p;
+        }
+    }
+    return $out;
+}
+
+function wp_get_attachment_url($id)
+{
+    $p = $GLOBALS['wp_posts'][(int)$id] ?? null;
+    if (!$p) {
+        return false;
+    }
+    return $p->guid ?? home_url('/wp-content/uploads/' . (int)$id . '.jpg');
+}
+
+function wp_get_attachment_image($id, $size = 'thumbnail', $icon = false, $attr = []): string
+{
+    $url = wp_get_attachment_url($id);
+    if (!$url) {
+        return '';
+    }
+    $alt = esc_attr((string)get_post_meta((int)$id, '_wp_attachment_image_alt', true));
+    return sprintf('<img src="%s" alt="%s" />', esc_url($url), $alt);
+}
+
+// ----------------------------------------------------------- database
+
+/**
+ * Just enough of WordPress's $wpdb for the one query the plugin runs:
+ * find posts whose content mentions wp-image-<id>, so alt text written
+ * to the media library can also be applied to the markup.
+ *
+ * Backed by the same in-memory posts as everything else here, rather
+ * than by parsing the SQL — the needle is read back out of the query.
+ * It is an approximation, and the file says so at the end of its run.
+ */
+class StbTestWpdb
+{
+    public string $posts = 'wp_posts';
+
+    public function prepare($sql, ...$args)
+    {
+        foreach ($args as $a) {
+            $sql = preg_replace('/%s/', (string)$a, (string)$sql, 1);
+        }
+        return $sql;
+    }
+
+    public function esc_like($text)
+    {
+        return addcslashes((string)$text, '_%\\');
+    }
+
+    public function get_results($sql): array
+    {
+        if (!preg_match('/wp-image-(\d+)/', (string)$sql, $m)) {
+            return [];
+        }
+        $needle = 'wp-image-' . $m[1];
+        $out = [];
+        foreach ($GLOBALS['wp_posts'] as $p) {
+            if (in_array($p->post_status ?? 'publish', ['trash', 'auto-draft'], true)) {
+                continue;
+            }
+            if (in_array($p->post_type ?? 'post', ['revision', 'attachment'], true)) {
+                continue;
+            }
+            if (str_contains((string)($p->post_content ?? ''), $needle)) {
+                $out[] = (object)['ID' => $p->ID, 'post_content' => $p->post_content];
+            }
+            if (count($out) >= 20) {
+                break;
+            }
+        }
+        return $out;
+    }
+}
+
+$GLOBALS['wpdb'] = new StbTestWpdb();
+
+// ------------------------------------------------- posts, dates, text
+
+function get_posts(array $args = []): array
+{
+    $type = $args['post_type'] ?? 'post';
+    $limit = (int)($args['numberposts'] ?? $args['posts_per_page'] ?? 5);
+    $exclude = (array)($args['exclude'] ?? []);
+    $out = [];
+    foreach ($GLOBALS['wp_posts'] as $p) {
+        if (($p->post_type ?? 'post') !== $type) {
+            continue;
+        }
+        if (in_array((int)$p->ID, array_map('intval', $exclude), true)) {
+            continue;
+        }
+        if (($p->post_status ?? 'publish') !== 'publish') {
+            continue;
+        }
+        $out[] = $p;
+        if ($limit > 0 && count($out) >= $limit) {
+            break;
+        }
+    }
+    return $out;
+}
+
+function wp_insert_post($args, $wp_error = false)
+{
+    $id = (int)(max(array_map('intval', array_keys($GLOBALS['wp_posts']))) + 1);
+    if ($id < 2) {
+        $id = 2;
+    }
+    wp_insert_test_post($id, $args);
+    return $id;
+}
+
+function get_page_by_path($path, $output = null, $post_types = ['page'])
+{
+    foreach ($GLOBALS['wp_posts'] as $p) {
+        if (($p->post_name ?? '') === $path) {
+            return $p;
+        }
+    }
+    return null;
+}
+
+function wp_date($format, $timestamp = null, $timezone = null)
+{
+    return gmdate($format, $timestamp ?? time());
+}
+
+function sanitize_key($key)
+{
+    return preg_replace('/[^a-z0-9_\-]/', '', strtolower((string)$key));
+}
+
+function sanitize_textarea_field($str)
+{
+    return trim(strip_tags((string)$str));
+}
+
+/** Real wp_kses_post strips disallowed HTML; the plugin's own escaping is what these tests assert. */
+function wp_kses_post($content)
+{
+    return (string)$content;
+}
+
+function rest_url($path = '')
+{
+    return home_url('/wp-json/' . ltrim((string)$path, '/'));
+}
+
+/**
+ * WordPress returns a path relative to the plugins directory, such as
+ * "seo-tool-bridge/seo-tool-bridge.php". The plugin calls this while
+ * loading, to build the plugin_action_links_<basename> filter tag for
+ * its Settings link — so without this stub the whole suite fatals on
+ * require, before a single test runs. It did, from the commit that
+ * added the Settings link until this one: CI only runs the PHP tests on
+ * a pull request, and there had not been one since.
+ */
+function plugin_basename($file)
+{
+    return basename(dirname($file)) . '/' . basename($file);
+}
+
 // ------------------------------------------------------------ REST types
 
 class WP_Error
@@ -443,7 +631,12 @@ class WP_REST_Request implements ArrayAccess
     {
         $this->params = $params;
         $this->json = $json;
-        $this->headers = $headers;
+        // Normalised on the way in, as WordPress does. get_header() only
+        // lowercased the name it was asked for, so a header given as
+        // "X-STB-Key" was never found — which made the auth tests pass
+        // for the wrong reason: every request was unauthenticated, so
+        // "rejects a wrong key" was true no matter what the key was.
+        $this->headers = array_change_key_case($headers, CASE_LOWER);
     }
 
     public function offsetExists(mixed $k): bool

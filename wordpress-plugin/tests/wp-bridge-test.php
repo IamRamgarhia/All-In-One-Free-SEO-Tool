@@ -57,6 +57,34 @@ function call(callable $handler, WP_REST_Request $r): array
     return [(array)$res->get_data(), $res->get_status()];
 }
 
+
+// The stub class this file was written against is gone; the current
+// stubs start empty and key routes by namespace + route. Everything it
+// used to seed is set up here instead.
+update_option('stb_connection_key', KEY);
+wp_insert_test_post(101, [
+    'post_title' => 'Hello world',
+    'post_name' => 'hello-world',
+    'post_content' => 'Body text.',
+]);
+// An attachment on that post, so the image and alt-text routes have
+// something real to work on.
+wp_insert_test_post(201, [
+    'post_title' => 'Soap on a shelf',
+    'post_type' => 'attachment',
+    'post_parent' => 101,
+    'post_mime_type' => 'image/jpeg',
+    'guid' => 'https://example.test/wp-content/uploads/soap.jpg',
+]);
+update_post_meta(101, '_thumbnail_id', 201);
+
+$stbRoutes = [];
+foreach ($GLOBALS['wp_rest_routes'] ?? [] as $full => $config) {
+    $stbRoutes[] = [
+        'route' => substr($full, strlen(STB_REST_NAMESPACE)),
+        'config' => $config,
+    ];
+}
 // =====================================================================
 section('Authentication');
 
@@ -101,14 +129,14 @@ if (!stb_check_key(req([], [], ['X-STB-Key' => KEY . 'x']))) {
 
 // If the site has no key stored, nothing may authenticate — otherwise a
 // freshly-installed plugin would be wide open.
-$saved = WPState::$options['stb_connection_key'];
-WPState::$options['stb_connection_key'] = '';
+$saved = $GLOBALS['wp_options']['stb_connection_key'];
+$GLOBALS['wp_options']['stb_connection_key'] = '';
 if (!stb_check_key(req([], [], ['X-STB-Key' => '']))) {
     ok('an unconfigured site refuses everything', 'no empty-key bypass');
 } else {
     bad('EMPTY STORED KEY AUTHENTICATED AN EMPTY HEADER');
 }
-WPState::$options['stb_connection_key'] = $saved;
+$GLOBALS['wp_options']['stb_connection_key'] = $saved;
 
 // =====================================================================
 section('Route callbacks survive how WordPress actually calls them');
@@ -130,7 +158,7 @@ section('Route callbacks survive how WordPress actually calls them');
 // A closure takes the extra arguments and ignores them, which is why the
 // one route already using a closure (`/find`) was the one that worked.
 $builtinCallbacks = [];
-foreach (WPState::$routes as $r) {
+foreach ($stbRoutes as $r) {
     $configs = isset($r['config'][0]) ? $r['config'] : [$r['config']];
     foreach ($configs as $cfg) {
         foreach (($cfg['args'] ?? []) as $argName => $argCfg) {
@@ -149,7 +177,7 @@ foreach (WPState::$routes as $r) {
 if (count($builtinCallbacks) === 0) {
     ok(
         'no route hands a PHP built-in straight to WordPress',
-        count(WPState::$routes) . ' routes checked',
+        count($stbRoutes) . ' routes checked',
     );
 } else {
     bad(
@@ -169,13 +197,17 @@ if (($ping['plugin_version'] ?? '') === STB_VERSION) {
     bad('version field wrong', json_encode($ping));
 }
 $caps = $ping['capabilities'] ?? [];
-if (($caps['redirects'] ?? true) === false) {
-    ok('does not claim a redirects capability', 'no route has ever existed');
+// Redirects shipped in plugin 0.5.0. This asserted the opposite — that
+// the capability was never claimed — and was left behind when the route
+// was built, so it failed for being right.
+$declaredRoutes = array_column($stbRoutes, 'route');
+if (($caps['redirects'] ?? false) === true && in_array('/site/redirects', $declaredRoutes, true)) {
+    ok('claims redirects and has the route behind it', '/site/redirects');
 } else {
-    bad('STILL CLAIMS REDIRECTS');
+    bad('REDIRECTS CAPABILITY AND ROUTE DISAGREE', json_encode($caps['redirects'] ?? null));
 }
 // Anything declared true must have a registered route behind it.
-$routes = array_column(WPState::$routes, 'route');
+$routes = array_column($stbRoutes, 'route');
 $hasLinks = in_array('/post/(?P<id>\d+)/links', $routes, true);
 if (($caps['internal_links'] ?? false) === true && $hasLinks) {
     ok('every advertised capability has a route', count($routes) . ' routes registered');
@@ -318,6 +350,12 @@ if ($clearStatus === 200 && ($afterClear['managedJsonLd'] ?? null) === '') {
 // =====================================================================
 section('Schema output in <head> — the XSS guard');
 
+// wp_head output only renders on a singular view, which the old stub
+// class set up. Without it the head is empty and the XSS assertions
+// pass or fail for the wrong reason.
+$GLOBALS['wp_is_singular'] = true;
+$GLOBALS['wp_current_post'] = 101;
+
 update_post_meta(101, '_stb_schema_jsonld', '{"@type":"Article","x":"</script><img src=x onerror=alert(1)>"}');
 ob_start();
 do_action('wp_head');
@@ -337,16 +375,25 @@ delete_post_meta(101, '_stb_schema_jsonld');
 ob_start();
 do_action('wp_head');
 $emptyHead = (string)ob_get_clean();
-if (trim($emptyHead) === '') {
-    ok('nothing is printed when there is no schema');
+// This section is about schema. By now the run has written a meta
+// description, which the same hook prints — so asserting the whole head
+// is empty tests something else and fails for being right.
+if (!str_contains($emptyHead, 'application/ld+json')) {
+    ok(
+        'no JSON-LD block is printed when there is no schema',
+        trim($emptyHead) === '' ? 'head empty' : 'head has other tags only',
+    );
 } else {
-    bad('printed an empty JSON-LD block', $emptyHead);
+    bad('PRINTED AN EMPTY JSON-LD BLOCK', substr($emptyHead, 0, 120));
 }
 
 // =====================================================================
+$GLOBALS['wp_is_singular'] = false;
+$GLOBALS['wp_current_post'] = 0;
+
 section('Internal links');
 
-WPState::$posts[101]['post_content'] =
+$GLOBALS['wp_posts'][101]->post_content =
     '<p>Some words about handmade soap and cold process.</p>' .
     '<h2>More about handmade soap</h2>' .
     '<pre><code>handmade soap</code></pre>';
@@ -354,7 +401,7 @@ WPState::$posts[101]['post_content'] =
 [$linked] = call('stb_rest_insert_links', req(['id' => 101], [
     'links' => [['anchor' => 'handmade soap', 'url' => '/shop/soap']],
 ]));
-$content = WPState::$posts[101]['post_content'];
+$content = $GLOBALS['wp_posts'][101]->post_content;
 if (($linked['changed'] ?? false) === true && count($linked['inserted']) === 1) {
     ok('inserts a link');
 } else {
@@ -382,7 +429,7 @@ if (!preg_match('#<code>[^<]*<a #i', $content)) {
 if (($again['changed'] ?? true) === false) {
     ok('re-running does not stack links on the same phrase');
 } else {
-    bad('RE-RUN LINKED AGAIN', WPState::$posts[101]['post_content']);
+    bad('RE-RUN LINKED AGAIN', $GLOBALS['wp_posts'][101]->post_content);
 }
 
 // The "already linked" test was `stripos($content, '>' . $anchor . '<')`,
@@ -390,7 +437,7 @@ if (($again['changed'] ?? true) === false) {
 // sitting in a list item or a table cell could therefore never be
 // linked anywhere on the page, and the tool answered "already linked" —
 // which was false, and the only explanation the user got.
-WPState::$posts[101]['post_content'] =
+$GLOBALS['wp_posts'][101]->post_content =
     '<p>We sell soap wholesale to trade buyers.</p><ul><li>wholesale</li></ul>';
 [$listCase] = call('stb_rest_insert_links', req(['id' => 101], [
     'links' => [['anchor' => 'wholesale', 'url' => '/wholesale']],
@@ -407,7 +454,7 @@ if (($listCase['changed'] ?? false) === true) {
 // The other half: genuinely linked text must still be detected, even
 // when the phrase is nested inside another tag rather than sitting
 // directly in the anchor's first text node.
-WPState::$posts[101]['post_content'] =
+$GLOBALS['wp_posts'][101]->post_content =
     '<p>See our <a href="/pricing"><strong>pricing</strong></a> page. Our pricing is simple.</p>';
 [$nested] = call('stb_rest_insert_links', req(['id' => 101], [
     'links' => [['anchor' => 'pricing', 'url' => '/pricing']],
@@ -415,11 +462,11 @@ WPState::$posts[101]['post_content'] =
 if (($nested['changed'] ?? true) === false) {
     ok('a phrase linked via nested markup is detected', 'no double-linking');
 } else {
-    bad('LINKED A PHRASE THAT WAS ALREADY LINKED', WPState::$posts[101]['post_content']);
+    bad('LINKED A PHRASE THAT WAS ALREADY LINKED', $GLOBALS['wp_posts'][101]->post_content);
 }
 
 // Restore the multi-context fixture for the checks that follow.
-WPState::$posts[101]['post_content'] =
+$GLOBALS['wp_posts'][101]->post_content =
     '<p>Some words about handmade soap and cold process.</p>' .
     '<h2>More about handmade soap</h2>' .
     '<pre><code>handmade soap</code></pre>';
@@ -437,7 +484,7 @@ if (($ext['changed'] ?? true) === false) {
 [$js] = call('stb_rest_insert_links', req(['id' => 101], [
     'links' => [['anchor' => 'cold process', 'url' => 'javascript:alert(1)']],
 ]));
-if (!str_contains(WPState::$posts[101]['post_content'], 'javascript:')) {
+if (!str_contains($GLOBALS['wp_posts'][101]->post_content, 'javascript:')) {
     ok('a javascript: URL never reaches the page');
 } else {
     bad('XSS: JAVASCRIPT URL WRITTEN INTO CONTENT');
@@ -453,8 +500,8 @@ if ($noLinks === 400) {
 // =====================================================================
 section('Revisions and undo');
 
-WPState::$options['stb_revisions'] = [];
-WPState::$posts[101]['post_title'] = 'Original title';
+$GLOBALS['wp_options']['stb_revisions'] = [];
+$GLOBALS['wp_posts'][101]->post_title = 'Original title';
 
 call('stb_rest_update_post_seo', req(['id' => 101], ['title' => 'Replacement title']));
 $revs = get_option('stb_revisions', []);
@@ -466,10 +513,10 @@ if ($lastRev && $lastRev['old'] === 'Original title') {
 }
 
 [$undone, $undoStatus] = call('stb_rest_undo', req(['rev_id' => $lastRev['rev_id']]));
-if ($undoStatus === 200 && WPState::$posts[101]['post_title'] === 'Original title') {
+if ($undoStatus === 200 && $GLOBALS['wp_posts'][101]->post_title === 'Original title') {
     ok('undo restores the previous title exactly');
 } else {
-    bad('UNDO DID NOT RESTORE', WPState::$posts[101]['post_title']);
+    bad('UNDO DID NOT RESTORE', $GLOBALS['wp_posts'][101]->post_title);
 }
 
 [, $missingRev] = call('stb_rest_undo', req(['rev_id' => 999999]));
@@ -482,7 +529,7 @@ if ($missingRev === 404) {
 // A revision whose object reference is unusable must be refused, not
 // undone against object 0. Reachable if the option is hand-edited or
 // half-written by a failed request.
-WPState::$options['stb_revisions'][] = [
+$GLOBALS['wp_options']['stb_revisions'][] = [
     'rev_id' => 424242,
     'ts' => time(),
     'field' => 'title',
@@ -514,9 +561,9 @@ if ($adminRendersWithWpDate) {
 // link: it doesn't keep a copy of the article, it stores the revision id
 // and asks WordPress to put the article back. Nothing called /undo until
 // internal linking existed, so this path had never run.
-WPState::$options['stb_revisions'] = [];
+$GLOBALS['wp_options']['stb_revisions'] = [];
 $before = '<p>We use the cold process soap method for every batch.</p>';
-WPState::$posts[101]['post_content'] = $before;
+$GLOBALS['wp_posts'][101]->post_content = $before;
 
 [$ins] = call('stb_rest_insert_links', req(['id' => 101], [
     'links' => [['anchor' => 'cold process soap', 'url' => '/cold-process-soap']],
@@ -528,12 +575,12 @@ if (($ins['changed'] ?? false) === true && !empty($ins['rev_id'])) {
 }
 
 [$undoBody, $undoBodyStatus] = call('stb_rest_undo', req(['rev_id' => $ins['rev_id']]));
-if ($undoBodyStatus === 200 && WPState::$posts[101]['post_content'] === $before) {
+if ($undoBodyStatus === 200 && $GLOBALS['wp_posts'][101]->post_content === $before) {
     ok('undo restores the article byte for byte');
 } else {
     bad(
         'UNDO DID NOT RESTORE THE ARTICLE',
-        substr(WPState::$posts[101]['post_content'], 0, 90),
+        substr($GLOBALS['wp_posts'][101]->post_content, 0, 90),
     );
 }
 
@@ -542,7 +589,7 @@ if ($undoBodyStatus === 200 && WPState::$posts[101]['post_content'] === $before)
 // every revision was id 501, and undo restored the oldest of them.
 section('Revision ids stay unique past the 500 cap');
 
-WPState::$options['stb_revisions'] = [];
+$GLOBALS['wp_options']['stb_revisions'] = [];
 for ($i = 0; $i < 520; $i++) {
     stb_record_revision('title', 'post:101', "old-$i", "new-$i");
 }
@@ -568,14 +615,14 @@ if ((int)$last['rev_id'] === 520) {
 
 // And the whole point: undo after the cap must find the right one.
 $target = $all[count($all) - 3];
-WPState::$posts[101]['post_title'] = 'whatever is there now';
+$GLOBALS['wp_posts'][101]->post_title = 'whatever is there now';
 call('stb_rest_undo', req(['rev_id' => $target['rev_id']]));
-if (WPState::$posts[101]['post_title'] === $target['old']) {
+if ($GLOBALS['wp_posts'][101]->post_title === $target['old']) {
     ok('undo past the cap restores the right revision', $target['old']);
 } else {
     bad(
         'UNDO PAST THE CAP RESTORED THE WRONG VALUE',
-        'got "' . WPState::$posts[101]['post_title'] . '", wanted "' . $target['old'] . '"',
+        'got "' . $GLOBALS['wp_posts'][101]->post_title . '", wanted "' . $target['old'] . '"',
     );
 }
 
@@ -594,10 +641,10 @@ if ($cs === 200 && !empty($created['id'])) {
     bad('create failed', json_encode($created));
 }
 $newId = (int)($created['id'] ?? 0);
-if ($newId && WPState::$posts[$newId]['post_status'] === 'draft') {
+if ($newId && $GLOBALS['wp_posts'][$newId]->post_status === 'draft') {
     ok('defaults to draft', 'nothing goes live without being asked');
 } else {
-    bad('DEFAULTED TO PUBLISHED', WPState::$posts[$newId]['post_status'] ?? '?');
+    bad('DEFAULTED TO PUBLISHED', $GLOBALS['wp_posts'][$newId]->post_status ?? '?');
 }
 if ($newId && stb_get_meta_description($newId) === 'A short description.') {
     ok('applies the meta description on create');
