@@ -10,6 +10,7 @@ export type ActivityKind =
   | "audit.failed"
   | "task.completed"
   | "task.created"
+  | "task.template_skipped"
   | "page.changed"
   | "rank.changed"
   | "report.generated"
