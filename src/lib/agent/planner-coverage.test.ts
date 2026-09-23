@@ -49,13 +49,18 @@ describe("auto-fix coverage", () => {
   });
 
   it("does not regress", () => {
-    // Raise this when coverage goes up. 7 -> 16 -> 18 of 72 (25%):
+    // Raise this when coverage goes up. 7 -> 16 -> 18 -> 29 of 72 (40%):
     // plugin 0.5.0 wired canonical and per-page robots directives; the
     // duplicate/short metadata findings — detected since the crawler was
     // written, never once actionable — were finally given planner
     // entries; then the two AI-crawler-policy findings became the first
-    // site-wide fix the agent can apply.
-    const FLOOR = 18;
+    // site-wide fix the agent can apply; then redirects, site hardening,
+    // internal links, schema and social meta.
+    //
+    // It sat at 18 while the real number was 29, which is the failure
+    // this test exists to prevent pointed at itself: a floor nobody
+    // raises stops being a floor.
+    const FLOOR = 29;
     expect(
       fixable.length,
       `The agent can fix ${fixable.length} of ${ALL.size} finding types. ` +
