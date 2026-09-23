@@ -11,6 +11,7 @@ import {
   tasks,
 } from "@/db/schema";
 import { callAI } from "@/lib/ai-call";
+import { isOpenTask } from "@/lib/task-status";
 
 export type PortalChatMessage = {
   role: "user" | "assistant";
@@ -110,7 +111,7 @@ async function loadClientContext(clientId: number): Promise<string> {
     .select()
     .from(tasks)
     .where(eq(tasks.clientId, clientId));
-  const open = allTasks.filter((t) => t.status !== "done");
+  const open = allTasks.filter((t) => isOpenTask(t.status));
   const done = [...allTasks.filter((t) => t.status === "done")]
     .sort(
       (a, b) =>

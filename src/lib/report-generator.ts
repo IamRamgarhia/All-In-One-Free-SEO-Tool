@@ -35,6 +35,7 @@ import {
   type Ga4DailyTraffic,
 } from "./google-data";
 import { loadBrand, type Brand } from "./brand";
+import { isOpenTask } from "./task-status";
 
 type Color = string;
 
@@ -306,7 +307,10 @@ export async function generateReportPdf(
     .where(eq(tasks.clientId, clientId));
 
   const doneTasks = allTasks.filter((t) => t.status === "done");
-  const openTasks = allTasks.filter((t) => t.status !== "done");
+  // Skipped means "decided against", and the client report is the wrong
+  // place to keep proposing it. It was landing in the recommendations
+  // section because this asked for everything that was not done.
+  const openTasks = allTasks.filter((t) => isOpenTask(t.status));
 
   // Manually-logged backlinks built in the last 30 days — these flow
   // straight from the user's link log into "Links built this period."
