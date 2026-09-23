@@ -113,6 +113,10 @@ export const RETIRED: Record<string, { useInstead: string; why: string }> = {
     useInstead: "/tools/social-preview",
     why: "Social preview already renders how a link appears when shared.",
   },
+  "/tools/auto-link": {
+    useInstead: "/tools/internal-linking",
+    why: "Same job, but this one asks you to paste a list of pages and titles first. Internal linking fetches them itself, records what it finds, and is the one the agent acts on.",
+  },
 };
 
 export function isRetired(href: string): boolean {
@@ -127,6 +131,12 @@ export function isRetired(href: string): boolean {
  * the daily loop", not "special".
  */
 const EXPLICIT: Record<string, ToolCategoryId> = {
+  // Not one of our routes — content writing moved to BlogPilot, and the
+  // card that says so needs to sit where the writing tools used to be
+  // rather than falling through to "occasional", which is collapsed by
+  // default and is where a signpost is least likely to be read.
+  "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio":
+    "improve",
   // --- Win the work -------------------------------------------------
   "/tools/health-check": "win",
   "/tools/domain-overview": "win",

@@ -1,6 +1,6 @@
 "use server";
 
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
 import { saveToolRun } from "@/lib/tool-runs";
 import {
   TARGETS,
@@ -67,7 +67,7 @@ export async function generateCode(
     return {
       ok: false,
       error:
-        "AI provider didn't respond. Make sure you've configured one in Settings → AI.",
+        lastAiFailure()?.message ?? "AI provider didn't respond. Make sure you've configured one in Settings → AI.",
     };
   }
 

@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { decrypt, encrypt } from "@/lib/crypto";
+import { serviceAccountAccessToken } from "./google-service-account";
 
 /**
  * Google OAuth + GSC + GA4 integration.
@@ -270,6 +271,18 @@ export async function getAccessToken(
     // Fall through to workspace tokens
   }
 
+  // A service account, if one is configured, before falling back to the
+  // OAuth credentials. Checked here rather than at each call site
+  // because this function is the only way anything in the app reaches
+  // Google, so one branch covers Search Console, Analytics and
+  // everything built on them.
+  //
+  // Per-client OAuth still wins, above: a workspace-wide service account
+  // must not silently take over a client somebody deliberately connected
+  // to a different Google account.
+  const fromServiceAccount = await serviceAccountAccessToken();
+  if (fromServiceAccount) return fromServiceAccount;
+
   const [clientId, clientSecret, refreshTokenRaw, accessTokenRaw, expiresAtRaw] =
     await Promise.all([
       getSetting<string>("google.client_id"),
@@ -284,7 +297,9 @@ export async function getAccessToken(
   const accessToken = accessTokenRaw ? decrypt(accessTokenRaw) : null;
 
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error("Google not connected — connect it in Settings → Google.");
+    throw new Error(
+      "Google not connected — connect it in Settings → Google, either with a service account key or the OAuth flow.",
+    );
   }
 
   const expiresAt = expiresAtRaw ?? 0;
@@ -430,25 +445,114 @@ export async function fetchGscPerformance(opts: {
 // GSC URL Inspection
 // =====================
 
+export type RichResultsSummary = {
+  /** "PASS" | "PARTIAL" | "FAIL" | "NEUTRAL" */
+  verdict: string | null;
+  items: {
+    type: string;
+    name: string | null;
+    /** severity "ERROR" means the item cannot show as a rich result. */
+    issues: { message: string; severity: string }[];
+  }[];
+};
+
 export type UrlInspection = {
   url: string;
   /** "INDEXING_STATE_UNSPECIFIED" | "INDEXING_ALLOWED" | "BLOCKED_BY_META_TAG" | "BLOCKED_BY_HTTP_HEADER" | "BLOCKED_BY_ROBOTS_TXT" */
   indexingState: string | null;
-  /** "VERDICT_UNSPECIFIED" | "PASS" | "PARTIAL" | "FAIL" | "NEUTRAL" */
+  /** "VERDICT_UNSPECIFIED" | "PASS" | "PARTIAL" | "FAIL" | "NEUTRAL" — PASS means indexed. */
   verdict: string | null;
   /** "DESKTOP" | "MOBILE" — which user-agent crawled it last */
   crawledAs: string | null;
   lastCrawlTime: string | null;
   pageFetchState: string | null;
   robotsTxtState: string | null;
-  /** Whether the URL is in Google's index right now. */
+  /**
+   * Google's own wording, e.g. "Submitted and indexed" or "Crawled -
+   * currently not indexed". This is the reason; the API has no separate
+   * reason field. The type used to read `coverageState_reason`, which the
+   * API does not return, so that value was always null.
+   */
   coverageState: string | null;
-  /** Reason for non-indexing if any. */
-  coverageStateReason: string | null;
+  /** The canonical Google chose. Google omits it when the page is not indexed. */
+  googleCanonical: string | null;
+  /** The canonical the page declares. */
+  userCanonical: string | null;
   referringUrls: string[];
   sitemap: string[];
+  richResults: RichResultsSummary | null;
+  /** This inspection in the Search Console UI. */
+  inspectionResultLink: string | null;
   error?: string;
 };
+
+type RawInspection = {
+  inspectionResultLink?: string;
+  indexStatusResult?: {
+    verdict?: string;
+    coverageState?: string;
+    robotsTxtState?: string;
+    pageFetchState?: string;
+    indexingState?: string;
+    lastCrawlTime?: string;
+    crawledAs?: string;
+    googleCanonical?: string;
+    userCanonical?: string;
+    sitemap?: string[];
+    referringUrls?: string[];
+  };
+  richResultsResult?: {
+    verdict?: string;
+    detectedItems?: {
+      richResultType?: string;
+      items?: { name?: string; issues?: { issueMessage?: string; severity?: string }[] }[];
+    }[];
+  };
+};
+
+/**
+ * Read an index:inspect response. Field names follow the API's discovery
+ * document (UrlInspectionResult, IndexStatusInspectionResult).
+ *
+ * A response without an index status is an error, not an empty result:
+ * every field null would otherwise read as "not indexed, no reason".
+ */
+export function parseInspectionResponse(url: string, data: unknown): UrlInspection {
+  const result = (data as { inspectionResult?: RawInspection } | null)?.inspectionResult;
+  const r = result?.indexStatusResult;
+  if (!r) return inspectionFailure(url, "Search Console returned no index status for this URL.");
+  const rich = result?.richResultsResult;
+  return {
+    url,
+    indexingState: r.indexingState ?? null,
+    verdict: r.verdict ?? null,
+    crawledAs: r.crawledAs ?? null,
+    lastCrawlTime: r.lastCrawlTime ?? null,
+    pageFetchState: r.pageFetchState ?? null,
+    robotsTxtState: r.robotsTxtState ?? null,
+    coverageState: r.coverageState ?? null,
+    googleCanonical: r.googleCanonical ?? null,
+    userCanonical: r.userCanonical ?? null,
+    referringUrls: r.referringUrls ?? [],
+    sitemap: r.sitemap ?? [],
+    richResults: rich
+      ? {
+          verdict: rich.verdict ?? null,
+          items: (rich.detectedItems ?? []).flatMap((d) =>
+            (d.items ?? []).map((i) => ({
+              type: d.richResultType ?? "Unknown",
+              name: i.name ?? null,
+              issues: (i.issues ?? []).map((x) => ({
+                message: x.issueMessage ?? "",
+                severity: x.severity ?? "SEVERITY_UNSPECIFIED",
+              })),
+            })),
+          ),
+        }
+      : null,
+    inspectionResultLink: result?.inspectionResultLink ?? null,
+  };
+}
 
 export async function inspectGscUrl(opts: {
   siteUrl: string;
@@ -473,45 +577,15 @@ export async function inspectGscUrl(opts: {
     );
     if (!res.ok) {
       const body = await res.text();
-      return emptyInspection(opts.inspectionUrl, `${res.status} ${body.slice(0, 200)}`);
+      return inspectionFailure(opts.inspectionUrl, `${res.status} ${body.slice(0, 200)}`);
     }
-    const data = (await res.json()) as {
-      inspectionResult?: {
-        verdict?: string;
-        indexStatusResult?: {
-          verdict?: string;
-          coverageState?: string;
-          robotsTxtState?: string;
-          pageFetchState?: string;
-          indexingState?: string;
-          lastCrawlTime?: string;
-          crawledAs?: string;
-          coverageState_reason?: string;
-          sitemap?: string[];
-          referringUrls?: string[];
-        };
-      };
-    };
-    const r = data.inspectionResult?.indexStatusResult ?? {};
-    return {
-      url: opts.inspectionUrl,
-      indexingState: r.indexingState ?? null,
-      verdict: data.inspectionResult?.verdict ?? r.verdict ?? null,
-      crawledAs: r.crawledAs ?? null,
-      lastCrawlTime: r.lastCrawlTime ?? null,
-      pageFetchState: r.pageFetchState ?? null,
-      robotsTxtState: r.robotsTxtState ?? null,
-      coverageState: r.coverageState ?? null,
-      coverageStateReason: r.coverageState_reason ?? null,
-      referringUrls: r.referringUrls ?? [],
-      sitemap: r.sitemap ?? [],
-    };
+    return parseInspectionResponse(opts.inspectionUrl, await res.json());
   } catch (err) {
-    return emptyInspection(opts.inspectionUrl, (err as Error).message);
+    return inspectionFailure(opts.inspectionUrl, (err as Error).message);
   }
 }
 
-function emptyInspection(url: string, error: string): UrlInspection {
+export function inspectionFailure(url: string, error: string): UrlInspection {
   return {
     url,
     indexingState: null,
@@ -521,11 +595,75 @@ function emptyInspection(url: string, error: string): UrlInspection {
     pageFetchState: null,
     robotsTxtState: null,
     coverageState: null,
-    coverageStateReason: null,
+    googleCanonical: null,
+    userCanonical: null,
     referringUrls: [],
     sitemap: [],
+    richResults: null,
+    inspectionResultLink: null,
     error,
   };
+}
+
+// =====================
+// GSC Sitemaps
+// =====================
+
+export type GscSitemap = {
+  path: string;
+  type: string | null;
+  isSitemapsIndex: boolean;
+  /** Submitted but not yet processed by Google. */
+  isPending: boolean;
+  lastSubmitted: string | null;
+  lastDownloaded: string | null;
+  errors: number;
+  warnings: number;
+  /**
+   * URLs submitted, per content type. The API's matching "indexed" count
+   * is marked "Deprecated; do not use", so it is not read.
+   */
+  submitted: { type: string; urls: number }[];
+};
+
+export function parseSitemaps(data: unknown): GscSitemap[] {
+  const list = (data as { sitemap?: unknown } | null)?.sitemap;
+  // The field is left out entirely when a property has no sitemaps.
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) {
+    throw new Error("Search Console returned sitemaps in a shape this tool does not recognise.");
+  }
+  return (list as Record<string, unknown>[]).map((s) => ({
+    path: String(s.path ?? ""),
+    type: typeof s.type === "string" ? s.type : null,
+    isSitemapsIndex: s.isSitemapsIndex === true,
+    isPending: s.isPending === true,
+    lastSubmitted: typeof s.lastSubmitted === "string" ? s.lastSubmitted : null,
+    lastDownloaded: typeof s.lastDownloaded === "string" ? s.lastDownloaded : null,
+    // int64 fields arrive as strings.
+    errors: Number(s.errors ?? 0),
+    warnings: Number(s.warnings ?? 0),
+    submitted: (Array.isArray(s.contents) ? (s.contents as Record<string, unknown>[]) : []).map(
+      (c) => ({ type: String(c.type ?? "UNKNOWN"), urls: Number(c.submitted ?? 0) }),
+    ),
+  }));
+}
+
+export async function listGscSitemaps(opts: {
+  siteUrl: string;
+  clientIdScope?: number;
+}): Promise<GscSitemap[]> {
+  const token = await getAccessToken(opts.clientIdScope);
+  const res = await fetch(
+    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
+      opts.siteUrl,
+    )}/sitemaps`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`GSC sitemaps failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  }
+  return parseSitemaps(await res.json());
 }
 
 // =====================

@@ -12,6 +12,7 @@ import {
   Sparkles,
   Trash2,
   X,
+  ArrowUpRight,
 } from "lucide-react";
 import {
   bulkDeleteTasks,
@@ -21,6 +22,7 @@ import {
   setTaskStatus,
 } from "./actions";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { isOpenTask, isClosedTask } from "@/lib/task-status";
 
 const priorityConfig: Record<
   string,
@@ -59,6 +61,8 @@ export type BulkTask = {
   id: number;
   title: string;
   whyItMatters: string | null;
+  /** Where to go to do it. See TaskRowData. */
+  toolPath?: string | null;
   priority: string;
   status: string;
   dueDate: Date | null;
@@ -129,8 +133,15 @@ export function TasksBulkList({
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [pending, startTransition] = useTransition();
 
-  const open = useMemo(() => tasks.filter((t) => t.status !== "done"), [tasks]);
-  const done = useMemo(() => tasks.filter((t) => t.status === "done"), [tasks]);
+  // Skipped is a decision, not outstanding work. It belongs with the
+  // closed tasks, labelled for what it is rather than as completed.
+  const open = useMemo(() => tasks.filter((t) => isOpenTask(t.status)), [tasks]);
+  const closed = useMemo(
+    () => tasks.filter((t) => isClosedTask(t.status)),
+    [tasks],
+  );
+  const doneCount = closed.filter((t) => t.status === "done").length;
+  const skippedCount = closed.length - doneCount;
 
   const byPriority = {
     high: open.filter((t) => t.priority === "high"),
@@ -316,7 +327,7 @@ export function TasksBulkList({
         );
       })}
 
-      {done.length > 0 && (
+      {closed.length > 0 && (
         <details className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
           <summary className="cursor-pointer border-b border-white/5 px-5 py-4">
             <div className="inline-flex items-center gap-3">
@@ -325,16 +336,17 @@ export function TasksBulkList({
               </div>
               <div>
                 <h2 className="text-base font-semibold text-gradient-emerald">
-                  Done
+                  {skippedCount > 0 ? "Closed" : "Done"}
                 </h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {done.length} completed
+                  {doneCount} completed
+                  {skippedCount > 0 ? ` · ${skippedCount} skipped` : ""}
                 </p>
               </div>
             </div>
           </summary>
           <ul className="divide-y divide-white/5">
-            {done.map((t) => (
+            {closed.map((t) => (
               <Row
                 key={t.id}
                 task={t}
@@ -413,6 +425,21 @@ function Row({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+            {task.toolPath && task.status !== "done" && (
+              // Carries the client, so the tool opens already pointed at
+              // the right site rather than asking which one again.
+              <Link
+                href={
+                  task.clientId
+                    ? `${task.toolPath}${task.toolPath.includes("?") ? "&" : "?"}clientId=${task.clientId}`
+                    : task.toolPath
+                }
+                className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary ring-1 ring-inset ring-primary/20 hover:bg-primary/20"
+              >
+                Open the tool
+                <ArrowUpRight className="size-3" />
+              </Link>
+            )}
             {task.clientName && task.clientId && (
               <Link
                 href={`/clients/${task.clientId}`}

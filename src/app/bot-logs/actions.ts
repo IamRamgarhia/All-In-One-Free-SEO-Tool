@@ -4,20 +4,36 @@ import { revalidatePath } from "next/cache";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { botLogUploads, clients } from "@/db/schema";
+import {
+  clientAddressOf,
+  CRAWLER_IP_SOURCES,
+  loadRanges,
+  proxyAddressWarning,
+  tally,
+  type CrawlerVerification,
+} from "@/lib/crawler-verify";
 
 /**
  * Bot user-agent patterns we care about, in priority order. The first regex
  * that matches a UA wins — keeps generic matches like /bot/ from polluting.
+ *
+ * Not here: Google-Extended. Google's crawler documentation says it
+ * "doesn't have a separate HTTP request user agent string" — it is a
+ * robots.txt token, and the crawling is done by Google's usual agents —
+ * so no log line ever contains it, and the page was advertising a count
+ * that could only be zero.
  */
 const BOT_PATTERNS: { name: string; re: RegExp }[] = [
   { name: "GPTBot", re: /GPTBot/i },
   { name: "ChatGPT-User", re: /ChatGPT-User/i },
   { name: "OAI-SearchBot", re: /OAI-SearchBot/i },
   { name: "ClaudeBot", re: /ClaudeBot/i },
+  // Anthropic's other two agents, per its crawler page (September 2026).
+  { name: "Claude-User", re: /Claude-User/i },
+  { name: "Claude-SearchBot", re: /Claude-SearchBot/i },
   { name: "Claude-Web", re: /Claude-Web/i },
   { name: "PerplexityBot", re: /PerplexityBot/i },
   { name: "Perplexity-User", re: /Perplexity-User/i },
-  { name: "Google-Extended", re: /Google-Extended/i },
   { name: "Bytespider", re: /Bytespider/i },
   { name: "CCBot", re: /CCBot/i },
   { name: "Amazonbot", re: /Amazonbot/i },
@@ -28,6 +44,8 @@ const BOT_PATTERNS: { name: string; re: RegExp }[] = [
   // Established crawlers (helpful baseline to compare AI bots against)
   { name: "Googlebot", re: /Googlebot/i },
   { name: "Bingbot", re: /bingbot/i },
+  // After Applebot-Extended, which it would otherwise swallow.
+  { name: "Applebot", re: /Applebot/i },
   { name: "DuckDuckBot", re: /DuckDuckBot/i },
   { name: "YandexBot", re: /YandexBot/i },
 ];
@@ -72,8 +90,15 @@ export type ParseResult = {
   ok: true;
   uploadId: number;
   totalLines: number;
+  /** Hits whose user agent names a known bot — claimed, not verified. */
   matchedLines: number;
   botCounts: Record<string, number>;
+  /** For crawlers that publish address ranges: how many hits came from them. */
+  verification: Record<string, CrawlerVerification>;
+  /** Bots seen that publish no address list, so were counted by user agent only. */
+  unverifiable: string[];
+  /** Set when the log looks like it records proxy addresses. */
+  addressWarning: string | null;
   /** Top crawled paths across ALL bots — see what they actually crawl. */
   topPaths: { path: string; count: number }[];
   /** Status-code distribution. 4xx/5xx = bots hitting broken pages. */
@@ -93,6 +118,9 @@ export async function parseAndStoreLog(input: {
   }
   const lines = input.text.split(/\r?\n/);
   const counts = new Map<string, number>();
+  // Hits per bot grouped by address: one entry per distinct address, not
+  // one per line, so a large log stays small in memory.
+  const addresses = new Map<string, Map<string | null, number>>();
   const pathCounts = new Map<string, number>();
   const statusCounts = new Map<string, number>();
   let matched = 0;
@@ -105,6 +133,11 @@ export async function parseAndStoreLog(input: {
 
     counts.set(bot, (counts.get(bot) ?? 0) + 1);
     matched++;
+
+    const byAddress = addresses.get(bot) ?? new Map<string | null, number>();
+    const address = clientAddressOf(line);
+    byAddress.set(address, (byAddress.get(address) ?? 0) + 1);
+    addresses.set(bot, byAddress);
 
     const pathStatus = extractPathAndStatus(line);
     if (pathStatus) {
@@ -126,6 +159,28 @@ export async function parseAndStoreLog(input: {
     }
   }
 
+  const verification: Record<string, CrawlerVerification> = {};
+  const unverifiable: string[] = [];
+  await Promise.all(
+    [...addresses.entries()].map(async ([bot, byAddress]) => {
+      if (!CRAWLER_IP_SOURCES[bot]) {
+        unverifiable.push(bot);
+        return;
+      }
+      try {
+        verification[bot] = tally(byAddress, await loadRanges(bot));
+      } catch (err) {
+        verification[bot] = {
+          verified: 0,
+          unverified: 0,
+          noAddress: 0,
+          listError: (err as Error).message,
+        };
+      }
+    }),
+  );
+  unverifiable.sort();
+
   const botCounts: Record<string, number> = Object.fromEntries(counts);
   const topPaths = Array.from(pathCounts.entries())
     .map(([path, count]) => ({ path, count }))
@@ -142,6 +197,7 @@ export async function parseAndStoreLog(input: {
       rawByteSize: input.text.length,
       lineCount: lines.length,
       botCounts,
+      botVerification: verification,
     })
     .returning({ id: botLogUploads.id });
 
@@ -153,6 +209,9 @@ export async function parseAndStoreLog(input: {
     totalLines: lines.length,
     matchedLines: matched,
     botCounts,
+    verification,
+    unverifiable,
+    addressWarning: proxyAddressWarning(verification),
     topPaths,
     statusBreakdown,
   };
@@ -166,6 +225,7 @@ export async function listUploads(opts?: { limit?: number }) {
       rawByteSize: botLogUploads.rawByteSize,
       lineCount: botLogUploads.lineCount,
       botCounts: botLogUploads.botCounts,
+      botVerification: botLogUploads.botVerification,
       uploadedAt: botLogUploads.uploadedAt,
       clientId: botLogUploads.clientId,
       clientName: clients.name,

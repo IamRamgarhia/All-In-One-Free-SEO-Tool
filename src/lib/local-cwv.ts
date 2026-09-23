@@ -22,6 +22,7 @@
  */
 
 import { withBrowserContext } from "./browser-pool";
+import type { PsiFailure } from "./psi-error";
 
 export type ResourceSummary = {
   total: number;
@@ -69,6 +70,22 @@ export type CwvResult = {
   /** Top fixes prioritised by impact, in plain English. */
   fixes: string[];
   error?: string;
+  /**
+   * Set when the PSI path failed, so the caller can decide whether
+   * measuring locally instead would help. `error` alone could not carry
+   * that — it was a string, so every caller either forwarded it or gave
+   * up, and the tool named "no PSI key" gave up because PSI had no key.
+   */
+  failure?: PsiFailure;
+  /**
+   * How this measurement was taken. PSI reads real-user field data where
+   * it exists; the local browser is one synthetic run on this machine.
+   * The numbers are not interchangeable, so the reader is told which
+   * they are looking at rather than left to assume.
+   */
+  source?: "psi" | "local";
+  /** Set when we fell back: why the requested source did not work. */
+  fellBackBecause?: string;
 };
 
 const NAV_TIMEOUT_MS = 30_000;

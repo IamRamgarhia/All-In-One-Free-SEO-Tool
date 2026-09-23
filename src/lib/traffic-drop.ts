@@ -6,7 +6,7 @@
  *   - Per-query drops (queries that lost the most clicks)
  *   - Per-page drops (pages that lost the most clicks)
  *   - SERP feature impact (what queries lost AI Overviews / featured snippets)
- *   - Algorithm-update overlap (using our curated list)
+ *   - Algorithm-update overlap (Google's Search Status Dashboard record)
  *
  * Then it asks the AI to write a plain-English diagnosis ranked by
  * likelihood: algorithm update / lost SERP feature / specific page issue
@@ -15,7 +15,8 @@
 
 import { fetchGscPerformance } from "./google-oauth";
 import { callAI } from "./ai-call";
-import { updatesNearRange, type AlgoUpdate } from "./algorithm-updates";
+import { updatesNear, type AlgoUpdate } from "./algorithm-updates";
+import { getRankingUpdates } from "./google-updates-store";
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -146,7 +147,7 @@ export async function diagnoseTrafficDrop(opts: {
       delta: d.delta,
     }));
 
-  const algorithmOverlaps = updatesNearRange(recentStart, recentEnd);
+  const algorithmOverlaps = updatesNear(await getRankingUpdates(), recentStart, recentEnd);
 
   const diagnosis = await aiDiagnose({
     siteUrl: opts.siteUrl,

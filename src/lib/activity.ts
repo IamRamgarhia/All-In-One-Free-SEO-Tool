@@ -10,6 +10,7 @@ export type ActivityKind =
   | "audit.failed"
   | "task.completed"
   | "task.created"
+  | "task.template_skipped"
   | "page.changed"
   | "rank.changed"
   | "report.generated"
@@ -19,6 +20,10 @@ export type ActivityKind =
   | "google.connected"
   | "google.disconnected"
   | "google.credentials_cleared"
+  | "google.service_account_saved"
+  | "google.service_account_cleared"
+  | "agent.level_chosen"
+  | "edge.token_rotated"
   | "system.update_available"
   | "system.updated";
 

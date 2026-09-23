@@ -10,6 +10,12 @@ export type SettingKey =
    * time a background job is added — the prefix keeps it namespaced.
    */
   | `scheduler.${string}`
+  /**
+   * Cached one-line AI narratives: `narrative.<id>`. Open-ended for the
+   * same reason as the scheduler keys above — the callers live beside
+   * the pages that render them, not in this union.
+   */
+  | `narrative.${string}`
   | "webhook.url"
   | "webhook.notify_on_audit_complete"
   | "webhook.notify_on_score_drop"
@@ -31,6 +37,12 @@ export type SettingKey =
   | "ui.theme"
   /** Autonomy level and guardrails for the agent. See lib/agent/autonomy.ts. */
   | "agent.settings"
+  // Whether anyone has ever been ASKED what autonomy level they want, as
+  // opposed to silently receiving the cautious default. See
+  // hasChosenAutonomy in agent/autonomy.ts.
+  | "agent.level_chosen"
+  // Bearer token an edge worker authenticates with. See edge-token.ts.
+  | "edge.token"
   | "api.openai"
   | "api.anthropic"
   | "api.gemini"
@@ -53,6 +65,18 @@ export type SettingKey =
   | "google.access_token"
   | "google.access_token_expires_at"
   | "google.connected_email"
+  /**
+   * Google's ranking updates as last read from its Search Status
+   * Dashboard: `{ fetchedAt, updates }`. See google-updates-store.ts.
+   */
+  | "google.ranking_updates"
+  // The other way to connect Google: a service account key, which needs
+  // no consent screen, no redirect and no browser. See
+  // google-service-account.ts. The key holds a private key, so it is
+  // encrypted at rest like the tokens above.
+  | "google.service_account_json"
+  | "google.service_account_token"
+  | "google.service_account_token_expires_at"
   // SMTP for outbound report email. Stored per-instance; the user enters
   // their own SMTP credentials (Gmail app password, SendGrid, Resend SMTP,
   // a Hetzner mail box — anything that speaks SMTP).
@@ -86,6 +110,38 @@ export type SettingKey =
   // ON keeps token use under ~500/answer for cheap providers like Gemini /
   // Groq free tiers. OFF gives full-quality long-form answers (defaults OFF).
   | "ai.credit_saver.enabled"
+  // How the user supplies AI: "none" | "mcp" | "api" | "both". Drives which
+  // badge each tool shows and whether the tools grid filters itself. This
+  // records what they *told* us; what is actually configured is read from
+  // the keys. See lib/tool-capabilities.ts.
+  | "ai.connection_mode"
+  /**
+   * Bearer token for the remote MCP endpoint at /api/mcp.
+   *
+   * Generated on demand, never derived from anything guessable. The
+   * endpoint can read every client, run the agent and apply fixes to live
+   * websites, so it is closed until a token exists.
+   */
+  | "mcp.access_token"
+  /**
+   * A second bearer token for the same endpoint, allowed to call only the
+   * tools annotated read-only — never run_agent or apply_fix.
+   *
+   * This is the token to paste into a chat app: asking questions is what
+   * the endpoint exists for, and a token that can also edit a live
+   * website is a bad thing to leave in someone's connector settings.
+   */
+  | "mcp.readonly_token"
+  /**
+   * When an MCP client last called /api/mcp successfully — an ISO string.
+   *
+   * This is the only honest signal that a subscription is actually
+   * connected. Nothing else observable proves a chat app is attached:
+   * a token existing only proves one was generated.
+   */
+  | "mcp.last_seen_at"
+  /** What the last caller said it was, for display. */
+  | "mcp.last_client"
   | "outreach.sender_name"
   | "indexnow.key"
   | "bing.api_key"

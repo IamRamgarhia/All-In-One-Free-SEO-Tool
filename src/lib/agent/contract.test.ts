@@ -55,6 +55,28 @@ const EXECUTABLE = new Set([
   // per-page check, because the problem is the absence of a link on a
   // different page. planInternalLinks in planner.ts produces these.
   "write_internal_links",
+  // Plugin 0.6.0 added the six Open Graph / Twitter fields to
+  // POST /post/{id}/seo. The agent writes two of them — og:title and
+  // twitter:title — because those are the only ones it can draft from
+  // the page itself. A description would duplicate the meta description
+  // it already manages, and an image URL would have to be invented.
+  "write_social_meta",
+  // Plugin 0.5.0 wired both into POST /post/{id}/seo, and
+  // GET returns them so a write can be verified and undone. Before that
+  // the handler read neither and answered ok to a write that changed
+  // nothing — which is what this whole contract exists to catch.
+  "write_canonical",
+  "write_robots_meta",
+  // Site-wide rather than per-page, so it has its own branch in
+  // executeAction instead of going through writeField — the target is
+  // the site, and there is no post id to resolve.
+  "write_robots_txt",
+  // Plugin 0.5.0 shipped the endpoints and the revision recording for
+  // both; what was missing until now was anything that turned a finding
+  // into one. Each carries what it changes in targetRef, because six
+  // hardening findings and any number of redirects share one kind.
+  "write_hardening",
+  "write_redirects",
 ]);
 
 /**

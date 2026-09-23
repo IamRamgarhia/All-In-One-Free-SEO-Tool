@@ -46,7 +46,13 @@ const informationalPatterns =
 const navigationalPatterns =
   /\b(login|sign[\s-]?in|sign[\s-]?up|account|dashboard|app|download|contact|support|help\s+center|customer\s+service)\b/i;
 
-function classifyIntent(query: string): Intent {
+/**
+ * Exported so the client-facing keyword map uses the same rules the
+ * research tool does. A second classifier would have been the fifth
+ * hardcoded list of the same thing in this codebase, and every previous
+ * pair had drifted by the time anyone noticed.
+ */
+export function classifyIntent(query: string): Intent {
   if (transactionalPatterns.test(query)) return "transactional";
   if (commercialPatterns.test(query)) return "commercial";
   if (navigationalPatterns.test(query)) return "navigational";

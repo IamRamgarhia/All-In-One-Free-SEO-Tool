@@ -31,6 +31,10 @@
  */
 
 import { getSetting, setSetting } from "./settings-store";
+// Static, unlike the runners themselves: it is a pure string function
+// with no database or tool imports behind it.
+import { summariseSweep } from "./sweep-summary";
+import { summariseGbp } from "./gbp-summary";
 
 type Runner = {
   id: string;
@@ -38,6 +42,21 @@ type Runner = {
   /** How often to attempt this runner. */
   everyMs: number;
   run: () => Promise<unknown>;
+  /**
+   * One line about what the last run actually did, for the Automations
+   * screen.
+   *
+   * A runner that finishes without throwing currently reads as "ran
+   * fine", and for several of these that is not the same thing. The tool
+   * sweep can finish having reached nothing at all — which it did, for
+   * months, while reporting every check as ok. "Last run: 2 of 10 checks
+   * ran" is the difference between automation you can trust and
+   * automation you assume is working.
+   *
+   * Returning null means there is nothing worth saying, which is the
+   * right answer for most runs of most runners.
+   */
+  summarise?: (result: unknown) => string | null;
 };
 
 /**
@@ -91,6 +110,27 @@ function runners(): Runner[] {
       run: async () => (await import("./report-mailer")).tickScheduleRunner(),
     },
     {
+      // The uptime pinger, which has always stored history and never
+      // been called by anything. A monitor you have to press is not a
+      // monitor: the whole value is noticing the outage you were not
+      // watching for, and until now the only pings on record were ones
+      // somebody clicked for.
+      //
+      // Fifteen minutes rather than hourly. An hour of downtime found
+      // 59 minutes late is the same as not finding it.
+      id: "uptime_ping",
+      label: "Uptime checks",
+      everyMs: 15 * MINUTE,
+      run: async () => (await import("./uptime")).pingAll(),
+      summarise: (r) => {
+        const s = r as { total?: number; failed?: number } | null;
+        if (!s || typeof s.total !== "number" || s.total === 0) return null;
+        return s.failed
+          ? `${s.failed} of ${s.total} targets down`
+          : `${s.total} target${s.total === 1 ? "" : "s"} up`;
+      },
+    },
+    {
       id: "page_monitor",
       label: "Page monitor",
       everyMs: 60 * MINUTE,
@@ -109,6 +149,74 @@ function runners(): Runner[] {
       run: async () => (await import("./auto-backup")).tickAutoBackup(),
     },
     {
+      // The checks that can run unattended, for every client. Without
+      // this a tool only ever runs when someone opens it, which is the
+      // difference between a tool that finds things and a tool that
+      // would have found things.
+      id: "tool_sweep",
+      label: "Unattended tool sweep",
+      everyMs: 24 * HOUR,
+      run: async () => (await import("./tool-sweep")).tickToolSweep("daily"),
+      // The one runner where "finished without throwing" and "did the
+      // job" came apart badly: against an unreachable site it completed
+      // every night having reached nothing, and said so nowhere. The
+      // wording lives with the sweep so it can be tested.
+      summarise: (result) => summariseSweep(result),
+    },
+    {
+      // Business Profile. Twice a day, because the thing it looks for is
+      // an unanswered review, and the target for replying is 48 hours —
+      // a daily check leaves no margin, and a review that arrives after
+      // the run would sit a full day before anyone heard about it.
+      //
+      // Cheap: one accounts call, one locations call, one reviews call
+      // per client that names a listing. Clients with no listing are not
+      // asked about at all.
+      id: "gbp_monitor",
+      label: "Business Profile checks",
+      everyMs: 12 * HOUR,
+      run: async () => (await import("./gbp-monitor")).tickGbpMonitor(),
+      summarise: (r) => summariseGbp(r),
+    },
+    {
+      // The checks that have to crawl to answer at all — canonical
+      // chains, soft 404s. They cannot meet the nightly sweep's "handful
+      // of requests" bar and never will, and the alternative was a button
+      // nobody pressed, which is not a cheaper answer but no answer.
+      //
+      // Its own job rather than a branch inside the nightly one, so a
+      // slow crawl across every client cannot delay the cheap checks.
+      id: "tool_sweep_weekly",
+      label: "Weekly crawl-based checks",
+      everyMs: 7 * 24 * HOUR,
+      run: async () => (await import("./tool-sweep")).tickToolSweep("weekly"),
+      summarise: (r) => summariseSweep(r),
+    },
+    {
+      // Discovery, written into the profile rather than drawn on screen
+      // and thrown away. Weekly because it is the slowest thing here —
+      // a search pass plus a crawl-to-confirm per candidate — and
+      // because a backlink profile does not change by the hour.
+      id: "backlink_sync",
+      label: "Backlink discovery",
+      everyMs: 7 * 24 * HOUR,
+      run: async () => (await import("./backlink-sync")).tickBacklinkSync(),
+    },
+    {
+      // Google's own list of ranking updates, which traffic-drop
+      // diagnosis, reports and the weekly digest line changes up against.
+      // The hand-kept list this replaced was nine months stale by the
+      // time anyone checked. One small JSON request a day.
+      id: "google_updates",
+      label: "Google ranking updates",
+      everyMs: 24 * HOUR,
+      run: async () => (await import("./google-updates-store")).refreshRankingUpdates(),
+      summarise: (r) => {
+        const s = r as { added?: number } | null;
+        return s?.added ? `${s.added} update${s.added === 1 ? "" : "s"} newer than the shipped history` : null;
+      },
+    },
+    {
       id: "retention_cleanup",
       label: "Data retention cleanup",
       everyMs: 24 * HOUR,
@@ -120,6 +228,7 @@ function runners(): Runner[] {
 const startedKey = (id: string) => `scheduler.${id}.started_at` as const;
 const finishedKey = (id: string) => `scheduler.${id}.finished_at` as const;
 const errorKey = (id: string) => `scheduler.${id}.last_error` as const;
+const noteKey = (id: string) => `scheduler.${id}.last_note` as const;
 
 /** Process-local guard so one runner can't overlap itself. */
 const inFlight = new Set<string>();
@@ -148,9 +257,15 @@ async function runOne(r: Runner, now: number): Promise<void> {
   inFlight.add(r.id);
   await setSetting(startedKey(r.id), now).catch(() => undefined);
   try {
-    await r.run();
+    const result = await r.run();
     await setSetting(finishedKey(r.id), Date.now()).catch(() => undefined);
     await setSetting(errorKey(r.id), null).catch(() => undefined);
+    // Written even when null, so a note from a previous run cannot
+    // outlive the run it described.
+    await setSetting(
+      noteKey(r.id),
+      r.summarise?.(result) ?? null,
+    ).catch(() => undefined);
   } catch (err) {
     // Record and move on. One failing runner must not stop the others,
     // and the error needs to be visible in Settings rather than only in
@@ -213,6 +328,8 @@ export type SchedulerStatus = {
   lastFinishedAt: number | null;
   lastStartedAt: number | null;
   lastError: string | null;
+  /** What the last successful run did, when that is worth saying. */
+  lastNote: string | null;
   running: boolean;
   dueInMs: number | null;
 };
@@ -222,10 +339,11 @@ export async function schedulerStatus(): Promise<SchedulerStatus[]> {
   const now = Date.now();
   return Promise.all(
     runners().map(async (r) => {
-      const [startedAt, finishedAt, lastError] = await Promise.all([
+      const [startedAt, finishedAt, lastError, lastNote] = await Promise.all([
         getSetting<number>(startedKey(r.id)).catch(() => null),
         getSetting<number>(finishedKey(r.id)).catch(() => null),
         getSetting<string>(errorKey(r.id)).catch(() => null),
+        getSetting<string>(noteKey(r.id)).catch(() => null),
       ]);
       const running =
         typeof startedAt === "number" &&
@@ -238,6 +356,7 @@ export async function schedulerStatus(): Promise<SchedulerStatus[]> {
         lastFinishedAt: typeof finishedAt === "number" ? finishedAt : null,
         lastStartedAt: typeof startedAt === "number" ? startedAt : null,
         lastError: typeof lastError === "string" ? lastError : null,
+        lastNote: typeof lastNote === "string" ? lastNote : null,
         running,
         dueInMs:
           typeof finishedAt === "number"

@@ -8,7 +8,7 @@
  * faking facts that aren't there (which Google penalises).
  */
 
-import { callAI } from "./ai-call";
+import { callAI, lastAiFailure } from "./ai-call";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/1.0; +https://example.com/bot)";
@@ -76,7 +76,7 @@ export async function generateSchemaFromUrl(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Set up a key in Settings → AI provider.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up a key in Settings → AI provider.",
     };
   }
   const cleaned = raw

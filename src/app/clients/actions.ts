@@ -2,18 +2,18 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { clients, tasks, type ClientSocialLinks } from "@/db/schema";
+import { clients, type ClientSocialLinks } from "@/db/schema";
 import { detectTechStack } from "@/lib/tech-detect";
 import { fetchSiteMetadata, type SiteMetadata } from "@/lib/site-metadata";
-import { getNicheTemplates } from "@/lib/niche-templates";
-import {
-  pickStackTemplates,
-  type StackTaskTemplate,
-} from "@/lib/tech-stack-templates";
 import { logActivity } from "@/lib/activity";
+import {
+  applyNicheTemplatesForClient,
+  applyStackTemplatesForClient,
+  siteFactsFor,
+} from "@/lib/apply-task-templates";
 
 const niches = ["local", "ecommerce", "saas", "blog", "services"] as const;
 
@@ -148,11 +148,15 @@ export async function createClient(
     })
     .returning({ id: clients.id });
 
+  // One read of the live site, shared by both template passes, so the
+  // checklist does not open with work this site finished years ago.
+  const facts = await siteFactsFor(parsed.data.url);
+
   // Auto-seed niche-specific tasks (CLAUDE.md Part 3.3)
-  await applyNicheTemplatesInternal(row.id, parsed.data.niche);
+  await applyNicheTemplatesForClient(row.id, parsed.data.niche, facts);
 
   // Auto-seed tech-stack-aware checklist (CLAUDE.md Part 3.2 + Part 10)
-  await applyStackTemplatesInternal(row.id, detectedStack);
+  await applyStackTemplatesForClient(row.id, detectedStack, facts);
 
   await logActivity({
     kind: "client.created",
@@ -166,10 +170,24 @@ export async function createClient(
   revalidatePath("/");
   revalidatePath("/clients");
 
-  // Fire an AI audit in the background — by the time the user finishes the
-  // onboarding wizard, an initial 25-point audit will be ready on
-  // /clients/<id>/ai-audit. Best-effort; failures are silent.
+  // Two audits start here, in order, while the user works through the
+  // onboarding wizard.
+  //
+  // The crawl goes first and it is the important one. Until this was
+  // wired up, a brand-new client's only audit was runAiSiteAudit, which
+  // sets pagesCrawled: 1 — so the first thing anyone saw about their
+  // site, and anything built on top of it, described the homepage and
+  // nothing else. The full crawler was already sitting here unused.
+  //
+  // Progress is written to audits.pagesCrawled as it goes, and the
+  // wizard reads it, so this is visible rather than silent.
   void (async () => {
+    try {
+      const { runAuditForClient } = await import("@/app/audits/actions");
+      await runAuditForClient(row.id);
+    } catch {
+      // Best-effort — re-runnable from the client page.
+    }
     try {
       const { runAiSiteAudit } = await import("@/lib/ai-site-audit");
       await runAiSiteAudit({ clientId: row.id, url: parsed.data.url });
@@ -183,47 +201,6 @@ export async function createClient(
   // detail page (their wizard is reachable via the "Re-plan" button).
   redirect(`/clients/${row.id}/onboarding`);
 }
-
-async function applyStackTemplatesInternal(
-  clientId: number,
-  detectedStack: string[] | null,
-): Promise<{ added: number; skipped: number }> {
-  const { tasks: stackTasks } = pickStackTemplates(detectedStack);
-  if (stackTasks.length === 0) return { added: 0, skipped: 0 };
-
-  // Idempotent: skip templates whose title already exists for this client.
-  const existing = await db
-    .select({ title: tasks.title })
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.clientId, clientId),
-        inArray(
-          tasks.title,
-          stackTasks.map((t) => t.title),
-        ),
-      ),
-    );
-
-  const existingTitles = new Set(existing.map((e) => e.title));
-  const toInsert = stackTasks.filter((t) => !existingTitles.has(t.title));
-
-  if (toInsert.length > 0) {
-    await db.insert(tasks).values(
-      toInsert.map((t: StackTaskTemplate) => ({
-        clientId,
-        title: t.title,
-        description: t.description,
-        whyItMatters: t.whyItMatters,
-        priority: t.priority,
-        status: "todo" as const,
-      })),
-    );
-  }
-
-  return { added: toInsert.length, skipped: existingTitles.size };
-}
-
 export async function applyStackTemplates(clientId: number) {
   const [client] = await db
     .select()
@@ -232,52 +209,17 @@ export async function applyStackTemplates(clientId: number) {
     .limit(1);
   if (!client) return;
 
-  await applyStackTemplatesInternal(clientId, client.techStack);
+  await applyStackTemplatesForClient(
+    clientId,
+    client.techStack,
+    await siteFactsFor(client.url),
+  );
 
   revalidatePath(`/clients/${clientId}`);
   revalidatePath("/tasks");
   revalidatePath("/");
 }
 
-async function applyNicheTemplatesInternal(
-  clientId: number,
-  niche: string | null | undefined,
-): Promise<{ added: number; skipped: number }> {
-  const templates = getNicheTemplates(niche);
-  if (templates.length === 0) return { added: 0, skipped: 0 };
-
-  // Idempotent: skip templates whose title already exists for this client.
-  const existing = await db
-    .select({ title: tasks.title })
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.clientId, clientId),
-        inArray(
-          tasks.title,
-          templates.map((t) => t.title),
-        ),
-      ),
-    );
-
-  const existingTitles = new Set(existing.map((e) => e.title));
-  const toInsert = templates.filter((t) => !existingTitles.has(t.title));
-
-  if (toInsert.length > 0) {
-    await db.insert(tasks).values(
-      toInsert.map((t) => ({
-        clientId,
-        title: t.title,
-        description: t.description,
-        whyItMatters: t.whyItMatters,
-        priority: t.priority,
-        status: "todo" as const,
-      })),
-    );
-  }
-
-  return { added: toInsert.length, skipped: existingTitles.size };
-}
 
 export async function applyNicheTemplates(clientId: number) {
   const [client] = await db
@@ -287,7 +229,11 @@ export async function applyNicheTemplates(clientId: number) {
     .limit(1);
   if (!client) return;
 
-  await applyNicheTemplatesInternal(clientId, client.niche);
+  await applyNicheTemplatesForClient(
+    clientId,
+    client.niche,
+    await siteFactsFor(client.url),
+  );
 
   revalidatePath(`/clients/${clientId}`);
   revalidatePath("/tasks");
@@ -542,9 +488,27 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
     })
     .returning({ id: clients.id });
 
-  // Seed niche + tech-stack tasks
-  await applyNicheTemplatesInternal(row.id, niche);
-  await applyStackTemplatesInternal(row.id, techStack);
+  // Seed niche + tech-stack tasks, minus anything the site already does
+  const quickAddFacts = await siteFactsFor(meta.url);
+  await applyNicheTemplatesForClient(row.id, niche, quickAddFacts);
+  await applyStackTemplatesForClient(row.id, techStack, quickAddFacts);
+
+  // Freeze the starting line now, not tonight.
+  //
+  // The daily agent snapshots any client without one, so a baseline
+  // always arrives eventually — but "eventually" is up to 24 hours, and
+  // anyone who adds a client and starts fixing things the same afternoon
+  // gets a baseline of a site already partly improved. The first monthly
+  // report then understates the work by exactly that much.
+  //
+  // Best-effort: a client that could not be measured is still a client.
+  try {
+    const { captureClientSnapshot } = await import("@/lib/client-snapshots");
+    await captureClientSnapshot({ clientId: row.id, kind: "baseline" });
+  } catch {
+    // The daily agent will take one. Nothing here is worth failing an
+    // add over.
+  }
 
   await logActivity({
     kind: "client.created",

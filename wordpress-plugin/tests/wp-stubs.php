@@ -1,368 +1,703 @@
 <?php
 /**
- * Just enough WordPress to run seo-tool-bridge.php outside WordPress.
+ * Just enough WordPress to run the plugin's own code.
  *
- * The plugin had never executed. Not once — no PHP runs in this repo, no
- * WordPress in CI, and every check written for the integration drove the
- * TypeScript client against a JavaScript stand-in. That stand-in was
- * written from the plugin's source, which is why it caught five wire-
- * format bugs, and it still missed the biggest one: the auth header. A
- * fake can only be as right as whoever read the original.
+ * Why this exists: the plugin runs inside other people's live sites and
+ * had never been executed anywhere. Everything claimed about it was
+ * inferred from reading it — including, for months, the claim that it
+ * wrote canonical tags, which it did not. Unit tests on the TypeScript
+ * client prove what goes onto the wire; they say nothing about what the
+ * PHP does when it arrives.
  *
- * So this runs the real PHP. State lives in arrays, WordPress functions
- * are stubbed to the behaviour the plugin actually depends on, and
- * wp-bridge-test.php calls the REST handlers directly.
- *
- * The stubs are deliberately strict where WordPress is forgiving —
- * get_post() returns null for an unknown id, update_post_meta() records
- * what it stored — because the point is to catch the plugin assuming
- * something WordPress doesn't promise.
- *
- * What this does NOT prove: that real WordPress behaves like these
- * stubs. url_to_postid, wp_kses_post and the REST router in particular
- * are approximations. It proves the plugin's own logic, which is where
- * every bug found so far has been.
+ * These are stubs, not a WordPress. They implement the small set of
+ * behaviours the plugin actually depends on — options, post meta, the
+ * REST request/response shapes, and the hook registry — so the plugin's
+ * real handlers can be called and their real effects observed. Anything
+ * that needs a database, a theme or an HTTP stack is out of scope and is
+ * marked as such where it matters.
  */
 
 // ---------------------------------------------------------------- state
 
-final class WPState
-{
-    /** @var array<string,mixed> */
-    public static array $options = [];
-    /** @var array<int,array<string,mixed>> */
-    public static array $posts = [];
-    /** @var array<int,array<string,mixed>> */
-    public static array $meta = [];
-    /** @var array<string,array<int,callable>> */
-    public static array $actions = [];
-    /** @var array<int,array{namespace:string,route:string,config:array}> */
-    public static array $routes = [];
-    public static int $nextPostId = 500;
+$GLOBALS['wp_options'] = [];
+$GLOBALS['wp_postmeta'] = [];
+$GLOBALS['wp_posts'] = [];
+$GLOBALS['wp_filters'] = [];
+$GLOBALS['wp_actions'] = [];
+$GLOBALS['wp_redirects'] = [];
+$GLOBALS['wp_is_404'] = false;
+$GLOBALS['wp_is_author'] = false;
+$GLOBALS['wp_is_singular'] = false;
+$GLOBALS['wp_current_post'] = 0;
+$GLOBALS['wp_exited'] = false;
 
-    public static function reset(): void
-    {
-        self::$options = ['stb_connection_key' => 'test-connection-key', 'stb_revisions' => []];
-        self::$meta = [];
-        self::$nextPostId = 500;
-        self::$posts = [
-            101 => [
-                'ID' => 101,
-                'post_title' => 'Hello world',
-                'post_content' => '<p>Some words about handmade soap and cold process.</p>',
-                'post_type' => 'post',
-                'post_status' => 'publish',
-                'post_name' => 'hello-world',
-                'post_modified' => '2026-01-01 00:00:00',
-                'post_excerpt' => '',
-            ],
-            201 => [
-                'ID' => 201,
-                'post_title' => 'soap-bars.jpg',
-                'post_content' => '',
-                'post_type' => 'attachment',
-                'post_status' => 'inherit',
-                'post_name' => 'soap-bars',
-                'post_modified' => '2026-01-01 00:00:00',
-                'post_excerpt' => '',
-            ],
-            202 => [
-                'ID' => 202,
-                'post_title' => 'lavender.jpg',
-                'post_content' => '',
-                'post_type' => 'attachment',
-                'post_status' => 'inherit',
-                'post_name' => 'lavender',
-                'post_modified' => '2026-01-01 00:00:00',
-                'post_excerpt' => '',
-            ],
-        ];
-        self::$meta[202] = ['_wp_attachment_image_alt' => ['Existing alt text']];
-    }
-}
-
-WPState::reset();
-
-// ------------------------------------------------------- minimal WP core
-
+// Set by the test runner before this file loads, so a real robots.txt
+// can be created on disk. file_exists() is a PHP builtin and cannot be
+// replaced, so the only honest way to exercise that branch is a real
+// file in a real directory.
 if (!defined('ABSPATH')) {
-    define('ABSPATH', __DIR__ . '/');
+    define('ABSPATH', sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'stb-wp-root' . DIRECTORY_SEPARATOR);
 }
-if (!defined('OBJECT')) {
-    define('OBJECT', 'OBJECT');
-}
-if (!defined('JSON_UNESCAPED_SLASHES')) {
-    define('JSON_UNESCAPED_SLASHES', 64);
+if (!is_dir(ABSPATH)) {
+    mkdir(ABSPATH, 0777, true);
 }
 
-class WP_Error
+function wp_reset_state(): void
 {
-    public function __construct(private string $code = '', private string $message = '') {}
-    public function get_error_message(): string { return $this->message; }
-    public function get_error_code(): string { return $this->code; }
+    $GLOBALS['wp_options'] = [];
+    $GLOBALS['wp_postmeta'] = [];
+    $GLOBALS['wp_posts'] = [];
+    $GLOBALS['wp_redirects'] = [];
+    $GLOBALS['wp_is_404'] = false;
+    $GLOBALS['wp_is_author'] = false;
+    $GLOBALS['wp_is_singular'] = false;
+    $GLOBALS['wp_current_post'] = 0;
+    $GLOBALS['wp_exited'] = false;
 }
 
-class WP_REST_Response
+// --------------------------------------------------------------- options
+
+function get_option($key, $default = false)
 {
-    public function __construct(public mixed $data = null, public int $status = 200) {}
-    public function get_data(): mixed { return $this->data; }
-    public function get_status(): int { return $this->status; }
+    return array_key_exists($key, $GLOBALS['wp_options'])
+        ? $GLOBALS['wp_options'][$key]
+        : $default;
+}
+
+function update_option($key, $value, $autoload = null): bool
+{
+    $GLOBALS['wp_options'][$key] = $value;
+    return true;
+}
+
+function delete_option($key): bool
+{
+    unset($GLOBALS['wp_options'][$key]);
+    return true;
+}
+
+// ------------------------------------------------------------- post meta
+
+function get_post_meta($post_id, $key = '', $single = false)
+{
+    $v = $GLOBALS['wp_postmeta'][$post_id][$key] ?? '';
+    return $single ? $v : ($v === '' ? [] : [$v]);
+}
+
+function update_post_meta($post_id, $key, $value): bool
+{
+    $GLOBALS['wp_postmeta'][$post_id][$key] = $value;
+    return true;
+}
+
+function delete_post_meta($post_id, $key): bool
+{
+    unset($GLOBALS['wp_postmeta'][$post_id][$key]);
+    return true;
+}
+
+// ----------------------------------------------------------------- posts
+
+function wp_insert_test_post(int $id, array $fields = []): void
+{
+    $GLOBALS['wp_posts'][$id] = (object)array_merge([
+        'ID' => $id,
+        'post_title' => 'A title',
+        'post_content' => 'Body text.',
+        'post_status' => 'publish',
+        'post_type' => 'post',
+        'post_modified' => '2026-09-04 00:00:00',
+    ], $fields);
+}
+
+function get_post($id = 0)
+{
+    return $GLOBALS['wp_posts'][(int)$id] ?? null;
+}
+
+function wp_update_post($args, $wp_error = false)
+{
+    $id = (int)($args['ID'] ?? 0);
+    if (!isset($GLOBALS['wp_posts'][$id])) {
+        return $wp_error ? new WP_Error('invalid', 'No such post') : 0;
+    }
+    foreach ($args as $k => $v) {
+        if ($k === 'ID') {
+            continue;
+        }
+        $GLOBALS['wp_posts'][$id]->$k = $v;
+    }
+    return $id;
+}
+
+function get_permalink($id = 0)
+{
+    return 'https://example.test/?p=' . (int)$id;
+}
+
+function url_to_postid($url)
+{
+    foreach ($GLOBALS['wp_posts'] as $id => $p) {
+        if (get_permalink($id) === $url) {
+            return $id;
+        }
+    }
+    return 0;
+}
+
+// ------------------------------------------------------------ misc/core
+
+function home_url($path = '')
+{
+    return 'https://example.test' . $path;
+}
+
+function site_url($path = '')
+{
+    return home_url($path);
+}
+
+function get_bloginfo($what = '')
+{
+    return $what === 'name' ? 'Example Site' : '';
+}
+
+function sanitize_text_field($str)
+{
+    // Core strips tags, then collapses whitespace including newlines.
+    // The collapse is the part that matters here: it is why robots.txt
+    // must NOT go through this function.
+    $s = strip_tags((string)$str);
+    $s = preg_replace('/[\r\n\t]+/', ' ', $s);
+    return trim(preg_replace('/\s{2,}/', ' ', $s));
+}
+
+function esc_url_raw($url)
+{
+    $u = trim((string)$url);
+    if ($u === '') {
+        return '';
+    }
+    // Close enough to core for our purposes: refuse anything that is not
+    // http(s) or a relative path.
+    if (preg_match('#^(https?:)?//#i', $u) || str_starts_with($u, '/')) {
+        return $u;
+    }
+    return preg_match('#^https?://#i', $u) ? $u : '';
+}
+
+function wp_json_encode($data, $options = 0, $depth = 512)
+{
+    return json_encode($data, $options, $depth);
+}
+
+function wp_generate_password($length = 12, $special = true, $extra = false)
+{
+    return substr(str_repeat('abcdef0123456789', 8), 0, $length);
+}
+
+function absint($v)
+{
+    return abs((int)$v);
+}
+
+function is_wp_error($thing)
+{
+    return $thing instanceof WP_Error;
+}
+
+function __return_false()
+{
+    return false;
+}
+
+function __return_true()
+{
+    return true;
+}
+
+function __return_empty_string()
+{
+    return '';
+}
+
+function current_time($type = 'timestamp', $gmt = 0)
+{
+    return time();
+}
+
+function is_admin()
+{
+    return false;
+}
+
+function is_singular($types = '')
+{
+    return (bool)($GLOBALS['wp_is_singular'] ?? false);
+}
+
+function get_the_ID()
+{
+    return $GLOBALS['wp_current_post'] ?? 0;
+}
+
+function esc_url($u)
+{
+    return esc_url_raw($u);
+}
+
+function is_404()
+{
+    return (bool)$GLOBALS['wp_is_404'];
+}
+
+function is_author()
+{
+    return (bool)$GLOBALS['wp_is_author'];
 }
 
 /**
- * Stands in for WP_REST_Request. Supports the three access patterns the
- * plugin uses: ArrayAccess for URL params, get_param, get_json_params,
- * and get_header.
+ * Records the redirect and then throws.
+ *
+ * WordPress code calls exit immediately after wp_redirect, which is
+ * correct in a web request and fatal in a test runner: the first
+ * redirect test killed the whole process, and because every assertion
+ * result was printed at the end, the run produced zero output and exit
+ * code 0. It looked like nothing had happened rather than like a
+ * failure — the exact silent-success shape this suite exists to catch.
  */
-class WP_REST_Request implements ArrayAccess
+class StbRedirected extends RuntimeException
 {
-    public function __construct(
-        private array $params = [],
-        private array $json = [],
-        private array $headers = [],
-    ) {}
-
-    public function get_param(string $k): mixed { return $this->params[$k] ?? null; }
-    public function get_json_params(): array { return $this->json; }
-
-    public function get_header(string $name): ?string
+    public function __construct(public string $to, public int $status)
     {
-        // WordPress normalises header lookups: case-insensitive, and
-        // underscores and dashes are equivalent.
-        $key = strtolower(str_replace('_', '-', $name));
-        foreach ($this->headers as $h => $v) {
-            if (strtolower(str_replace('_', '-', $h)) === $key) {
-                return $v;
-            }
+        parent::__construct("redirect to $to ($status)");
+    }
+}
+
+function wp_redirect($location, $status = 302, $x = null)
+{
+    $GLOBALS['wp_redirects'][] = ['to' => $location, 'status' => $status];
+    throw new StbRedirected((string)$location, (int)$status);
+}
+
+function wp_deregister_script($handle): void
+{
+}
+
+function wp_safe_redirect($location, $status = 302)
+{
+    return wp_redirect($location, $status);
+}
+
+// --------------------------------------------------------------- hooks
+
+function add_filter($tag, $cb, $priority = 10, $args = 1): bool
+{
+    $GLOBALS['wp_filters'][$tag][] = ['cb' => $cb, 'priority' => $priority];
+    return true;
+}
+
+function add_action($tag, $cb, $priority = 10, $args = 1): bool
+{
+    $GLOBALS['wp_actions'][$tag][] = ['cb' => $cb, 'priority' => $priority];
+    return true;
+}
+
+function remove_action($tag, $cb, $priority = 10): bool
+{
+    if (!isset($GLOBALS['wp_actions'][$tag])) {
+        return false;
+    }
+    $GLOBALS['wp_actions'][$tag] = array_values(array_filter(
+        $GLOBALS['wp_actions'][$tag],
+        static fn($e) => $e['cb'] !== $cb,
+    ));
+    return true;
+}
+
+function remove_filter($tag, $cb, $priority = 10): bool
+{
+    return remove_action($tag, $cb, $priority);
+}
+
+function has_filter($tag, $cb = false): bool
+{
+    if (!isset($GLOBALS['wp_filters'][$tag])) {
+        return false;
+    }
+    if ($cb === false) {
+        return true;
+    }
+    foreach ($GLOBALS['wp_filters'][$tag] as $e) {
+        if ($e['cb'] === $cb) {
+            return true;
         }
-        return null;
     }
-
-    public function offsetExists(mixed $o): bool { return isset($this->params[$o]); }
-    public function offsetGet(mixed $o): mixed { return $this->params[$o] ?? null; }
-    public function offsetSet(mixed $o, mixed $v): void { $this->params[$o] = $v; }
-    public function offsetUnset(mixed $o): void { unset($this->params[$o]); }
+    return false;
 }
 
-/** A post object with ->property access, as WordPress returns. */
-function stbtest_post_object(array $row): object
+/** Run every callback registered on a filter, in priority order. */
+function apply_filters($tag, $value, ...$args)
 {
-    return (object)$row;
+    $entries = $GLOBALS['wp_filters'][$tag] ?? [];
+    usort($entries, static fn($a, $b) => $a['priority'] <=> $b['priority']);
+    foreach ($entries as $e) {
+        $value = call_user_func_array($e['cb'], array_merge([$value], $args));
+    }
+    return $value;
 }
 
-// ------------------------------------------------------------- functions
-
-function get_option(string $k, mixed $default = false): mixed
+/** Run every callback registered on an action, in priority order. */
+function do_action($tag, ...$args): void
 {
-    return array_key_exists($k, WPState::$options) ? WPState::$options[$k] : $default;
+    $entries = $GLOBALS['wp_actions'][$tag] ?? [];
+    usort($entries, static fn($a, $b) => $a['priority'] <=> $b['priority']);
+    foreach ($entries as $e) {
+        call_user_func_array($e['cb'], $args);
+    }
 }
-function update_option(string $k, mixed $v): bool
+
+function register_rest_route($ns, $route, $args = []): bool
 {
-    WPState::$options[$k] = $v;
+    $GLOBALS['wp_rest_routes'][$ns . $route] = $args;
     return true;
 }
 
-function get_post(int|string $id): ?object
+function register_activation_hook($file, $cb): void
 {
-    $id = (int)$id;
-    return isset(WPState::$posts[$id]) ? stbtest_post_object(WPState::$posts[$id]) : null;
 }
 
-function get_post_meta(int $id, string $key = '', bool $single = false): mixed
+function add_menu_page(...$a): void
 {
-    $all = WPState::$meta[$id] ?? [];
-    if ($key === '') {
-        return $all;
-    }
-    $vals = $all[$key] ?? [];
-    if ($single) {
-        return $vals[0] ?? '';
-    }
-    return $vals;
 }
-function update_post_meta(int $id, string $key, mixed $value): bool
+
+function add_management_page(...$a): void
 {
-    WPState::$meta[$id][$key] = [$value];
+}
+
+function esc_html($t)
+{
+    return htmlspecialchars((string)$t, ENT_QUOTES);
+}
+
+function esc_attr($t)
+{
+    return esc_html($t);
+}
+
+function esc_html__($t, $d = null)
+{
+    return esc_html($t);
+}
+
+function wp_nonce_field(...$a): void
+{
+}
+
+function check_admin_referer(...$a): bool
+{
     return true;
 }
-function delete_post_meta(int $id, string $key): bool
+
+function current_user_can($cap): bool
 {
-    unset(WPState::$meta[$id][$key]);
     return true;
 }
 
-function wp_update_post(array $data, bool $wp_error = false): int|WP_Error
+function admin_url($p = '')
 {
-    $id = (int)($data['ID'] ?? 0);
-    if (!isset(WPState::$posts[$id])) {
-        return $wp_error ? new WP_Error('invalid_post', 'Invalid post ID.') : 0;
-    }
-    foreach ($data as $k => $v) {
-        if ($k === 'ID') continue;
-        WPState::$posts[$id][$k] = $v;
-    }
-    return $id;
+    return home_url('/wp-admin/' . $p);
 }
 
-function wp_insert_post(array $data, bool $wp_error = false): int|WP_Error
+// WordPress return-shape constants, used by get_page_by_path and friends.
+define('OBJECT', 'OBJECT');
+define('ARRAY_A', 'ARRAY_A');
+define('ARRAY_N', 'ARRAY_N');
+
+// ------------------------------------------------------------ media
+
+function get_post_thumbnail_id($post_id = 0)
 {
-    if (($data['post_title'] ?? '') === '' && ($data['post_content'] ?? '') === '') {
-        return $wp_error ? new WP_Error('empty_content', 'Content, title, and excerpt are empty.') : 0;
-    }
-    $id = ++WPState::$nextPostId;
-    WPState::$posts[$id] = array_merge([
-        'ID' => $id,
-        'post_title' => '',
-        'post_content' => '',
-        'post_excerpt' => '',
-        'post_status' => 'draft',
-        'post_type' => 'post',
-        'post_name' => 'post-' . $id,
-        'post_modified' => '2026-01-01 00:00:00',
-    ], $data);
-    WPState::$posts[$id]['ID'] = $id;
-    return $id;
+    return (int)get_post_meta((int)$post_id, '_thumbnail_id', true);
 }
 
-function is_wp_error(mixed $v): bool { return $v instanceof WP_Error; }
-
-function get_permalink(int|string $id): string
+/** Attachments whose parent is this post, filtered by mime prefix. */
+function get_attached_media($type, $post_id = 0): array
 {
-    $id = (int)$id;
-    $slug = WPState::$posts[$id]['post_name'] ?? ('p-' . $id);
-    return 'https://example.test/' . $slug;
-}
-
-function get_posts(array $args = []): array
-{
-    $type = $args['post_type'] ?? 'post';
-    $status = $args['post_status'] ?? 'publish';
-    $limit = (int)($args['numberposts'] ?? 5);
     $out = [];
-    foreach (WPState::$posts as $p) {
-        if ($p['post_type'] !== $type) continue;
-        if ($status && $p['post_status'] !== $status) continue;
-        $out[] = stbtest_post_object($p);
-        if (count($out) >= $limit) break;
+    foreach ($GLOBALS['wp_posts'] as $p) {
+        if (
+            ($p->post_type ?? '') === 'attachment'
+            && (int)($p->post_parent ?? 0) === (int)$post_id
+            && str_starts_with((string)($p->post_mime_type ?? 'image/jpeg'), (string)$type)
+        ) {
+            $out[] = $p;
+        }
     }
     return $out;
 }
 
-function get_attached_media(string $type, int $postId): array
+function wp_get_attachment_url($id)
 {
-    // In the fixture, attachment 201 is "uploaded to" post 101.
-    if ($type === 'image' && $postId === 101) {
-        return [stbtest_post_object(WPState::$posts[201])];
+    $p = $GLOBALS['wp_posts'][(int)$id] ?? null;
+    if (!$p) {
+        return false;
     }
-    return [];
+    return $p->guid ?? home_url('/wp-content/uploads/' . (int)$id . '.jpg');
 }
 
-function get_post_thumbnail_id(int $postId): int { return 0; }
-
-function wp_get_attachment_url(int $id): string
+function wp_get_attachment_image($id, $size = 'thumbnail', $icon = false, $attr = []): string
 {
-    $names = [201 => 'soap-bars.jpg', 202 => 'lavender.jpg'];
-    return 'https://example.test/uploads/' . ($names[$id] ?? ($id . '.jpg'));
-}
-
-function attachment_url_to_postid(string $url): int
-{
-    foreach ([201, 202] as $id) {
-        if ($url === wp_get_attachment_url($id)) return $id;
+    $url = wp_get_attachment_url($id);
+    if (!$url) {
+        return '';
     }
-    return 0;
+    $alt = esc_attr((string)get_post_meta((int)$id, '_wp_attachment_image_alt', true));
+    return sprintf('<img src="%s" alt="%s" />', esc_url($url), $alt);
 }
 
-function url_to_postid(string $url): int
+// ----------------------------------------------------------- database
+
+/**
+ * Just enough of WordPress's $wpdb for the one query the plugin runs:
+ * find posts whose content mentions wp-image-<id>, so alt text written
+ * to the media library can also be applied to the markup.
+ *
+ * Backed by the same in-memory posts as everything else here, rather
+ * than by parsing the SQL — the needle is read back out of the query.
+ * It is an approximation, and the file says so at the end of its run.
+ */
+class StbTestWpdb
 {
-    $path = trim((string)parse_url($url, PHP_URL_PATH), '/');
-    foreach (WPState::$posts as $p) {
-        if ($p['post_type'] === 'attachment') continue;
-        if ($p['post_name'] === $path) return (int)$p['ID'];
+    public string $posts = 'wp_posts';
+
+    public function prepare($sql, ...$args)
+    {
+        foreach ($args as $a) {
+            $sql = preg_replace('/%s/', (string)$a, (string)$sql, 1);
+        }
+        return $sql;
     }
-    return 0;
+
+    public function esc_like($text)
+    {
+        return addcslashes((string)$text, '_%\\');
+    }
+
+    public function get_results($sql): array
+    {
+        if (!preg_match('/wp-image-(\d+)/', (string)$sql, $m)) {
+            return [];
+        }
+        $needle = 'wp-image-' . $m[1];
+        $out = [];
+        foreach ($GLOBALS['wp_posts'] as $p) {
+            if (in_array($p->post_status ?? 'publish', ['trash', 'auto-draft'], true)) {
+                continue;
+            }
+            if (in_array($p->post_type ?? 'post', ['revision', 'attachment'], true)) {
+                continue;
+            }
+            if (str_contains((string)($p->post_content ?? ''), $needle)) {
+                $out[] = (object)['ID' => $p->ID, 'post_content' => $p->post_content];
+            }
+            if (count($out) >= 20) {
+                break;
+            }
+        }
+        return $out;
+    }
 }
 
-function get_page_by_path(string $slug, string $output = OBJECT, array $types = []): ?object
+$GLOBALS['wpdb'] = new StbTestWpdb();
+
+// ------------------------------------------------- posts, dates, text
+
+function get_posts(array $args = []): array
 {
-    foreach (WPState::$posts as $p) {
-        if ($p['post_name'] === $slug && in_array($p['post_type'], $types ?: ['post', 'page'], true)) {
-            return stbtest_post_object($p);
+    $type = $args['post_type'] ?? 'post';
+    $limit = (int)($args['numberposts'] ?? $args['posts_per_page'] ?? 5);
+    $exclude = (array)($args['exclude'] ?? []);
+    $out = [];
+    foreach ($GLOBALS['wp_posts'] as $p) {
+        if (($p->post_type ?? 'post') !== $type) {
+            continue;
+        }
+        if (in_array((int)$p->ID, array_map('intval', $exclude), true)) {
+            continue;
+        }
+        if (($p->post_status ?? 'publish') !== 'publish') {
+            continue;
+        }
+        $out[] = $p;
+        if ($limit > 0 && count($out) >= $limit) {
+            break;
+        }
+    }
+    return $out;
+}
+
+function wp_insert_post($args, $wp_error = false)
+{
+    $id = (int)(max(array_map('intval', array_keys($GLOBALS['wp_posts']))) + 1);
+    if ($id < 2) {
+        $id = 2;
+    }
+    wp_insert_test_post($id, $args);
+    return $id;
+}
+
+function get_page_by_path($path, $output = null, $post_types = ['page'])
+{
+    foreach ($GLOBALS['wp_posts'] as $p) {
+        if (($p->post_name ?? '') === $path) {
+            return $p;
         }
     }
     return null;
 }
 
-function home_url(string $path = ''): string { return 'https://example.test' . $path; }
-function rest_url(string $path = ''): string { return 'https://example.test/wp-json/' . $path; }
-function get_bloginfo(string $what = ''): string { return $what === 'version' ? '6.7' : ''; }
-
-function sanitize_text_field(mixed $s): string
+function wp_date($format, $timestamp = null, $timezone = null)
 {
-    $s = (string)$s;
-    $s = strip_tags($s);
-    $s = preg_replace('/[\r\n\t]+/', ' ', $s);
-    return trim((string)$s);
-}
-function sanitize_textarea_field(mixed $s): string
-{
-    return trim(strip_tags((string)$s));
-}
-function sanitize_key(mixed $s): string
-{
-    return preg_replace('/[^a-z0-9_\-]/', '', strtolower((string)$s)) ?? '';
-}
-function wp_kses_post(string $html): string
-{
-    // Approximation: strip <script> and on* attributes, keep the rest.
-    $html = preg_replace('#<script\b[^>]*>.*?</script>#is', '', $html) ?? $html;
-    return preg_replace('/\son\w+\s*=\s*"[^"]*"/i', '', $html) ?? $html;
-}
-function wp_json_encode(mixed $v, int $flags = 0): string|false
-{
-    return json_encode($v, $flags);
-}
-function esc_html(mixed $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-function esc_attr(mixed $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-function esc_url(mixed $s): string
-{
-    $s = (string)$s;
-    // Mirrors the part that matters here: refuse javascript: and friends.
-    if (preg_match('#^\s*(javascript|data|vbscript):#i', $s)) return '';
-    return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-}
-function wp_generate_password(int $len = 12, bool $special = true, bool $extra = false): string
-{
-    return substr(str_repeat('abcdefghijklmnopqrstuvwxyz0123456789', 4), 0, $len);
+    return gmdate($format, $timestamp ?? time());
 }
 
-function add_action(string $hook, callable $cb, int $priority = 10, int $args = 1): void
+function sanitize_key($key)
 {
-    WPState::$actions[$hook][] = $cb;
+    return preg_replace('/[^a-z0-9_\-]/', '', strtolower((string)$key));
 }
-function do_action(string $hook): void
+
+function sanitize_textarea_field($str)
 {
-    foreach (WPState::$actions[$hook] ?? [] as $cb) {
-        $cb();
+    return trim(strip_tags((string)$str));
+}
+
+/** Real wp_kses_post strips disallowed HTML; the plugin's own escaping is what these tests assert. */
+function wp_kses_post($content)
+{
+    return (string)$content;
+}
+
+function rest_url($path = '')
+{
+    return home_url('/wp-json/' . ltrim((string)$path, '/'));
+}
+
+/**
+ * WordPress returns a path relative to the plugins directory, such as
+ * "seo-tool-bridge/seo-tool-bridge.php". The plugin calls this while
+ * loading, to build the plugin_action_links_<basename> filter tag for
+ * its Settings link — so without this stub the whole suite fatals on
+ * require, before a single test runs. It did, from the commit that
+ * added the Settings link until this one: CI only runs the PHP tests on
+ * a pull request, and there had not been one since.
+ */
+function plugin_basename($file)
+{
+    return basename(dirname($file)) . '/' . basename($file);
+}
+
+// ------------------------------------------------------------ REST types
+
+class WP_Error
+{
+    private string $code;
+    private string $message;
+
+    public function __construct($code = '', $message = '', $data = null)
+    {
+        $this->code = (string)$code;
+        $this->message = (string)$message;
+    }
+
+    public function get_error_message(): string
+    {
+        return $this->message;
+    }
+
+    public function get_error_code(): string
+    {
+        return $this->code;
     }
 }
-function register_activation_hook(string $file, callable $cb): void {}
-function add_management_page(...$a): void {}
-function current_user_can(string $cap): bool { return true; }
-function check_admin_referer(string $a, string $b): bool { return true; }
-function wp_nonce_field(string $a, string $b): void {}
-function is_singular(): bool { return true; }
-function wp_date(string $format, ?int $ts = null): string
-{
-    // Real wp_date renders in the site's timezone. Fixed to UTC here so
-    // the assertion doesn't depend on where the test runs.
-    return gmdate($format, $ts ?? time());
-}
-function get_the_ID(): int { return 101; }
-function __(string $s, string $domain = ''): string { return $s; }
 
-function register_rest_route(string $ns, string $route, array $config): bool
+class WP_REST_Request implements ArrayAccess
 {
-    WPState::$routes[] = ['namespace' => $ns, 'route' => $route, 'config' => $config];
-    return true;
+    private array $params;
+    private $json;
+    private array $headers;
+
+    public function __construct(array $params = [], $json = null, array $headers = [])
+    {
+        $this->params = $params;
+        $this->json = $json;
+        // Normalised on the way in, as WordPress does. get_header() only
+        // lowercased the name it was asked for, so a header given as
+        // "X-STB-Key" was never found — which made the auth tests pass
+        // for the wrong reason: every request was unauthenticated, so
+        // "rejects a wrong key" was true no matter what the key was.
+        $this->headers = array_change_key_case($headers, CASE_LOWER);
+    }
+
+    public function offsetExists(mixed $k): bool
+    {
+        return isset($this->params[$k]);
+    }
+
+    public function offsetGet(mixed $k): mixed
+    {
+        return $this->params[$k] ?? null;
+    }
+
+    public function offsetSet(mixed $k, mixed $v): void
+    {
+        $this->params[$k] = $v;
+    }
+
+    public function offsetUnset(mixed $k): void
+    {
+        unset($this->params[$k]);
+    }
+
+    public function __get($k)
+    {
+        return $this->params[$k] ?? null;
+    }
+
+    public function get_param($k)
+    {
+        return $this->params[$k] ?? null;
+    }
+
+    public function get_json_params()
+    {
+        return $this->json;
+    }
+
+    public function get_header($k)
+    {
+        return $this->headers[strtolower($k)] ?? null;
+    }
+}
+
+class WP_REST_Response
+{
+    public $data;
+    public int $status;
+
+    public function __construct($data = null, $status = 200, $headers = [])
+    {
+        $this->data = $data;
+        $this->status = $status;
+    }
+
+    public function get_data()
+    {
+        return $this->data;
+    }
+
+    public function get_status(): int
+    {
+        return $this->status;
+    }
 }

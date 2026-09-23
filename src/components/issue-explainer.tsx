@@ -41,6 +41,7 @@ const CONFIDENCE_META = {
 
 export function IssueExplainer({ issueType, url, defaultOpen = false }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const [copied, setCopied] = useState(false);
   const explainer = getExplainer(issueType);
 
   if (!explainer) {
@@ -123,6 +124,54 @@ export function IssueExplainer({ issueType, url, defaultOpen = false }: Props) {
               ))}
             </ol>
           </div>
+
+          {/* Code, and — the part that decides whether this helps or
+              breaks something — which file, where in it, and how to get
+              back. A snippet on its own invites pasting it into the
+              wrong place, and on WordPress the wrong place takes the
+              whole site down. */}
+          {explainer.snippet && (
+            <div className="space-y-1.5 rounded-md border border-white/10 bg-black/20 p-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Where it goes
+              </p>
+              <p className="text-[11px] leading-relaxed">
+                {explainer.snippet.where}
+              </p>
+
+              <div className="relative">
+                <pre className="mt-1 overflow-x-auto rounded border border-border bg-muted p-2.5 pr-16 text-[11px] leading-relaxed text-foreground">
+                  <code>{explainer.snippet.code}</code>
+                </pre>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(explainer.snippet!.code)
+                      .then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1800);
+                      });
+                  }}
+                  className="absolute right-1.5 top-2.5 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] shadow-sm hover:border-foreground/25"
+                >
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+
+              {explainer.snippet.caution && (
+                <p className="rounded border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-relaxed text-amber-900 dark:text-amber-100/90">
+                  <strong>Before you paste this.</strong>{" "}
+                  {explainer.snippet.caution}
+                </p>
+              )}
+
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <strong className="text-foreground">To undo:</strong>{" "}
+                {explainer.snippet.undo}
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-2">
             <span

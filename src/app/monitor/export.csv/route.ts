@@ -10,6 +10,7 @@ export async function GET() {
     .select({
       id: pageChanges.id,
       field: pageChanges.field,
+      severity: pageChanges.severity,
       oldValue: pageChanges.oldValue,
       newValue: pageChanges.newValue,
       detectedAt: pageChanges.detectedAt,
@@ -35,6 +36,7 @@ export async function GET() {
       "page_url",
       "page_label",
       "field",
+      "severity",
       "old_value",
       "new_value",
       "detected_at",
@@ -46,6 +48,7 @@ export async function GET() {
       r.url,
       r.label,
       r.field,
+      r.severity,
       r.oldValue,
       r.newValue,
       r.detectedAt,

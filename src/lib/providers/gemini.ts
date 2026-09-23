@@ -28,8 +28,7 @@ export type GeminiMessage =
 export type GeminiCallOpts = {
   apiKey: string;
   /**
-   * Preferred model. Tried first, then the standard fallback chain
-   * (gemini-2.5-flash → 2.0-flash → 1.5-flash-latest → 1.5-flash).
+   * Preferred model. Tried first, then FALLBACK_MODELS below.
    * Pass undefined to skip straight to the chain.
    */
   model?: string;
@@ -52,24 +51,83 @@ export type GeminiCallOpts = {
 };
 
 /**
- * Tried in order when the requested model fails. Google retired the
- * entire Gemini 1.5 family from the API in Sept 2025 and deprecated the
- * `-latest` suffix, so the two 1.5 entries this list used to carry were
- * guaranteed 404s — two extra round trips on the way to every failure,
- * and a misleading "tried 4 models" in the logs.
+ * Tried in order when the requested model fails.
+ *
+ * This list has now rotted twice. The 1.5 family went in Sept 2025, and
+ * gemini-2.0-flash went after it — each time leaving entries that were
+ * guaranteed 404s, costing a round trip on the way to every failure and
+ * logging a misleading "tried N models".
+ *
+ * What was learned the second time: the deprecation was of VERSION-PINNED
+ * aliases (gemini-1.5-flash-latest), not of the unversioned ones. The bare
+ * aliases are the only ids that survive Google retiring a release, so the
+ * fallbacks are those and the pinned version leads.
  */
-const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"] as const;
+const FALLBACK_MODELS = [
+  "gemini-2.5-flash",
+  // Was gemini-2.0-flash, which Google has now retired too — it answers
+  // 404, so the only thing standing behind an exhausted 2.5 quota was a
+  // model that did not exist. The symptom was every AI tool failing with
+  // a 429 naming 2.5-flash, while a working model sat one line away.
+  //
+  // These two are deliberately different in kind, not just in name: an
+  // alias that tracks whatever Flash currently is, and the lite tier,
+  // which carries its own free quota. A list of three sibling versions
+  // would have died together the same way the 1.5 family did.
+  //
+  // Both aliases rather than pinned versions, and that is the lesson
+  // rather than a preference: gemini-2.5-flash-lite was tried here first
+  // and answered 404 with "no longer available to new users" — while
+  // still being listed by the models endpoint. Appearing in the listing
+  // is not the same as being callable, so these were each verified by
+  // actually calling them.
+  "gemini-flash-latest",
+  "gemini-flash-lite-latest",
+] as const;
+
+/**
+ * Whether this model accepts `thinkingConfig` at all.
+ *
+ * It is not universally ignored, which is what the comment below used to
+ * claim. gemini-flash-lite-latest answers 400 INVALID_ARGUMENT when it
+ * is present — so sending it unconditionally, as the first version of
+ * this fix did, broke the very fallback that was added alongside it. The
+ * chain went dead at the exact moment it was needed, and the error said
+ * "invalid argument" rather than naming the field.
+ *
+ * Verified by calling each model both ways: lite refuses it, the others
+ * accept it. Opt-in by name, so a model nobody has tested gets the
+ * request that is known to work everywhere.
+ */
+function acceptsThinkingConfig(model: string): boolean {
+  return /^gemini-(2\.5|3)/.test(model) || model === "gemini-flash-latest";
+}
 
 export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
   // Build the Gemini contents payload once — reused across all retries.
   const contents = buildContents(opts.system, opts.messages);
-  const body = JSON.stringify({
-    contents,
-    generationConfig: {
-      maxOutputTokens: opts.maxTokens,
-      temperature: opts.temperature,
-    },
-  });
+  /**
+   * Per model, because the request is not the same for all of them.
+   *
+   * Thinking is turned off wherever it is supported: gemini-2.5-flash
+   * reasons before answering by default and those tokens come out of
+   * maxOutputTokens, so a 600-token budget for a short JSON summary was
+   * spent thinking and the answer arrived cut off at 87 characters with
+   * no closing brace. Every caller here wants structured output, not a
+   * chain of reasoning. That one change took the AI tool sweep from 7
+   * passing to 14.
+   */
+  const bodyFor = (model: string) =>
+    JSON.stringify({
+      contents,
+      generationConfig: {
+        maxOutputTokens: opts.maxTokens,
+        temperature: opts.temperature,
+        ...(acceptsThinkingConfig(model)
+          ? { thinkingConfig: { thinkingBudget: 0 } }
+          : {}),
+      },
+    });
 
   const tryList = opts.model
     ? [opts.model, ...FALLBACK_MODELS.filter((m) => m !== opts.model)]
@@ -93,7 +151,7 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
         method: "POST",
         signal: ctl.signal,
         headers: { "content-type": "application/json" },
-        body,
+        body: bodyFor(model),
       });
       if (res.ok) {
         const data = (await res.json()) as {
@@ -108,6 +166,20 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
             ?.map((p) => p.text ?? "")
             .join("")
             .trim() || null;
+
+        // Truncated, not malformed. Returning the fragment let every
+        // caller's JSON parser fail with "AI returned an unexpected
+        // format", which blames the model for what is a budget the
+        // caller set. Half an answer is also worse than none: a summary
+        // cut mid-sentence reads as a real answer to anyone skimming.
+        if (reply && data.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+          lastError =
+            `Gemini [${model}] ran out of output tokens before finishing. ` +
+            `Raise maxTokens for this call — it is currently ${opts.maxTokens}.`;
+          opts.onFailure?.(200, lastError);
+          continue;
+        }
+
         if (reply) return reply;
         // 200 OK with empty body — usually a safety filter or maxTokens=0.
         // Falling through to the next model lets users escape Gemini's

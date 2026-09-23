@@ -13,6 +13,8 @@
  */
 
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { contextForPrompt, getClientContext } from "@/lib/client-knowledge";
+import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -132,6 +134,18 @@ export async function runAgentForClient(opts: {
     return empty(opts.clientId, "That client no longer exists.");
   }
 
+  // What the business is, read once for the whole run rather than per
+  // action. A run rewriting forty titles would otherwise hit the same
+  // two tables forty times for an answer that cannot change mid-run.
+  //
+  // Read only. The agent is not permitted to write here from inside a
+  // drafting loop: concluding something about the business while
+  // rewriting an image's alt text is exactly the kind of inference that
+  // should not become a stored fact.
+  const businessContext = contextForPrompt(
+    await getClientContext(opts.clientId, { researchLimit: 0 }),
+  );
+
   if (settings.level === "off") {
     return empty(opts.clientId, "The agent is turned off.");
   }
@@ -214,6 +228,7 @@ export async function runAgentForClient(opts: {
             siteName: client.name,
             pageUrl: action.targetUrl,
             pageTitle: action.currentValue,
+            business: businessContext,
           })
         : ({ ok: true, value: "" } as const);
 
@@ -349,16 +364,21 @@ async function createTasksFromUnfixable(
     .limit(1);
   if (!latest) return 0;
 
-  const issues = await db
-    .select()
-    .from(auditIssues)
-    .where(
-      and(
-        eq(auditIssues.auditId, latest.id),
-        eq(auditIssues.status, "new"),
-        inArray(auditIssues.severity, ["critical", "high", "medium"]),
+  // Infrastructure rows out. An audit saved before the crawler learned to
+  // skip them still holds them, and this pass turned a Cloudflare
+  // email-protection link into "Bad status on /cdn-cgi/l/email-protection".
+  const issues = withoutInfrastructure(
+    await db
+      .select()
+      .from(auditIssues)
+      .where(
+        and(
+          eq(auditIssues.auditId, latest.id),
+          eq(auditIssues.status, "new"),
+          inArray(auditIssues.severity, ["critical", "high", "medium"]),
+        ),
       ),
-    );
+  );
 
   if (issues.length === 0) return 0;
 

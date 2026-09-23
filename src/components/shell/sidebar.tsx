@@ -6,6 +6,7 @@ import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
 import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
+import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
 import { useStoredState } from "@/components/use-stored-state";
 
 /** Alias kept so the render code below reads unchanged. */
@@ -143,8 +144,15 @@ function isActive(pathname: string, href: string) {
 export function Sidebar({
   unreadByHref,
   uiMode = "guided",
+  hasAiKey = false,
 }: {
   unreadByHref?: Record<string, number>;
+  /**
+   * Whether an AI key is configured. Decides if the amber "needs a key"
+   * dot is worth showing — once a key exists nothing is blocked, so the
+   * dot would only be noise.
+   */
+  hasAiKey?: boolean;
   /**
    * "guided" (default for new users): filters nav to only items marked
    * `guided: true`. Empty groups collapse out of view. ~15 items total
@@ -376,12 +384,18 @@ export function Sidebar({
               )}
               {(isOpen || collapsed) && (
                 <ul className="mt-0.5">
-                  {group.items.map(({ href, label, icon: Icon }: NavItem) => {
-                    const active = isActive(pathname, href);
+                  {group.items.map(({ href, label, icon: Icon, external }: NavItem) => {
+                    // An external entry is never "the current page", and
+                    // opening it in this tab would navigate away from the
+                    // app entirely.
+                    const active = external ? false : isActive(pathname, href);
                     return (
                       <li key={href}>
                         <Link
                           href={href}
+                          {...(external
+                            ? { target: "_blank", rel: "noreferrer noopener" }
+                            : {})}
                           title={collapsed ? label : undefined}
                           aria-label={collapsed ? label : undefined}
                           className={
@@ -425,6 +439,22 @@ export function Sidebar({
                               {label}
                             </span>
                           )}
+                          {/* One dot, one rule — lib/tool-readiness.ts,
+                              shared with the per-client rail and the
+                              launcher cards. It renders nothing when the
+                              answer is genuinely unknown, which is the
+                              case for composed hub pages the import-graph
+                              derivation over-flags: /audits comes back
+                              "needs AI" only because it embeds an
+                              add-client dialog, and an amber dot there
+                              would call a working page broken. */}
+                          {!collapsed && !unread[href] && (
+                            <ToolDot
+                              href={href}
+                              hasAiKey={hasAiKey}
+                              className="relative z-10 ml-auto"
+                            />
+                          )}
                           {unread[href] && unread[href] > 0 ? (
                             collapsed ? (
                               <span
@@ -448,6 +478,15 @@ export function Sidebar({
         })}
       </nav>
       </LayoutGroup>
+
+      {/* What the dots mean. They were shipped without a key twice and
+          reported unreadable both times; a color with no legend is a
+          puzzle, and the dot exists to save a click, not add one.
+          Hidden when the rail is collapsed — there is no room, and no
+          dots are drawn there either. */}
+      {!collapsed && (
+        <ToolDotLegend className="border-t border-sidebar-border px-3 py-2" />
+      )}
 
       {/* User block + live status — shadcn-admin pattern */}
       <div className="border-t border-sidebar-border">

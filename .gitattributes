@@ -1,0 +1,23 @@
+# Line endings are not cosmetic for the launchers — they decide whether
+# the tool starts at all.
+#
+# cmd.exe requires CRLF. Given an LF-only .cmd it eats the first
+# character of every line, so "SEO Tool.cmd" spews things like
+# "'EO' is not recognized as an internal or external command".
+# sh requires LF. Given a CRLF .sh it reports "bad interpreter: ...^M".
+#
+# Without these rules the endings came from whoever last checked the
+# file out: a Windows clone (core.autocrlf=true) got working .cmd files,
+# but the ZIP built on GitHub's Linux servers got LF — which broke the
+# one-file launcher for exactly the non-technical users it exists for.
+# Pinning eol here fixes clones and the release ZIP alike.
+
+* text=auto
+
+*.cmd      text eol=crlf
+*.bat      text eol=crlf
+*.ps1      text eol=crlf
+*.hta      text eol=crlf
+
+*.sh       text eol=lf
+*.command  text eol=lf

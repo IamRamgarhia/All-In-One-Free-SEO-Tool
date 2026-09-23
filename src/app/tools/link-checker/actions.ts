@@ -1,6 +1,7 @@
 "use server";
 
 import { saveToolRun } from "@/lib/tool-runs";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type AnalyzedLink = {
   href: string;
@@ -69,7 +70,7 @@ export async function analyzeLinks(rawUrl: string): Promise<LinkAnalysisResult> 
   const timeout = setTimeout(() => controller.abort(), 15_000);
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await guardedFetch(url, {
       redirect: "follow",
       signal: controller.signal,
       headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" },

@@ -37,9 +37,7 @@ import {
   Smartphone,
   Sparkles,
   Stethoscope,
-  Target,
   TrendingDown,
-  Users,
   Video,
   Pin,
   PinOff,
@@ -59,6 +57,13 @@ import {
   isRetired,
   type ToolCategoryId,
 } from "@/lib/tool-categories";
+import {
+  badgeFor,
+  capabilityOf,
+  worksIn,
+  type ConnectionMode,
+  type ToolBadge,
+} from "@/lib/tool-capabilities";
 
 const tools = [
   {
@@ -132,14 +137,6 @@ const tools = [
     description:
       "Paste prospect URL + your generic template. AI mines their site for recent posts and topical signals, rewrites your opener with a specific reference. 2% → 15% reply rates.",
     accent: "rose",
-  },
-  {
-    href: "/tools/brief",
-    icon: FileText,
-    title: "Content brief — one-click composite",
-    description:
-      "Type a query → top-10 SERP corpus + PAA → AI writes a writer-ready markdown brief: intent, length, H2 outline, semantic terms, FAQ block, internal-link anchors, snippet shape, CTA.",
-    accent: "emerald",
   },
   {
     href: "/tools/cluster",
@@ -494,6 +491,24 @@ const tools = [
     accent: "rose",
   },
   {
+    // Writing moved out of this app. Five tools used to sit here —
+    // briefs, an expert-panel scorer, an AI-slop detector — and they
+    // competed badly against tools built only for that, while making
+    // this one harder to describe. BlogPilot is the same author, MIT,
+    // self-hosted, and does that job properly.
+    //
+    // A card rather than a silent deletion: someone who used those
+    // tools should find out where they went, not conclude the feature
+    // was quietly dropped.
+    href: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
+    external: true,
+    icon: FileText,
+    title: "Content writing → BlogPilot",
+    description:
+      "Drafting, briefs, content scoring against the top 10, brand voice and CMS export live in BlogPilot — a separate free, self-hosted tool. This one does technical SEO and applies the fixes.",
+    accent: "emerald",
+  },
+  {
     href: "/tools/schema",
     icon: Code2,
     title: "Schema markup generator",
@@ -652,30 +667,6 @@ const tools = [
     accent: "rose",
   },
   {
-    href: "/tools/ai-slop",
-    icon: Sparkles,
-    title: "AI slop detector (24 patterns)",
-    description:
-      "24 telltale AI writing patterns — significance inflation, negative parallelism, em-dash overuse, sycophancy. 90+ ships. Local, free, no AI call.",
-    accent: "amber",
-  },
-  {
-    href: "/tools/expert-panel",
-    icon: Users,
-    title: "Expert panel content scorer",
-    description:
-      "Auto-assembles 6-9 domain experts (incl. AI Detector + Brand Voice) and scores your draft. Target 90/100. Outputs each expert's specific revisions.",
-    accent: "violet",
-  },
-  {
-    href: "/tools/content-attack-brief",
-    icon: Target,
-    title: "Content attack brief",
-    description:
-      "Pulls GSC striking-distance queries, scores each by Impact × Confidence, AI-writes the attack angle for the top 10. Ranked by what moves the needle.",
-    accent: "emerald",
-  },
-  {
     href: "/tools/meta-tag-generator",
     icon: Code2,
     title: "Meta tag generator",
@@ -799,6 +790,14 @@ const tools = [
   },
   // GEO + SXO + attack briefs (from open-source SEO-skill repos)
   {
+    href: "/tools/geo-swot",
+    icon: Sparkles,
+    title: "GEO SWOT",
+    description:
+      "Strengths, weaknesses, opportunities and threats for AI-search visibility, reasoned from the last 30 days of AI visibility checks for a client.",
+    accent: "violet",
+  },
+  {
     href: "/tools/geo-score",
     icon: Sparkles,
     title: "GEO composite score ⭐",
@@ -813,14 +812,6 @@ const tools = [
     description:
       "Audits user-experience signals Google now weights heavily: page promise, time-to-answer, next step, friction, Core Web Vitals. Persona-driven recommendations.",
     accent: "cyan",
-  },
-  {
-    href: "/tools/attack-briefs",
-    icon: Sparkles,
-    title: "Content Attack Briefs",
-    description:
-      "Up to 5 keyword-gap briefs per run. Vulnerability scoring + required E-E-A-T + schema + AIO passage hints + definition of done.",
-    accent: "rose",
   },
   {
     href: "/tools/image-gen",
@@ -864,6 +855,19 @@ const accentMap: Record<string, string> = {
   rose: "bg-rose-500/15 text-rose-300 ring-rose-400/30",
 };
 
+// Green reads as "costs you nothing", which is the question people are
+// actually asking when they scan this grid.
+const badgeTone: Record<ToolBadge["tone"], string> = {
+  free: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25",
+  chat: "bg-violet-500/10 text-violet-300 ring-violet-400/25",
+  key: "bg-amber-500/10 text-amber-300 ring-amber-400/25",
+  // Deliberately between free and key. These pages work — the main check
+  // runs without a model and one feature on them does not — and painting
+  // them the same amber as a tool that does nothing without a key was
+  // what made four working tools look unavailable.
+  partial: "bg-sky-500/10 text-sky-300 ring-sky-400/25",
+};
+
 // CATEGORY_ORDER now lives in lib/tool-categories alongside the labels
 // and the assignments. It was defined here as a second list of the same
 // category ids — the pattern CLAUDE.md's fourth standing rule names, and
@@ -872,6 +876,12 @@ const accentMap: Record<string, string> = {
 type Tool = (typeof tools)[number];
 
 const PINNED_KEY = "seo:tools-pinned";
+
+const HIDE_UNUSABLE_KEY = "seo:tools-hide-unusable";
+// Module-level so the identity is stable across renders — useStoredState
+// keeps `parse` in a useCallback dependency list.
+const parseHideUnusable = (raw: string) => raw !== "false";
+const serializeHideUnusable = (v: boolean) => (v ? "true" : "false");
 
 /** Stable identity — useSyncExternalStore requires a stable fallback. */
 const NO_PINS: ReadonlySet<string> = new Set<string>();
@@ -884,8 +894,16 @@ function parsePinned(raw: string): ReadonlySet<string> {
 const serializePinned = (set: ReadonlySet<string>) =>
   JSON.stringify(Array.from(set));
 
-export function ToolsGrid() {
+export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
   const [query, setQuery] = useState("");
+  // On by default, so someone who has connected nothing sees a grid where
+  // everything they click actually works. Persisted, because whichever way
+  // they set it is a standing preference, not a per-visit one.
+  const [hideUnusable, setHideUnusable] = useStoredState<boolean>(
+    HIDE_UNUSABLE_KEY,
+    true,
+    parseHideUnusable,
+  );
   // useSyncExternalStore rather than useState + a hydrate effect: the
   // old version rendered with zero pins, committed that, then re-rendered
   // with the real set — so pinned tools visibly jumped to the top a beat
@@ -912,7 +930,7 @@ export function ToolsGrid() {
   );
 
   const q = query.trim().toLowerCase();
-  const filteredTools = useMemo(() => {
+  const searchMatches = useMemo(() => {
     if (!q) return tools;
     return tools.filter(
       (t) =>
@@ -920,6 +938,27 @@ export function ToolsGrid() {
         t.description.toLowerCase().includes(q),
     );
   }, [q]);
+
+  // Only ever hides tools that genuinely cannot run, which — given how
+  // worksIn() is defined — means the AI tools, and only while nothing at
+  // all is connected. Connect a subscription OR a key and nothing hides,
+  // because nothing is unavailable. The count below keeps that honest
+  // instead of letting the grid quietly look smaller than the product is.
+  const unusableCount = useMemo(
+    () =>
+      tools.filter(
+        (t) => !isRetired(t.href) && !worksIn(capabilityOf(t.href), mode),
+      ).length,
+    [mode],
+  );
+
+  const filteredTools = useMemo(
+    () =>
+      hideUnusable
+        ? searchMatches.filter((t) => worksIn(capabilityOf(t.href), mode))
+        : searchMatches,
+    [searchMatches, hideUnusable, mode],
+  );
 
   const pinnedTools = useMemo(
     () => tools.filter((t) => pinned.has(t.href)),
@@ -978,6 +1017,87 @@ export function ToolsGrid() {
             {totalMatches} {totalMatches === 1 ? "match" : "matches"}
           </p>
         )}
+        {/*
+          Why, not just what.
+
+          The badge said "Needs a key" and the reason lived in a hover
+          tooltip, so the question people actually asked — "I connected
+          Claude, why does this still want a key?" — went unanswered on
+          the screen where it comes up. Shown once here rather than
+          repeated on thirty-four cards.
+
+          Only when a chat app is connected and a key is not, because
+          that is the exact state the confusion comes from. Somebody with
+          nothing connected is not surprised that AI tools need AI.
+        */}
+        {mode === "mcp" && unusableCount > 0 && (
+          <div className="mt-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+            <p>
+              <strong className="text-foreground">
+                Your chat app is connected, and these tools still need a key.
+              </strong>{" "}
+              That is not a bug. The connection runs one way: your chat app
+              calls <em>into</em> this app to read your SEO data. These pages
+              need to call <em>out</em> to a model, and they have no chat app
+              of their own to ask.
+            </p>
+            <p className="mt-1.5">
+              A key or a local Ollama gives them one — and it is also what
+              lets them run overnight, when no chat is open. Free options
+              exist: Google AI Studio and Groq both issue keys with no card,
+              and Ollama needs no account at all.{" "}
+              <Link
+                href="/settings#ai"
+                className="rounded text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid"
+              >
+                Set one up
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+
+        {/* Only worth showing when something is actually being held back.
+            Says the number out loud so the grid never silently shrinks. */}
+        {unusableCount > 0 && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[11px] text-muted-foreground">
+            <span>
+              {hideUnusable
+                ? `${unusableCount} tools hidden — they need an AI key.`
+                : `${unusableCount} tools need an AI key.`}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setHideUnusable(!hideUnusable, serializeHideUnusable)
+              }
+              className="rounded text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid"
+            >
+              {hideUnusable ? "Show them anyway" : "Hide them"}
+            </button>
+            <Link
+              href="/settings#ai"
+              className="rounded text-amber-500 underline decoration-dotted underline-offset-2 hover:decoration-solid dark:text-amber-300"
+            >
+              Add a key
+            </Link>
+            {/* A legend, because a coloured dot only means something once
+                somebody has told you what it means. Shown alongside the
+                dots rather than in a help page nobody opens. */}
+            {!hideUnusable && (
+              <span className="inline-flex items-center gap-2.5">
+                <span className="inline-flex items-center gap-1">
+                  <span className="size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+                  works now
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="size-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/25" />
+                  needs a key
+                </span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Pinned — only render when the user actually has favorites
@@ -1000,6 +1120,8 @@ export function ToolsGrid() {
                 tool={t}
                 pinned
                 onTogglePin={() => togglePin(t.href)}
+                badge={badgeFor(capabilityOf(t.href), mode)}
+                usable={worksIn(capabilityOf(t.href), mode)}
               />
             ))}
           </div>
@@ -1100,6 +1222,8 @@ export function ToolsGrid() {
                     tool={t}
                     pinned={pinned.has(t.href)}
                     onTogglePin={() => togglePin(t.href)}
+                    badge={badgeFor(capabilityOf(t.href), mode)}
+                usable={worksIn(capabilityOf(t.href), mode)}
                   />
                 ))}
               </div>
@@ -1115,23 +1239,66 @@ function ToolCard({
   tool,
   pinned,
   onTogglePin,
+  badge,
+  usable,
 }: {
   tool: Tool;
   pinned: boolean;
   onTogglePin: () => void;
+  badge: ToolBadge | null;
+  /** Will this page actually run with what is connected? */
+  usable: boolean;
 }) {
   return (
     <div className="glass-apple lift-on-hover group relative overflow-hidden rounded-2xl">
       <div className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full bg-violet-500/10 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
-      <Link href={tool.href} className="relative block p-5">
+      <Link
+        href={tool.href}
+        {...("external" in tool && tool.external
+          ? { target: "_blank", rel: "noreferrer noopener" }
+          : {})}
+        className="relative block p-5"
+      >
         <div className="space-y-3">
           <div
             className={`inline-flex size-10 items-center justify-center rounded-xl ring-1 ring-inset ${accentMap[tool.accent]}`}
           >
             <tool.icon className="size-5" />
           </div>
-          <h3 className="pr-7 text-base font-semibold">{tool.title}</h3>
+          {/* A dot before the name, so "does this work right now?" is
+              answerable at a glance without reading the badge. Green
+              runs; amber needs a key. Only shown on tool cards, where
+              the capability data is per-tool and accurate — not on
+              composed pages, where it over-approximates. */}
+          <h3 className="flex items-start gap-2 pr-7 text-base font-semibold">
+            {/* 6px with a soft tint was invisible in practice — present
+                in the markup, unnoticed on the screen. A ring gives it an
+                edge against the card, and the amber is deepened so it
+                reads as different at a glance rather than only on
+                inspection. */}
+            <span
+              aria-hidden="true"
+              title={usable ? "Ready to use" : "Needs an AI key"}
+              className={`mt-[0.4rem] size-2.5 shrink-0 rounded-full ring-2 ${
+                usable
+                  ? "bg-emerald-500 ring-emerald-500/20"
+                  : "bg-amber-500 ring-amber-500/25"
+              }`}
+            />
+            <span className="min-w-0 flex-1">{tool.title}</span>
+            <span className="sr-only">
+              {usable ? " (ready to use)" : " (needs an AI key)"}
+            </span>
+          </h3>
           <p className="text-sm text-muted-foreground">{tool.description}</p>
+          {badge && (
+            <span
+              title={badge.detail}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${badgeTone[badge.tone]}`}
+            >
+              {badge.label}
+            </span>
+          )}
         </div>
       </Link>
       {/* Pin button is a sibling of the Link so clicks on it don't

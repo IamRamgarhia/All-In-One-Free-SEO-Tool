@@ -18,6 +18,7 @@ import { ScoreGauge } from "@/components/ui/score-gauge";
 import { displayName, loadBrand } from "@/lib/brand";
 import { SnapshotSparklines } from "@/components/snapshot-sparklines";
 import { PortalChat } from "./portal-chat";
+import { isOpenTask } from "@/lib/task-status";
 
 /**
  * The browser tab is a white-label leak nobody notices until a client
@@ -95,7 +96,9 @@ export default async function PortalPage({
     .from(tasks)
     .where(eq(tasks.clientId, client.id));
 
-  const open = allTasks.filter((t) => t.status !== "done");
+  // A skipped task is one we decided against. Showing it to the client
+  // as outstanding work is the opposite of what skipping it meant.
+  const open = allTasks.filter((t) => isOpenTask(t.status));
   const done = allTasks.filter((t) => t.status === "done");
   const recentDone = [...done]
     .sort(

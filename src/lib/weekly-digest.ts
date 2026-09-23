@@ -20,7 +20,8 @@ import {
   clientMetricSnapshots,
   tasks,
 } from "@/db/schema";
-import { ALGO_UPDATES } from "./algorithm-updates";
+import { updatesNear } from "./algorithm-updates";
+import { getRankingUpdates } from "./google-updates-store";
 import { getSetting } from "./settings-store";
 
 export type DigestRow = {
@@ -224,11 +225,12 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
     return bBad - aBad;
   });
 
-  const algoOverlaps = ALGO_UPDATES.filter((u) => {
-    const start = new Date(u.date).getTime();
-    const end = new Date(u.endDate ?? u.date).getTime();
-    return start <= now.getTime() && end >= weekStart.getTime();
-  }).map((u) => ({ name: u.name, date: u.date, type: u.type }));
+  const algoOverlaps = updatesNear(
+    await getRankingUpdates(),
+    weekStart.toISOString(),
+    now.toISOString(),
+    0,
+  ).map((u) => ({ name: u.name, date: u.date, type: u.type }));
 
   const textVersion = renderText({
     weekStart,

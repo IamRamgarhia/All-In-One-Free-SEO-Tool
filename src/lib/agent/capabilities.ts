@@ -26,6 +26,12 @@ export type CapabilityId =
   | "write_image_alt"
   | "write_schema"
   | "write_internal_links"
+  | "write_canonical"
+  | "write_robots_meta"
+  | "write_robots_txt"
+  | "write_redirects"
+  | "write_hardening"
+  | "write_social_meta"
   | "read_gsc"
   | "generate_text";
 
@@ -52,6 +58,25 @@ const WRITE_CAPS: CapabilityId[] = [
   "write_schema",
   "write_internal_links",
 ];
+
+/**
+ * Capabilities the plugin can perform but the planner does not yet ask
+ * for, with what is missing on our side.
+ *
+ * These exist because the endpoint landed before the planning did. That
+ * is a legitimate order to build in — the plugin ships to users on its
+ * own schedule — but it creates a trap: capability detection would
+ * report "needs plugin 0.5.0" to somebody on 0.4.0, sending them to
+ * update for a feature that does nothing once they have it.
+ *
+ * So they are excluded from `gaps`. Nobody is told to go and get
+ * something that would not help them.
+ *
+ * capabilities-coverage.test.ts fails if a write capability is neither
+ * planned nor listed here, so this cannot become a place capabilities
+ * are quietly parked.
+ */
+export const NOT_YET_PLANNED: Partial<Record<CapabilityId, string>> = {};
 
 export async function detectCapabilities(
   clientId: number,
@@ -135,6 +160,39 @@ export async function detectCapabilities(
       : wpError,
   );
 
+  // Plugin 0.5.0 wired canonical and robots into POST /post/{id}/seo
+  // and added the three site-level routes. Before that the handler read
+  // neither field, so a canonical sent to an older plugin is accepted,
+  // ignored, and answered {ok:true} — the exact silent no-op this
+  // version gate exists to prevent.
+  const NEW_WRITES: { id: CapabilityId; needs: string }[] = [
+    { id: "write_canonical", needs: "canonical tags" },
+    { id: "write_robots_meta", needs: "per-page robots directives" },
+    { id: "write_robots_txt", needs: "robots.txt" },
+    { id: "write_redirects", needs: "redirects" },
+    { id: "write_hardening", needs: "WordPress hardening settings" },
+  ];
+
+  // Open Graph and Twitter, added in plugin 0.6.0. Gated separately
+  // from the 0.5.0 group above so a site on 0.5.x keeps everything it
+  // already had and is told only that this one needs an update.
+  set(
+    "write_social_meta",
+    wpOk && hasPluginVersion(wpVersion, "0.6.0"),
+    wpOk
+      ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Writing Open Graph and Twitter tags needs 0.6.0 or newer. Update the plugin.`
+      : wpError,
+  );
+  for (const { id, needs } of NEW_WRITES) {
+    set(
+      id,
+      wpOk && hasPluginVersion(wpVersion, "0.5.0"),
+      wpOk
+        ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Writing ${needs} needs 0.5.0 or newer. Update the plugin.`
+        : wpError,
+    );
+  }
+
   // --- Reading real performance data ---------------------------------
   set(
     "read_gsc",
@@ -158,6 +216,10 @@ export async function detectCapabilities(
     ...new Set(
       Object.values(byId)
         .filter((c) => !c.available && c.missing)
+        // A capability nothing plans is not a gap in the user's setup —
+        // it is a gap in ours, and telling them to update their plugin
+        // for it would waste their time and then not work.
+        .filter((c) => !(c.id in NOT_YET_PLANNED))
         .map((c) => c.missing as string),
     ),
   ];

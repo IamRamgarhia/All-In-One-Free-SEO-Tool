@@ -121,7 +121,7 @@ export async function extractMainContent(
  * lines (i.e. markdown-ish). Preserves headings so the scorer can
  * treat them as section boundaries.
  */
-function parseHtmlToMarkdown(html: string): {
+export function parseHtmlToMarkdown(html: string): {
   title: string;
   markdown: string;
 } {

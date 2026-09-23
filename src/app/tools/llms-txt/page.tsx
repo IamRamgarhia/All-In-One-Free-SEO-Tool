@@ -251,7 +251,20 @@ function Validator() {
         </div>
       )}
 
-      {result?.ok && (
+      {result?.ok && !result.present && (
+        // Not an error, and deliberately not red. The file is a proposal
+        // rather than anything a search engine has committed to, so its
+        // absence is information, not a problem to fix.
+        <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          <AlertCircle className="mr-2 inline size-4" />
+          This site has no llms.txt. That is not a problem in itself — the
+          format is a proposal, not something Google has said it reads. Generate
+          one above if you want assistants to have a curated summary of the
+          site.
+        </div>
+      )}
+
+      {result?.ok && result.present && (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <Tile label="Sections (##)" value={result.sectionCount} />

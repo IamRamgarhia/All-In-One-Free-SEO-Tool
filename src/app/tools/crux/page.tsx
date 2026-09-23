@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { Activity } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { CruxForm } from "./crux-form";
+import { CruxHistoryPanel } from "./crux-history";
 
 export default function CruxPage() {
   return (
@@ -18,6 +19,7 @@ export default function CruxPage() {
         accent="emerald"
       />
       <CruxForm />
+      <CruxHistoryPanel />
     </div>
   );
 }

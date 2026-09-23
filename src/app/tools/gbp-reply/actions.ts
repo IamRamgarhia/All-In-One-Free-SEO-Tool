@@ -1,5 +1,15 @@
 "use server";
 
+/**
+ * @ai-partial
+ *
+ * Listing locations and fetching reviews work without a model. Drafting
+ * the reply is the part that needs one.
+ *
+ * See tool-capabilities.derive.ts — this marker is what stops the badge
+ * saying the whole page is unavailable when it is not.
+ */
+
 import {
   listGbpAccounts,
   listGbpLocations,

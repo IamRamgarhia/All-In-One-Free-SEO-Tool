@@ -79,10 +79,16 @@ function QuickAddClientDialog({
         setError(r.error);
         return;
       }
-      // Reset form, close dialog, jump to the new client's detail page
+      // Reset form, close dialog, start the onboarding.
+      //
+      // This went to /clients/[id] while the full add form went to
+      // /clients/[id]/onboarding, so whether a new client ever got a
+      // niche, a keyword list, an agreed scope or a document to approve
+      // depended on which of two buttons you happened to press. The
+      // wizard is skippable from its first step, so nobody is trapped.
       setUrl("");
       onClose();
-      router.push(`/clients/${r.id}`);
+      router.push(`/clients/${r.id}/onboarding`);
       router.refresh();
     });
   }

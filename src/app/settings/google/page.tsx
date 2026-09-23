@@ -19,6 +19,8 @@ import {
 } from "@/lib/google-oauth";
 import { getSetting } from "@/lib/settings-store";
 import { GoogleCredentialsForm } from "./credentials-form";
+import { ServiceAccountForm } from "./service-account-form";
+import { serviceAccountEmail } from "@/lib/google-service-account";
 import {
   clearGoogleCredentials,
   disconnectGoogleAccount,
@@ -34,6 +36,8 @@ export default async function GoogleSettingsPage({
   const params = await searchParams;
   const status = await getGoogleConnectionStatus();
   const clientId = await getSetting<string>("google.client_id");
+  // Null when no key is saved. Drives which half of the form renders.
+  const serviceAccountAddress = await serviceAccountEmail().catch(() => null);
   const clientSecret = await getSetting<string>("google.client_secret");
 
   // The URI shown here MUST equal what the auth-init route + callback
@@ -129,12 +133,62 @@ GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-…`}</pre>
         </ul>
       </Section>
 
+      {/*
+        The easier route, first, because it is the one most people should
+        take. OAuth below is still here and still works: it is the only
+        way to reach Business Profile and Gmail, and the only way to
+        connect a client's Google account rather than your own.
+      */}
+      <Section title="Quickest way: a service account (~2 minutes, no browser sign-in)">
+        <div className="space-y-3 text-sm text-muted-foreground">
+          <p>
+            A service account is a Google login that belongs to software
+            rather than a person. You create one, paste its key below, then
+            add its email address as a user on your Search Console property
+            exactly as you would invite a colleague.
+          </p>
+          <p>
+            This skips the consent screen, the redirect URL and the
+            &ldquo;unverified app&rdquo; warning below. It also avoids the
+            trap in step 3: an app left unpublished gets a token that stops
+            working after seven days, with nothing to say why.
+          </p>
+          <ol className="ml-4 list-decimal space-y-1.5 text-xs">
+            <li>
+              In{" "}
+              <ExternalLinkA href="https://console.cloud.google.com/iam-admin/serviceaccounts">
+                Service Accounts
+              </ExternalLinkA>
+              , click <strong>Create service account</strong>. Any name. Skip
+              the optional permission steps.
+            </li>
+            <li>
+              Open it, go to <strong>Keys</strong>, then{" "}
+              <strong>Add key, Create new key, JSON</strong>. A file downloads.
+            </li>
+            <li>
+              Enable the{" "}
+              <ExternalLinkA href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com">
+                Search Console API
+              </ExternalLinkA>{" "}
+              and, for traffic data, the{" "}
+              <ExternalLinkA href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com">
+                Analytics Data API
+              </ExternalLinkA>
+              .
+            </li>
+            <li>Paste the file below, then add the email it shows you.</li>
+          </ol>
+          <ServiceAccountForm connectedEmail={serviceAccountAddress} />
+        </div>
+      </Section>
+
       {/* Step-by-step setup — only meaningful when not in env-var mode */}
       <Section
         title={
           status.credentialsFromEnv
-            ? "Step-by-step setup (skipped — env vars active)"
-            : "Step-by-step setup (~5 minutes)"
+            ? "Full OAuth setup (skipped — env vars active)"
+            : "Full OAuth setup (~5 minutes) — needed only for Business Profile, Gmail, or per-client accounts"
         }
       >
         <ol className="space-y-5">
@@ -197,10 +251,28 @@ GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-…`}</pre>
               <li>· App name: anything (e.g. &ldquo;My SEO Tool&rdquo;)</li>
               <li>· User support email: yourself</li>
               <li>
-                · Add yourself under <strong>Test users</strong> (you can have up to
-                100 testers without verification — plenty for personal use)
+                · Add yourself under <strong>Test users</strong>
+              </li>
+              <li>
+                · Then press <strong>Publish app</strong> and confirm.
               </li>
             </ul>
+            {/* The step this guide used to omit, and the omission broke
+                the connection every week without saying so. */}
+            <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-relaxed text-amber-900 dark:text-amber-100/90">
+              <strong>Publishing matters more than it sounds.</strong> Google
+              gives apps left in <em>Testing</em> a refresh token that expires
+              after <strong>7 days</strong> — so the connection works, then
+              quietly stops about a week later and has to be redone. Publishing
+              is what makes it permanent.
+              <br />
+              <br />
+              You will see an &ldquo;unverified app&rdquo; warning when you sign
+              in. That is expected and fine here: it is your own app, in your
+              own Google account, used only by you. Verification only exists to
+              remove that screen for strangers. Click{" "}
+              <strong>Advanced → Go to … (unsafe)</strong> to continue.
+            </p>
           </Step>
 
           <Step

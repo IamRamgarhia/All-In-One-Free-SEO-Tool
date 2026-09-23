@@ -17,7 +17,11 @@ import {
   tasks,
 } from "@/db/schema";
 import { generateExecSummary } from "./ai-summary";
-import { ALGO_UPDATES } from "./algorithm-updates";
+import { openToolFindings } from "./tool-findings";
+import { planProgress } from "./plan-tasks";
+import { mapToolFinding } from "./agent/tool-finding-map";
+import type { AlgoUpdate } from "./algorithm-updates";
+import { getRankingUpdates } from "./google-updates-store";
 import {
   captureClientSnapshot,
   loadSnapshotComparison,
@@ -31,6 +35,7 @@ import {
   type Ga4DailyTraffic,
 } from "./google-data";
 import { loadBrand, type Brand } from "./brand";
+import { isOpenTask } from "./task-status";
 
 type Color = string;
 
@@ -302,7 +307,10 @@ export async function generateReportPdf(
     .where(eq(tasks.clientId, clientId));
 
   const doneTasks = allTasks.filter((t) => t.status === "done");
-  const openTasks = allTasks.filter((t) => t.status !== "done");
+  // Skipped means "decided against", and the client report is the wrong
+  // place to keep proposing it. It was landing in the recommendations
+  // section because this asked for everything that was not done.
+  const openTasks = allTasks.filter((t) => isOpenTask(t.status));
 
   // Manually-logged backlinks built in the last 30 days — these flow
   // straight from the user's link log into "Links built this period."
@@ -329,6 +337,70 @@ export async function generateReportPdf(
       ),
     )
     .orderBy(desc(backlinks.placedAt));
+
+  /*
+   * What the tools found, minus anything the crawl already reported.
+   *
+   * Some tool findings are the same problem the crawler names in its own
+   * vocabulary — the AI-crawler policy check and the crawler's
+   * missing_ai_crawler_policy are one issue found twice, and listing
+   * both would tell a client they have two problems where they have one.
+   * TOOL_FINDING_MAP already knows which signatures mean which crawler
+   * finding, so it does the matching rather than a second list of pairs.
+   *
+   * Unmapped findings always survive: no mapping means the crawler has
+   * no equivalent, which is exactly when the tool is telling the client
+   * something new.
+   */
+  // How the engagement is tracking against what the client approved.
+  // Null when there is no sent plan, which is legitimate — not every
+  // client is on one.
+  const planState = await planProgress(clientId);
+
+  const crawlerTypes = new Set(allIssues.map((i) => i.type));
+  const toolFindingsForReport = (await openToolFindings(clientId)).filter(
+    (f) => {
+      const equivalent = mapToolFinding(f.signature);
+      return !equivalent || !crawlerTypes.has(equivalent);
+    },
+  );
+
+  /*
+   * Links that went away, and which we CHECKED had gone.
+   *
+   * Reported, where discovered links deliberately are not. The two are
+   * not the same kind of claim. A discovered link comes from a free,
+   * partial index — it found one link for a site with thousands — so
+   * "you gained 3 links" would understate a month's work to somebody
+   * paying for it. A lost link is evidence: the watchdog fetched the
+   * source page twice, across two runs, and the link was not there
+   * either time.
+   *
+   * Ordered by domain authority so the ones worth an email come first,
+   * which is what "recovery priority" means in practice.
+   */
+  const linksLostThisPeriod = await db
+    .select({
+      id: backlinks.id,
+      sourceUrl: backlinks.sourceUrl,
+      sourceDomain: backlinks.sourceDomain,
+      targetUrl: backlinks.targetUrl,
+      anchorText: backlinks.anchorText,
+      domainAuthority: backlinks.domainAuthority,
+      lastSeen: backlinks.lastSeen,
+    })
+    .from(backlinks)
+    .where(
+      and(
+        eq(backlinks.clientId, clientId),
+        eq(backlinks.status, "lost"),
+        // When we noticed, not when it vanished — the source page could
+        // have been edited any time since the last check, and claiming a
+        // date we do not know would be inventing one.
+        gte(backlinks.updatedAt, periodCutoff),
+      ),
+    )
+    .orderBy(desc(backlinks.domainAuthority), desc(backlinks.updatedAt));
 
   // Tracker submissions that went live in the period — links the user
   // built via the per-client backlink hub.
@@ -414,28 +486,34 @@ export async function generateReportPdf(
   }
   rankMovements.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
-  // Page changes detected via the page-monitor scheduler in the period
-  const pageChangeRows = await db
+  // Page changes detected via the page-monitor scheduler in the period.
+  //
+  // Filtered by client in the query. It used to filter by date only and
+  // then keep every row with a URL, on the belief that the join limited
+  // it to this client. It did not: each client's report would have listed
+  // every client's monitored pages.
+  const pageChangesForClient = await db
     .select({
       field: pageChanges.field,
+      severity: pageChanges.severity,
       oldValue: pageChanges.oldValue,
       newValue: pageChanges.newValue,
       detectedAt: pageChanges.detectedAt,
       url: monitoredPages.url,
     })
     .from(pageChanges)
-    .leftJoin(
+    .innerJoin(
       monitoredPages,
       eq(pageChanges.monitoredPageId, monitoredPages.id),
     )
-    .where(gte(pageChanges.detectedAt, periodCutoff))
+    .where(
+      and(
+        eq(monitoredPages.clientId, clientId),
+        gte(pageChanges.detectedAt, periodCutoff),
+      ),
+    )
     .orderBy(desc(pageChanges.detectedAt))
     .limit(50);
-
-  const pageChangesForClient = pageChangeRows.filter((r) => {
-    // monitor table is per-client; we only see this client's via the join
-    return Boolean(r.url);
-  });
 
   // Capture a fresh monthly snapshot every time a report is generated, then
   // load the comparison so the report can render "since baseline" + "since
@@ -682,6 +760,43 @@ export async function generateReportPdf(
     .font("Helvetica")
     .text(exec.prose, { lineGap: 4 });
 
+  // Where we are against the plan, and — in the early months — why the
+  // traffic line is not the thing to read yet.
+  //
+  // Search takes roughly 60 to 90 days to move, so month one's work
+  // appears in month three. A client reading month one, seeing flat
+  // traffic and drawing the obvious conclusion is how engagements end at
+  // exactly the point where nothing could have shown yet. The honest
+  // answer is to point them at what did happen instead.
+  if (planState) {
+    doc.moveDown(0.6);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .fillColor(palette.ink)
+      .text(
+        `Week ${planState.currentWeek} of ${planState.totalWeeks}` +
+          (planState.phase ? ` · ${planState.phase}` : "") +
+          ` — ${planState.done} of ${planState.total} planned items complete` +
+          (planState.overdue > 0 ? `, ${planState.overdue} overdue` : ""),
+      );
+
+    if (planState.currentWeek <= 9) {
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .fillColor(palette.mute)
+        .text(
+          "Search engines take roughly 60 to 90 days to re-crawl, re-evaluate and " +
+            "move pages, so the work in this period shows up around month three. " +
+            "For now the honest measure of progress is the plan above, not the " +
+            "traffic line below.",
+          { lineGap: 2 },
+        );
+      doc.fillColor(palette.ink).fontSize(11);
+    }
+  }
+
   // Cite-or-bust: every claim in the prose maps to one of these
   // deterministic data points. The reader can verify each one against
   // the body of the report. Built from `input` not from the LLM, so
@@ -828,6 +943,7 @@ export async function generateReportPdf(
       ga4Daily.map((r) => r.sessions),
       {
         dates: ga4Daily.map((r) => new Date(r.date + "T00:00:00Z")),
+        updates: await getRankingUpdates(),
       },
     );
     doc.moveDown(1.5);
@@ -938,6 +1054,47 @@ export async function generateReportPdf(
     }
   }
 
+  // === Found by the tools, outside the crawl ===
+  //
+  // The crawl is one pass over the site. The tools go deeper and
+  // sideways — robots.txt and sitemap health, a certificate about to
+  // lapse, canonical chains across a two-hundred-page crawl — and until
+  // now none of it reached the client, however serious.
+  if (toolFindingsForReport.length > 0) {
+    ensureSpace(doc, 80);
+    doc.moveDown(0.8);
+    drawSectionHeading(doc, "Found by the tools");
+    doc
+      .font("Helvetica")
+      .fillColor(palette.mute)
+      .fontSize(9)
+      .text(
+        "Checks that run on their own between audits, and that look at things a " +
+          "single crawl does not.",
+      );
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor(palette.ink);
+    for (const f of toolFindingsForReport) {
+      ensureSpace(doc, 34);
+      doc
+        .font("Helvetica-Bold")
+        .fillColor(sevColor[f.severity as keyof typeof sevColor] ?? palette.ink)
+        .fontSize(9)
+        .text(f.severity.toUpperCase(), { continued: true })
+        .fillColor(palette.ink)
+        .fontSize(10)
+        .text(`  ${f.title}`);
+      doc
+        .font("Helvetica")
+        .fillColor(palette.mute)
+        .fontSize(9)
+        .text(`found by ${f.toolId}`);
+      doc.moveDown(0.35);
+      doc.fontSize(10).fillColor(palette.ink);
+    }
+    doc.moveDown(0.8);
+  }
+
   // Executive template stops here — short and focused
   if (isExecutive(template)) {
     drawFooter(doc, brand, today);
@@ -972,6 +1129,47 @@ export async function generateReportPdf(
     }
 
     doc.moveDown(1.5);
+
+    // === Links lost this period ===
+    if (linksLostThisPeriod.length > 0) {
+      drawSectionHeading(doc, "Links lost this period");
+      doc.fillColor(palette.ink).font("Helvetica").fontSize(10);
+      const n = linksLostThisPeriod.length;
+      doc
+        .font("Helvetica-Bold")
+        .text(`${n} link${n === 1 ? "" : "s"} no longer found`);
+      doc
+        .font("Helvetica")
+        .fillColor(palette.mute)
+        .fontSize(9)
+        .text(
+          "Each source page was checked twice and the link was not there either time. " +
+            "These are usually the cheapest links to win back — the publisher already " +
+            "decided once that the site was worth linking to.",
+        );
+      doc.moveDown(0.6);
+      doc.fontSize(10).fillColor(palette.ink);
+      for (const l of linksLostThisPeriod) {
+        ensureSpace(doc, 28);
+        doc.font("Helvetica-Bold").text(`• ${l.sourceDomain}`);
+        const meta: string[] = [];
+        if (l.anchorText) meta.push(`anchor: "${l.anchorText}"`);
+        if (l.domainAuthority !== null && l.domainAuthority !== undefined)
+          meta.push(`DA ${l.domainAuthority}`);
+        if (l.lastSeen)
+          meta.push(`last seen ${new Date(l.lastSeen).toLocaleDateString()}`);
+        if (meta.length > 0) {
+          doc
+            .font("Helvetica")
+            .fillColor(palette.mute)
+            .fontSize(9)
+            .text(meta.join(" · "));
+          doc.fontSize(10).fillColor(palette.ink);
+        }
+        doc.moveDown(0.35);
+      }
+      doc.moveDown(1.2);
+    }
 
     // === Links built this period ===
     if (linksBuiltThisPeriod.length > 0) {
@@ -1134,11 +1332,19 @@ export async function generateReportPdf(
     if (pageChangesForClient.length > 0) {
       drawSectionHeading(doc, "Page changes detected");
       doc.font("Helvetica").fontSize(10).fillColor(palette.ink);
-      for (const c of pageChangesForClient.slice(0, 10)) {
+      // Critical first: ten rows by date alone could leave out the one
+      // change that took a page out of search.
+      const rank = { critical: 0, warning: 1, info: 2 } as const;
+      const ordered = [...pageChangesForClient].sort(
+        (a, b) =>
+          rank[a.severity ?? "info"] - rank[b.severity ?? "info"] ||
+          b.detectedAt.getTime() - a.detectedAt.getTime(),
+      );
+      for (const c of ordered.slice(0, 10)) {
         ensureSpace(doc, 26);
         doc
           .font("Helvetica-Bold")
-          .text(`${c.field} changed`, { continued: true })
+          .text(`${c.severity === "critical" ? "Critical: " : ""}${c.field} changed`, { continued: true })
           .font("Helvetica")
           .fillColor(palette.mute)
           .fontSize(9)
@@ -1472,7 +1678,7 @@ function drawKeywordTable(
 function drawTrafficSparkline(
   doc: PDFKit.PDFDocument,
   values: number[],
-  opts?: { dates?: Date[] },
+  opts?: { dates?: Date[]; updates?: readonly AlgoUpdate[] },
 ) {
   if (values.length < 2) return;
   const left = doc.page.margins.left;
@@ -1498,11 +1704,9 @@ function drawTrafficSparkline(
     const firstT = opts.dates[0].getTime();
     const lastT = opts.dates[opts.dates.length - 1].getTime();
     if (lastT > firstT) {
-      // Was a lazy `require()` "so the module graph isn't forced to pull
-      // algorithm-updates at import time" — but that module is a static
-      // array with zero imports of its own, so the deferral saved
-      // nothing and cost a synchronous require inside a draw loop.
-      for (const u of ALGO_UPDATES) {
+      // The caller loads the list — it is Google's record plus the daily
+      // refresh, which lives in the database — because this draw is sync.
+      for (const u of opts.updates ?? []) {
         const startT = new Date(u.date + "T00:00:00Z").getTime();
         if (isNaN(startT)) continue;
         if (startT < firstT || startT > lastT) continue;

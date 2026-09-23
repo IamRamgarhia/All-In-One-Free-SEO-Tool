@@ -22,7 +22,7 @@ export default async function BotLogsPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="AI bot log analyzer"
-        description="Upload your Nginx / Apache access log. We count GPTBot, ClaudeBot, PerplexityBot, Google-Extended, and 14 other AI / search bots. No external API — pure regex on your raw logs."
+        description="Upload your Nginx / Apache access log. Counts GPTBot, ClaudeBot, PerplexityBot, Googlebot and other AI and search crawlers by user agent, then checks every crawler that publishes its IP ranges against them, so impostors don't count as crawls. The log stays on this server; only the public range lists are fetched."
         icon={Bot}
         accent="violet"
       />

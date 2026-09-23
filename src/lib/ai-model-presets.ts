@@ -59,19 +59,35 @@ export type ModelPreset = {
  */
 export const MODEL_PRESETS: Record<ActiveProvider, ModelPreset[]> = {
   gemini: [
+    // gemini-2.0-flash was here and is gone: Google retired it, and the
+    // API answers 404. It was this list's "free tier · default", so
+    // anybody who picked it got a model that could not be called — and
+    // it was also the only fallback in providers/gemini.ts, so when the
+    // 2.5 quota ran out there was nothing behind it.
+    //
+    // Checked against the live models endpoint on 12 Sep 2026. The same
+    // rot took the 1.5 family in Sept 2025; assume these need
+    // re-checking rather than trusting the date.
     {
-      id: "gemini-2.0-flash",
-      label: "Gemini 2.0 Flash",
-      hint: "Free tier · fast · default",
-      inputPer1M: 0.1,
-      outputPer1M: 0.4,
+      id: "gemini-flash-latest",
+      label: "Gemini Flash (latest)",
+      hint: "Free tier · tracks the current Flash",
+      inputPer1M: 0.3,
+      outputPer1M: 2.5,
     },
     {
       id: "gemini-2.5-flash",
       label: "Gemini 2.5 Flash",
-      hint: "Newer · better reasoning",
+      hint: "Pinned version · good default",
       inputPer1M: 0.3,
       outputPer1M: 2.5,
+    },
+    {
+      id: "gemini-flash-lite-latest",
+      label: "Gemini Flash Lite (latest)",
+      hint: "Cheapest · separate free quota",
+      inputPer1M: 0.1,
+      outputPer1M: 0.4,
     },
     {
       id: "gemini-2.5-pro",

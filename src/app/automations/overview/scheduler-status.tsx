@@ -68,10 +68,20 @@ export async function SchedulerStatusPanel() {
               )}
               <span className="min-w-0">
                 <span className="block truncate">{r.label}</span>
-                {r.lastError && (
+                {r.lastError ? (
                   <span className="block truncate text-[11px] text-rose-300/80">
                     {r.lastError}
                   </span>
+                ) : (
+                  r.lastNote && (
+                    // What the run did, not just that it happened. A
+                    // green tick against "finished 4h ago" is what let
+                    // the sweep report success for months while reaching
+                    // nothing.
+                    <span className="block truncate text-[11px] text-muted-foreground">
+                      {r.lastNote}
+                    </span>
+                  )
                 )}
               </span>
             </span>

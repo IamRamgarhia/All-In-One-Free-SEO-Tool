@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { scrapeGbp, type GbpReport } from "@/lib/gbp-scraper";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
 import { getSetting } from "@/lib/settings-store";
 import {
   GbpScopeMissingError,
@@ -116,7 +116,7 @@ export async function generateReviewReply(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Set up a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up a key in Settings.",
     };
   }
   return { ok: true, reply: raw.trim().replace(/^["']|["']$/g, "") };
@@ -260,7 +260,7 @@ export async function composeGbpPost(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Set up a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up a key in Settings.",
     };
   }
   return { ok: true, text: raw.trim().replace(/^["']|["']$/g, "") };
@@ -322,7 +322,7 @@ export async function generateGbpPostIdeas(opts: {
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Set up a key in Settings.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Set up a key in Settings.",
     };
   }
   // Strip code fences if the model added them despite instructions.

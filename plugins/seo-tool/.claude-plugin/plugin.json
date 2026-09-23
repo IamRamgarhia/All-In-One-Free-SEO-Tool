@@ -1,0 +1,7 @@
+{
+  "name": "seo-tool",
+  "version": "0.1.0",
+  "description": "Drive a self-hosted SEO tool: read what it found, decide what to change, write the copy, apply it to the live site, and undo it if it was wrong.",
+  "author": { "name": "seo-tool contributors" },
+  "license": "MIT"
+}

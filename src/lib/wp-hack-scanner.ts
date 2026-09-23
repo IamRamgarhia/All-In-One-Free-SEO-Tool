@@ -249,12 +249,24 @@ export async function scanWordPressHack(
     });
   }
 
-  // 5. wp-config.php / readme / debug.log exposed
+  // 5. wp-config.php / debug.log / version-control files exposed
+  //
+  // readme.html is deliberately NOT in this list. It shipped here with
+  // every WordPress install, it is not a secret, and it was being
+  // reported as "configuration, debug, or version-control files ... anyone
+  // can read these right now" at critical severity. On the first real
+  // site this scanner ever ran against, readme.html was the only hit:
+  // every genuine secret was correctly blocked with a 403, and the tool
+  // still said the site was compromised.
+  //
+  // That is worse than missing the finding. A critical that cries wolf
+  // teaches people to ignore the next one, which will be real. Version
+  // disclosure is a real but minor issue and gets its own check below.
   const exposureProbes = [
     "wp-config.php.bak",
     "wp-config.php~",
     "wp-config.txt",
-    "readme.html",
+    "wp-config.php.save",
     "wp-content/debug.log",
     ".git/config",
     ".env",
@@ -277,6 +289,29 @@ export async function scanWordPressHack(
       detail:
         "Configuration, debug, or version-control files should never be web-accessible. Anyone can read these right now.",
       evidence: exposures.map((e) => `/${e.file}`).join(", "),
+    });
+  }
+
+  // 5b. readme.html, which names the WordPress version.
+  //
+  // Split out of the block above, where it was being reported as a
+  // critical config-file exposure. It is neither. It ships with every
+  // install and contains no secret — it just tells an attacker which
+  // version to target, which turns a scan for "sites running 6.4.2" into
+  // a list. Worth removing, not worth an alarm.
+  const readme = await probe(`${origin}/readme.html`);
+  if (readme.status === 200 && readme.bytes > 100) {
+    iocs.push({
+      id: "readme-exposed",
+      severity: "low",
+      category: "exposure",
+      title: "readme.html names the WordPress version",
+      detail:
+        "This file ships with WordPress and is not a secret, but it tells " +
+        "anyone which version is running, which is how mass scans build " +
+        "their target lists. Delete it — WordPress does not use it, and " +
+        "it comes back on every core update, so do it after upgrades too.",
+      evidence: "/readme.html",
     });
   }
 

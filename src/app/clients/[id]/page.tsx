@@ -57,8 +57,15 @@ import {
   backlinks,
   reportArchives,
   clientMetricSnapshots,
+  proposals,
 } from "@/db/schema";
+import { Dropdown } from "@/components/ui/dropdown";
 import { ClientToolsPanel } from "./client-tools-panel";
+import { StartHere } from "./start-here";
+import { NextActionsPanel } from "@/components/next-actions-panel";
+import { nextActions } from "@/lib/next-actions";
+import { surfacesFor } from "@/lib/engagement-surfaces";
+import { getAiAvailability } from "@/lib/ai-availability";
 import { DeleteClientButton } from "./delete-client-button";
 import { DailyAutomationCard } from "./daily-automation-card";
 import { inArray } from "drizzle-orm";
@@ -171,10 +178,27 @@ export default async function ClientDetailPage({
     .orderBy(desc(audits.createdAt))
     .limit(5);
 
+  // The crawl, specifically.
+  //
+  // The AI site audit writes into this same table with its own checks and
+  // its own scale, so "most recent completed audit" picked whichever ran
+  // last. On a client audited today that meant the hero showed the AI
+  // audit's 77/100 and 6 issues while the onboarding screen showed the
+  // crawl's 93/100 and 50 issues — two numbers for the same site, both
+  // labelled health score, seventeen seconds apart.
+  //
+  // next-actions.ts already filters on kind for the same reason and says
+  // so in its own comment. This is the second place that needed it.
   const [latestCompleted] = await db
     .select()
     .from(audits)
-    .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
+    .where(
+      and(
+        eq(audits.clientId, clientId),
+        eq(audits.status, "completed"),
+        eq(audits.kind, "crawler"),
+      ),
+    )
     .orderBy(desc(audits.completedAt))
     .limit(1);
 
@@ -288,6 +312,24 @@ export default async function ClientDetailPage({
   const googleRedirectUri = `${proto}://${host}/api/google/callback`;
 
   const smtpConfigured = Boolean(await getSmtpConfig());
+  // The approval document for this client, if one has been built. Newest
+  // first — re-running onboarding writes another, and the current one is
+  // the one the Start-here strip should be talking about.
+  const [approvalDoc] = await db
+    .select({ id: proposals.id, status: proposals.status })
+    .from(proposals)
+    .where(eq(proposals.clientId, clientId))
+    .orderBy(desc(proposals.id))
+    .limit(1);
+
+  // Drives the ready/blocked dots in the per-client tool rail. `hasKey`,
+  // not `available` — the rail is asking whether the tool page you are
+  // about to open can call a model itself.
+  const ai = await getAiAvailability();
+  // Ranked work for this client alone. The Start-here strip above covers
+  // setup; this covers everything after it, and says which half the agent
+  // will take.
+  const ranked = await nextActions({ clientId, limit: 8 });
   const [scheduleRow] = await db
     .select()
     .from(reportSchedules)
@@ -313,6 +355,24 @@ export default async function ClientDetailPage({
         Below md the sidebar collapses to a button + sheet so the main
         content gets full width.
       */}
+      {/* The order to do things in, before the wall of tools. */}
+      <StartHere
+        clientId={client.id}
+        auditDone={Boolean(latestCompleted)}
+        auditFindings={latestCompleted?.issuesCount ?? null}
+        keywordCount={keywordCount}
+        proposalId={approvalDoc?.id ?? null}
+        proposalStatus={approvalDoc?.status ?? null}
+        onboardingDone={client.onboardingStep === "completed"}
+      />
+
+      <NextActionsPanel
+        items={ranked}
+        heading="What's worth doing for this client"
+        emptyNote="Nothing ranked yet — run an audit and this fills in."
+        showClient={false}
+      />
+
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <ClientToolsPanel
           client={{
@@ -323,6 +383,8 @@ export default async function ClientDetailPage({
             ga4PropertyId: client.ga4PropertyId,
             wpEndpoint: client.wpEndpoint,
           }}
+          hasAiKey={ai.hasKey}
+          surfaces={surfacesFor(client.surfacesJson, client.niche)}
         />
 
         <div className="min-w-0 flex-1 space-y-6">
@@ -391,12 +453,21 @@ export default async function ClientDetailPage({
           : null;
         const barFill = score === null ? 0 : Math.max(2, Math.min(100, score));
 
+        // The hero card is deliberately NOT overflow-hidden.
+        //
+        // It was, to clip the masthead stripe to the rounded corners —
+        // and it clipped the "Generate report" menu too, which opens
+        // downward from a button inside this card. The card's bottom
+        // edge sat 130px above the menu's, so the user saw one item of
+        // three and a box cut in half. The stripe rounds its own top
+        // corners instead, which is all the clipping was ever for.
+        // Anything added here that needs clipping should clip itself.
         return (
-          <section className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+          <section className="relative rounded-2xl border border-border bg-card shadow-xl">
             {/* Score-colored masthead stripe */}
             <div
               aria-hidden
-              className={`h-px w-full bg-gradient-to-r ${toneClasses.stripe}`}
+              className={`h-px w-full rounded-t-2xl bg-gradient-to-r ${toneClasses.stripe}`}
             />
 
             <div className="p-6 sm:p-8">
@@ -576,18 +647,17 @@ export default async function ClientDetailPage({
                   </form>
 
                   {/* Generate report dropdown */}
-                  <details className="group/rep relative">
-                    <summary
-                      className={buttonVariants({
-                        variant: "outline",
-                        className:
-                          "list-none cursor-pointer [&::-webkit-details-marker]:hidden",
-                      })}
-                    >
-                      <FileDown className="size-3.5" />
-                      Generate report
-                    </summary>
-                    <div className="absolute left-0 top-full z-20 mt-1 w-60 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+                  <Dropdown
+                    width={240}
+                    className={buttonVariants({ variant: "outline" })}
+                    trigger={
+                      <>
+                        <FileDown className="size-3.5" />
+                        Generate report
+                      </>
+                    }
+                  >
+                    <div>
                       <Link
                         href={`/reports/${client.id}?template=executive`}
                         className="block px-3 py-2 text-sm hover:bg-accent"
@@ -616,7 +686,7 @@ export default async function ClientDetailPage({
                         </div>
                       </Link>
                     </div>
-                  </details>
+                  </Dropdown>
 
                   {/* Primary AI surface */}
                   <Link
@@ -653,24 +723,39 @@ export default async function ClientDetailPage({
                   </Link>
 
                   {/* Overflow — everything else */}
-                  <details className="group/more relative ml-auto">
-                    <summary
-                      className={buttonVariants({
-                        variant: "outline",
-                        className:
-                          "list-none cursor-pointer [&::-webkit-details-marker]:hidden",
-                      })}
-                    >
-                      <MoreHorizontal className="size-3.5" />
-                      More
-                    </summary>
-                    <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+                  <div className="ml-auto">
+                  <Dropdown
+                    align="right"
+                    width={224}
+                    className={buttonVariants({ variant: "outline" })}
+                    trigger={
+                      <>
+                        <MoreHorizontal className="size-3.5" />
+                        More
+                      </>
+                    }
+                  >
+                    <div>
                       <Link
                         href={`/agent/c/${client.id}`}
                         className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
                       >
                         <Bot className="size-3.5 text-violet-300" />
                         AI agent
+                      </Link>
+                      <Link
+                        href={`/clients/${client.id}/plan`}
+                        className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                      >
+                        <Layers className="size-3.5 text-violet-300" />
+                        30-day plan
+                      </Link>
+                      <Link
+                        href={`/findings/c/${client.id}`}
+                        className="flex items-center gap-2 border-t border-border px-3 py-2 text-sm hover:bg-accent"
+                      >
+                        <ClipboardList className="size-3.5 text-cyan-300" />
+                        What the tools found
                       </Link>
                       <Link
                         href={`/blog/${client.id}`}
@@ -719,7 +804,8 @@ export default async function ClientDetailPage({
                         </SubmitButton>
                       </form>
                     </div>
-                  </details>
+                  </Dropdown>
+                  </div>
                 </div>
               </div>
             </div>
@@ -953,6 +1039,9 @@ export default async function ClientDetailPage({
         clientId={client.id}
         isConnected={Boolean(client.wpEndpoint && client.wpKey)}
         endpoint={client.wpEndpoint ?? null}
+        looksLikeWordPress={(client.techStack ?? []).some((t) =>
+          String(t).toLowerCase().includes("wordpress"),
+        )}
       />
 
       {/* SCHEDULED REPORTS */}

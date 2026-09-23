@@ -1,10 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { Camera, Loader2 } from "lucide-react";
 import { runRender, type RenderState } from "./actions";
 
 export function RenderForm() {
+  // Prefilled when opened from a client, so the domain is not retyped.
+  const presetUrl = usePresetUrl();
   const [state, formAction, pending] = useActionState<
     RenderState | null,
     FormData
@@ -24,6 +27,7 @@ export function RenderForm() {
             <span className="text-muted-foreground">URL</span>
             <input
               name="url"
+              defaultValue={presetUrl}
               required
               placeholder="https://example.com"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

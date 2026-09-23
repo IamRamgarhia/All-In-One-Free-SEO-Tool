@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isSurfaceId } from "@/lib/engagement-surfaces";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -12,8 +13,10 @@ import {
   tasks,
   type Task,
 } from "@/db/schema";
+import { appendResearchLog, ensureSiteRead } from "@/lib/client-knowledge";
 import { discoverKeywords, type DiscoveredKeyword } from "@/lib/auto-keywords";
-import { generateCalendar } from "@/lib/seo-calendar";
+import { generateCalendar, summariseTopIssues } from "@/lib/seo-calendar";
+import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { getGscQuickWins } from "@/lib/google-data";
 import { logActivity } from "@/lib/activity";
 import { ymd } from "@/lib/utils-date";
@@ -99,7 +102,7 @@ export async function saveTargetingStep(
       city: parsed.data.city ?? null,
       geoTarget: parsed.data.geoTarget,
       serviceRadiusKm: parsed.data.serviceRadiusKm ?? null,
-      onboardingStep: "completed",
+      onboardingStep: "surfaces",
       updatedAt: new Date(),
     })
     .where(eq(clients.id, parsed.data.clientId));
@@ -109,10 +112,57 @@ export async function saveTargetingStep(
   return { ok: true };
 }
 
+/**
+ * Step 4 — what this engagement covers.
+ *
+ * The one thing a client signing off asks that nothing here could
+ * answer: what are you actually going to work on? Niche, locale and tech
+ * stack were all collected and none of them say whether we touch their
+ * Google Business Profile or their product pages.
+ *
+ * An empty selection is allowed and stored as an empty array, which is
+ * NOT the same as the null that means "never asked". The document renders
+ * an out-of-scope list, and that list is only honest if declining
+ * something and never being offered it stay distinguishable.
+ */
+export async function saveSurfacesStep(
+  _prev: SaveBrandResult | null,
+  formData: FormData,
+): Promise<SaveBrandResult> {
+  const clientId = Number(formData.get("clientId"));
+  if (!Number.isFinite(clientId) || clientId <= 0)
+    return { ok: false, error: "Invalid client." };
+
+  const picked = formData
+    .getAll("surfaces")
+    .map(String)
+    .filter((v) => isSurfaceId(v));
+
+  await db
+    .update(clients)
+    .set({
+      surfacesJson: picked,
+      onboardingStep: "completed",
+      updatedAt: new Date(),
+    })
+    .where(eq(clients.id, clientId));
+
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath(`/clients/${clientId}/onboarding`);
+  return { ok: true };
+}
+
 // =============== Auto keyword discovery ===============
 
 export type DiscoverState =
-  | { ok: true; keywords: DiscoveredKeyword[]; gscRowsUsed: number; seedsUsed: string[] }
+  | {
+      ok: true;
+      keywords: DiscoveredKeyword[];
+      gscRowsUsed: number;
+      seedsUsed: string[];
+      /** What reading the site produced, so the user can see it happened. */
+      siteRead: { pagesRead: number; termsFound: number; seeds: string[]; note?: string };
+    }
   | { ok: false; error: string };
 
 export async function runKeywordDiscovery(
@@ -133,6 +183,16 @@ export async function runKeywordDiscovery(
     domain = c.url;
   }
 
+  // Read the site once and keep it. Discovery used to read it, use it,
+  // and throw it away, so every later run paid for the same thirteen
+  // page fetches and the title drafter — which needs exactly this — was
+  // still working from a single meta tag.
+  const { vocab, fromCache } = await ensureSiteRead({
+    clientId: id,
+    url: c.url,
+    brand: c.name,
+  });
+
   const result = await discoverKeywords({
     clientName: c.name,
     domain,
@@ -143,13 +203,27 @@ export async function runKeywordDiscovery(
     businessTypeFromDesc: c.businessType ?? undefined,
     gscProperty: c.gscProperty,
     limit: 60,
+    siteVocabulary: vocab ?? undefined,
+    // Already read, or deliberately not readable. Either way discovery
+    // must not fetch the site a second time inside the same request.
+    readSite: false,
   });
+
+  await appendResearchLog(
+    id,
+    `Keyword discovery: ${result.keywords.length} found from ${result.seedsUsed.length} seeds` +
+      (vocab
+        ? `, site read ${fromCache ? "reused" : "fresh"} (${vocab.pagesRead} pages)`
+        : ", site could not be read"),
+    "app",
+  );
 
   return {
     ok: true,
     keywords: result.keywords,
     gscRowsUsed: result.gscRowsUsed,
     seedsUsed: result.seedsUsed,
+    siteRead: result.siteRead,
   };
 }
 
@@ -282,11 +356,15 @@ export async function generateMonthlyCalendar(
       .orderBy(desc(audits.completedAt))
       .limit(1);
     if (latestAudit) {
+      // No limit before summarising. This took an arbitrary thirty rows
+      // and THEN sorted them, so on a site with twenty heading-order rows
+      // the critical findings could fall outside the thirty entirely.
       const rows = await db
         .select({
           severity: auditIssues.severity,
           type: auditIssues.type,
           message: auditIssues.message,
+          url: auditIssues.url,
         })
         .from(auditIssues)
         .where(
@@ -294,20 +372,8 @@ export async function generateMonthlyCalendar(
             eq(auditIssues.auditId, latestAudit.id),
             eq(auditIssues.status, "new"),
           ),
-        )
-        .limit(30);
-      const sevRank = { critical: 0, high: 1, medium: 2, low: 3 } as const;
-      topIssues = rows
-        .map((r) => ({
-          severity: r.severity as "critical" | "high" | "medium" | "low",
-          title: r.message || r.type,
-        }))
-        .sort(
-          (a, b) =>
-            sevRank[a.severity] - sevRank[b.severity] ||
-            a.title.localeCompare(b.title),
-        )
-        .slice(0, 5);
+        );
+      topIssues = summariseTopIssues(withoutInfrastructure(rows), 5);
     }
   } catch {
     topIssues = [];
@@ -345,7 +411,10 @@ export async function generateMonthlyCalendar(
     (t) => ({
       clientId: c.id,
       title: t.title,
-      description: t.toolPath ? `Open: ${t.toolPath}` : null,
+      // The path goes in its own column now, so the description is free
+      // for something a person wrote rather than a link rendered as text.
+      description: null,
+      toolPath: t.toolPath ?? null,
       whyItMatters: t.whyItMatters,
       priority: t.priority,
       status: "todo",
@@ -462,4 +531,62 @@ export async function getLearnedRulesForClient(
     .orderBy(drizzleDesc(aiPreferences.confidence))
     .limit(10);
   return rows;
+}
+
+// =============== Background audit progress ===============
+
+export type AuditProgress = {
+  status: "none" | "queued" | "running" | "completed" | "failed";
+  /** Pages fetched so far. Written by runAuditForClient as the crawl runs. */
+  pagesCrawled: number;
+  /** The crawler's default cap. Only used to draw the bar. */
+  maxPages: number;
+  score: number | null;
+  issuesCount: number;
+  auditId: number | null;
+};
+
+/**
+ * Progress of the site crawl kicked off when the client was created.
+ *
+ * Polled by the wizard so a multi-minute crawl looks like work in
+ * progress rather than a page that has stopped responding.
+ */
+export async function getAuditProgress(
+  clientId: number,
+): Promise<AuditProgress> {
+  const [row] = await db
+    .select({
+      id: audits.id,
+      status: audits.status,
+      pagesCrawled: audits.pagesCrawled,
+      score: audits.score,
+      issuesCount: audits.issuesCount,
+    })
+    .from(audits)
+    .where(and(eq(audits.clientId, clientId), eq(audits.kind, "crawler")))
+    .orderBy(desc(audits.id))
+    .limit(1);
+
+  if (!row) {
+    return {
+      status: "none",
+      pagesCrawled: 0,
+      maxPages: 25,
+      score: null,
+      issuesCount: 0,
+      auditId: null,
+    };
+  }
+
+  return {
+    status: row.status,
+    pagesCrawled: row.pagesCrawled ?? 0,
+    // Mirrors runAudit's default. Shown as "of 25", never as a promise
+    // that 25 pages exist — small sites finish early and that is fine.
+    maxPages: 25,
+    score: row.score,
+    issuesCount: row.issuesCount,
+    auditId: row.id,
+  };
 }

@@ -1,7 +1,8 @@
 "use server";
 
 import { auditYouTube, type YouTubeAuditResult } from "@/lib/youtube-audit";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { youtubeAuditFindings } from "@/lib/tool-finding-builders";
 
 export type YtAuditState =
   | { ok: true; result: YouTubeAuditResult }
@@ -17,11 +18,12 @@ export async function runYtAudit(
   if (!url) return { ok: false, error: "Paste a YouTube URL." };
   const r = await auditYouTube({ url, targetKeyword });
   if (!r.ok && r.error) return { ok: false, error: r.error };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "youtube-audit",
     label: url + (targetKeyword ? ` · "${targetKeyword}"` : ""),
     input: { url, targetKeyword },
     result: { ok: true, result: r },
-  }).catch(() => undefined);
+    findings: youtubeAuditFindings(r),
+  });
   return { ok: true, result: r };
 }

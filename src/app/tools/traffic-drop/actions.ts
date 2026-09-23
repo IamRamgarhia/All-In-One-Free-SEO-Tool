@@ -1,11 +1,24 @@
 "use server";
 
+/**
+ * @ai-optional
+ *
+ * Every number here comes from Search Console and is computed without a
+ * model. The only thing AI adds is the prose `diagnosis` sentence, and
+ * the page is complete and correct with that field empty — verified
+ * against a live property with no provider configured.
+ *
+ * See tool-capabilities.derive.ts — this marker is what stops the badge
+ * saying the whole page is unavailable when it is not.
+ */
+
 import { z } from "zod";
 import {
   diagnoseTrafficDrop,
   type TrafficDropResult,
 } from "@/lib/traffic-drop";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { trafficDropFindings } from "@/lib/tool-finding-builders";
 
 const inputSchema = z.object({
   siteUrl: z.string().trim().min(3),
@@ -30,11 +43,12 @@ export async function runDiagnostic(
   }
   const r = await diagnoseTrafficDrop({ siteUrl: parsed.data.siteUrl });
   if (!r.ok && r.error) return { ok: false, error: r.error };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "traffic-drop",
     label: parsed.data.siteUrl,
     input: { siteUrl: parsed.data.siteUrl },
     result: { ok: true, result: r },
-  }).catch(() => undefined);
+    findings: trafficDropFindings(r),
+  });
   return { ok: true, result: r };
 }

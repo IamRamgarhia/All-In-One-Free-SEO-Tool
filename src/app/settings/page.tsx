@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import path from "node:path";
+import { headers } from "next/headers";
 import { count } from "drizzle-orm";
 import Link from "next/link";
 import {
@@ -35,6 +36,13 @@ import { BrandForm } from "./brand-form";
 import { ApiKeysSection } from "./api-keys-section";
 import { ActiveProviderCard } from "./active-provider-card";
 import { CreditSaverForm } from "./credit-saver-form";
+import { ConnectionModePicker } from "./connection-mode";
+import { MCP_TOOL_LIST } from "@/lib/mcp/server";
+import {
+  getAiConnectionStatus,
+  getConnectionMode,
+  getMcpStatus,
+} from "./connection-mode-actions";
 import { BrowserForm } from "./browser-form";
 import { loadBrowserSettings } from "./browser-actions";
 import { ApiKeyManager } from "./api-keys/manager";
@@ -81,6 +89,15 @@ export default async function SettingsPage() {
   const creditSaverOn = Boolean(
     await getSetting<boolean>("ai.credit_saver.enabled"),
   );
+  const connectionMode = await getConnectionMode();
+  const aiStatus = await getAiConnectionStatus();
+  const mcpStatus = await getMcpStatus();
+  // Read here rather than from window.location in the client component:
+  // the two disagree during hydration and React errors on the mismatch.
+  const hdrs = await headers();
+  const host = hdrs.get("host") ?? "localhost:3000";
+  const proto = hdrs.get("x-forwarded-proto") ?? "http";
+  const appOrigin = `${proto}://${host}`;
   const googleStatus = await getGoogleConnectionStatus();
 
   // SMTP config — read individually so we can pass an "initial" object to the
@@ -520,24 +537,56 @@ export default async function SettingsPage() {
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Key className="size-4 text-amber-300" />
-            AI provider keys
+            AI connection
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Free options first. Most features work without any keys — these
-            unlock the AI executive summaries, AI assistant, OCR extraction,
-            and AI visibility tracking.
+            Connect the AI subscription you already pay for, or a provider key
+            — either one drives the same tools. Most of the tool grid needs
+            neither.
           </p>
         </header>
         <div className="relative space-y-5 p-5">
-          <ActiveProviderCard
-            active={activeProvider}
-            configured={configuredKeys}
+          <ConnectionModePicker
+            mode={connectionMode}
+            status={aiStatus}
+            mcp={mcpStatus}
+            origin={appOrigin}
+            installPath={process.cwd()}
+            platform={process.platform}
+            nodePath={process.execPath}
+            mcpToolCount={MCP_TOOL_LIST.length}
+            mcpToolNames={MCP_TOOL_LIST.map((t) => t.name)}
           />
-          <CreditSaverForm initial={creditSaverOn} />
-          <ApiKeysSection
-            configured={configuredKeys}
-            ollamaUrl={ollamaUrl}
-          />
+          {/* Keys stay reachable in every mode: someone on a subscription
+              still wants a key for the overnight jobs, and hiding it would
+              make that look impossible rather than optional. */}
+          {connectionMode === "mcp" ? (
+            <details className="group rounded-xl border border-white/10 bg-white/[0.02]">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium marker:content-none">
+                Also add an API key
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  optional — only needed for work that runs while you&apos;re away
+                </span>
+              </summary>
+              <div className="space-y-5 border-t border-white/5 p-4">
+                <ActiveProviderCard
+                  active={activeProvider}
+                  configured={configuredKeys}
+                />
+                <CreditSaverForm initial={creditSaverOn} />
+                <ApiKeysSection configured={configuredKeys} ollamaUrl={ollamaUrl} />
+              </div>
+            </details>
+          ) : (
+            <>
+              <ActiveProviderCard
+                active={activeProvider}
+                configured={configuredKeys}
+              />
+              <CreditSaverForm initial={creditSaverOn} />
+              <ApiKeysSection configured={configuredKeys} ollamaUrl={ollamaUrl} />
+            </>
+          )}
         </div>
       </section>
 

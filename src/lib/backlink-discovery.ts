@@ -23,6 +23,7 @@
  */
 
 import { searchDuckDuckGo } from "./link-prospector";
+import { guardedFetch } from "./url-guard";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; SeoToolBot/1.0; +https://example.com/bot)";
@@ -90,8 +91,8 @@ export async function discoverBacklinks(opts: {
         if (ddgResults.has(r.url)) continue;
         ddgResults.set(r.url, { title: r.title, snippet: r.snippet });
       }
-    } catch {
-      errors.push(`DDG search failed for: ${q}`);
+    } catch (err) {
+      errors.push(`DuckDuckGo search failed for ${q}: ${(err as Error).message}`);
     }
   }
 
@@ -249,7 +250,9 @@ async function verifyLink(
   try {
     const ac = new AbortController();
     const timeout = setTimeout(() => ac.abort(), 10_000);
-    const res = await fetch(candidate.url, {
+        // Guarded: these URLs come from DuckDuckGo and Common Crawl, not
+    // from us, so the host is whatever somebody managed to get indexed.
+const res = await guardedFetch(candidate.url, {
       headers: { "user-agent": USER_AGENT, accept: "text/html" },
       signal: ac.signal,
       redirect: "follow",

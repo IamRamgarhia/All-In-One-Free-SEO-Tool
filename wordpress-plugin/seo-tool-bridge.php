@@ -3,7 +3,7 @@
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/SEO-Tool
  * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, internal links, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.4.0
+ * Version: 0.6.1
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -30,10 +30,69 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('STB_VERSION', '0.4.0');
+/**
+ * The version, read from the plugin header rather than typed twice.
+ *
+ * These were two separate literals and they had already drifted: the
+ * header said 0.5.0 while this said 0.5.1. WordPress shows the header on
+ * the plugins screen and uses it for updates; /ping returns this one,
+ * and the SEO Tool gates every capability on what /ping says. So the
+ * site reported one version to its owner and a different one to the
+ * tool deciding what it was allowed to do.
+ *
+ * CLAUDE.md's fourth standing rule is never to add a second hardcoded
+ * copy of something that already exists. The header has to be a literal
+ * because WordPress parses the file as text, so the header wins and this
+ * is derived from it.
+ */
+define('STB_VERSION', stb_read_header_version(__FILE__));
+
+function stb_read_header_version(string $file): string
+{
+    // get_plugin_data() lives in an admin-only file and this constant is
+    // needed on REST requests too, so the header is read directly. Only
+    // the first 8KB, which is all WordPress itself reads.
+    $handle = @fopen($file, 'r');
+    if ($handle) {
+        $head = fread($handle, 8192);
+        fclose($handle);
+        if (is_string($head) && preg_match('/^\s*\*\s*Version:\s*([0-9.]+)/mi', $head, $m)) {
+            return $m[1];
+        }
+    }
+    // Unreadable header. Returning '0' rather than a guess means
+    // capability gating fails closed: the SEO Tool will say a feature is
+    // unavailable instead of trying a write the plugin cannot do.
+    return '0';
+}
 define('STB_OPTION_KEY', 'stb_connection_key');
 define('STB_OPTION_REVISIONS', 'stb_revisions');
 define('STB_REST_NAMESPACE', 'seo-tool/v1');
+define('STB_OPTION_ROBOTS', 'stb_robots_txt');
+define('STB_OPTION_REDIRECTS', 'stb_redirects');
+define('STB_OPTION_HARDENING', 'stb_hardening');
+// When an SEO Tool last called /ping. Absent means the connection was
+// never completed, which the plugins screen says out loud — an
+// unfinished setup otherwise looks exactly like a working one.
+define('STB_OPTION_LAST_SEEN', 'stb_last_seen');
+
+/**
+ * Site-level things the agent can change, and the option each lives in.
+ *
+ * Addressed as "site:<key>" in the revision log, alongside "post:123".
+ * The undo handler reads this map to know a target is legitimate — it
+ * previously required a numeric id and refused everything else, which
+ * would have made every site-level change un-undoable while the UI still
+ * offered the button.
+ */
+function stb_site_targets(): array
+{
+    return [
+        'robots_txt' => STB_OPTION_ROBOTS,
+        'redirects'  => STB_OPTION_REDIRECTS,
+        'hardening'  => STB_OPTION_HARDENING,
+    ];
+}
 
 // =====================
 // Setup + key generation
@@ -62,6 +121,87 @@ add_action('admin_menu', function () {
     );
 });
 
+/**
+ * A Settings link on the plugins screen.
+ *
+ * The row read "Deactivate | Check this plugin" and nothing else, so the
+ * only way to reach the connection key was to know it lives under Tools.
+ * Every plugin a site owner has ever installed puts its settings one
+ * click from this row; leaving it out reads as the plugin being
+ * unfinished, and it is the first screen anybody sees after activating.
+ */
+add_filter(
+    'plugin_action_links_' . plugin_basename(__FILE__),
+    function (array $links): array {
+        $settings = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url(admin_url('tools.php?page=seo-tool-bridge')),
+            esc_html__('Settings', 'seo-tool-bridge')
+        );
+        // Prepended, because WordPress puts Deactivate first and the
+        // convention everywhere else is Settings before it.
+        array_unshift($links, $settings);
+        return $links;
+    }
+);
+
+/**
+ * The second row of links, under the description.
+ *
+ * Where the plugin came from and where to get help. Both point at the
+ * project rather than a vendor page: this is MIT software somebody is
+ * self-hosting, and the useful destination is the repository.
+ */
+add_filter(
+    'plugin_row_meta',
+    function (array $links, string $file): array {
+        if ($file !== plugin_basename(__FILE__)) {
+            return $links;
+        }
+        $links[] = sprintf(
+            '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
+            esc_url('https://github.com/IamRamgarhia/SEO-Tool'),
+            esc_html__('Documentation', 'seo-tool-bridge')
+        );
+        $links[] = sprintf(
+            '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
+            esc_url('https://github.com/IamRamgarhia/SEO-Tool/issues'),
+            esc_html__('Report an issue', 'seo-tool-bridge')
+        );
+        return $links;
+    },
+    10,
+    2
+);
+
+/**
+ * Say so on the plugins screen when the key has never been used.
+ *
+ * A connection that was set up and never completed looks identical to
+ * one that is working: the plugin sits there active and silent. This is
+ * the row the site owner is already looking at, so it is where the
+ * unfinished half of the setup belongs.
+ */
+add_action(
+    'after_plugin_row_' . plugin_basename(__FILE__),
+    function (): void {
+        if (get_option(STB_OPTION_LAST_SEEN)) {
+            return;
+        }
+        printf(
+            '<tr class="plugin-update-tr active"><td colspan="4" class="plugin-update colspanchange">'
+            . '<div class="update-message notice inline notice-warning notice-alt"><p>%s <a href="%s">%s</a></p></div>'
+            . '</td></tr>',
+            esc_html__(
+                'No SEO Tool has connected to this site yet. Copy the connection key and paste it into your SEO Tool.',
+                'seo-tool-bridge'
+            ),
+            esc_url(admin_url('tools.php?page=seo-tool-bridge')),
+            esc_html__('Open settings', 'seo-tool-bridge')
+        );
+    }
+);
+
 function stb_render_admin_page(): void
 {
     if (!current_user_can('manage_options')) {
@@ -80,8 +220,39 @@ function stb_render_admin_page(): void
     $rest_url = rest_url(STB_REST_NAMESPACE);
     ?>
     <div class="wrap">
-        <h1>SEO Tool Bridge</h1>
+        <h1 style="display:flex;align-items:center;gap:10px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:7px;background:#1e1b4b;color:#a5b4fc;font:700 13px/1 -apple-system,system-ui,sans-serif;letter-spacing:-0.5px;">ST</span>
+            SEO Tool Bridge
+            <span style="font:400 12px/1 -apple-system,system-ui,sans-serif;color:#646970;">v<?php echo esc_html(STB_VERSION); ?></span>
+        </h1>
         <p>Connects this WordPress site to your self-hosted SEO Tool, so AI suggestions can be applied with one click instead of copy-paste.</p>
+
+        <?php
+        // Whether this has ever actually worked, said plainly at the top.
+        // Every field below can be filled in correctly and the connection
+        // still never completed — a wrong URL in the SEO Tool, a firewall,
+        // a key pasted with a space. Until something calls /ping, none of
+        // that is distinguishable from a working setup by looking.
+        $last_seen = get_option(STB_OPTION_LAST_SEEN);
+        if ($last_seen) {
+            printf(
+                '<div class="notice notice-success inline" style="margin:12px 0;"><p>%s</p></div>',
+                sprintf(
+                    /* translators: %s: human-readable time difference, e.g. "2 hours" */
+                    esc_html__("Connected. An SEO Tool last checked in %s ago.", "seo-tool-bridge"),
+                    esc_html(human_time_diff(strtotime($last_seen)))
+                )
+            );
+        } else {
+            printf(
+                '<div class="notice notice-warning inline" style="margin:12px 0;"><p>%s</p></div>',
+                esc_html__(
+                    "Not connected yet. Paste the endpoint and key below into your SEO Tool, then run any check — this will switch to Connected.",
+                    "seo-tool-bridge"
+                )
+            );
+        }
+        ?>
 
         <h2>Connection details</h2>
         <table class="form-table">
@@ -121,12 +292,23 @@ function stb_render_admin_page(): void
             <li>Insert internal links into post content, first match only, never inside an existing link, heading or code block</li>
             <li>List + look up posts by URL (used by the SEO Tool's one-click fix flow)</li>
             <li>Create new posts (draft or published) — used by the daily AI agent</li>
-            <li>Full revision log with one-click undo on every change, including a whole-body restore for content edits</li>
+            <li>Read + write the canonical URL and per-page robots directives</li>
+            <li>Serve robots.txt, and 301 redirects for URLs that would otherwise 404</li>
+            <li>Toggle hardening: XML-RPC off, WordPress version hidden, REST discovery links removed, emoji script removed, front-end heartbeat off, author archives noindexed</li>
+            <li>Full revision log with one-click undo on every change, including a whole-body restore for content edits and site-wide settings</li>
         </ul>
         <p style="color: #666; font-size: 12px;">
-            Redirects + robots.txt management are not here yet. Internal linking
-            edits post content — if you'd rather it didn't, leave the SEO Tool's
-            autonomy on &ldquo;suggest only&rdquo; and approve each change yourself.
+            Nothing here writes to disk. robots.txt, redirects and the hardening
+            toggles are stored as WordPress options and applied through filters,
+            so deactivating this plugin reverts all of them at once and leaves no
+            edited files behind. If this site has a real robots.txt file,
+            WordPress serves that instead and the plugin refuses to pretend
+            otherwise.
+        </p>
+        <p style="color: #666; font-size: 12px;">
+            Internal linking edits post content, and redirects and robots.txt
+            affect the whole site — if you'd rather approve those yourself,
+            leave the SEO Tool's autonomy on &ldquo;suggest only&rdquo;.
         </p>
 
         <h2>Recent changes</h2>
@@ -268,6 +450,51 @@ add_action('rest_api_init', function () {
         'permission_callback' => 'stb_check_key',
     ]);
 
+    // Site-level surfaces. One shape for all three: GET reads the
+    // current value, POST replaces it. Kept apart from the post routes
+    // because the blast radius is the whole site rather than one page —
+    // a wrong line in robots.txt can deindex everything — which is why
+    // the client marks all three needs_review whatever the autonomy
+    // level says.
+    register_rest_route(STB_REST_NAMESPACE, '/site/robots', [
+        [
+            'methods'  => 'GET',
+            'callback' => 'stb_rest_get_robots_txt',
+            'permission_callback' => 'stb_check_key',
+        ],
+        [
+            'methods'  => 'POST',
+            'callback' => 'stb_rest_set_robots_txt',
+            'permission_callback' => 'stb_check_key',
+        ],
+    ]);
+
+    register_rest_route(STB_REST_NAMESPACE, '/site/redirects', [
+        [
+            'methods'  => 'GET',
+            'callback' => 'stb_rest_get_redirects',
+            'permission_callback' => 'stb_check_key',
+        ],
+        [
+            'methods'  => 'POST',
+            'callback' => 'stb_rest_set_redirects',
+            'permission_callback' => 'stb_check_key',
+        ],
+    ]);
+
+    register_rest_route(STB_REST_NAMESPACE, '/site/hardening', [
+        [
+            'methods'  => 'GET',
+            'callback' => 'stb_rest_get_hardening',
+            'permission_callback' => 'stb_check_key',
+        ],
+        [
+            'methods'  => 'POST',
+            'callback' => 'stb_rest_set_hardening',
+            'permission_callback' => 'stb_check_key',
+        ],
+    ]);
+
     register_rest_route(STB_REST_NAMESPACE, '/undo/(?P<rev_id>\d+)', [
         'methods'  => 'POST',
         'callback' => 'stb_rest_undo',
@@ -331,6 +558,11 @@ function stb_check_key(WP_REST_Request $req): bool
 
 function stb_rest_ping(): WP_REST_Response
 {
+    // Proof of life, recorded on the one request whose whole purpose is
+    // to confirm the connection works. autoload off: nothing reads it on
+    // a front-end page load.
+    update_option(STB_OPTION_LAST_SEEN, gmdate("c"), false);
+
     return new WP_REST_Response([
         'ok' => true,
         'plugin_version' => STB_VERSION,
@@ -347,9 +579,12 @@ function stb_rest_ping(): WP_REST_Response
             'schema' => true,
             'internal_links' => true,
             'create_posts' => true,
-            'redirects' => false,
-            'canonical' => false,
-            'robots' => false,
+            'redirects' => true,
+            'canonical' => true,
+            'robots' => true,
+            'social_meta' => true,
+            'robots_txt' => true,
+            'hardening' => true,
         ],
     ]);
 }
@@ -378,6 +613,143 @@ function stb_set_meta_description(int $post_id, string $value): void
     update_post_meta($post_id, '_yoast_wpseo_metadesc', $value);
     update_post_meta($post_id, 'rank_math_description', $value);
     update_post_meta($post_id, '_aioseo_description', $value);
+}
+
+/**
+ * Canonical URL, read from whichever SEO plugin is present.
+ *
+ * Same priority order as the description, for the same reason: a site
+ * with two SEO plugins installed has one of them actually rendering the
+ * tag, and we cannot know which, so we read the first that has a value
+ * and write all of them.
+ */
+/**
+ * Open Graph and Twitter fields, across the three SEO plugins.
+ *
+ * Same shape as stb_get_canonical: read whichever plugin has a value,
+ * write to all of them so the answer sticks regardless of which is
+ * active — and regardless of which one the site switches to later.
+ *
+ * These back two findings the crawler has reported since it was written
+ * and nothing could ever fix: missing_og_tags and missing_twitter_card.
+ * A page with no og:title is one a social platform renders from whatever
+ * text it scrapes, which is usually the navigation.
+ */
+function stb_social_meta_keys(string $field): array
+{
+    $map = [
+        'og_title' => ['_yoast_wpseo_opengraph-title', 'rank_math_facebook_title', '_aioseo_og_title'],
+        'og_description' => ['_yoast_wpseo_opengraph-description', 'rank_math_facebook_description', '_aioseo_og_description'],
+        'og_image' => ['_yoast_wpseo_opengraph-image', 'rank_math_facebook_image', '_aioseo_og_image_custom_url'],
+        'twitter_title' => ['_yoast_wpseo_twitter-title', 'rank_math_twitter_title', '_aioseo_twitter_title'],
+        'twitter_description' => ['_yoast_wpseo_twitter-description', 'rank_math_twitter_description', '_aioseo_twitter_description'],
+        'twitter_image' => ['_yoast_wpseo_twitter-image', 'rank_math_twitter_image', '_aioseo_twitter_image_custom_url'],
+    ];
+    return $map[$field] ?? [];
+}
+
+function stb_get_social_meta(int $post_id, string $field): string
+{
+    foreach (stb_social_meta_keys($field) as $key) {
+        $val = get_post_meta($post_id, $key, true);
+        if (!empty($val)) {
+            return (string)$val;
+        }
+    }
+    return '';
+}
+
+function stb_set_social_meta(int $post_id, string $field, string $value): void
+{
+    foreach (stb_social_meta_keys($field) as $key) {
+        if ($value === '') {
+            // Empty means "no value of ours here", so the keys are
+            // deleted rather than written blank. Writing '' leaves the
+            // SEO plugin treating it as a deliberate empty override,
+            // which is a different thing from unset — the same trap the
+            // robots directive fell into.
+            delete_post_meta($post_id, $key);
+        } else {
+            update_post_meta($post_id, $key, $value);
+        }
+    }
+}
+
+function stb_get_canonical(int $post_id): string
+{
+    $candidates = [
+        '_yoast_wpseo_canonical',
+        'rank_math_canonical_url',
+        '_aioseo_canonical_url',
+    ];
+    foreach ($candidates as $key) {
+        $val = get_post_meta($post_id, $key, true);
+        if (!empty($val)) {
+            return (string)$val;
+        }
+    }
+    return '';
+}
+
+function stb_set_canonical(int $post_id, string $value): void
+{
+    update_post_meta($post_id, '_yoast_wpseo_canonical', $value);
+    update_post_meta($post_id, 'rank_math_canonical_url', $value);
+    update_post_meta($post_id, '_aioseo_canonical_url', $value);
+}
+
+/**
+ * The robots meta directive for one post — "index,follow" and friends.
+ *
+ * Yoast splits this across two keys holding 0/1/2 sentinels, Rank Math
+ * stores an array of tokens. Both are normalised to the comma string the
+ * caller sent, so what goes out matches what comes back.
+ */
+function stb_get_robots_meta(int $post_id): string
+{
+    $rm = get_post_meta($post_id, 'rank_math_robots', true);
+    if (is_array($rm) && $rm) {
+        return implode(',', array_map('strval', $rm));
+    }
+    $noindex = get_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex', true);
+    $nofollow = get_post_meta($post_id, '_yoast_wpseo_meta-robots-nofollow', true);
+    if ($noindex === '' && $nofollow === '') {
+        return '';
+    }
+    // Yoast: '1' means noindex, '2' means index, '' means default.
+    $parts = [];
+    $parts[] = ($noindex === '1') ? 'noindex' : 'index';
+    $parts[] = ($nofollow === '1') ? 'nofollow' : 'follow';
+    return implode(',', $parts);
+}
+
+function stb_set_robots_meta(int $post_id, string $value): void
+{
+    $tokens = array_filter(array_map('trim', explode(',', strtolower($value))));
+
+    // An empty value means "no directive of ours on this post", so the
+    // keys are deleted rather than written with a default.
+    //
+    // Writing '2' (Yoast's explicit "index") made the field one-way: once
+    // anything had been set, there was no path back to unset, and
+    // stb_get_robots_meta would answer "index,follow" forever. Undo then
+    // could not restore the prior state, and on a site whose post type
+    // defaults to noindex it would have quietly forced the page to be
+    // indexable — an undo that changes the site in the opposite direction
+    // to the one the user asked for.
+    if (!$tokens) {
+        delete_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex');
+        delete_post_meta($post_id, '_yoast_wpseo_meta-robots-nofollow');
+        delete_post_meta($post_id, 'rank_math_robots');
+        return;
+    }
+
+    $noindex = in_array('noindex', $tokens, true);
+    $nofollow = in_array('nofollow', $tokens, true);
+
+    update_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex', $noindex ? '1' : '2');
+    update_post_meta($post_id, '_yoast_wpseo_meta-robots-nofollow', $nofollow ? '1' : '');
+    update_post_meta($post_id, 'rank_math_robots', array_values($tokens));
 }
 
 function stb_record_revision(string $field, string $object, $old, $new): int
@@ -428,6 +800,13 @@ function stb_rest_get_post_seo(WP_REST_Request $req): WP_REST_Response
         'id' => $id,
         'title' => $post->post_title,
         'meta_description' => stb_get_meta_description($id),
+        // Returned so the caller can see the current value before
+        // changing it. The client's PostSeo type has carried these two
+        // fields since it was written and this handler returned neither,
+        // so both were always null — which reads as "this page has no
+        // canonical" for every page on every site.
+        'canonical' => stb_get_canonical($id),
+        'robots' => stb_get_robots_meta($id),
         'permalink' => get_permalink($id),
         'status' => $post->post_status,
         'modified' => $post->post_modified,
@@ -464,6 +843,110 @@ function stb_rest_update_post_seo(WP_REST_Request $req): WP_REST_Response
         }
     }
 
+    // Canonical and robots.
+    //
+    // Both of these were in the TypeScript client's type from the
+    // beginning and this handler read neither, so a canonical sent here
+    // was accepted, ignored, and answered {ok:true} — a write that
+    // reported success and changed nothing. The client had to grow an
+    // explicit refusal to stop two "apply fix" buttons lying. That
+    // refusal comes out in the same change as this.
+    if (isset($body['canonical'])) {
+        $new = esc_url_raw(trim((string)$body['canonical']));
+        $old = stb_get_canonical($id);
+        if ($new !== $old) {
+            stb_set_canonical($id, $new);
+            $rev_id = stb_record_revision('canonical', "post:$id", $old, $new);
+            $changes[] = ['field' => 'canonical', 'rev_id' => $rev_id];
+        }
+    }
+
+    // Open Graph and Twitter, written out one branch per field.
+    //
+    // A foreach over a list of field names was shorter and is not worth
+    // it: plugin-contract.test.ts verifies this wire contract by finding
+    // each isset on the request body literally, and a loop is invisible
+    // to it.
+    // That check is the only thing standing between a renamed field and
+    // a write that reports success while changing nothing, which has
+    // already happened here twice.
+
+    if (isset($body['og_title'])) {
+        $new = sanitize_text_field($body['og_title']);
+        $old = stb_get_social_meta($id, 'og_title');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'og_title', $new);
+            $rev_id = stb_record_revision('og_title', "post:$id", $old, $new);
+            $changes[] = ['field' => 'og_title', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['og_description'])) {
+        $new = sanitize_text_field($body['og_description']);
+        $old = stb_get_social_meta($id, 'og_description');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'og_description', $new);
+            $rev_id = stb_record_revision('og_description', "post:$id", $old, $new);
+            $changes[] = ['field' => 'og_description', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['og_image'])) {
+        // esc_url_raw, not sanitize_text_field: an og:image that is not a
+        // URL renders as a broken share card rather than no card, which
+        // is the worse of the two outcomes.
+        $new = esc_url_raw(trim((string)$body['og_image']));
+        $old = stb_get_social_meta($id, 'og_image');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'og_image', $new);
+            $rev_id = stb_record_revision('og_image', "post:$id", $old, $new);
+            $changes[] = ['field' => 'og_image', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['twitter_title'])) {
+        $new = sanitize_text_field($body['twitter_title']);
+        $old = stb_get_social_meta($id, 'twitter_title');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'twitter_title', $new);
+            $rev_id = stb_record_revision('twitter_title', "post:$id", $old, $new);
+            $changes[] = ['field' => 'twitter_title', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['twitter_description'])) {
+        $new = sanitize_text_field($body['twitter_description']);
+        $old = stb_get_social_meta($id, 'twitter_description');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'twitter_description', $new);
+            $rev_id = stb_record_revision('twitter_description', "post:$id", $old, $new);
+            $changes[] = ['field' => 'twitter_description', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['twitter_image'])) {
+        // esc_url_raw, not sanitize_text_field: an og:image that is not a
+        // URL renders as a broken share card rather than no card, which
+        // is the worse of the two outcomes.
+        $new = esc_url_raw(trim((string)$body['twitter_image']));
+        $old = stb_get_social_meta($id, 'twitter_image');
+        if ($new !== $old) {
+            stb_set_social_meta($id, 'twitter_image', $new);
+            $rev_id = stb_record_revision('twitter_image', "post:$id", $old, $new);
+            $changes[] = ['field' => 'twitter_image', 'rev_id' => $rev_id];
+        }
+    }
+
+    if (isset($body['robots'])) {
+        $new = sanitize_text_field($body['robots']);
+        $old = stb_get_robots_meta($id);
+        if ($new !== $old) {
+            stb_set_robots_meta($id, $new);
+            $rev_id = stb_record_revision('robots', "post:$id", $old, $new);
+            $changes[] = ['field' => 'robots', 'rev_id' => $rev_id];
+        }
+    }
+
     return new WP_REST_Response(['ok' => true, 'changes' => $changes]);
 }
 
@@ -477,12 +960,125 @@ function stb_rest_update_alt(WP_REST_Request $req): WP_REST_Response
     $body = $req->get_json_params() ?: [];
     $new = isset($body['alt']) ? sanitize_text_field($body['alt']) : '';
     $old = (string)get_post_meta($id, '_wp_attachment_image_alt', true);
+
+    $rev_id = null;
     if ($new !== $old) {
         update_post_meta($id, '_wp_attachment_image_alt', $new);
         $rev_id = stb_record_revision('alt', "attachment:$id", $old, $new);
-        return new WP_REST_Response(['ok' => true, 'rev_id' => $rev_id]);
     }
-    return new WP_REST_Response(['ok' => true, 'rev_id' => null, 'note' => 'no change']);
+
+    // The attachment's alt is only half the job, and for most sites it is
+    // the half that does not show.
+    //
+    // The block editor writes the <img> straight into post_content with
+    // its own alt attribute baked in. wp_get_attachment_image() reads the
+    // attachment meta; an inline <img> does not. So updating the meta
+    // alone stored the text, answered {ok: true}, read back correctly
+    // through this plugin's own /images endpoint — and left the page
+    // serving alt="". Verified on a real WordPress: the finding was
+    // reported fixed and the page was unchanged.
+    $content_changes = stb_apply_alt_to_content($id, $new);
+
+    return new WP_REST_Response([
+        'ok' => true,
+        'rev_id' => $rev_id,
+        'posts_updated' => $content_changes,
+        'note' => ($rev_id === null && !$content_changes) ? 'no change' : null,
+    ]);
+}
+
+/**
+ * Rewrite the alt attribute on inline <img> tags for one attachment.
+ *
+ * Matched by the wp-image-N class WordPress puts on every image it
+ * inserts, so this can only ever touch images that genuinely are this
+ * attachment. Nothing else about the tag is altered — not the src, not
+ * the classes, not the dimensions — because the goal is one attribute
+ * and anything broader is a way to damage a page while fixing it.
+ *
+ * The whole previous post_content is recorded, so undo is a straight
+ * put-it-back rather than an attempt to unpick individual edits. That is
+ * the same approach the internal-link inserter takes, for the same
+ * reason.
+ *
+ * Returns how many posts were changed.
+ */
+function stb_apply_alt_to_content(int $attachment_id, string $alt): int
+{
+    global $wpdb;
+
+    $needle = 'wp-image-' . $attachment_id;
+    $posts = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT ID, post_content FROM {$wpdb->posts}
+             WHERE post_status NOT IN ('trash', 'auto-draft')
+               AND post_type NOT IN ('revision', 'attachment')
+               AND post_content LIKE %s
+             LIMIT 20",
+            '%' . $wpdb->esc_like($needle) . '%',
+        ),
+    );
+    if (!$posts) {
+        return 0;
+    }
+
+    $changed = 0;
+    foreach ($posts as $row) {
+        $before = (string)$row->post_content;
+        $after = stb_rewrite_img_alt($before, $attachment_id, $alt);
+        if ($after === $before) {
+            continue;
+        }
+        wp_update_post(['ID' => (int)$row->ID, 'post_content' => $after]);
+        stb_record_revision('content', 'post:' . (int)$row->ID, $before, $after);
+        $changed++;
+    }
+    return $changed;
+}
+
+/**
+ * Set alt="..." on every <img> carrying this attachment's class.
+ *
+ * Deliberately string surgery on the one tag rather than a DOM parse of
+ * the whole document: loading post_content into DOMDocument and writing
+ * it back reformats markup the author wrote by hand, mangles block
+ * comments, and turns a one-attribute change into a whole-file diff.
+ */
+function stb_rewrite_img_alt(string $content, int $attachment_id, string $alt): string
+{
+    $class = 'wp-image-' . $attachment_id;
+    $escaped = esc_attr($alt);
+
+    return (string)preg_replace_callback(
+        '#<img\b[^>]*>#i',
+        static function (array $m) use ($class, $escaped): string {
+            $tag = $m[0];
+            // Only this attachment's images. The class check is on a word
+            // boundary so wp-image-6 never matches wp-image-60.
+            if (!preg_match('#\bclass\s*=\s*("|\')([^"\']*)\1#i', $tag, $c)) {
+                return $tag;
+            }
+            if (!preg_match('#(^|\s)' . preg_quote($class, '#') . '(\s|$)#', $c[2])) {
+                return $tag;
+            }
+            if (preg_match('#\balt\s*=\s*("|\')[^"\']*\1#i', $tag)) {
+                return (string)preg_replace(
+                    '#\balt\s*=\s*("|\')[^"\']*\1#i',
+                    'alt="' . $escaped . '"',
+                    $tag,
+                    1,
+                );
+            }
+            // No alt attribute at all — add one just before the close.
+            return (string)preg_replace(
+                '#\s*(/?)>$#',
+                ' alt="' . $escaped . '"$1>',
+                $tag,
+                1,
+            );
+        },
+        $content,
+    );
 }
 
 function stb_rest_set_schema(WP_REST_Request $req): WP_REST_Response
@@ -895,6 +1491,79 @@ function stb_link_first_text_occurrence(string $content, string $anchor, string 
     return null;
 }
 
+/**
+ * Is another SEO plugin responsible for the <head> tags?
+ *
+ * This decides whether we render a meta description and canonical
+ * ourselves. Getting it wrong in one direction prints two canonicals on
+ * a page, which is worse than none; getting it wrong in the other means
+ * the value we store is never rendered at all.
+ *
+ * Checked by class/function rather than by plugin file, because a plugin
+ * can be installed under any folder name and several of these ship
+ * renamed in hosting bundles.
+ */
+function stb_seo_plugin_active(): bool
+{
+    return defined('WPSEO_VERSION')            // Yoast
+        || class_exists('RankMath')            // Rank Math
+        || defined('AIOSEO_VERSION')           // All in One SEO
+        || defined('SEOPRESS_VERSION')         // SEOPress
+        || class_exists('The_SEO_Framework\\Load'); // The SEO Framework
+}
+
+/**
+ * Render the description and canonical we were asked to store, when
+ * nothing else will.
+ *
+ * Found by running this plugin on a real WordPress for the first time:
+ * on a site with no SEO plugin, writing a meta description stored it in
+ * three plugins' meta keys, the REST API read it back correctly, and the
+ * page served zero description tags. The canonical was worse — we wrote
+ * one pointing elsewhere and WordPress core's own rel_canonical kept
+ * winning, so the API reported a change that had no effect on anything
+ * Google sees.
+ *
+ * That is the failure this codebase keeps producing: a write that
+ * reports success and changes nothing. It was invisible from inside the
+ * app, because every layer up to and including the plugin's own response
+ * was telling the truth.
+ *
+ * Deliberately silent when an SEO plugin is active — that plugin owns
+ * these tags, it reads the same meta keys we write, and a second
+ * canonical in the head is a real problem rather than a cosmetic one.
+ */
+add_action('wp_head', 'stb_render_head_tags', 1);
+function stb_render_head_tags(): void
+{
+    if (!is_singular() || stb_seo_plugin_active()) {
+        return;
+    }
+    $id = get_the_ID();
+    if (!$id) {
+        return;
+    }
+
+    $desc = stb_get_meta_description($id);
+    if ($desc !== '') {
+        echo "\n<!-- SEO Tool -->\n<meta name=\"description\" content=\""
+            . esc_attr($desc) . "\" />\n";
+    }
+
+    $canonical = stb_get_canonical($id);
+    if ($canonical !== '') {
+        // Core's rel_canonical runs at priority 10 and would print a
+        // second one. Ours is the deliberate value, so core's comes off.
+        remove_action('wp_head', 'rel_canonical');
+        echo '<link rel="canonical" href="' . esc_url($canonical) . "\" />\n";
+    }
+
+    $robots = stb_get_robots_meta($id);
+    if ($robots !== '') {
+        echo '<meta name="robots" content="' . esc_attr($robots) . "\" />\n";
+    }
+}
+
 // Hook our schema into <head> on relevant pages
 add_action('wp_head', function () {
     if (is_singular()) {
@@ -950,6 +1619,294 @@ function stb_rest_revisions(): WP_REST_Response
     ]);
 }
 
+
+// ============================================================
+//  Site-level surfaces: robots.txt, redirects, hardening
+// ============================================================
+//
+// Each one is stored in an option and applied through a WordPress hook,
+// so nothing on disk is touched and deactivating the plugin reverts
+// every one of them at once. That matters: a plugin that edits a real
+// robots.txt file or writes .htaccess leaves its changes behind when it
+// is removed, and the person removing it usually does not know that.
+
+/**
+ * The robots.txt this plugin serves, or '' when it is not managing it.
+ *
+ * WordPress serves robots.txt virtually unless a real file exists on
+ * disk. If one does, core ignores the filter and so do we — reporting
+ * "managed" when a physical file is winning would be a lie the user
+ * could only discover by loading the URL.
+ */
+function stb_rest_get_robots_txt(WP_REST_Request $req): WP_REST_Response
+{
+    $physical = file_exists(ABSPATH . 'robots.txt');
+    return new WP_REST_Response([
+        'ok' => true,
+        'managed' => !$physical && get_option(STB_OPTION_ROBOTS, '') !== '',
+        'physical_file' => $physical,
+        'content' => (string)get_option(STB_OPTION_ROBOTS, ''),
+        'served' => $physical
+            ? (string)@file_get_contents(ABSPATH . 'robots.txt')
+            : (string)get_option(STB_OPTION_ROBOTS, ''),
+    ], 200);
+}
+
+function stb_rest_set_robots_txt(WP_REST_Request $req): WP_REST_Response
+{
+    if (file_exists(ABSPATH . 'robots.txt')) {
+        return new WP_REST_Response([
+            'ok' => false,
+            'error' => 'This site has a real robots.txt file on disk. WordPress serves that instead of anything a plugin provides, so writing here would change nothing. Edit or remove the file first.',
+        ], 409);
+    }
+
+    $body = $req->get_json_params() ?: [];
+    if (!isset($body['content'])) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'content required'], 400);
+    }
+
+    // Deliberately not sanitize_text_field: robots.txt is multi-line and
+    // that would flatten it to one line. Strip control characters other
+    // than newline and tab, and cap the length.
+    $new = (string)$body['content'];
+    $new = preg_replace('/[^\P{C}\n\t]+/u', '', $new);
+    $new = substr($new, 0, 20000);
+
+    $old = (string)get_option(STB_OPTION_ROBOTS, '');
+    if ($new === $old) {
+        return new WP_REST_Response(['ok' => true, 'changes' => []], 200);
+    }
+
+    update_option(STB_OPTION_ROBOTS, $new, false);
+    $rev_id = stb_record_revision('robots_txt', 'site:robots_txt', $old, $new);
+    return new WP_REST_Response([
+        'ok' => true,
+        'changes' => [['field' => 'robots_txt', 'rev_id' => $rev_id]],
+    ], 200);
+}
+
+/** Serve the managed robots.txt. Priority 99 so SEO plugins run first. */
+add_filter('robots_txt', 'stb_filter_robots_txt', 99, 2);
+function stb_filter_robots_txt($output, $public)
+{
+    $managed = (string)get_option(STB_OPTION_ROBOTS, '');
+    return $managed !== '' ? $managed : $output;
+}
+
+/**
+ * The redirect map: [{from, to, code}], from-paths home-relative.
+ *
+ * Stored rather than written to .htaccess so it works on nginx too, and
+ * so removing the plugin removes the redirects rather than leaving a
+ * server config nobody remembers editing.
+ */
+function stb_rest_get_redirects(WP_REST_Request $req): WP_REST_Response
+{
+    return new WP_REST_Response([
+        'ok' => true,
+        'redirects' => (array)get_option(STB_OPTION_REDIRECTS, []),
+    ], 200);
+}
+
+function stb_rest_set_redirects(WP_REST_Request $req): WP_REST_Response
+{
+    $body = $req->get_json_params() ?: [];
+    if (!isset($body['redirects']) || !is_array($body['redirects'])) {
+        return new WP_REST_Response(['ok' => false, 'error' => 'redirects array required'], 400);
+    }
+
+    $clean = [];
+    foreach ($body['redirects'] as $r) {
+        $from = isset($r['from']) ? stb_normalise_path((string)$r['from']) : '';
+        $to = isset($r['to']) ? trim((string)$r['to']) : '';
+        $code = isset($r['code']) ? (int)$r['code'] : 301;
+        if ($from === '' || $to === '') {
+            continue;
+        }
+        // A rule pointing at itself is an infinite loop the browser turns
+        // into ERR_TOO_MANY_REDIRECTS on a live page.
+        if ($from === stb_normalise_path($to)) {
+            continue;
+        }
+        if (!in_array($code, [301, 302, 307, 308], true)) {
+            $code = 301;
+        }
+        $clean[] = ['from' => $from, 'to' => esc_url_raw($to), 'code' => $code];
+    }
+
+    // Cap it. This is served on every 404 and each entry is a comparison.
+    $clean = array_slice($clean, 0, 500);
+
+    $old = (array)get_option(STB_OPTION_REDIRECTS, []);
+    if (wp_json_encode($old) === wp_json_encode($clean)) {
+        return new WP_REST_Response(['ok' => true, 'changes' => []], 200);
+    }
+
+    update_option(STB_OPTION_REDIRECTS, $clean, false);
+    $rev_id = stb_record_revision('redirects', 'site:redirects', $old, $clean);
+    return new WP_REST_Response([
+        'ok' => true,
+        'count' => count($clean),
+        'changes' => [['field' => 'redirects', 'rev_id' => $rev_id]],
+    ], 200);
+}
+
+/** Home-relative, leading slash, no query or fragment, no trailing slash. */
+function stb_normalise_path(string $url): string
+{
+    $path = parse_url(trim($url), PHP_URL_PATH);
+    if ($path === false || $path === null) {
+        $path = trim($url);
+    }
+    $path = '/' . ltrim((string)$path, '/');
+    if (strlen($path) > 1) {
+        $path = rtrim($path, '/');
+    }
+    return $path;
+}
+
+/**
+ * Apply redirects, but only where WordPress found nothing.
+ *
+ * On template_redirect and gated on is_404() so a rule can never shadow
+ * a page that exists. Somebody adding a redirect for a URL that later
+ * gets a real page would otherwise make that page permanently
+ * unreachable, with no error anywhere.
+ */
+add_action('template_redirect', 'stb_apply_redirects', 1);
+function stb_apply_redirects(): void
+{
+    if (!is_404()) {
+        return;
+    }
+    $rules = (array)get_option(STB_OPTION_REDIRECTS, []);
+    if (!$rules) {
+        return;
+    }
+    $here = stb_normalise_path($_SERVER['REQUEST_URI'] ?? '');
+    foreach ($rules as $r) {
+        if (($r['from'] ?? '') === $here) {
+            wp_redirect($r['to'], (int)($r['code'] ?? 301));
+            exit;
+        }
+    }
+}
+
+/**
+ * Hardening toggles. Each is off unless explicitly turned on, so
+ * installing the plugin changes nothing about how the site behaves.
+ */
+function stb_hardening_keys(): array
+{
+    return [
+        'disable_xmlrpc',
+        'hide_wp_version',
+        'hide_rest_discovery',
+        'disable_emoji',
+        'disable_heartbeat_frontend',
+        'noindex_author_archives',
+    ];
+}
+
+function stb_rest_get_hardening(WP_REST_Request $req): WP_REST_Response
+{
+    $saved = (array)get_option(STB_OPTION_HARDENING, []);
+    $out = [];
+    foreach (stb_hardening_keys() as $k) {
+        $out[$k] = !empty($saved[$k]);
+    }
+    return new WP_REST_Response(['ok' => true, 'hardening' => $out], 200);
+}
+
+function stb_rest_set_hardening(WP_REST_Request $req): WP_REST_Response
+{
+    $body = $req->get_json_params() ?: [];
+    $saved = (array)get_option(STB_OPTION_HARDENING, []);
+    $next = [];
+    foreach (stb_hardening_keys() as $k) {
+        $next[$k] = array_key_exists($k, $body) ? (bool)$body[$k] : !empty($saved[$k]);
+    }
+
+    $before = [];
+    foreach (stb_hardening_keys() as $k) {
+        $before[$k] = !empty($saved[$k]);
+    }
+    if (wp_json_encode($before) === wp_json_encode($next)) {
+        return new WP_REST_Response(['ok' => true, 'changes' => []], 200);
+    }
+
+    update_option(STB_OPTION_HARDENING, $next, false);
+    $rev_id = stb_record_revision('hardening', 'site:hardening', $before, $next);
+    return new WP_REST_Response([
+        'ok' => true,
+        'hardening' => $next,
+        'changes' => [['field' => 'hardening', 'rev_id' => $rev_id]],
+    ], 200);
+}
+
+function stb_hardening_on(string $key): bool
+{
+    $saved = (array)get_option(STB_OPTION_HARDENING, []);
+    return !empty($saved[$key]);
+}
+
+add_action('init', 'stb_apply_hardening', 20);
+function stb_apply_hardening(): void
+{
+    if (stb_hardening_on('disable_xmlrpc')) {
+        add_filter('xmlrpc_enabled', '__return_false');
+        // The header advertises the endpoint even when it is disabled.
+        add_filter('wp_headers', static function ($headers) {
+            unset($headers['X-Pingback']);
+            return $headers;
+        });
+    }
+
+    if (stb_hardening_on('hide_wp_version')) {
+        remove_action('wp_head', 'wp_generator');
+        add_filter('the_generator', '__return_empty_string');
+    }
+
+    if (stb_hardening_on('hide_rest_discovery')) {
+        // The link tags and headers only. The REST API itself stays on —
+        // this plugin talks to it, so disabling it would sever the
+        // connection that turned the setting on.
+        remove_action('wp_head', 'rest_output_link_wp_head', 10);
+        remove_action('template_redirect', 'rest_output_link_header', 11);
+    }
+
+    if (stb_hardening_on('disable_emoji')) {
+        remove_action('wp_head', 'print_emoji_detection_script', 7);
+        remove_action('wp_print_styles', 'print_emoji_styles');
+        remove_action('admin_print_scripts', 'print_emoji_detection_script');
+        remove_action('admin_print_styles', 'print_emoji_styles');
+        add_filter('tiny_mce_plugins', static function ($plugins) {
+            return is_array($plugins) ? array_diff($plugins, ['wpemoji']) : [];
+        });
+    }
+
+    if (stb_hardening_on('disable_heartbeat_frontend')) {
+        // Front end only. Killing it in wp-admin loses post-lock warnings
+        // and autosave, which is a real editorial regression, not a win.
+        add_action('init', static function () {
+            if (!is_admin()) {
+                wp_deregister_script('heartbeat');
+            }
+        }, 1);
+    }
+}
+
+add_filter('wp_robots', 'stb_robots_author_archives');
+function stb_robots_author_archives($robots)
+{
+    if (stb_hardening_on('noindex_author_archives') && is_author()) {
+        $robots['noindex'] = true;
+        unset($robots['index']);
+    }
+    return $robots;
+}
+
 function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
 {
     $rev_id = (int)$req['rev_id'];
@@ -972,15 +1929,35 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
     // an undo that targets the wrong object is worse than one that
     // doesn't run.
     $bits = explode(':', (string)($found['object'] ?? ''), 2);
-    if (count($bits) !== 2 || !ctype_digit($bits[1])) {
+    $site_targets = stb_site_targets();
+    $is_site = count($bits) === 2
+        && $bits[0] === 'site'
+        && array_key_exists($bits[1], $site_targets);
+
+    if (!$is_site && (count($bits) !== 2 || !ctype_digit($bits[1]))) {
         return new WP_REST_Response(
             ['ok' => false, 'error' => 'Revision refers to an object this plugin cannot identify'],
             422,
         );
     }
-    $object_id = (int)$bits[1];
+    $object_id = $is_site ? 0 : (int)$bits[1];
     $field = $found['field'];
     $previous = $found['old'];
+
+    // Site-level restore: put the option back exactly as it was. Handled
+    // before the per-post switch because these have no object id, and the
+    // guard above used to reject them outright — undo was offered in the
+    // UI for changes the plugin would then refuse to reverse.
+    if ($is_site) {
+        $option = $site_targets[$bits[1]];
+        if ($previous === '' || $previous === [] || $previous === null) {
+            delete_option($option);
+        } else {
+            update_option($option, $previous, false);
+        }
+        stb_record_revision($field, $found['object'], $found['new'], $previous);
+        return new WP_REST_Response(['ok' => true, 'undone_rev_id' => $rev_id], 200);
+    }
 
     switch ($field) {
         case 'title':
@@ -988,6 +1965,35 @@ function stb_rest_undo(WP_REST_Request $req): WP_REST_Response
             break;
         case 'meta_description':
             stb_set_meta_description($object_id, (string)$previous);
+            break;
+        case 'canonical':
+            // Added late, and only because the plugin was finally run.
+            // Without these two the switch fell through to "Unsupported
+            // field" and answered 400 — so every canonical and robots
+            // change was un-undoable while the client offered an undo
+            // button for it. Writing the value worked; taking it back
+            // did not, which is the worse half to get wrong.
+            stb_set_canonical($object_id, (string)$previous);
+            break;
+        case 'robots':
+            stb_set_robots_meta($object_id, (string)$previous);
+            break;
+        case 'og_title':
+        case 'og_description':
+        case 'og_image':
+        case 'twitter_title':
+        case 'twitter_description':
+        case 'twitter_image':
+            // One case per field rather than a fallthrough with a lookup,
+            // so this switch stays greppable — the same reason the write
+            // side is written out branch by branch.
+            //
+            // stb_set_social_meta deletes the keys for an empty value, so
+            // undoing "a tag was added to a page that had none" removes
+            // it rather than storing a blank override. Those are
+            // different states to an SEO plugin, and only one of them is
+            // what the page looked like before.
+            stb_set_social_meta($object_id, $field, (string)$previous);
             break;
         case 'alt':
             update_post_meta($object_id, '_wp_attachment_image_alt', (string)$previous);

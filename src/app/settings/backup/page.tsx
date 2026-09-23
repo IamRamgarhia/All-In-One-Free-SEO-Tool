@@ -160,7 +160,6 @@ export default async function BackupPage() {
             { href: "/backlinks/export.csv", label: "Backlinks" },
             { href: "/reports/export.csv", label: "Reports" },
             { href: "/competitors/export.csv", label: "Competitors" },
-            { href: "/content/export.csv", label: "Content" },
             { href: "/monitor/export.csv", label: "Page monitor" },
             { href: "/outreach/export.csv", label: "Outreach" },
           ].map((x) => (

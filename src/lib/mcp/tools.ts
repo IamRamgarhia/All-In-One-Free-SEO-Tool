@@ -28,6 +28,30 @@
  */
 
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import {
+  appendResearchLog,
+  getClientContext,
+  updateCuratedContext,
+  type CuratedPatch,
+} from "@/lib/client-knowledge";
+import {
+  listReviewQueue,
+  reviewCounts,
+  saveDraftReply,
+  sendReply,
+} from "@/lib/gbp-review-queue";
+import {
+  fetchGscPerformance,
+  inspectGscUrl,
+  listGscSitemaps,
+} from "@/lib/google-oauth";
+import {
+  comparableWindows,
+  comparePeriods,
+  summariseInspections,
+  topPagesByImpressions,
+  windowTotals,
+} from "@/lib/gsc-insights";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -683,4 +707,515 @@ export async function applyProposedFix(opts: {
       undoWith: `revert_agent_action with actionId ${outcome.actionId}`,
     },
   };
+}
+
+// =====================================================================
+// What we know about the business
+// =====================================================================
+
+/**
+ * Everything known about a client's business, and where each part came
+ * from.
+ *
+ * The provenance is not decoration here, it is the whole point. An
+ * assistant handed "manufacturer of adhesive tape" with no source treats
+ * a guess and a stated fact identically, and the guess is the one that
+ * produces a confident wrong title. So the read half and the curated
+ * half arrive as separate objects and stay that way.
+ */
+export async function getClientKnowledge(opts: {
+  clientId: number;
+  researchLimit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const view = await getClientContext(opts.clientId, {
+    researchLimit: Math.min(Math.max(opts.researchLimit ?? 20, 1), 50),
+  });
+
+  return {
+    ok: true,
+    data: {
+      client: { id: client.id, name: client.name, url: client.url, niche: client.niche },
+      confirmedByAPerson: view.curated
+        ? {
+            businessOverview: view.curated.businessOverview,
+            audience: view.curated.audience,
+            keyPages: view.curated.keyPages,
+            notes: view.curated.notes,
+            lastWrittenBy: view.curated.curatedBy,
+            lastWritten: freshness(view.curated.curatedAt),
+          }
+        : null,
+      readFromTheSite: view.site
+        ? {
+            howTheSiteDescribesItself: view.site.selfDescription,
+            // Confidence travels with every term. A term one heading
+            // mentioned once is not the same claim as one the nav, the
+            // title and the Product schema all agree on, and a model
+            // given a bare list cannot tell them apart.
+            products: view.site.products,
+            confidenceScale:
+              "0-100. 45 and above means more than one part of the site agreed; below that it appeared once, in one place.",
+            pagesRead: view.site.pagesRead,
+            lastRead: freshness(view.site.readAt),
+            note: view.site.note,
+          }
+        : null,
+      alreadyLookedInto: view.research.map((r) => ({
+        summary: r.summary,
+        by: r.source,
+        when: freshness(r.createdAt),
+      })),
+      note:
+        !view.curated && !view.site
+          ? "Nothing is known about this business yet. Reading the site happens during keyword discovery; anything you establish yourself, write back with update_client_knowledge so the next session does not work it out again."
+          : undefined,
+    },
+  };
+}
+
+/**
+ * Record what you concluded about the business.
+ *
+ * Writes only the half a person or an agent owns. It cannot reach the
+ * columns a site read fills, and a site read cannot reach these — which
+ * is what keeps a scheduled crawl from quietly erasing a correction
+ * somebody typed.
+ */
+export async function updateClientKnowledge(opts: {
+  clientId: number;
+  businessOverview?: string | null;
+  audience?: string | null;
+  notes?: string | null;
+  keyPages?: { url: string; why?: string }[];
+  by?: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const patch: CuratedPatch = {};
+  // Only fields actually supplied are touched. A caller that knows one
+  // thing should not have to restate the rest, and an omitted field
+  // must never read as "clear this".
+  if ("businessOverview" in opts) patch.businessOverview = trimmed(opts.businessOverview, 2000);
+  if ("audience" in opts) patch.audience = trimmed(opts.audience, 1000);
+  if ("notes" in opts) patch.notes = trimmed(opts.notes, 4000);
+  if (opts.keyPages) {
+    patch.keyPages = opts.keyPages
+      .filter((p) => typeof p.url === "string" && /^https?:\/\//i.test(p.url))
+      .slice(0, 40)
+      .map((p) => ({ url: p.url.trim(), why: trimmed(p.why, 300) ?? undefined }));
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return {
+      ok: false,
+      error:
+        "Nothing to write. Supply at least one of businessOverview, audience, notes or keyPages.",
+    };
+  }
+
+  const view = await updateCuratedContext(opts.clientId, patch, opts.by?.trim() || "mcp");
+  return {
+    ok: true,
+    data: {
+      written: Object.keys(patch),
+      confirmedByAPerson: view.curated,
+      note: "Stored. A site read will not overwrite this.",
+    },
+  };
+}
+
+/** Add a line to what has already been looked into for this client. */
+export async function logClientResearch(opts: {
+  clientId: number;
+  summary: string;
+  by?: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const line = trimmed(opts.summary, 500);
+  if (!line) return { ok: false, error: "The summary is empty." };
+
+  await appendResearchLog(opts.clientId, line, opts.by?.trim() || "mcp");
+  return {
+    ok: true,
+    data: {
+      logged: line,
+      note: "Read this back with get_client_knowledge before repeating work.",
+    },
+  };
+}
+
+/** Null for absent or blank, so a cleared field and an omitted one differ. */
+function trimmed(v: string | null | undefined, max: number): string | null {
+  if (v == null) return null;
+  const s = v.replace(/\s+/g, " ").trim().slice(0, max);
+  return s || null;
+}
+
+// =====================================================================
+// Business Profile reviews
+// =====================================================================
+
+/**
+ * The review backlog for a client's Google Business Profile.
+ *
+ * Reads what is stored, never Google. An assistant asking "what needs
+ * answering" should get the same answer the screen shows, and a live
+ * fetch here would return whatever fifty reviews the API felt like
+ * returning — a different set each call, which is not a queue.
+ *
+ * Says plainly when nothing has been pulled. Zero unanswered because
+ * everything is answered, and zero because nobody has ever looked, are
+ * the same number and opposite facts.
+ */
+export async function getReviewBacklog(opts: {
+  clientId: number;
+  filter?: "unanswered" | "drafted" | "answered" | "all";
+  limit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const counts = await reviewCounts(opts.clientId);
+  if (counts.total === 0) {
+    return {
+      ok: true,
+      data: {
+        client: { id: client.id, name: client.name },
+        reviews: [],
+        note: client.gbpLocationName
+          ? "No reviews have been pulled from Google yet. Open the review desk in the app and press 'Pull reviews'."
+          : "This client has no Business Profile listing selected, so reviews have never been pulled. That is not the same as having no reviews.",
+      },
+    };
+  }
+
+  const rows = await listReviewQueue({
+    clientId: opts.clientId,
+    filter: opts.filter ?? "unanswered",
+    limit: Math.min(Math.max(opts.limit ?? 20, 1), 100),
+  });
+
+  return {
+    ok: true,
+    data: {
+      client: { id: client.id, name: client.name },
+      counts: {
+        held: counts.total,
+        needingAReply: counts.unanswered,
+        ofThoseRatedThreeOrLess: counts.unansweredNegative,
+        draftedNotSent: counts.drafted,
+        // Named apart on purpose. A reply typed into Google's own app is
+        // a reply, and counting it as ours would let this tool claim
+        // work it did not do.
+        repliedByThisTool: counts.sentByUs,
+        repliedSomewhereElse: counts.answeredElsewhere,
+        averageRating: counts.averageRating,
+      },
+      reviews: rows.map((r) => ({
+        reviewId: r.reviewId,
+        reviewer: r.reviewerName,
+        stars: r.starRating,
+        text: r.comment,
+        left: freshness(r.createTime),
+        replyOnGoogle: r.replyComment,
+        replySentByThisTool: Boolean(r.sentAt),
+        ourUnsentDraft: r.draftReply,
+        noLongerOnGoogle: Boolean(r.removedAt),
+      })),
+      howToReply:
+        "Write the reply yourself and call reply_to_review. It goes straight to Google under the business's name, so read the review first and do not promise anything the business has not authorised.",
+    },
+  };
+}
+
+/**
+ * Publish a reply to one review.
+ *
+ * Goes live on Google immediately, under the business's name. There is
+ * no draft state here on purpose — `save_review_draft` exists for that,
+ * and collapsing the two would mean an assistant exploring the backlog
+ * could publish by accident.
+ */
+export async function replyToReview(opts: {
+  clientId: number;
+  reviewId: string;
+  text: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  const res = await sendReply({
+    clientId: opts.clientId,
+    reviewId: opts.reviewId,
+    text: opts.text,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  return {
+    ok: true,
+    data: {
+      reviewId: opts.reviewId,
+      published: true,
+      note: "Live on Google now, under the business's name. Replies can be replaced by sending another, but not withdrawn.",
+    },
+  };
+}
+
+/** Store a reply for a person to read before it is sent. */
+export async function saveReviewDraft(opts: {
+  clientId: number;
+  reviewId: string;
+  text: string;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+
+  await saveDraftReply({
+    clientId: opts.clientId,
+    reviewId: opts.reviewId,
+    text: opts.text,
+  });
+  return {
+    ok: true,
+    data: {
+      reviewId: opts.reviewId,
+      note: "Saved as a draft. Nothing has been sent — it shows in the review desk for a person to approve.",
+    },
+  };
+}
+
+// =====================================================================
+// Search Console — read live from Google, read-only
+// =====================================================================
+//
+// Modelled on the tools in mcp-gsc (MIT). Everything here reads: the
+// Google connection holds only the webmasters.readonly scope, so this
+// install cannot submit or delete a sitemap, and no tool pretends to.
+
+const DAY_MS = 86_400_000;
+const isoDaysAgo = (n: number) => new Date(Date.now() - n * DAY_MS).toISOString().slice(0, 10);
+const clamp = (n: number | undefined, fallback: number, min: number, max: number) =>
+  Math.min(Math.max(Math.trunc(n ?? fallback), min), max);
+
+async function gscClient(
+  clientId: number,
+): Promise<
+  | { error: string }
+  | { client: { id: number; name: string }; siteUrl: string }
+> {
+  const client = await resolveClient(clientId);
+  if (!client) return { error: `No client with id ${clientId}.` };
+  if (!client.gscProperty) {
+    return {
+      error: `${client.name} has no Search Console property connected, so there is nothing to read. Connect one in the app first.`,
+    };
+  }
+  return { client: { id: client.id, name: client.name }, siteUrl: client.gscProperty };
+}
+
+/**
+ * Google's index record for one URL.
+ *
+ * What Google stored at its last crawl, not a live test: a fix made
+ * yesterday does not show here until Google recrawls the page.
+ */
+export async function inspectUrl(opts: { clientId: number; url: string }): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+
+  const r = await inspectGscUrl({
+    siteUrl: g.siteUrl,
+    inspectionUrl: opts.url,
+    clientIdScope: g.client.id,
+  });
+  if (r.error) return { ok: false, error: `Search Console could not inspect ${opts.url}: ${r.error}` };
+
+  return {
+    ok: true,
+    data: {
+      ...r,
+      indexed: r.verdict === "PASS",
+      canonicalMismatch: Boolean(
+        r.googleCanonical && r.userCanonical && r.googleCanonical !== r.userCanonical,
+      ),
+      lastCrawled: r.lastCrawlTime
+        ? freshness(new Date(r.lastCrawlTime))
+        : "no successful crawl on record",
+      provenance:
+        "Google's URL Inspection API: the index record from Google's last crawl, not a live test of the page as it is now.",
+    },
+  };
+}
+
+/**
+ * Inspect the pages Google shows most and sort them by what is wrong.
+ *
+ * One at a time. Google allows 600 inspections a minute and 2,000 a day
+ * per property, so twenty in a row is well inside both, and running them
+ * in parallel would save seconds at the cost of a quota error mid-audit.
+ */
+export async function checkIndexing(opts: { clientId: number; limit?: number }): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+  const n = clamp(opts.limit, 10, 1, 20);
+
+  let pages: string[];
+  try {
+    const rows = await fetchGscPerformance({
+      siteUrl: g.siteUrl,
+      startDate: isoDaysAgo(30),
+      endDate: isoDaysAgo(1),
+      dimensions: ["page"],
+      rowLimit: 1000,
+      clientIdScope: g.client.id,
+    });
+    pages = topPagesByImpressions(rows, n);
+  } catch (err) {
+    return { ok: false, error: `Search Console performance query failed: ${(err as Error).message}` };
+  }
+
+  if (pages.length === 0) {
+    return {
+      ok: true,
+      data: {
+        client: g.client,
+        audit: null,
+        note: "No page had impressions in Search Console over the last 30 days, so there was nothing to inspect. That says nothing either way about whether pages are indexed.",
+      },
+    };
+  }
+
+  const results = [];
+  for (const url of pages) {
+    results.push(
+      await inspectGscUrl({ siteUrl: g.siteUrl, inspectionUrl: url, clientIdScope: g.client.id }),
+    );
+  }
+
+  return {
+    ok: true,
+    data: {
+      client: g.client,
+      selection: `The ${pages.length} pages with the most Search Console impressions over the last 30 days.`,
+      audit: summariseInspections(results),
+      quota: "Each page inspected counts against Google's limit of 2,000 URL inspections a day per property.",
+      provenance: "Google's URL Inspection API, read live on this call: index records from Google's last crawl of each page.",
+    },
+  };
+}
+
+/**
+ * Two back-to-back periods from Search Console, with the rows that moved
+ * most. See gsc-insights.ts for why the windows end on the newest
+ * finished day and why totals come from daily rows.
+ */
+export async function compareSearchPeriods(opts: {
+  clientId: number;
+  days?: number;
+  dimension?: "query" | "page";
+  limit?: number;
+}): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+  const days = clamp(opts.days, 28, 1, 180);
+  const dimension = opts.dimension === "page" ? "page" : "query";
+  const limit = clamp(opts.limit, 10, 1, 50);
+  const ROW_CAP = 5000;
+
+  try {
+    const lookback = 2 * days + 7;
+    const dateRows = await fetchGscPerformance({
+      siteUrl: g.siteUrl,
+      startDate: isoDaysAgo(lookback),
+      endDate: isoDaysAgo(0),
+      dimensions: ["date"],
+      rowLimit: 1000,
+      dataState: "final",
+      clientIdScope: g.client.id,
+    });
+    const windows = comparableWindows(
+      dateRows.map((r) => r.keys[0]),
+      days,
+    );
+    if (!windows) {
+      return {
+        ok: true,
+        data: {
+          client: g.client,
+          note: `Search Console returned no finished days with impressions in the last ${lookback} days, so there is nothing to compare.`,
+        },
+      };
+    }
+
+    const rowsFor = (w: { start: string; end: string }) =>
+      fetchGscPerformance({
+        siteUrl: g.siteUrl,
+        startDate: w.start,
+        endDate: w.end,
+        dimensions: [dimension],
+        rowLimit: ROW_CAP,
+        dataState: "final",
+        clientIdScope: g.client.id,
+      });
+    const [current, previous] = await Promise.all([
+      rowsFor(windows.current),
+      rowsFor(windows.previous),
+    ]);
+
+    const notes = [
+      `Both periods are ${days} days and end on ${windows.current.end}, the newest day Search Console had finished processing. Days still being counted are left out, because they read as a drop.`,
+      dimension === "query"
+        ? "Totals come from daily figures and include anonymised queries; query rows leave those out, so the rows will not add up to the totals."
+        : "Totals are per site and page rows per URL, so the page rows will not add up exactly to the totals.",
+    ];
+    if (current.length === ROW_CAP || previous.length === ROW_CAP) {
+      notes.push(
+        `A period reached the ${ROW_CAP.toLocaleString()}-row limit, so a ${dimension} near the bottom can show as new or lost when it only fell outside the limit.`,
+      );
+    }
+
+    return {
+      ok: true,
+      data: {
+        client: g.client,
+        dimension,
+        current: windowTotals(dateRows, windows.current),
+        previous: windowTotals(dateRows, windows.previous),
+        ...comparePeriods(current, previous, limit),
+        notes,
+        provenance: "Google Search Console Search Analytics API, finished days only, read live on this call.",
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `Search Console query failed: ${(err as Error).message}` };
+  }
+}
+
+/** Sitemaps submitted in Search Console, as Google last read them. */
+export async function listSitemaps(opts: { clientId: number }): Promise<McpToolResult> {
+  const g = await gscClient(opts.clientId);
+  if ("error" in g) return { ok: false, error: g.error };
+  try {
+    const sitemaps = await listGscSitemaps({ siteUrl: g.siteUrl, clientIdScope: g.client.id });
+    return {
+      ok: true,
+      data: {
+        client: g.client,
+        sitemaps,
+        ...(sitemaps.length === 0
+          ? { note: "No sitemaps are submitted for this property in Search Console." }
+          : {}),
+        provenance:
+          "Search Console's sitemaps report. Google marks the API's per-sitemap indexed count as deprecated, so only submitted URLs are given — use check_indexing or inspect_url for what is indexed.",
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `Search Console sitemaps query failed: ${(err as Error).message}` };
+  }
 }

@@ -470,13 +470,71 @@ async function main() {
   } else {
     bad("run_agent does not mention autonomy", "the model will assume it can write");
   }
-  const writeTools = tools.filter((t) =>
-    /^(set|write|update|edit)_/.test(t.name),
+  // The invariant: nothing here may change the customer's WEBSITE except
+  // through the agent, so autonomy levels, caps, cooldowns and the
+  // recorded undo all still apply.
+  //
+  // Matched on the name rather than on what the handler does, because a
+  // name is what a reviewer sees and a heuristic that fails loudly on a
+  // new `set_title` is worth more than a precise one nobody maintains.
+  //
+  // The exemptions below write to this install's own notes about a
+  // client — never to their site — and are listed one by one so adding
+  // to the list is a decision somebody makes on purpose. A tool that
+  // edits a live page cannot be added here without it being obvious in
+  // review what is being claimed.
+  const LOCAL_ONLY_WRITERS = new Set([
+    "update_client_knowledge",
+    // Stores a reply for a person to read. Sends nothing.
+    "save_review_draft",
+  ]);
+
+  // Publishes to a public surface that is NOT the customer's website,
+  // and therefore does not belong to the agent's gates.
+  //
+  // Listed rather than allowed by naming, because "it did not match the
+  // regex" is not a safety property. A Business Profile reply goes out
+  // under the business's name and cannot be withdrawn, only replaced —
+  // so its gate is that a person calls it deliberately, and its tool
+  // description has to say both of those things or the gate is not real.
+  const PUBLIC_WRITERS = new Set(["reply_to_review"]);
+  for (const name of PUBLIC_WRITERS) {
+    const t = tools.find((x) => x.name === name);
+    if (!t) {
+      bad("PUBLIC WRITER IS NOT REGISTERED", name);
+    } else if (/cannot be withdrawn/i.test(t.description) && /ask the user/i.test(t.description)) {
+      ok(`${name} warns that it is public and irreversible`);
+    } else {
+      bad(
+        "PUBLIC WRITER DOES NOT SAY SO",
+        `${name} publishes under the business's name and its description does not warn about it`,
+      );
+    }
+  }
+
+  const writeTools = tools.filter(
+    (t) =>
+      /^(set|write|update|edit|publish|send|post|reply)_|_to_review$/.test(t.name) &&
+      !LOCAL_ONLY_WRITERS.has(t.name) &&
+      !PUBLIC_WRITERS.has(t.name),
   );
   if (writeTools.length === 0) {
-    ok("no direct field-writing tools exist", "every change goes through the agent");
+    ok(
+      "no tool edits the live site directly",
+      "every change to their website goes through the agent",
+    );
   } else {
     bad("DIRECT WRITE TOOLS BYPASS THE AGENT", writeTools.map((t) => t.name).join(","));
+  }
+  // And the exemption itself has to stay real: a name on that list which
+  // no longer exists is a hole nobody would notice.
+  const stale = [...LOCAL_ONLY_WRITERS].filter(
+    (n) => !tools.some((t) => t.name === n),
+  );
+  if (stale.length === 0) {
+    ok("every exempted tool still exists", "the exemption list is not hiding a gap");
+  } else {
+    bad("EXEMPTION LIST IS STALE", stale.join(","));
   }
 
   const run = payload(
@@ -496,6 +554,153 @@ async function main() {
     ok("explains why nothing was applied", String(run.json.autonomyMeans).slice(0, 54));
   } else {
     bad("no explanation — 'applied: 0' reads as a malfunction");
+  }
+
+  section("What we know about the business — and where it came from");
+
+  const emptyKnowledge = payload(
+    await send("tools/call", {
+      name: "get_client_knowledge",
+      arguments: { clientId: client.id },
+    }),
+  );
+  if (typeof emptyKnowledge.json?.note === "string") {
+    ok("says nothing is known yet", String(emptyKnowledge.json.note).slice(0, 52));
+  } else {
+    bad(
+      "EMPTY CONTEXT READS AS A COMPLETE ANSWER",
+      "a model cannot tell 'unknown' from 'nothing to know'",
+    );
+  }
+
+  const written = payload(
+    await send("tools/call", {
+      name: "update_client_knowledge",
+      arguments: {
+        clientId: client.id,
+        businessOverview: "Industrial adhesive tape manufacturer. Not a retailer.",
+        by: "mcp-check",
+      },
+    }),
+  );
+  if (written.json && !written.isError) {
+    ok("records what the caller established");
+  } else {
+    bad("COULD NOT WRITE WHAT THE CALLER LEARNED", written.text.slice(0, 80));
+  }
+
+  const readBack = payload(
+    await send("tools/call", {
+      name: "get_client_knowledge",
+      arguments: { clientId: client.id },
+    }),
+  );
+  const confirmed = readBack.json?.confirmedByAPerson as
+    | { businessOverview?: string; lastWrittenBy?: string }
+    | null
+    | undefined;
+  if (confirmed?.businessOverview?.includes("Not a retailer")) {
+    ok("reads it back", "the next session does not work it out again");
+  } else {
+    bad("WROTE AND LOST IT", JSON.stringify(readBack.json).slice(0, 90));
+  }
+  // Provenance is the whole reason this tool exists. A model handed a
+  // bare fact cannot tell a person's correction from a crawler's guess,
+  // and the guess is the one that produces a confident wrong title.
+  if (confirmed?.lastWrittenBy === "mcp-check") {
+    ok("says who established it", "a correction outranks an inference");
+  } else {
+    bad("NO PROVENANCE", "a stated fact and a guess read identically");
+  }
+  if ("readFromTheSite" in (readBack.json ?? {})) {
+    ok("keeps what the site said separate from what a person said");
+  } else {
+    bad("THE TWO HALVES ARE MERGED", "there is no way to tell them apart");
+  }
+
+  const logged = payload(
+    await send("tools/call", {
+      name: "log_client_research",
+      arguments: {
+        clientId: client.id,
+        summary: "Checked the tape range against the site. Four product families.",
+        by: "mcp-check",
+      },
+    }),
+  );
+  const afterLog = payload(
+    await send("tools/call", {
+      name: "get_client_knowledge",
+      arguments: { clientId: client.id },
+    }),
+  );
+  const log = (afterLog.json?.alreadyLookedInto ?? []) as { summary?: string }[];
+  if (!logged.isError && log.some((e) => e.summary?.includes("Four product families"))) {
+    ok("logs what has already been looked into", "so it is not looked into twice");
+  } else {
+    bad("RESEARCH LOG DID NOT PERSIST", logged.text.slice(0, 80));
+  }
+
+  const emptyWrite = payload(
+    await send("tools/call", {
+      name: "update_client_knowledge",
+      arguments: { clientId: client.id },
+    }),
+  );
+  if (emptyWrite.isError) {
+    ok("refuses a write with nothing in it", emptyWrite.text.slice(0, 46));
+  } else {
+    bad("ACCEPTED AN EMPTY WRITE", "reports success having stored nothing");
+  }
+
+  section("Business Profile reviews");
+
+  const backlog = payload(
+    await send("tools/call", {
+      name: "get_review_backlog",
+      arguments: { clientId: client.id },
+    }),
+  );
+  // Zero because everything is answered, and zero because nobody has
+  // ever looked, are the same number and opposite facts. An assistant
+  // that cannot tell them apart will report a clean slate for a business
+  // whose reviews have never been fetched.
+  if (typeof backlog.json?.note === "string" && /never|no reviews/i.test(String(backlog.json.note))) {
+    ok("says nothing has been pulled", String(backlog.json.note).slice(0, 56));
+  } else {
+    bad(
+      "EMPTY BACKLOG READS AS 'ALL ANSWERED'",
+      JSON.stringify(backlog.json).slice(0, 90),
+    );
+  }
+
+  const backlogTool = tools.find((t) => t.name === "get_review_backlog");
+  if (backlogTool && /typed into google/i.test(backlogTool.description)) {
+    ok("distinguishes our replies from the owner's", "in the tool description");
+  } else {
+    bad(
+      "NO DISTINCTION BETWEEN OUR REPLIES AND ANYONE ELSE'S",
+      "the tool can claim credit for work it did not do",
+    );
+  }
+
+  const draftTool = tools.find((t) => t.name === "save_review_draft");
+  if (draftTool && /sends nothing/i.test(draftTool.description)) {
+    ok("offers a draft path that publishes nothing");
+  } else {
+    bad("NO DRAFT PATH", "the only way to write a reply is to publish it");
+  }
+
+  const badReply = payload(
+    await send("tools/call", {
+      name: "reply_to_review",
+      arguments: { clientId: client.id, reviewId: "does-not-exist", text: "Thanks!" },
+    }),
+  );
+  if (badReply.isError) {
+    ok("refuses a review it does not hold", badReply.text.slice(0, 46));
+  } else {
+    bad("CLAIMED TO REPLY TO A REVIEW THAT DOES NOT EXIST", badReply.text.slice(0, 80));
   }
 
   section("Failures are readable");

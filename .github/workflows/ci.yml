@@ -65,6 +65,45 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # The WordPress plugin, actually executed.
+      #
+      # It runs inside other people's live sites and had never been run
+      # anywhere — every claim about it came from reading it, which is how
+      # it came to ignore the canonical field for months while answering
+      # {ok: true}. The first time it was executed it turned up a second
+      # one: canonical and robots changes could be written but not undone,
+      # because the undo switch had no case for either.
+      #
+      # A parse error here is a white screen on somebody's business rather
+      # than a red build, so this runs on every push.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Test WordPress plugin
+        run: |
+          php -l wordpress-plugin/seo-tool-bridge.php
+          pnpm test:php
+
+      # The crawler, run against a site built to be broken.
+      #
+      # Everything else about the audit is checked by comparing lists of
+      # finding names to each other, which catches drift and would not
+      # catch the crawler quietly failing to notice a missing title. This
+      # serves 21 pages that each break one rule and asserts the engine
+      # finds exactly what each page declares — no more, because a page
+      # built to have one problem that reports three has two false
+      # positives.
+      #
+      # It found three real bugs on its first run: heading order could
+      # not see a skipped level, the private-host allowance never reached
+      # the broken-link checker, and a site's own home page was reported
+      # as an orphan whenever the URL was typed without a trailing slash.
+      - name: Test the crawler against the fixture site
+        run: pnpm test:fixtures
+
       # Runs migrations against a scratch DB then builds. Catches both
       # broken migrations and any module that fails to resolve.
       - name: Build
@@ -229,6 +268,36 @@ jobs:
       # exactly like a real one.
       - name: MCP server
         run: pnpm exec tsx scripts/mcp-check.ts
+
+      # The remote transport, driven by a real MCP client over HTTP.
+      #
+      # The stdio check above exercises the handlers; it cannot say
+      # whether the route, the bearer check or the Origin refusal work,
+      # and it cannot catch the two servers drifting apart. This script
+      # existed but was never wired in, and the first run of it found
+      # exactly that kind of rot: it asserted "12 tools" while 22 were
+      # registered.
+      - name: MCP over HTTP (real server, scratch DB)
+        run: |
+          export SEO_DB_PATH="${{ runner.temp }}/mcp-http.db"
+          export SEO_DATA_DIR="${{ runner.temp }}"
+          node scripts/migrate.cjs
+          TOKENS=$(node -e 'const D=require("better-sqlite3");const c=require("crypto");const db=new D(process.env.SEO_DB_PATH);const put=db.prepare("INSERT OR REPLACE INTO workspace_settings (key, value, updated_at) VALUES (?, ?, ?)");const now=Math.floor(Date.now()/1000);const full=c.randomBytes(24).toString("hex");const ro=c.randomBytes(24).toString("hex");put.run("mcp.access_token", JSON.stringify(full), now);put.run("mcp.readonly_token", JSON.stringify(ro), now);process.stdout.write(full+" "+ro);')
+          set -- $TOKENS
+          TOKEN=$1
+          READ_ONLY_TOKEN=$2
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$READ_ONLY_TOKEN"
+          PORT=63140 pnpm start &
+          server=$!
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:63140/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          pnpm exec tsx scripts/mcp-http-check.ts "$TOKEN" "$READ_ONLY_TOKEN"
+          status=$?
+          kill $server 2>/dev/null || true
+          exit $status
 
       # The plugin's own PHP, actually executed.
       #

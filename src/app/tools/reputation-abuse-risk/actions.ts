@@ -4,7 +4,8 @@ import {
   runReputationAbuseScan,
   type RiskReport,
 } from "@/lib/reputation-abuse-risk";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { reputationRiskFindings } from "@/lib/tool-finding-builders";
 
 export type ScanState =
   | { ok: true; report: RiskReport }
@@ -25,12 +26,13 @@ export async function scanForRisk(
   }
   try {
     const report = await runReputationAbuseScan(parsed.toString(), 30);
-    await saveToolRun({
+    await recordToolRun({
       toolId: "reputation-abuse-risk",
       label: `${report.domain} · overall ${report.overall} · ${report.sections.length} sections`,
       input: { url: parsed.toString() },
       result: { ok: true, report },
-    }).catch(() => undefined);
+      findings: reputationRiskFindings(report),
+    });
     return { ok: true, report };
   } catch (e) {
     return {

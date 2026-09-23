@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const timestamps = {
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -28,6 +28,15 @@ export const clients = sqliteTable("clients", {
   email: text("email"),
   socialLinks: text("social_links", { mode: "json" }).$type<ClientSocialLinks>(),
   gbpUrl: text("gbp_url"),
+  /**
+   * The chosen Business Profile location: accounts/{a}/locations/{l}.
+   *
+   * Null until somebody picks one. The connected path used to resolve
+   * "first account, first location" on every call, which is right for
+   * one business with one listing and quietly wrong for anyone with
+   * two — replies would go wherever Google happened to list first.
+   */
+  gbpLocationName: text("gbp_location_name"),
   // Targeting — every recommendation, rank check, SERP scan, autocomplete
   // fan-out, and citation suggestion uses these. country defaults to "US"
   // for back-compat with rows created before this column existed.
@@ -45,8 +54,21 @@ export const clients = sqliteTable("clients", {
   serviceRadiusKm: integer("service_radius_km"),
   /** Onboarding state machine — once "completed", the wizard hides. */
   onboardingStep: text("onboarding_step", {
-    enum: ["pending", "brand", "keywords", "targeting", "completed"],
+    enum: ["pending", "brand", "keywords", "targeting", "surfaces", "completed"],
   }).default("pending"),
+  /**
+   * Where we work for this client — website, local, e-commerce, content,
+   * links, AI search. See lib/engagement-surfaces.ts.
+   *
+   * Null means never asked, and reads back as the niche's default rather
+   * than as an empty scope; an empty array is a real answer meaning the
+   * user unticked everything. The client's approval document renders
+   * both what is in scope and what explicitly is not, and the latter is
+   * only honest if "not chosen" and "chosen against" stay distinct.
+   */
+  surfacesJson: text("surfaces_json", { mode: "json" }).$type<
+    string[] | null
+  >(),
   /** Generated 30-day plan timestamp — null = not generated yet. */
   planGeneratedAt: integer("plan_generated_at", { mode: "timestamp" }),
   // Google integrations — paired against the Google account connected
@@ -162,6 +184,17 @@ export const tasks = sqliteTable("tasks", {
   title: text("title").notNull(),
   description: text("description"),
   whyItMatters: text("why_it_matters"),
+  /**
+   * Where in the app to go and do this.
+   *
+   * The plan generator knows which tool each task needs and was writing
+   * it into the description as the string "Open: /tools/schema" — a
+   * working link rendered as prose, which the reader then had to retype.
+   * Its own column rather than parsed back out, because a description is
+   * free text somebody can edit and a link that breaks when they reword
+   * their own note is worse than no link.
+   */
+  toolPath: text("tool_path"),
   priority: text("priority", { enum: ["high", "medium", "low"] })
     .notNull()
     .default("medium"),
@@ -722,6 +755,14 @@ export const monitoredPages = sqliteTable("monitored_pages", {
   lastH1: text("last_h1"),
   lastCanonical: text("last_canonical"),
   lastContentHash: text("last_content_hash"),
+  /**
+   * Null on rows snapshotted before status, robots and structured data
+   * were recorded; see diffSnapshots in lib/page-monitor.ts.
+   */
+  lastStatus: integer("last_status"),
+  lastRobots: text("last_robots"),
+  lastSchemaTypes: text("last_schema_types"),
+  lastSchemaHash: text("last_schema_hash"),
   lastCheckedAt: integer("last_checked_at", { mode: "timestamp" }),
   ...timestamps,
 });
@@ -732,8 +773,10 @@ export const pageChanges = sqliteTable("page_changes", {
     .notNull()
     .references(() => monitoredPages.id, { onDelete: "cascade" }),
   field: text("field", {
-    enum: ["title", "description", "h1", "canonical", "content"],
+    enum: ["status", "title", "description", "h1", "canonical", "robots", "schema", "content"],
   }).notNull(),
+  /** Null on changes recorded before severity existed. */
+  severity: text("severity", { enum: ["critical", "warning", "info"] }),
   oldValue: text("old_value"),
   newValue: text("new_value"),
   detectedAt: integer("detected_at", { mode: "timestamp" })
@@ -799,6 +842,19 @@ export const backlinks = sqliteTable("backlinks", {
   method: text("method"),
   /** Whether the link is dofollow / nofollow / sponsored / ugc — best guess. */
   rel: text("rel"),
+  /**
+   * Consecutive checks that failed to find the link on the source page.
+   *
+   * A link is only marked lost after more than one miss. One miss is not
+   * evidence: the source may be JS-rendered, behind a consent wall, or
+   * temporarily serving a bot-block page, and every one of those looks
+   * identical to a link that was removed. Flagging on the first miss
+   * fabricated a lost link, a high-priority recovery task, and a line in
+   * the client's report saying work had been undone that never was.
+   *
+   * Reset to zero the moment the link is seen again.
+   */
+  missStreak: integer("miss_streak").notNull().default(0),
   /** Date the user actually placed the link (vs when our tool first saw it). */
   placedAt: integer("placed_at", { mode: "timestamp" }),
   firstSeen: integer("first_seen", { mode: "timestamp" })
@@ -1136,6 +1192,18 @@ export const botLogUploads = sqliteTable("bot_log_uploads", {
   /** JSON object: { "GPTBot": 412, "ClaudeBot": 117, … } */
   botCounts: text("bot_counts", { mode: "json" }).$type<
     Record<string, number>
+  >(),
+  /**
+   * For each crawler that publishes its address ranges, how many of its
+   * hits came from inside them. botCounts is what user agents claimed;
+   * this is how much of it checked out. See lib/crawler-verify.ts. Null
+   * for uploads from before the check existed.
+   */
+  botVerification: text("bot_verification", { mode: "json" }).$type<
+    Record<
+      string,
+      { verified: number; unverified: number; noAddress: number; listError?: string }
+    >
   >(),
   uploadedAt: integer("uploaded_at", { mode: "timestamp" })
     .notNull()
@@ -2219,6 +2287,50 @@ export const proposals = sqliteTable("proposals", {
   >(),
   currency: text("currency").notNull().default("USD"),
   terms: text("terms"),
+  /**
+   * Where the client's keywords stood when this document was written.
+   *
+   * Frozen deliberately rather than recomputed at render time: this is
+   * the starting line the client signs off on, so it has to keep saying
+   * what it said on the day. Recomputed, it would quietly track the
+   * present and the first monthly report would have nothing to show
+   * improvement against.
+   */
+  baselineJson: text("baseline_json", { mode: "json" }).$type<{
+    tracked: number;
+    ranking: number;
+    inTopTen: number;
+    strikingDistance: number;
+    examples: { keyword: string; position: number | null }[];
+    /**
+     * The keyword list the client actually reads, frozen with the rest.
+     * Optional because documents built before this existed have counts
+     * and no list, and those must keep rendering.
+     */
+    map?: {
+      keyword: string;
+      intent: string;
+      position: number | null;
+      targetPage: string | null;
+    }[];
+  } | null>(),
+  /** The week-by-week plan being approved. Frozen for the same reason. */
+  timelineJson: text("timeline_json", { mode: "json" }).$type<
+    { week: string; focus: string; items: string[]; phase?: string }[] | null
+  >(),
+  /**
+   * What the client is agreeing we will work on, frozen at the moment
+   * they were sent it.
+   *
+   * Deliberately not the same field as `scopeJson`. That one is work
+   * derived from audit findings ("Technical fixes — 14 findings") and
+   * changes as the site does. This is the engagement's boundary, and it
+   * has to still say what they agreed to a month later even after the
+   * findings have all been fixed.
+   */
+  surfacesJson: text("surfaces_json", { mode: "json" }).$type<
+    string[] | null
+  >(),
   /** The audit this was built from, so the document can cite its basis. */
   auditId: integer("audit_id").references(() => audits.id, {
     onDelete: "set null",
@@ -2239,3 +2351,164 @@ export const proposals = sqliteTable("proposals", {
     .default(sql`(unixepoch())`),
 });
 export type Proposal = typeof proposals.$inferSelect;
+
+/**
+ * What we know about a client's business, kept between runs.
+ *
+ * Every part of this tool that needs to know what a business sells has
+ * been working it out again from scratch, every time, and getting a
+ * different answer. Keyword discovery reads the site. The title drafter
+ * reads the `description` column. The niche is whatever somebody picked
+ * from a dropdown in ten seconds. On one real client those three
+ * disagreed: the dropdown said local, the site says manufacturer, and
+ * the drafter — seeing only a title tag that reads "Home Page" — wrote
+ * headlines for a mobile game that shares two words with the company.
+ *
+ * Two halves, kept apart on purpose.
+ *
+ *   The `read*` columns are what the site said, machine-read, replaced
+ *   wholesale by the next read.
+ *
+ *   The rest is what a person or an agent concluded, and a read must
+ *   never overwrite it. Somebody who corrects "we are not a retailer"
+ *   should not have that erased by a crawl at 3am, and an agent that
+ *   cannot tell a fact it was told from a fact it inferred will keep
+ *   re-inferring the thing it was corrected on.
+ */
+export const clientContext = sqliteTable("client_context", {
+  clientId: integer("client_id")
+    .primaryKey()
+    .references(() => clients.id, { onDelete: "cascade" }),
+
+  // --- Read off the site. Overwritten by each read. ---
+  /** Homepage `<title>` and meta description, verbatim. */
+  selfDescription: text("self_description"),
+  /** Terms the site uses for what it sells, most corroborated first. */
+  products: text("products", { mode: "json" }).$type<ContextProduct[]>(),
+  pagesRead: integer("pages_read"),
+  urlsRead: text("urls_read", { mode: "json" }).$type<string[]>(),
+  readAt: integer("read_at", { mode: "timestamp" }),
+  /** Why the read produced nothing, when it produced nothing. */
+  readNote: text("read_note"),
+
+  // --- Written by a person or an agent. A read never touches these. ---
+  businessOverview: text("business_overview"),
+  audience: text("audience"),
+  keyPages: text("key_pages", { mode: "json" }).$type<ContextKeyPage[]>(),
+  notes: text("notes"),
+  curatedAt: integer("curated_at", { mode: "timestamp" }),
+  /** Who last wrote the curated half: "app", "agent", or an MCP client. */
+  curatedBy: text("curated_by"),
+
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type ClientContext = typeof clientContext.$inferSelect;
+
+export type ContextProduct = {
+  term: string;
+  /** 0-100. Above 45 means more than one part of the site agreed. */
+  confidence: number;
+  sources: string[];
+};
+
+export type ContextKeyPage = {
+  url: string;
+  /** Why this page matters, in the words of whoever added it. */
+  why?: string;
+};
+
+/**
+ * What has already been looked into, so it is not looked into again.
+ *
+ * Append-only. An agent asked the same question about the same client in
+ * three sessions running will otherwise re-run the same crawl, the same
+ * SERP checks and the same AI calls, and on an install with a spend cap
+ * that is the cap gone on work already done. Reading this first is
+ * cheaper than every tool it saves.
+ */
+export const clientResearchLog = sqliteTable("client_research_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  /** One line: what was looked into and what it concluded. */
+  summary: text("summary").notNull(),
+  /** "app", "agent", or the MCP client's name. */
+  source: text("source"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+export type ClientResearchLogEntry = typeof clientResearchLog.$inferSelect;
+
+/**
+ * Reviews on a client's Google Business Profile, kept.
+ *
+ * They were fetched live on every page load and never stored, which
+ * looked fine and quietly cost four things: there was no durable queue
+ * of what still needs answering, no record that we answered it, no way
+ * for a report or the agent to see any of it, and a reply drafted but
+ * not yet sent was lost the moment the page reloaded.
+ *
+ * `replyComment` and `sentAt` are deliberately separate. The first is
+ * whatever reply is live on Google right now, which may have been typed
+ * by the owner in Google's own interface; the second is only set when
+ * this tool sent it. Collapsing them into one "replied" flag would make
+ * the tool claim credit for work somebody else did, and — worse — would
+ * make "we have answered everything" unfalsifiable.
+ */
+export const gbpReviews = sqliteTable(
+  "gbp_reviews",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    clientId: integer("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    /** Format: accounts/{account}/locations/{location} */
+    locationName: text("location_name").notNull(),
+    /** Google's id for the review, unique within a location. */
+    reviewId: text("review_id").notNull(),
+    reviewerName: text("reviewer_name"),
+    reviewerPhotoUrl: text("reviewer_photo_url"),
+    /** 1-5, or null when Google sent something unparseable. */
+    starRating: integer("star_rating"),
+    comment: text("comment"),
+    createTime: integer("create_time", { mode: "timestamp" }),
+    updateTime: integer("update_time", { mode: "timestamp" }),
+
+    /** The reply live on Google now, whoever wrote it. */
+    replyComment: text("reply_comment"),
+    replyUpdateTime: integer("reply_update_time", { mode: "timestamp" }),
+
+    /** Written by us, not yet on Google. Survives a page reload. */
+    draftReply: text("draft_reply"),
+    draftedAt: integer("drafted_at", { mode: "timestamp" }),
+    /** Only set when this tool sent the reply. See the note above. */
+    sentAt: integer("sent_at", { mode: "timestamp" }),
+
+    /**
+     * Set when a complete sync no longer saw this review — the reviewer
+     * deleted it, or Google removed it. Kept rather than deleted so the
+     * reply we sent does not vanish from the record with it.
+     *
+     * Only ever set by a sync that paged to the end. A partial fetch
+     * cannot tell "gone" from "on a page I did not read", and marking
+     * the difference would empty the queue of everything but the most
+     * recent fifty.
+     */
+    removedAt: integer("removed_at", { mode: "timestamp" }),
+
+    firstSeenAt: integer("first_seen_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    lastSyncedAt: integer("last_synced_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex("gbp_reviews_client_review_idx").on(t.clientId, t.reviewId),
+  ],
+);
+export type GbpReviewRow = typeof gbpReviews.$inferSelect;

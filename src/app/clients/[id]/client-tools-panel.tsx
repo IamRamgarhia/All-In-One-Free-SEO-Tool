@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ClientToolsSidebar } from "./client-tools-sidebar";
 import { ClientToolDrawer } from "./client-tool-drawer";
 import type { ClientToolsClient } from "./client-tools-launcher";
+import type { SurfaceId } from "@/lib/engagement-surfaces";
 
 export type OpenToolState = { url: string; title: string };
 
@@ -16,13 +17,29 @@ export type OpenToolState = { url: string; title: string };
  * follows the link to the standalone tool page — preserves the user's
  * ability to fan out into multiple browser tabs when they want to.
  */
-export function ClientToolsPanel({ client }: { client: ClientToolsClient }) {
+export function ClientToolsPanel({
+  client,
+  hasAiKey = false,
+  surfaces,
+}: {
+  client: ClientToolsClient;
+  /** The engagement's agreed scope, which orders the rail. */
+  surfaces?: SurfaceId[];
+  /**
+   * Passed straight through to the rail so its dots can tell ready from
+   * blocked. Read server-side on the client page; a connected chat
+   * subscription is not a key and does not count.
+   */
+  hasAiKey?: boolean;
+}) {
   const [openTool, setOpenTool] = useState<OpenToolState | null>(null);
 
   return (
     <>
       <ClientToolsSidebar
         client={client}
+        hasAiKey={hasAiKey}
+        surfaces={surfaces}
         onOpenTool={(t) => setOpenTool(t)}
       />
       {openTool && (

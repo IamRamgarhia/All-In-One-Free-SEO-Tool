@@ -12,6 +12,7 @@
  */
 
 import {
+  ExternalLink,
   Activity,
   Bot,
   Building,
@@ -19,11 +20,11 @@ import {
   FileDown,
   FileSignature,
   FileStack,
-  FileText,
   Gauge,
   GitCompare,
   GitMerge,
   Globe,
+  BookOpen,
   GraduationCap,
   History,
   ImageIcon,
@@ -44,7 +45,6 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
-  TrendingDown,
   Users,
   Wand2,
   Workflow,
@@ -66,6 +66,15 @@ export type NavItem = {
    * (or back). Settings → UI mode is the explicit knob.
    */
   guided?: boolean;
+  /**
+   * Opens in a new tab and is never treated as the current page.
+   *
+   * Exists for one entry: content writing moved out of this app into
+   * BlogPilot. Silently deleting the Content section would have left
+   * people hunting for a feature that used to be there, so it points at
+   * where the feature went instead.
+   */
+  external?: boolean;
 };
 
 export type NavGroup = {
@@ -118,10 +127,17 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "content",
     title: "Content",
     items: [
-      { href: "/content", label: "Content overview", icon: FileText, guided: true },
-      { href: "/content/calendar", label: "Content calendar", icon: FileText },
-      { href: "/blog", label: "AI blog writer", icon: Wand2, guided: true },
-      { href: "/content-decay", label: "Content health", icon: TrendingDown, guided: true },
+      // Writing lives in BlogPilot now — its own tool, MIT, self-hosted.
+      // This app does technical SEO and applies fixes; drafting articles
+      // is a different job with a different shape, and doing both badly
+      // helped nobody.
+      {
+        href: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
+        label: "Writing → BlogPilot",
+        icon: ExternalLink,
+        guided: true,
+        external: true,
+      },
       { href: "/title-tests", label: "Title A/B tests", icon: Wand2 },
       { href: "/meta-rewrite", label: "Meta rewrite batch", icon: Wand2 },
     ],
@@ -224,6 +240,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/connect", label: "Connect accounts", icon: Plug, guided: true },
       { href: "/settings", label: "Settings", icon: Settings, guided: true },
+      { href: "/docs", label: "Docs", icon: BookOpen, guided: true },
       { href: "/learn", label: "Learn", icon: GraduationCap, guided: true },
       { href: "/knowledge", label: "Knowledge hub", icon: GraduationCap },
     ],

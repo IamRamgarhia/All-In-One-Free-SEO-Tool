@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { CheckCircle2, Loader2, ShieldCheck, XCircle } from "lucide-react";
 import { runValidate, type ValidateState } from "./actions";
+import { ClientIdField } from "@/components/client-id-field";
 
 export function ValidateForm() {
   const [state, formAction, pending] = useActionState<
@@ -16,6 +17,7 @@ export function ValidateForm() {
         action={formAction}
         className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3"
       >
+        <ClientIdField />
         <div className="grid gap-3 md:grid-cols-[1fr_140px]">
           <input
             name="url"

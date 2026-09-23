@@ -143,7 +143,22 @@ export type DetectionResult = {
   technologies: DetectedTech[];
 };
 
-export async function detectTechStack(rawUrl: string): Promise<DetectionResult> {
+export async function detectTechStack(
+  rawUrl: string,
+  /**
+   * See runAudit's allowPrivateHosts.
+   *
+   * The sixth place this argument was missing, and the one with the
+   * widest blast radius. Detection drives every stack-specific check —
+   * all sixteen wp_*, next_* and shopify_* findings — and the whole of
+   * the "advice tailored to your platform" idea this product is built
+   * on. Without it the guard rejected the fetch on a private host, the
+   * catch returned an empty technology list, classifyTech saw no stack,
+   * and every one of those rules was skipped. In silence, and while the
+   * rest of the audit worked perfectly.
+   */
+  allowPrivate = false,
+): Promise<DetectionResult> {
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -157,6 +172,7 @@ export async function detectTechStack(rawUrl: string): Promise<DetectionResult> 
           "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost)",
         accept: "text/html,application/xhtml+xml",
       },
+      allowPrivate,
     });
   } finally {
     clearTimeout(timeout);

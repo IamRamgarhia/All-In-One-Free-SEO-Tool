@@ -121,3 +121,42 @@ describe("failure messages are actionable", () => {
     expect(monthlyCapFailure(12.5).message).toContain("$12.50");
   });
 });
+
+/**
+ * Every AI tool now shows the real reason instead of a fixed sentence.
+ *
+ * The classification below was already right. Thirteen call sites threw
+ * it away and printed "AI provider didn't respond. Set up an API key in
+ * Settings." When a real Gemini key hit its free-tier quota, every one
+ * of those tools told the user to set up a key they already had — the
+ * one instruction guaranteed not to help.
+ *
+ * These assert the classifier says the useful thing for the two failures
+ * that actually happen in practice, so the message those call sites now
+ * surface is worth surfacing.
+ */
+describe("what the user is told to do about it", () => {
+  it("names the quota, not the key, when the quota is gone", () => {
+    const f = classifyProviderError(429, '{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details."}}', { provider: "gemini" });
+    expect(f.reason).toBe("quota_exceeded");
+    expect(f.message).toMatch(/quota/i);
+    // The instruction that sent people in circles.
+    expect(f.message).not.toMatch(/set up (an )?(api )?key/i);
+  });
+
+  it("says wait, not reconfigure, when merely rate limited", () => {
+    // Same status code, different cause. Telling someone to add billing
+    // because they went too fast is its own kind of wrong answer.
+    const f = classifyProviderError(429, '{"error":{"message":"Too many requests, please retry"}}', { provider: "gemini" });
+    expect(f.reason).toBe("rate_limited");
+    expect(f.message).toMatch(/wait|moment|again/i);
+    expect(f.message).not.toMatch(/billing/i);
+  });
+
+  it("still tells someone with no key to add one", () => {
+    // The fallback has to keep working, or this trade makes things worse
+    // for the case it was originally written for.
+    const f = classifyProviderError(401, "", { provider: "gemini" });
+    expect(["bad_key", "no_key"]).toContain(f.reason);
+  });
+});

@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { clients, tasks, type ClientSocialLinks } from "@/db/schema";
+import { clients, type ClientSocialLinks } from "@/db/schema";
 import {
   listGscProperties,
   listGa4Properties,
@@ -12,12 +11,12 @@ import {
 } from "@/lib/google-oauth";
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { detectTechStack } from "@/lib/tech-detect";
-import { getNicheTemplates } from "@/lib/niche-templates";
-import {
-  pickStackTemplates,
-  type StackTaskTemplate,
-} from "@/lib/tech-stack-templates";
 import { logActivity } from "@/lib/activity";
+import {
+  applyNicheTemplatesForClient,
+  applyStackTemplatesForClient,
+  siteFactsFor,
+} from "@/lib/apply-task-templates";
 
 export type ImportablePair = {
   /** Stable key combining gsc + ga4 (used as checkbox value) */
@@ -196,8 +195,10 @@ async function createSingleClientFromPair(pair: ImportablePair): Promise<void> {
     })
     .returning({ id: clients.id });
 
-  await applyNicheTemplatesInternal(row.id, niche);
-  await applyStackTemplatesInternal(row.id, techStack);
+  // Read the site once so the checklist skips work it already does.
+  const facts = await siteFactsFor(meta?.url ?? pair.url);
+  await applyNicheTemplatesForClient(row.id, niche, facts);
+  await applyStackTemplatesForClient(row.id, techStack, facts);
 
   await logActivity({
     kind: "client.created",
@@ -213,76 +214,6 @@ async function createSingleClientFromPair(pair: ImportablePair): Promise<void> {
     entityType: "client",
     entityId: row.id,
   });
-}
-
-async function applyStackTemplatesInternal(
-  clientId: number,
-  techStack: string[] | null,
-): Promise<void> {
-  const { tasks: stackTasks } = pickStackTemplates(techStack);
-  if (stackTasks.length === 0) return;
-
-  const existing = await db
-    .select({ title: tasks.title })
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.clientId, clientId),
-        inArray(
-          tasks.title,
-          stackTasks.map((t) => t.title),
-        ),
-      ),
-    );
-  const existingTitles = new Set(existing.map((e) => e.title));
-  const toInsert = stackTasks.filter((t) => !existingTitles.has(t.title));
-  if (toInsert.length > 0) {
-    await db.insert(tasks).values(
-      toInsert.map((t: StackTaskTemplate) => ({
-        clientId,
-        title: t.title,
-        description: t.description,
-        whyItMatters: t.whyItMatters,
-        priority: t.priority,
-        status: "todo" as const,
-      })),
-    );
-  }
-}
-
-async function applyNicheTemplatesInternal(
-  clientId: number,
-  niche: Niche | null,
-): Promise<void> {
-  const templates = getNicheTemplates(niche);
-  if (templates.length === 0) return;
-
-  const existing = await db
-    .select({ title: tasks.title })
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.clientId, clientId),
-        inArray(
-          tasks.title,
-          templates.map((t) => t.title),
-        ),
-      ),
-    );
-  const existingTitles = new Set(existing.map((e) => e.title));
-  const toInsert = templates.filter((t) => !existingTitles.has(t.title));
-  if (toInsert.length > 0) {
-    await db.insert(tasks).values(
-      toInsert.map((t) => ({
-        clientId,
-        title: t.title,
-        description: t.description,
-        whyItMatters: t.whyItMatters,
-        priority: t.priority,
-        status: "todo" as const,
-      })),
-    );
-  }
 }
 
 /**

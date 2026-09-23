@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { ClipboardList } from "lucide-react";
+import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { clients, audits } from "@/db/schema";
 import { desc, eq, and, count } from "drizzle-orm";
@@ -11,7 +12,24 @@ import {
   type ClientToolCard,
 } from "@/components/shell/client-tool-grid";
 
-export default async function AuditsIndexPage() {
+export default async function AuditsIndexPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clientId?: string; embed?: string }>;
+}) {
+  // Opened from a client, so the client is already chosen.
+  //
+  // The "Tools for this client" rail links here with ?clientId=, and
+  // this page ignored it and drew the picker anyway — so picking a
+  // client and then picking a tool asked you to pick the client again.
+  // The per-client page it would have sent you to already exists.
+  const { clientId, embed } = await searchParams;
+  if (clientId && /^\d+$/.test(clientId)) {
+    // Carry ?embed=1 through. Without it the drawer would load the
+    // full shell inside itself — a sidebar inside a sidebar.
+    redirect(`/audits/c/${clientId}${embed ? "?embed=1" : ""}`);
+  }
+
   // Hard-cap at 500 clients to keep this page responsive. Realistic max
   // for a freelance/small agency is ~20-50 clients; the cap exists to
   // prevent a pathological case (accidental bulk-import) from blocking

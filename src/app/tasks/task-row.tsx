@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat } from "lucide-react";
+import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat, ArrowUpRight } from "lucide-react";
 import { setTaskStatus, deleteTask } from "./actions";
 import { TimeTracker } from "./time-tracker";
 
@@ -39,6 +39,15 @@ export type TaskRowData = {
   clientId: number | null;
   clientName: string | null;
   actualMinutes?: number | null;
+  /**
+   * Where in the app to go and do this.
+   *
+   * The plan generator has always known which tool each task needs. It
+   * was written into the description as the string "Open: /tools/schema"
+   * — a working link rendered as prose, which left the reader to retype
+   * a path they could have clicked.
+   */
+  toolPath?: string | null;
 };
 
 export function TaskRow({
@@ -92,6 +101,21 @@ export function TaskRow({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+            {task.toolPath && task.status !== "done" && (
+              // Carries the client, so the tool opens already pointed at
+              // the right site rather than asking which one again.
+              <Link
+                href={
+                  task.clientId
+                    ? `${task.toolPath}${task.toolPath.includes("?") ? "&" : "?"}clientId=${task.clientId}`
+                    : task.toolPath
+                }
+                className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary ring-1 ring-inset ring-primary/20 hover:bg-primary/20"
+              >
+                Open the tool
+                <ArrowUpRight className="size-3" />
+              </Link>
+            )}
             {task.clientName && task.clientId && (
               <Link
                 href={`/clients/${task.clientId}`}

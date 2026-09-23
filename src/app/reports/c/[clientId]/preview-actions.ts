@@ -11,6 +11,7 @@ import {
   type Ga4DailyTraffic,
   type GscKeyword,
 } from "@/lib/google-data";
+import { isOpenTask } from "@/lib/task-status";
 
 const severityRank = (s: string) =>
   ({ critical: 4, high: 3, medium: 2, low: 1 })[s] ?? 0;
@@ -69,7 +70,7 @@ export async function previewExecSummary(
     .where(eq(tasks.clientId, clientId));
 
   const doneTasks = allTasks.filter((t) => t.status === "done");
-  const openTasks = allTasks.filter((t) => t.status !== "done");
+  const openTasks = allTasks.filter((t) => isOpenTask(t.status));
 
   const topIssues = allIssues
     .slice()

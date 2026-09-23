@@ -1,7 +1,7 @@
 "use server";
 
 import { eq, desc, and, inArray, lt } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { newsFeeds, newsItems } from "@/db/schema";
@@ -128,7 +128,7 @@ export async function addFeed(input: {
         category: "custom",
       })
       .returning({ id: newsFeeds.id });
-    revalidatePath("/news");
+    safeRevalidatePath("/news");
     return { ok: true, id: row.id, resolvedUrl, autoDiscovered };
   } catch {
     return { ok: false, error: "Feed URL already exists." };
@@ -149,24 +149,24 @@ export async function cleanupOldItems(opts: {
     .delete(newsItems)
     .where(lt(newsItems.capturedAt, cutoff))
     .returning({ id: newsItems.id });
-  revalidatePath("/news");
+  safeRevalidatePath("/news");
   return { deleted: result.length };
 }
 
 export async function clearAllItems(): Promise<{ deleted: number }> {
   const result = await db.delete(newsItems).returning({ id: newsItems.id });
-  revalidatePath("/news");
+  safeRevalidatePath("/news");
   return { deleted: result.length };
 }
 
 export async function deleteOneItem(itemId: number): Promise<void> {
   await db.delete(newsItems).where(eq(newsItems.id, itemId));
-  revalidatePath("/news");
+  safeRevalidatePath("/news");
 }
 
 export async function removeFeed(feedId: number): Promise<void> {
   await db.delete(newsFeeds).where(eq(newsFeeds.id, feedId));
-  revalidatePath("/news");
+  safeRevalidatePath("/news");
 }
 
 export async function toggleFeed(feedId: number, enabled: boolean): Promise<void> {
@@ -174,7 +174,7 @@ export async function toggleFeed(feedId: number, enabled: boolean): Promise<void
     .update(newsFeeds)
     .set({ enabled, updatedAt: new Date() })
     .where(eq(newsFeeds.id, feedId));
-  revalidatePath("/news");
+  safeRevalidatePath("/news");
 }
 
 /**
@@ -257,7 +257,7 @@ export async function refreshFeeds(): Promise<RefreshResult> {
 
   await Promise.all(Array.from({ length: 3 }, () => worker()));
 
-  revalidatePath("/news");
+  safeRevalidatePath("/news");
   return {
     feedsChecked: feeds.length,
     feedsFailed,

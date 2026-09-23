@@ -11,6 +11,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { toolRuns, type NewToolRun, type ToolRun } from "@/db/schema";
 import { currentUserId } from "./auth";
+import { clientIdFromRequest } from "./client-context";
 
 export type ToolRunInput<TResult = unknown, TInput = Record<string, unknown>> = {
   toolId: string;
@@ -24,7 +25,10 @@ export async function saveToolRun<TResult, TInput = Record<string, unknown>>(
   run: ToolRunInput<TResult, TInput>,
 ): Promise<number> {
   const insert: NewToolRun = {
-    clientId: run.clientId ?? null,
+    // Explicit wins; otherwise take it from the page the request came
+    // from. Most tools never learned to accept one, and a run filed
+    // against nobody reaches nothing — see client-context.ts.
+    clientId: run.clientId ?? (await clientIdFromRequest()),
     toolId: run.toolId,
     label: run.label.slice(0, 200),
     inputJson: (run.input ?? null) as Record<string, unknown> | null,

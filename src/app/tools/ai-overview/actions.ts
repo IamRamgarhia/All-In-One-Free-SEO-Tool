@@ -1,8 +1,10 @@
 "use server";
 
 import { fetchSiteMetadata } from "@/lib/site-metadata";
-import { callAI } from "@/lib/ai-call";
-import { saveToolRun } from "@/lib/tool-runs";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
+import { recordToolRun } from "@/lib/tool-findings";
+import { aiOverviewFindings } from "@/lib/tool-finding-builders";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type AiOverviewAnalysis =
   | {
@@ -46,7 +48,7 @@ async function fetchPageContent(
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 15_000);
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
       redirect: "follow",
       headers: {
@@ -117,7 +119,7 @@ export async function analyzeAiOverview(
   if (!raw) {
     return {
       ok: false,
-      error: "AI provider didn't respond. Check Settings → AI provider keys.",
+      error: lastAiFailure()?.message ?? "AI provider didn't respond. Check Settings → AI provider keys.",
     };
   }
 
@@ -154,11 +156,12 @@ export async function analyzeAiOverview(
     weaknesses: (parsed.weaknesses ?? []).map(String).slice(0, 6),
     improvements: (parsed.improvements ?? []).map(String).slice(0, 6),
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "ai-overview",
     label: `${url} · citation ${result.citationScore}/100`,
     input: { url },
     result,
-  }).catch(() => undefined);
+    findings: aiOverviewFindings(result),
+  });
   return result;
 }

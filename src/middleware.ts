@@ -124,6 +124,11 @@ const PUBLIC_PATHS = [
   "/api/v1",
   // Inbound webhooks. Authenticated by the token in the path.
   "/api/webhooks",
+  // Remote MCP endpoint. Authenticated by `Authorization: Bearer <token>`
+  // inside the route — an MCP client sends a token, never a browser
+  // cookie, so the session gate would reject every legitimate call.
+  // The route refuses outright until a token has been generated.
+  "/api/mcp",
   // The embeddable site grader. Public by definition — it lives in an
   // iframe on the agency's marketing site and is aimed at strangers.
   // It exposes no client data: it grades a URL the caller supplies and

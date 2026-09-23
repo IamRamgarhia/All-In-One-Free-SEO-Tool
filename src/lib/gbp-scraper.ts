@@ -27,6 +27,27 @@ export type GbpReport = {
   website: string | null;
   hours: string[] | null;
   reviews: GbpReview[];
+  /**
+   * Google served the signed-out view, which omits the review list.
+   *
+   * Found by running this against a real profile: the page loads, the
+   * name, address, hours and phone all read correctly, and the reviews
+   * are simply not in the DOM — the panel says "You're seeing a limited
+   * view of Google Maps. Sign in." Without this flag the result is an
+   * empty review list and `ok: true`, which reads as "this business has
+   * no reviews" and is a different fact entirely.
+   */
+  limitedView: boolean;
+  /**
+   * Has this profile genuinely never been reviewed?
+   *
+   * Distinguished from the above because the two look identical in the
+   * output and lead to opposite actions: one means go and ask customers
+   * for reviews, the other means Google would not show them to us.
+   */
+  noReviewsYet: boolean;
+  /** What could not be read, in words, for the UI to show. */
+  couldNotRead: string[];
 };
 
 export async function scrapeGbp(rawUrl: string): Promise<GbpReport> {
@@ -43,6 +64,9 @@ export async function scrapeGbp(rawUrl: string): Promise<GbpReport> {
     website: null,
     hours: null,
     reviews: [],
+    limitedView: false,
+    noReviewsYet: false,
+    couldNotRead: [],
   };
 
   if (!rawUrl?.trim()) {
@@ -180,6 +204,25 @@ export async function scrapeGbp(rawUrl: string): Promise<GbpReport> {
       })
       .catch(() => [] as GbpReview[]);
 
+      // Why the review list is empty, when it is.
+      //
+      // An empty list with ok:true says "this business has no reviews",
+      // and that is one of three different facts. Establishing which
+      // costs one DOM read and decides what the user should do: chase
+      // reviews, sign in, or report a broken scraper.
+      if (out.reviews.length === 0) {
+        const bodyText = await page
+          .evaluate(() => (document.body.textContent ?? "").replace(/\s+/g, " "))
+          .catch(() => "");
+        const d = diagnoseEmptyReviews(bodyText);
+        out.limitedView = d.limitedView;
+        out.noReviewsYet = d.noReviewsYet;
+        out.couldNotRead.push(d.note);
+      }
+      if (out.rating == null && !out.noReviewsYet) {
+        out.couldNotRead.push("The star rating was not readable from the public page.");
+      }
+
       out.ok = true;
       return out;
     } catch (err) {
@@ -189,4 +232,54 @@ export async function scrapeGbp(rawUrl: string): Promise<GbpReport> {
       await page.close().catch(() => {});
     }
   });
+}
+
+/**
+ * Why the review list came back empty.
+ *
+ * Three different facts produce the same empty array, and they lead to
+ * opposite actions: chase reviews, connect Google, or fix this scraper.
+ * Reporting all three as "no reviews extracted" told a business with
+ * reviews that it had none.
+ *
+ * A pure function of the page text so it can be tested against the real
+ * markup without a browser. The "limited view" string below is verbatim
+ * from a live profile.
+ */
+export function diagnoseEmptyReviews(bodyText: string): {
+  limitedView: boolean;
+  noReviewsYet: boolean;
+  note: string;
+} {
+  const body = bodyText.replace(/\s+/g, " ");
+
+  if (/limited view of Google Maps/i.test(body)) {
+    return {
+      limitedView: true,
+      noReviewsYet: false,
+      note:
+        "Google served the signed-out view of Maps, which leaves the reviews out of the page entirely. That is a limit of reading a public link, not a fault on the profile — connecting Google reads them properly.",
+    };
+  }
+
+  // A rating on the page means the reviews are there and we failed to
+  // read them. Blaming the profile here would send somebody chasing
+  // reviews they already have.
+  const hasRating = /\d(?:\.\d)?\s*stars?\b/i.test(body) || /\(\s*[\d,]+\s*\)/.test(body);
+  const invitesAReview = /Write a review/i.test(body);
+
+  if (!hasRating && invitesAReview) {
+    return {
+      limitedView: false,
+      noReviewsYet: true,
+      note: "This profile has no reviews yet. Nothing is missing — there is nothing there to read.",
+    };
+  }
+
+  return {
+    limitedView: false,
+    noReviewsYet: false,
+    note:
+      "The reviews were not in the page. Google changes this markup without notice, so this is more likely a scraper that needs updating than a profile without reviews.",
+  };
 }

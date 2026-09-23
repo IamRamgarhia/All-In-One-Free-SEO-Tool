@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import type { CrawlerVerification } from "@/lib/crawler-verify";
 import {
   deleteUpload,
   parseAndStoreLog,
@@ -25,10 +26,11 @@ const AI_BOTS = new Set([
   "ChatGPT-User",
   "OAI-SearchBot",
   "ClaudeBot",
+  "Claude-User",
+  "Claude-SearchBot",
   "Claude-Web",
   "PerplexityBot",
   "Perplexity-User",
-  "Google-Extended",
   "anthropic-ai",
   "cohere-ai",
   "Bytespider",
@@ -43,6 +45,7 @@ type Upload = {
   rawByteSize: number | null;
   lineCount: number | null;
   botCounts: Record<string, number> | null;
+  botVerification: Record<string, CrawlerVerification> | null;
   uploadedAt: Date;
   clientId: number | null;
   clientName: string | null;
@@ -101,8 +104,9 @@ export function BotLogsClient({
       <section className="glass-apple relative overflow-hidden rounded-2xl p-5">
         <Label className="text-sm">Upload access log</Label>
         <p className="mt-1 text-xs text-muted-foreground">
-          Combined log format expected (Nginx default / Apache common). We
-          parse the User-Agent field and count occurrences of each bot.
+          Combined log format expected (Nginx default / Apache common). Each
+          bot is counted by its user agent, then crawlers that publish their
+          IP ranges are checked against those ranges.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
@@ -165,9 +169,73 @@ export function BotLogsClient({
             <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
               <CheckCircle2 className="mr-1 inline size-3.5" />
               Parsed {result.totalLines.toLocaleString()} lines —{" "}
-              {result.matchedLines.toLocaleString()} bot hits across{" "}
-              {Object.keys(result.botCounts).length} unique user-agents.
+              {result.matchedLines.toLocaleString()} hits whose user agent
+              names a known bot, across {Object.keys(result.botCounts).length}{" "}
+              bots.
             </div>
+
+            {result.addressWarning && (
+              <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300 ring-1 ring-inset ring-amber-500/30">
+                <AlertCircle className="mr-1 inline size-3.5" />
+                {result.addressWarning}
+              </div>
+            )}
+
+            {Object.keys(result.verification).length > 0 && (
+              <div className="rounded-lg bg-white/[0.02] p-3 ring-1 ring-inset ring-white/[0.04]">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Checked against published addresses
+                </div>
+                <ul className="mt-1.5 space-y-1 text-xs">
+                  {Object.entries(result.verification)
+                    .sort(
+                      (a, b) =>
+                        b[1].verified + b[1].unverified - (a[1].verified + a[1].unverified),
+                    )
+                    .map(([bot, v]) => (
+                      <li
+                        key={bot}
+                        className="flex flex-wrap items-center justify-between gap-2"
+                      >
+                        <span className="font-medium">{bot}</span>
+                        {v.listError ? (
+                          <span className="text-muted-foreground">
+                            Couldn&apos;t load its list: {v.listError}
+                          </span>
+                        ) : (
+                          <span className="tabular-nums">
+                            <span className="text-emerald-300">
+                              {v.verified.toLocaleString()} verified
+                            </span>
+                            {v.unverified > 0 && (
+                              <>
+                                {" · "}
+                                <span className="text-amber-300">
+                                  {v.unverified.toLocaleString()} from other addresses
+                                </span>
+                              </>
+                            )}
+                            {v.noAddress > 0 && (
+                              <>
+                                {" · "}
+                                <span className="text-muted-foreground">
+                                  {v.noAddress.toLocaleString()} with no address
+                                </span>
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+                {result.unverifiable.length > 0 && (
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    Counted by user agent only — no published address list:{" "}
+                    {result.unverifiable.join(", ")}.
+                  </p>
+                )}
+              </div>
+            )}
 
             {Object.keys(result.statusBreakdown).length > 0 && (
               <div className="rounded-lg bg-white/[0.02] p-3 ring-1 ring-inset ring-white/[0.04]">
@@ -248,7 +316,8 @@ export function BotLogsClient({
             <h2 className="text-base font-semibold">Recent uploads</h2>
             <p className="text-[11px] text-muted-foreground">
               Each upload is a snapshot — re-upload weekly to spot trends in AI
-              bot crawl frequency.
+              bot crawl frequency. A check mark is the number of hits that came
+              from the crawler&apos;s published addresses.
             </p>
           </header>
           <ul className="divide-y divide-white/[0.04]">
@@ -281,25 +350,37 @@ export function BotLogsClient({
                         {u.uploadedAt.toLocaleString()}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {sorted.map(([bot, count]) => (
-                          <span
-                            key={bot}
-                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
-                              AI_BOTS.has(bot)
-                                ? "bg-violet-500/15 text-violet-300 ring-violet-500/30"
-                                : "bg-white/5 text-muted-foreground ring-white/10"
-                            }`}
-                          >
-                            {bot}
-                            <span className="font-bold tabular-nums">
-                              {count.toLocaleString()}
+                        {sorted.map(([bot, count]) => {
+                          const v = u.botVerification?.[bot];
+                          return (
+                            <span
+                              key={bot}
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
+                                AI_BOTS.has(bot)
+                                  ? "bg-violet-500/15 text-violet-300 ring-violet-500/30"
+                                  : "bg-white/5 text-muted-foreground ring-white/10"
+                              }`}
+                            >
+                              {bot}
+                              <span className="font-bold tabular-nums">
+                                {count.toLocaleString()}
+                              </span>
+                              {v && !v.listError && (
+                                <span
+                                  className="tabular-nums text-emerald-300"
+                                  title="Hits from the crawler's published addresses"
+                                >
+                                  ✓{v.verified.toLocaleString()}
+                                </span>
+                              )}
                             </span>
-                          </span>
-                        ))}
+                          );
+                        })}
                       </div>
                       {aiTotal > 0 && (
                         <div className="mt-1 text-[11px] text-violet-300">
-                          AI-bot hits this period: {aiTotal.toLocaleString()}
+                          AI-bot hits this period, by user agent:{" "}
+                          {aiTotal.toLocaleString()}
                         </div>
                       )}
                     </div>

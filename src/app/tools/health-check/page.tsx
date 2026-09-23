@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -28,6 +29,7 @@ import {
   type HealthFinding,
   type HealthResult,
 } from "./actions";
+import { useClientId } from "@/components/client-id-field";
 
 const CATEGORY_ICON: Record<string, typeof Globe> = {
   "On-page": ClipboardList,
@@ -47,7 +49,10 @@ const SEV_TONE: Record<string, string> = {
 };
 
 export default function HealthCheckPage() {
-  const [url, setUrl] = useState("");
+  // Seeded from ?url= so opening this from a client keeps the client.
+  const [url, setUrl] = useState(usePresetUrl());
+  // Set when opened from a client's rail; null from /tools.
+  const clientId = useClientId();
   const [pending, startTransition] = useTransition();
   const [savePending, startSave] = useTransition();
   const [result, setResult] = useState<HealthResult | null>(null);
@@ -60,7 +65,7 @@ export default function HealthCheckPage() {
     setSaved(false);
     setFilter(null);
     startTransition(async () => {
-      setResult(await runHealthCheck(url));
+      setResult(await runHealthCheck(url, clientId));
     });
   }
 

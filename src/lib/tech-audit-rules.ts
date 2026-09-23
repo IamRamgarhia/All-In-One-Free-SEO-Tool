@@ -117,6 +117,36 @@ export function runTechSpecificChecks(opts: {
 // WordPress checks
 // ────────────────────────────────────────────────────────────────────────
 
+/**
+ * Whether the page has a link — an <a>, on its own site — to a WordPress
+ * plain permalink: ?p=123 for a post, ?page_id=2 for a page.
+ *
+ * Links only. WordPress core prints <link rel='shortlink' href='/?p=ID'>
+ * in the head of every post and page whatever the permalink setting, so
+ * matching any href told a site whose URLs are /contact-us/ — a real
+ * client, 14 pages — to switch to post-name permalinks, at high severity.
+ */
+function linksToPlainPermalink(html: string, pageUrl: string): boolean {
+  let host: string;
+  try {
+    host = new URL(pageUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return false;
+  }
+  for (const m of html.matchAll(/<a\b[^>]*\bhref=["']([^"']+)["']/gi)) {
+    let target: URL;
+    try {
+      target = new URL(m[1].replace(/&amp;/g, "&"), pageUrl);
+    } catch {
+      continue;
+    }
+    if (target.hostname.replace(/^www\./, "") !== host) continue;
+    if (/^\d+$/.test(target.searchParams.get("p") ?? "")) return true;
+    if (/^\d+$/.test(target.searchParams.get("page_id") ?? "")) return true;
+  }
+  return false;
+}
+
 function wordpressChecks(
   url: string,
   html: string,
@@ -267,8 +297,9 @@ function wordpressChecks(
     });
   }
 
-  // 7. Default permalink (/?p=123) — flag if any internal link shows ?p=
-  if (/href=["'][^"']*\/\?p=\d+/i.test(html)) {
+  // 7. Default permalink (/?p=123) — flag only when a link on the page
+  //    points at one. See linksToPlainPermalink for why not any href.
+  if (linksToPlainPermalink(html, url)) {
     out.push({
       type: "wp_default_permalinks",
       severity: "high",

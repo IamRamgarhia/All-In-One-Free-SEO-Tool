@@ -132,9 +132,25 @@ export function GbpRunner({
               </ul>
             </section>
           ) : (
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] px-4 py-3 text-sm text-muted-foreground">
-              No reviews extracted. Some GBP layouts don&apos;t expose reviews
-              without scrolling — try the source URL directly.
+            <div className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.015] px-4 py-3 text-sm text-muted-foreground">
+              {/* "No reviews extracted" was the same sentence whether the
+                  business had none, Google withheld them, or our
+                  selectors had gone stale. Those lead to three different
+                  actions, so the scraper now says which and this shows
+                  it. */}
+              {report.couldNotRead.length > 0 ? (
+                report.couldNotRead.map((note) => <p key={note}>{note}</p>)
+              ) : (
+                <p>No reviews were found on the public page.</p>
+              )}
+              {report.limitedView && (
+                <a
+                  href={`/gbp/c/${clientId}/reviews`}
+                  className="inline-block text-cyan-300 hover:underline"
+                >
+                  Open the review desk →
+                </a>
+              )}
             </div>
           )}
         </>

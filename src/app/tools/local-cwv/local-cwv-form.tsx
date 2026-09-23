@@ -1,10 +1,16 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetMode, usePresetUrl } from "@/components/use-preset-url";
+import { SetupPrompt } from "@/components/setup-prompt";
 import { Gauge, Loader2 } from "lucide-react";
 import { runLocalCwv, type LocalCwvState } from "./actions";
 
 export function LocalCwvForm() {
+  // Prefilled when opened from a client, so the domain is not retyped.
+  const presetUrl = usePresetUrl();
+  // Honours ?mode=local, which the "measure locally instead" link sets.
+  const presetMode = usePresetMode(["psi", "local"] as const, "psi");
   const [state, formAction, pending] = useActionState<
     LocalCwvState | null,
     FormData
@@ -16,11 +22,12 @@ export function LocalCwvForm() {
         action={formAction}
         className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3"
       >
-        <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_120px]">
+        <div className="grid gap-3 md:grid-cols-[1fr_130px_180px_120px]">
           <label className="space-y-1 text-xs">
             <span className="text-muted-foreground">URL</span>
             <input
               name="url"
+              defaultValue={presetUrl}
               required
               placeholder="https://example.com/landing"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
@@ -39,16 +46,20 @@ export function LocalCwvForm() {
           </label>
           <label
             className="space-y-1 text-xs"
-            title="PSI = Google's PageSpeed Insights API (free, fast, no browser). Local = headless Chrome on this server (full control, console errors, slower)."
+            title="PSI is Google's PageSpeed Insights API — fast, and it reads real-user data where Google has it. Without your own key it shares one small daily allowance with every install of this app, so it runs out; when it does, this falls back to the local browser automatically. Local runs headless Chrome on this machine: slower, no quota, and it catches console errors PSI cannot see."
           >
             <span className="text-muted-foreground">Mode</span>
             <select
               name="mode"
-              defaultValue="psi"
+              key={presetMode}
+              defaultValue={presetMode}
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             >
-              <option value="psi">PSI API</option>
-              <option value="local">Local browser</option>
+              {/* Named for what it does rather than which API it calls.
+                  "PSI API" told the reader nothing about the fact that
+                  it needs a key they were never asked for. */}
+              <option value="psi">Google, then local</option>
+              <option value="local">Local browser only</option>
             </select>
           </label>
           <button
@@ -71,11 +82,27 @@ export function LocalCwvForm() {
         </div>
       </form>
 
-      {state && !state.ok && (
-        <p className="rounded-md bg-rose-500/10 px-3 py-2 text-xs text-rose-300 ring-1 ring-inset ring-rose-500/30">
-          {state.error}
-        </p>
-      )}
+      {state &&
+        !state.ok &&
+        // A failure with a known fix gets the button. This used to print
+        // 200 characters of Google's raw JSON into a red box, quota
+        // metric names and project numbers and all.
+        (state.failure?.fixHref ? (
+          <SetupPrompt
+            title="This check could not run"
+            detail={state.error}
+            href={state.failure.fixHref}
+            cta={state.failure.fixLabel ?? "Fix this"}
+            secondary={{
+              label: "or measure locally instead",
+              href: "?mode=local",
+            }}
+          />
+        ) : (
+          <p className="rounded-md bg-rose-500/10 px-3 py-2 text-xs text-rose-300 ring-1 ring-inset ring-rose-500/30">
+            {state.error}
+          </p>
+        ))}
 
       {state?.ok && <ResultView result={state.result} />}
     </>
@@ -106,6 +133,20 @@ function ResultView({
 
   return (
     <>
+      {/* Which way this was actually measured.
+          PSI reads real-user field data where Google has it; the local
+          browser is one synthetic run on this machine. They are not
+          interchangeable numbers, so a silent fallback would have handed
+          the reader a different measurement under the old label — a
+          quieter version of the bug this whole change is about. */}
+      {result.fellBackBecause && (
+        <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 ring-1 ring-inset ring-amber-500/25 dark:text-amber-200">
+          <strong className="font-medium">Measured on this machine.</strong>{" "}
+          {result.fellBackBecause} These are synthetic numbers from one run
+          here, not real-user data from Google.
+        </p>
+      )}
+
       <section className="glass-apple relative overflow-hidden rounded-2xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

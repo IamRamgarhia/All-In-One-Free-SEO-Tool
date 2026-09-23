@@ -6,6 +6,7 @@ import {
   Circle,
   Globe,
   Loader2,
+  Layers,
   MapPin,
   Search,
   Sparkles,
@@ -15,14 +16,23 @@ import {
   generateMonthlyCalendar,
   runKeywordDiscovery,
   saveBrandStep,
+  saveSurfacesStep,
   saveTargetingStep,
   skipOnboarding,
   type DiscoverState,
   type SaveBrandResult,
 } from "./actions";
 import { COUNTRIES } from "./countries";
+import { SURFACES, surfacesFor } from "@/lib/engagement-surfaces";
+import { AuditProgressBar } from "./audit-progress";
 
-type Step = "pending" | "brand" | "keywords" | "targeting" | "completed";
+type Step =
+  | "pending"
+  | "brand"
+  | "keywords"
+  | "targeting"
+  | "surfaces"
+  | "completed";
 
 type WizardClient = {
   id: number;
@@ -38,6 +48,8 @@ type WizardClient = {
   serviceRadiusKm: number | null;
   gscProperty: string | null;
   gbpUrl: string | null;
+  /** Null = never asked; reads back as the niche default. */
+  surfacesJson: string[] | null;
   onboardingStep: Step;
   planGeneratedAt: Date | null;
 };
@@ -46,6 +58,7 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "brand", label: "Brand" },
   { id: "keywords", label: "Keywords" },
   { id: "targeting", label: "Targeting" },
+  { id: "surfaces", label: "Scope" },
   { id: "completed", label: "Plan" },
 ];
 
@@ -58,6 +71,11 @@ export function OnboardingWizard({ client }: { client: WizardClient }) {
     <>
       <Stepper current={step} />
 
+      {/* Shown on every step, not just the last one: the crawl starts when
+          the client is added, so it is already running while these steps
+          are being filled in. */}
+      <AuditProgressBar clientId={client.id} />
+
       {step === "brand" && (
         <BrandStep client={client} onNext={() => setStep("keywords")} />
       )}
@@ -65,7 +83,10 @@ export function OnboardingWizard({ client }: { client: WizardClient }) {
         <KeywordsStep client={client} onNext={() => setStep("targeting")} />
       )}
       {step === "targeting" && (
-        <TargetingStep client={client} onNext={() => setStep("completed")} />
+        <TargetingStep client={client} onNext={() => setStep("surfaces")} />
+      )}
+      {step === "surfaces" && (
+        <SurfacesStep client={client} onNext={() => setStep("completed")} />
       )}
       {step === "completed" && <CompletedStep client={client} />}
     </>
@@ -274,8 +295,25 @@ function KeywordsStep({
             {state.gscRowsUsed > 0 && (
               <span>· {state.gscRowsUsed} from real GSC data</span>
             )}
+            {/* Where the words came from. The old version read one meta
+                tag and said nothing about it, so a client whose tag was
+                vague got bad keywords with no way to tell why. */}
+            {state.siteRead.pagesRead > 0 && (
+              <span>
+                · read {state.siteRead.pagesRead}{" "}
+                {state.siteRead.pagesRead === 1 ? "page" : "pages"} of the site
+              </span>
+            )}
             <span>· {state.seedsUsed.length} seeds used</span>
           </div>
+
+          {state.siteRead.note && (
+            <p className="text-xs text-amber-300/80">
+              We could not read the site&rsquo;s own words for what it sells:{" "}
+              {state.siteRead.note}. These keywords come from the description
+              and niche instead, so check them carefully before tracking any.
+            </p>
+          )}
 
           <div className="grid max-h-[420px] gap-1.5 overflow-y-auto pr-2 sm:grid-cols-2">
             {all.map((k) => {
@@ -495,7 +533,135 @@ function TargetingStep({
   );
 }
 
-// =========== Step 4: Completed / generate plan ===========
+// =========== Step 4: Where we'll work ===========
+
+/**
+ * The section every agency scope-of-work leads with, and the one this
+ * wizard had no answer for.
+ *
+ * Pre-ticked from the niche so the common case is one click, but the
+ * ticks are real choices: unticking something is what puts it on the
+ * "not included in this engagement" list in the client's document, which
+ * is the half that prevents an argument in month three.
+ */
+function SurfacesStep({
+  client,
+  onNext,
+}: {
+  client: WizardClient;
+  onNext: () => void;
+}) {
+  const [picked, setPicked] = useState<Set<string>>(
+    () => new Set(surfacesFor(client.surfacesJson, client.niche)),
+  );
+  const [state, formAction, pending] = useActionState<
+    SaveBrandResult | null,
+    FormData
+  >(saveSurfacesStep, null);
+
+  useEffect(() => {
+    if (state?.ok) onNext();
+  }, [state, onNext]);
+
+  function toggle(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const out = SURFACES.filter((sf) => !picked.has(sf.id));
+
+  return (
+    <form
+      action={formAction}
+      className="glass-apple relative overflow-hidden rounded-2xl p-6 space-y-4"
+    >
+      <input type="hidden" name="clientId" value={client.id} />
+
+      <div>
+        <h2 className="text-base font-semibold flex items-center gap-2">
+          <Layers className="size-4 text-violet-300" />
+          Where will you be working?
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This goes straight into the document {client.name}
+          {" "}approves — both what you&apos;re doing and, just as usefully,
+          what you&apos;re not. We&apos;ve ticked the usual set for a{" "}
+          {client.niche ?? "business"}
+          {" "}site; change anything that doesn&apos;t fit.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {SURFACES.map((sf) => {
+          const on = picked.has(sf.id);
+          return (
+            <label
+              key={sf.id}
+              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                on
+                  ? "border-violet-500/30 bg-violet-500/[0.07]"
+                  : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                name="surfaces"
+                value={sf.id}
+                checked={on}
+                onChange={() => toggle(sf.id)}
+                className="mt-0.5 size-4 shrink-0 accent-violet-500"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{sf.label}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  {sf.detail}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {/* Shown live, because the out-of-scope list is the part people
+          forget they are writing. */}
+      {out.length > 0 && (
+        <p className="rounded-md bg-white/[0.03] px-3 py-2 text-xs leading-relaxed text-muted-foreground ring-1 ring-inset ring-white/5">
+          <strong className="text-foreground">Not included:</strong>{" "}
+          {out.map((sf) => sf.label.toLowerCase()).join(", ")}. The document
+          will say so, so nobody assumes otherwise later.
+        </p>
+      )}
+
+      {state && !state.ok && (
+        <p className="text-xs text-rose-300">{state.error}</p>
+      )}
+
+      <div className="flex items-center justify-between">
+        <SkipButton clientId={client.id} />
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex h-10 items-center rounded-md bg-violet-500/15 px-5 text-sm font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+        >
+          {pending ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Saving…
+            </>
+          ) : (
+            "Continue → the plan"
+          )}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// =========== Step 5: Completed / generate plan ===========
 
 function CompletedStep({ client }: { client: WizardClient }) {
   const [, startTransition] = useTransition();
@@ -566,10 +732,30 @@ function CompletedStep({ client }: { client: WizardClient }) {
           <code className="rounded bg-black/30 px-1.5 py-0.5 text-xs">
             {planState.planRef}
           </code>
-          .{" "}
-          <a href={`/tasks?client=${client.id}`} className="underline">
-            View on the tasks board →
-          </a>
+          .
+          <span className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {/*
+              The plan first, the board second.
+
+              This used to link only to the tasks board, where thirty
+              tasks with due dates spread across a month land as
+              undifferentiated rows among everything else — so the
+              screen said "a plan was generated" and the place it sent
+              you showed no plan at all.
+            */}
+            <a href={`/clients/${client.id}/plan`} className="font-medium underline">
+              Read the 30-day plan →
+            </a>
+            <a href={`/clients/${client.id}/plan/plan.pdf`} className="underline">
+              Download PDF
+            </a>
+            <a href={`/clients/${client.id}/plan/export.csv`} className="underline opacity-80">
+              CSV
+            </a>
+            <a href={`/tasks?client=${client.id}`} className="underline opacity-80">
+              Tasks board
+            </a>
+          </span>
         </div>
       ) : (
         <button
@@ -600,16 +786,86 @@ function CompletedStep({ client }: { client: WizardClient }) {
         <p className="text-xs text-rose-300">{planState.error}</p>
       )}
 
-      <div className="rounded-md border border-white/5 bg-black/20 p-4 text-xs text-muted-foreground">
-        <strong className="text-foreground">What&apos;s in the plan</strong>
-        <ul className="mt-2 space-y-0.5">
-          <li>· Week 1: technical baseline + audit-driven fixes</li>
-          <li>· Week 2: GSC quick-wins + content sprint</li>
-          <li>· Week 3: GBP + local + AI visibility</li>
-          <li>· Week 4: outreach + competitor gaps + monthly report</li>
-        </ul>
-      </div>
+      <KickoffReportCard clientId={client.id} />
     </section>
+  );
+}
+
+/**
+ * The document the client actually gets.
+ *
+ * Built from the crawl that ran while this wizard was being filled in,
+ * plus the keywords now being tracked and the plan just generated — so
+ * it can only be produced at the end, and only once those exist.
+ */
+function KickoffReportCard({ clientId }: { clientId: number }) {
+  const [state, setState] = useState<
+    { ok: true; id: number } | { ok: false; error: string } | null
+  >(null);
+  const [busy, setBusy] = useState(false);
+  const [, startTransition] = useTransition();
+
+  return (
+    <div className="rounded-md border border-white/5 bg-black/20 p-4">
+      <strong className="text-sm text-foreground">
+        Send the client something to approve
+      </strong>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        One document: what we found on the site, where their keywords stand
+        today, and what happens in which week. The starting numbers are frozen
+        into it, so next month&apos;s report has something to be measured
+        against.
+      </p>
+
+      {state?.ok ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <a
+            href={`/proposals/${state.id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center rounded-md bg-emerald-500/15 px-4 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30 hover:bg-emerald-500/25"
+          >
+            Open the PDF
+          </a>
+          <a
+            href="/proposals"
+            className="inline-flex h-9 items-center rounded-md px-3 text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+          >
+            Edit it before sending
+          </a>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            startTransition(async () => {
+              const { buildKickoffReport } = await import(
+                "@/app/proposals/actions"
+              );
+              const res = await buildKickoffReport(clientId);
+              setState(res.ok ? { ok: true, id: res.id } : res);
+              setBusy(false);
+            });
+          }}
+          className="mt-3 inline-flex h-9 items-center rounded-md bg-violet-500/15 px-4 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+        >
+          {busy ? (
+            <>
+              <Loader2 className="mr-2 size-3.5 animate-spin" />
+              Putting it together…
+            </>
+          ) : (
+            "Create the approval document"
+          )}
+        </button>
+      )}
+
+      {state && !state.ok && (
+        <p className="mt-2 text-xs text-rose-300">{state.error}</p>
+      )}
+    </div>
   );
 }
 

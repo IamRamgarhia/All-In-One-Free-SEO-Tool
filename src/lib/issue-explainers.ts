@@ -15,6 +15,28 @@
  * by the "Fix it for me" wizard.
  */
 
+/**
+ * A snippet, and — the part that actually matters — where to put it and
+ * how to get back if it goes wrong.
+ *
+ * Handing someone code without saying which file, whereabouts in it, and
+ * what to back up first is how a working site gets broken by a tool that
+ * was trying to help. `where` and `undo` are required for that reason:
+ * there is no shape of this object that gives you code and leaves out
+ * how to reverse it.
+ */
+export type FixSnippet = {
+  /** For syntax highlighting and to signal what kind of file this is. */
+  language: "php" | "html" | "liquid" | "js" | "ts" | "nginx" | "text";
+  /** Exactly which file, and where in it. */
+  where: string;
+  code: string;
+  /** How to undo this, in one sentence. */
+  undo: string;
+  /** Anything that would make this a bad idea on some setups. */
+  caution?: string;
+};
+
 export type IssueExplainer = {
   whatIsIt: string;
   whyItMatters: string;
@@ -22,6 +44,8 @@ export type IssueExplainer = {
   confidence: "definitely" | "probably" | "test";
   googleDoc?: string;
   externalTool?: (params: { url?: string }) => { label: string; href: string };
+  /** Present when the fix is code rather than a setting. */
+  snippet?: FixSnippet;
 };
 
 export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {

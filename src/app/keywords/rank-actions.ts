@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { eq, inArray } from "drizzle-orm";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -120,6 +120,14 @@ export async function checkRankAction(
     ...locale,
   });
 
+  // A check that could not read a results page has no position to
+  // record. Storing its null wrote "fell out of the top 100" into the
+  // history — and into every chart and report built from it — for what
+  // was really a blocked request.
+  if (result.error && result.position === null) {
+    return { ok: false, error: result.error };
+  }
+
   await db.insert(keywordRankings).values({
     keywordId,
     position: result.position,
@@ -199,7 +207,7 @@ export async function checkRankAction(
     }).catch(() => {});
   }
 
-  revalidatePath("/keywords");
+  safeRevalidatePath("/keywords");
 
   return {
     ok: true,
@@ -289,7 +297,7 @@ export async function checkAllRanksAction(): Promise<BatchRankSummary> {
   // keyword came from GSC and no browser was ever launched.
   await shutdownBrowser().catch(() => {});
 
-  revalidatePath("/keywords");
+  safeRevalidatePath("/keywords");
   return summary;
 }
 
@@ -298,5 +306,5 @@ export async function clearRankHistoryAction(keywordIds: number[]) {
   await db
     .delete(keywordRankings)
     .where(inArray(keywordRankings.keywordId, keywordIds));
-  revalidatePath("/keywords");
+  safeRevalidatePath("/keywords");
 }

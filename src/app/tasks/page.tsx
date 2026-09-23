@@ -3,7 +3,16 @@ import { desc, eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-import { ListChecks, Sparkles, Clock, Check, LayoutGrid, LayoutTemplate, List } from "lucide-react";
+import {
+  ListChecks,
+  Sparkles,
+  Clock,
+  Check,
+  LayoutGrid,
+  LayoutTemplate,
+  List,
+  SkipForward,
+} from "lucide-react";
 import { db } from "@/db/client";
 import { tasks, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
@@ -12,6 +21,7 @@ import { type TaskRowData } from "./task-row";
 import { NewTaskTrigger } from "./new-task-form";
 import { TasksBulkList, type BulkTask } from "./bulk-list";
 import { KanbanBoard } from "./kanban-board";
+import { isOpenTask } from "@/lib/task-status";
 
 const filterMap = {
   all: { label: "All", days: null },
@@ -47,6 +57,7 @@ export default async function TasksPage({
       id: tasks.id,
       title: tasks.title,
       whyItMatters: tasks.whyItMatters,
+      toolPath: tasks.toolPath,
       priority: tasks.priority,
       status: tasks.status,
       dueDate: tasks.dueDate,
@@ -67,8 +78,11 @@ export default async function TasksPage({
     .orderBy(clients.name);
 
   const filtered = all.filter((t) => inFilter(t, filter));
-  const open = filtered.filter((t) => t.status !== "done");
+  // Skipped is a decision, not outstanding work — counting it as open
+  // means a list someone has finished with never reads as finished.
+  const open = filtered.filter((t) => isOpenTask(t.status));
   const done = filtered.filter((t) => t.status === "done");
+  const skipped = filtered.filter((t) => t.status === "skipped");
   // eslint-disable-next-line react-hooks/purity
   const nowMs = Date.now();
 
@@ -124,6 +138,12 @@ export default async function TasksPage({
               <Check className="size-3" />
               {done.length} done
             </span>
+            {skipped.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-muted-foreground ring-1 ring-inset ring-white/10">
+                <SkipForward className="size-3" />
+                {skipped.length} skipped
+              </span>
+            )}
           </div>
         }
       />

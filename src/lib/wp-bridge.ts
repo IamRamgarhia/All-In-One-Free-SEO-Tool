@@ -183,6 +183,8 @@ type WirePostSeo = {
   id?: number;
   title?: string;
   meta_description?: string;
+  canonical?: string;
+  robots?: string;
   permalink?: string;
   status?: string;
   modified?: string;
@@ -203,10 +205,12 @@ export async function getPostSeo(
       url: r.data.permalink ?? "",
       title: r.data.title ?? "",
       metaDescription: r.data.meta_description ?? "",
-      // The plugin doesn't report these yet. Null means "unknown", not
-      // "absent" — nothing should write a canonical based on this.
-      canonical: null,
-      robots: null,
+      // Reported as of plugin 0.5.0. Null still means "unknown" — an
+      // older plugin omits both keys, and treating a missing key as an
+      // empty string would tell the agent every page on that site has no
+      // canonical, which is an invitation to write one onto all of them.
+      canonical: r.data.canonical ?? null,
+      robots: r.data.robots ?? null,
     },
   };
 }
@@ -219,8 +223,40 @@ export async function setPostSeo(
     metaDescription: string;
     canonical: string;
     robots: string;
+    /**
+     * Open Graph and Twitter card fields, added in plugin 0.6.0.
+     *
+     * These back missing_og_tags and missing_twitter_card, two findings
+     * the crawler has reported since it was written and nothing could
+     * act on. A page with no og:title is one a social platform renders
+     * from whatever text it scrapes, which is usually the navigation.
+     */
+    ogTitle: string;
+    ogDescription: string;
+    ogImage: string;
+    twitterTitle: string;
+    twitterDescription: string;
+    twitterImage: string;
   }>,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  /**
+   * The WordPress revision the plugin recorded per field it changed.
+   *
+   * The plugin has always returned these and this function has always
+   * thrown them away while typing them in the response — so a caller had
+   * a successful write and no way to name the revision behind it. Undo
+   * still worked for the agent, which re-writes the value it saved
+   * before the change, but that is the weaker undo: it overwrites
+   * whatever is there now, so an edit somebody made in between is lost
+   * without a word. A revision id restores the exact prior state.
+   *
+   * Empty when the plugin changed nothing because the new value already
+   * matched the old — a success with nothing to undo.
+   */
+  changes?: { field: string; revId: number }[];
+}> {
   // snake_case on the wire. Sending `metaDescription` meant the plugin's
   // `isset($body['meta_description'])` was false, so it changed nothing
   // and still answered `{ok: true, changes: []}` — a write that reported
@@ -231,64 +267,96 @@ export async function setPostSeo(
     body.meta_description = patch.metaDescription;
   }
 
-  // The plugin's update handler reads `title` and `meta_description` and
-  // nothing else, so a canonical or robots value sent here was accepted,
-  // ignored, and answered with `ok: true`. Two "apply fix" buttons told
-  // users the change had been made to their site when it hadn't. Say so
-  // instead — a refusal the user can act on beats a success they can't
-  // trust.
-  const unsupported = (["canonical", "robots"] as const).filter(
-    (f) => patch[f] !== undefined,
-  );
-  if (unsupported.length > 0) {
-    return {
-      ok: false,
-      error: `The SEO Tool Bridge plugin can't write ${unsupported.join(" or ")} yet. Change it in your SEO plugin (Yoast, Rank Math) for now.`,
-    };
+  // Canonical and robots, genuinely wired as of plugin 0.5.0.
+  //
+  // These were in this signature from the start and the plugin read
+  // neither, so sending one was accepted, ignored, and answered
+  // `{ok: true}` — two "apply fix" buttons telling users their site had
+  // been changed when it had not. That earned an explicit refusal here,
+  // which now comes out because the handler reads both.
+  // plugin-contract.test.ts asserts the handler still does, so this can
+  // never quietly go back to being a lie.
+  if (patch.canonical !== undefined) body.canonical = patch.canonical;
+  if (patch.robots !== undefined) body.robots = patch.robots;
+
+  // snake_case on the wire, like every other field here. The one time
+  // this boundary was crossed in camelCase the plugin's isset() was
+  // false, nothing changed, and the response still said ok — which is
+  // why the mapping is explicit rather than a loop over the object.
+  if (patch.ogTitle !== undefined) body.og_title = patch.ogTitle;
+  if (patch.ogDescription !== undefined) {
+    body.og_description = patch.ogDescription;
   }
+  if (patch.ogImage !== undefined) body.og_image = patch.ogImage;
+  if (patch.twitterTitle !== undefined) body.twitter_title = patch.twitterTitle;
+  if (patch.twitterDescription !== undefined) {
+    body.twitter_description = patch.twitterDescription;
+  }
+  if (patch.twitterImage !== undefined) body.twitter_image = patch.twitterImage;
 
   if (Object.keys(body).length === 0) {
     return { ok: false, error: "Nothing to write." };
   }
-  const r = await wpFetch<{ ok: boolean; changes?: unknown[] }>(
-    creds,
-    `/post/${postId}/seo`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
+  const r = await wpFetch<{
+    ok: boolean;
+    changes?: { field?: unknown; rev_id?: unknown }[];
+  }>(creds, `/post/${postId}/seo`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true };
+  // snake_case on the wire, camelCase in here, same as everywhere else
+  // on this boundary. Entries without a numeric rev_id are dropped
+  // rather than passed on as NaN — an undo aimed at NaN would be a
+  // request to restore nothing that reports success.
+  const changes = (r.data.changes ?? []).flatMap((c) =>
+    typeof c?.rev_id === "number" && Number.isFinite(c.rev_id)
+      ? [{ field: String(c.field ?? ""), revId: c.rev_id }]
+      : [],
+  );
+  return { ok: true, changes };
 }
 
 export async function setAttachmentAlt(
   creds: WpCreds,
   attachmentId: number,
   alt: string,
-): Promise<{ ok: boolean; error?: string }> {
-  const r = await wpFetch<{ ok: boolean }>(
+): Promise<{ ok: boolean; error?: string; revId?: number }> {
+  const r = await wpFetch<{ ok: boolean; rev_id?: number | null }>(
     creds,
     `/attachment/${attachmentId}/alt`,
     { method: "POST", body: JSON.stringify({ alt }) },
   );
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true };
+  // Same as the schema and SEO writers: the revision exists in
+  // WordPress either way, and throwing the id away is what made it
+  // unreachable from here.
+  const revId = r.data.rev_id;
+  return typeof revId === "number" ? { ok: true, revId } : { ok: true };
 }
 
 export async function setPostSchema(
   creds: WpCreds,
   postId: number,
   schemaJsonLd: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; revId?: number }> {
   // The plugin reads `jsonld`, all lowercase. Sending `jsonLd` meant it
   // saw an empty value and answered 400 "jsonld required" — so every
   // schema write the agent could plan would have failed on a real site,
   // including the one the contract test asserts is now executable.
-  const r = await wpFetch<{ ok: boolean }>(
+  const r = await wpFetch<{ ok: boolean; rev_id?: number | null }>(
     creds,
     `/post/${postId}/schema`,
     { method: "POST", body: JSON.stringify({ jsonld: schemaJsonLd }) },
   );
   if (!r.ok) return { ok: false, error: r.error };
-  return { ok: true };
+  // The plugin records a revision and returns its id. Dropping it, as
+  // this did, left a write that had succeeded and could not be pointed
+  // at for undo — the schema stayed on the page with nothing to name it.
+  // Null is the plugin's "nothing changed", which is a success with
+  // nothing to undo rather than a missing id.
+  const revId = r.data.rev_id;
+  return typeof revId === "number" ? { ok: true, revId } : { ok: true };
 }
 
 /**
@@ -546,5 +614,146 @@ export async function undoRevision(
     }
     return { ok: false, error: r.error };
   }
+  return { ok: true };
+}
+
+// ============================================================
+//  Site-level surfaces (plugin 0.5.0+)
+// ============================================================
+//
+// These change the whole site rather than one page, which is why the
+// agent marks every one of them needs_review regardless of autonomy
+// level. A wrong line in robots.txt deindexes a site; a wrong redirect
+// takes traffic off a page that was working.
+
+export type RobotsTxtState = {
+  /** Whether the plugin is currently serving robots.txt. */
+  managed: boolean;
+  /**
+   * A real robots.txt on disk. WordPress serves that and ignores every
+   * filter, so when this is true nothing we write has any effect — and
+   * the plugin refuses the write rather than reporting a success the
+   * user could only disprove by loading the URL.
+   */
+  physicalFile: boolean;
+  /** What we have stored. */
+  content: string;
+  /** What the site actually serves right now, whatever the source. */
+  served: string;
+};
+
+export async function getRobotsTxt(
+  creds: WpCreds,
+): Promise<{ ok: true; data: RobotsTxtState } | { ok: false; error: string }> {
+  const r = await wpFetch<{
+    ok: boolean;
+    managed: boolean;
+    physical_file: boolean;
+    content: string;
+    served: string;
+  }>(creds, "/site/robots");
+  if (!r.ok) return { ok: false, error: r.error };
+  return {
+    ok: true,
+    data: {
+      managed: Boolean(r.data.managed),
+      physicalFile: Boolean(r.data.physical_file),
+      content: String(r.data.content ?? ""),
+      served: String(r.data.served ?? ""),
+    },
+  };
+}
+
+export async function setRobotsTxt(
+  creds: WpCreds,
+  content: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await wpFetch<{ ok: boolean }>(creds, "/site/robots", {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true };
+}
+
+export type WpRedirect = {
+  /** Home-relative path, leading slash. */
+  from: string;
+  to: string;
+  code: 301 | 302 | 307 | 308;
+};
+
+export async function getRedirects(
+  creds: WpCreds,
+): Promise<{ ok: true; data: WpRedirect[] } | { ok: false; error: string }> {
+  const r = await wpFetch<{ ok: boolean; redirects: WpRedirect[] }>(
+    creds,
+    "/site/redirects",
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: Array.isArray(r.data.redirects) ? r.data.redirects : [] };
+}
+
+/**
+ * Replaces the whole map, not a merge.
+ *
+ * Deliberate: a merge needs a rule identity, and the natural one — the
+ * `from` path — is also the thing an edit changes, so merging would
+ * silently leave the old rule behind next to the new one. Read, modify,
+ * write the full list.
+ */
+export async function setRedirects(
+  creds: WpCreds,
+  redirects: WpRedirect[],
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const r = await wpFetch<{ ok: boolean; count?: number }>(
+    creds,
+    "/site/redirects",
+    { method: "POST", body: JSON.stringify({ redirects }) },
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, count: r.data.count };
+}
+
+/** Every hardening toggle the plugin knows, all defaulting to off. */
+export type WpHardening = {
+  disable_xmlrpc: boolean;
+  hide_wp_version: boolean;
+  hide_rest_discovery: boolean;
+  disable_emoji: boolean;
+  disable_heartbeat_frontend: boolean;
+  noindex_author_archives: boolean;
+};
+
+export const HARDENING_KEYS = [
+  "disable_xmlrpc",
+  "hide_wp_version",
+  "hide_rest_discovery",
+  "disable_emoji",
+  "disable_heartbeat_frontend",
+  "noindex_author_archives",
+] as const;
+
+export async function getHardening(
+  creds: WpCreds,
+): Promise<{ ok: true; data: WpHardening } | { ok: false; error: string }> {
+  const r = await wpFetch<{ ok: boolean; hardening: WpHardening }>(
+    creds,
+    "/site/hardening",
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true, data: r.data.hardening };
+}
+
+/** Partial — omitted keys keep whatever the site already has. */
+export async function setHardening(
+  creds: WpCreds,
+  patch: Partial<WpHardening>,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await wpFetch<{ ok: boolean }>(creds, "/site/hardening", {
+    method: "POST",
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
   return { ok: true };
 }

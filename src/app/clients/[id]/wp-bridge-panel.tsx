@@ -29,11 +29,50 @@ export function WpBridgePanel({
   clientId,
   isConnected,
   endpoint,
+  looksLikeWordPress,
 }: {
   clientId: number;
   isConnected: boolean;
   endpoint: string | null;
+  /**
+   * Whether WordPress was actually detected on the site.
+   *
+   * This panel used to render identically for every client, so a plain
+   * PHP or static site got a full set of instructions for installing a
+   * WordPress plugin it can never run — on the same screen that
+   * correctly said "2 techs detected", neither of them WordPress.
+   */
+  looksLikeWordPress: boolean;
 }) {
+  // Detection is not proof, so this collapses rather than hides. A site
+  // behind a proxy that masks its headers is still WordPress, and the
+  // person looking at this screen knows that better than the crawler
+  // does. Already-connected wins outright: whatever we detected, the
+  // bridge is demonstrably working.
+  const [forceOpen, setForceOpen] = useState(false);
+  if (!isConnected && !looksLikeWordPress && !forceOpen) {
+    return (
+      <section className="glass-apple relative overflow-hidden rounded-2xl">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-4">
+          <Wrench className="size-4 shrink-0 text-muted-foreground" />
+          <span className="text-sm font-medium">WordPress one-click bridge</span>
+          <span className="text-xs text-muted-foreground">
+            Not applicable — this site does not look like WordPress, so fixes
+            here are copy-paste rather than one-click. Everything else works
+            the same.
+          </span>
+          <button
+            type="button"
+            onClick={() => setForceOpen(true)}
+            className="ml-auto rounded text-xs text-primary underline decoration-dotted underline-offset-2 hover:decoration-solid"
+          >
+            It is WordPress — set it up
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">
       <header className="border-b border-white/[0.06] px-5 py-4 flex items-center justify-between gap-3">
@@ -108,8 +147,16 @@ function ConnectForm({ clientId }: { clientId: number }) {
           <span className="text-muted-foreground">REST endpoint</span>
           <input
             name="endpoint"
+            type="url"
             required
-            placeholder="https://clientsite.com"
+            // Browsers autofilled a saved email address into this field,
+            // which then failed to connect with no hint that the value
+            // was never typed. A URL type plus an unguessable
+            // autocomplete token is what stops the heuristic firing.
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="https://clientsite.com/wp-json/seo-tool/v1"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
           />
         </label>

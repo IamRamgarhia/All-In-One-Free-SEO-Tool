@@ -133,19 +133,47 @@ describe("writing a post's SEO fields", () => {
     expect(sentBody().title).toBe("New title");
   });
 
-  it("refuses canonical rather than reporting a success it didn't get", async () => {
-    // The plugin ignores this field and still answers ok, so the "apply
-    // fix" button told users their site had been changed when it hadn't.
-    const r = await setPostSeo(creds, 101, { canonical: "https://x.test/" });
-    expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/can't write canonical/i);
-    expect(fetchMock).not.toHaveBeenCalled();
+  // These two used to assert a refusal.
+  //
+  // The field was in the signature, the plugin's handler read neither,
+  // and a write was accepted, ignored and answered {ok: true} — so the
+  // client grew an explicit refusal rather than forward a success it had
+  // not got. Plugin 0.5.0 reads both, so the refusal is gone and what
+  // matters now is that the value actually reaches the wire under the
+  // name the handler looks for. plugin-contract.test.ts asserts the
+  // handler still reads them, so the two halves cannot drift apart
+  // again.
+
+  it("sends canonical under the name the plugin reads", async () => {
+    respond({ ok: true, changes: [{ field: "canonical", rev_id: 7 }] });
+    const r = await setPostSeo(creds, 101, { canonical: "https://x.test/a" });
+    expect(r.ok).toBe(true);
+    expect(sentBody().canonical).toBe("https://x.test/a");
   });
 
-  it("refuses robots for the same reason", async () => {
-    const r = await setPostSeo(creds, 101, { robots: "noindex" });
-    expect(r.ok).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
+  it("sends robots under the name the plugin reads", async () => {
+    respond({ ok: true, changes: [{ field: "robots", rev_id: 8 }] });
+    const r = await setPostSeo(creds, 101, { robots: "index,follow" });
+    expect(r.ok).toBe(true);
+    expect(sentBody().robots).toBe("index,follow");
+  });
+
+  it("sends every field in one request rather than one each", async () => {
+    respond({ ok: true, changes: [] });
+    await setPostSeo(creds, 101, {
+      title: "T",
+      metaDescription: "D",
+      canonical: "https://x.test/a",
+      robots: "index,follow",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = sentBody();
+    expect(body).toMatchObject({
+      title: "T",
+      meta_description: "D",
+      canonical: "https://x.test/a",
+      robots: "index,follow",
+    });
   });
 
   it("refuses an empty patch instead of posting nothing", async () => {
@@ -269,5 +297,71 @@ describe("SSRF guard", () => {
     );
     expect(r.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The revision ids, which the writers used to accept and drop.
+ *
+ * Every one of these functions typed the plugin's revision id in its
+ * response and then returned `{ ok: true }`, so a write succeeded and
+ * left nothing to point at for undo. Against the real site the schema
+ * write landed on the page and could not be taken off again: the
+ * revision existed in WordPress, and nothing here knew its number.
+ */
+describe("revision ids come back from writes", () => {
+  it("setPostSeo returns one per field the plugin changed", async () => {
+    respond({
+      ok: true,
+      changes: [
+        { field: "title", rev_id: 7 },
+        { field: "meta_description", rev_id: 8 },
+      ],
+    });
+    const r = await setPostSeo(creds, 1, { title: "x", metaDescription: "y" });
+    expect(r.ok).toBe(true);
+    expect(r.changes).toEqual([
+      { field: "title", revId: 7 },
+      { field: "meta_description", revId: 8 },
+    ]);
+  });
+
+  it("setPostSeo drops entries with no usable id rather than passing NaN", async () => {
+    // An undo aimed at NaN is a request to restore nothing that reports
+    // success, which is worse than saying there is nothing to undo.
+    respond({
+      ok: true,
+      changes: [{ field: "title", rev_id: null }, { field: "robots", rev_id: 9 }],
+    });
+    const r = await setPostSeo(creds, 1, { title: "x", robots: "noindex" });
+    expect(r.changes).toEqual([{ field: "robots", revId: 9 }]);
+  });
+
+  it("setPostSeo reports an empty list when nothing changed", async () => {
+    // The plugin's answer when the new value already matched the old: a
+    // success with nothing to undo, not a failure.
+    respond({ ok: true, changes: [] });
+    const r = await setPostSeo(creds, 1, { title: "same" });
+    expect(r.ok).toBe(true);
+    expect(r.changes).toEqual([]);
+  });
+
+  it("setPostSchema returns the revision it recorded", async () => {
+    respond({ ok: true, rev_id: 16 });
+    const r = await setPostSchema(creds, 1, '{"@type":"FAQPage"}');
+    expect(r).toEqual({ ok: true, revId: 16 });
+  });
+
+  it("setPostSchema treats the plugin's null as nothing to undo", async () => {
+    respond({ ok: true, rev_id: null, note: "no change" });
+    const r = await setPostSchema(creds, 1, '{"@type":"FAQPage"}');
+    expect(r.ok).toBe(true);
+    expect(r.revId).toBeUndefined();
+  });
+
+  it("setAttachmentAlt returns the revision it recorded", async () => {
+    respond({ ok: true, rev_id: 21 });
+    const r = await setAttachmentAlt(creds, 8055, "a description");
+    expect(r).toEqual({ ok: true, revId: 21 });
   });
 });

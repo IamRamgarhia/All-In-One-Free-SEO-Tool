@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { ListChecks } from "lucide-react";
+import { SetupPrompt } from "@/components/setup-prompt";
 import { PageHeader } from "@/components/shell/page-header";
 import { listGscProperties } from "@/lib/google-oauth";
 import { CoverageForm } from "./coverage-form";
@@ -22,9 +23,12 @@ export default async function GscCoveragePage() {
         accent="emerald"
       />
       {properties.length === 0 ? (
-        <div className="glass-apple rounded-2xl p-5 text-sm text-muted-foreground">
-          Connect Google Search Console first — Settings → Google.
-        </div>
+        <SetupPrompt
+          title="Connect Google Search Console to use this"
+          detail="Index coverage is Search Console data by definition — it is Google telling you what it did and did not index."
+          href="/settings/google"
+          cta="Connect Search Console"
+        />
       ) : (
         <CoverageForm properties={properties.map((p) => p.siteUrl)} />
       )}

@@ -58,6 +58,96 @@ export type CalendarInput = {
   startDate?: Date;
 };
 
+/**
+ * The worst open audit findings, one per type, for the calendar.
+ *
+ * Built from raw audit rows, which are one per page. Taking them as they
+ * came put "Fix: 10 images use legacy formats" on consecutive days of a
+ * real client's plan — the same finding on different pages, identical
+ * tasks, and no way to tell them apart because the title did not say
+ * which page. A per-page figure like "10 images" is also dropped when
+ * pages are combined, because it describes one page and would read as
+ * the total.
+ */
+export function summariseTopIssues(
+  rows: readonly { severity: string; type: string; message: string | null }[],
+  limit = 5,
+): NonNullable<CalendarInput["topIssues"]> {
+  const rank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  const byType = new Map<string, { severity: string; message: string; pages: number }>();
+  for (const r of rows) {
+    const cur = byType.get(r.type);
+    if (!cur) {
+      byType.set(r.type, { severity: r.severity, message: r.message ?? r.type, pages: 1 });
+      continue;
+    }
+    cur.pages++;
+    if ((rank[r.severity] ?? 9) < (rank[cur.severity] ?? 9)) {
+      cur.severity = r.severity;
+      cur.message = r.message ?? r.type;
+    }
+  }
+  return [...byType.values()]
+    .sort(
+      (a, b) =>
+        (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9) || b.pages - a.pages,
+    )
+    .slice(0, limit)
+    .map((i) => ({
+      severity: i.severity as "critical" | "high" | "medium" | "low",
+      title:
+        i.pages > 1
+          ? `${issueHeadline(i.message, true)} (${i.pages} pages)`
+          : issueHeadline(i.message, false),
+    }));
+}
+
+/**
+ * Advice following a dash, which a headline can drop.
+ *
+ * Crawler messages come in two shapes. In "10 images use legacy formats
+ * — convert to WebP/AVIF" the dash separates the problem from the advice.
+ * In "LCP 2.97s — over the 2.5s threshold" the part after the dash IS the
+ * problem. Cutting at every dash turned the second into "Fix: LCP 2.97s",
+ * which says nothing about what is wrong — caught in a dry run against a
+ * real client's plan, before it was written back.
+ */
+const ADVICE_AFTER_DASH =
+  /^(convert|add|fix|remove|use|compress|shorten|lengthen|trim|write|set|enable|disable|update|replace|move|reduce|include|check|consider|serve|lazy-load|defer|minify)\b/i;
+
+/** The problem a finding message states, with a per-page count removed when combined. */
+function issueHeadline(message: string, combined: boolean): string {
+  let s = (message.split(/\.\s/)[0] ?? message).trim().replace(/\.$/, "");
+  const dash = s.match(/^(.*?)\s[—-]\s(.*)$/);
+  if (dash && ADVICE_AFTER_DASH.test(dash[2])) s = dash[1].trim();
+  if (combined) s = s.replace(/^\d[\d,]*\s+/, "");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Why a finding matters, in proportion to how much it does.
+ *
+ * Every audit task used to carry the same sentence — "Open issues at
+ * this level cap how much downstream work can move rankings" — low
+ * severity included. On a real client, once Cloudflare false positives
+ * were removed, every remaining finding was low: heading order, image
+ * formats, a long meta description. Telling a client those cap their
+ * rankings is untrue, and a plan that overstates its own urgency is one
+ * they stop trusting by the second week.
+ */
+export function severityRationale(severity: string): string {
+  switch (severity) {
+    case "critical":
+      return "Critical. This can stop pages being indexed or ranking at all, so it comes before anything else.";
+    case "high":
+      return "High impact. Worth fixing before content work, because it weakens pages that already exist.";
+    case "medium":
+      return "Worth fixing. It will not block rankings on its own, but it costs clicks or clarity.";
+    default:
+      return "Low severity. A tidy-up rather than a ranking problem — fix it once the higher-impact work is done.";
+  }
+}
+
 export function generateCalendar(input: CalendarInput): CalendarTask[] {
   const start = input.startDate ?? startOfDay(addDays(new Date(), 1));
   const cal: CalendarTask[] = [];
@@ -100,11 +190,18 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
       title: issue
         ? `Fix: ${issue.title}`
         : ["Audit + fix all broken meta titles", "Audit image alt-text gaps", "Check & resolve mobile-friendliness errors"][i],
+      // The fallback used to promise "every later content win 10-20%
+      // bigger" — a figure with no source, in a document sent to clients.
       whyItMatters: issue
-        ? `Severity ${issue.severity}. Open issues at this level cap how much downstream work can move rankings.`
-        : "Quick technical wins compound — fixing these baseline issues makes every later content win 10-20% bigger.",
+        ? severityRationale(issue.severity)
+        : "Technical problems left open undercut the content work built on top of them, so they go first.",
       category: "technical",
-      priority: issue?.severity === "critical" ? "high" : "medium",
+      priority:
+        issue?.severity === "critical" || issue?.severity === "high"
+          ? "high"
+          : issue?.severity === "low"
+            ? "low"
+            : "medium",
       estimatedMinutes: 45,
       toolPath: "/audits",
     });
@@ -142,30 +239,43 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
       ? "Pull GSC striking-distance keywords (positions 4-15)"
       : "Run keyword research from your top competitor + autocomplete fan-out",
     whyItMatters:
-      "Striking-distance keywords are the highest-ROI move in SEO. Push 5 of them onto page 1 = double the traffic for one weeks' work.",
+      "Keywords already on page two need the least work to move, which makes them the best return on a week of effort.",
     category: "keywords",
     priority: "high",
     estimatedMinutes: 30,
     toolPath: input.hasGsc ? `/clients/${input.clientId}` : "/keywords",
   });
 
-  // Days 9-11: write 3 quick-win-targeted briefs / refreshes
-  const wins = input.quickWins ?? [];
-  for (let i = 0; i < 3; i++) {
-    const win = wins[i];
+  // Days 9-11: one refresh task per real quick win.
+  //
+  // With no quick wins this produced three tasks — "Write content brief
+  // #1", "#2", "#3" — with the same explanation word for word, which is
+  // one piece of work padded into three lines of a client's plan. Now a
+  // real opportunity gets its own task, and without any there is one.
+  const wins = (input.quickWins ?? []).slice(0, 3);
+  wins.forEach((win, i) => {
     push(cal, {
       day: 9 + i,
       date: addDays(start, 8 + i),
-      title: win
-        ? `Refresh page ranking for "${win.query}" (currently #${Math.round(win.position)})`
-        : `Write content brief #${i + 1} for top quick-win keyword`,
-      whyItMatters: win
-        ? `${win.impressions.toLocaleString()} monthly impressions and you're already on page 2. Small intent / heading update can push it onto page 1.`
-        : "Targeting a real ranking opportunity beats writing speculative content. Build briefs from data.",
+      title: `Refresh page ranking for "${win.query}" (currently #${Math.round(win.position)})`,
+      whyItMatters: `${win.impressions.toLocaleString()} monthly impressions and you're already on page 2. Small intent / heading update can push it onto page 1.`,
       category: "content",
-      priority: win ? "high" : "medium",
+      priority: "high",
       estimatedMinutes: 60,
-      toolPath: `/blog/${input.clientId}`,
+      toolPath: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
+    });
+  });
+  if (wins.length === 0) {
+    push(cal, {
+      day: 9,
+      date: addDays(start, 8),
+      title: "Write 3 content briefs for your best keyword opportunities",
+      whyItMatters:
+        "Targeting a real ranking opportunity beats writing speculative content. Build the briefs from keyword data, not guesses.",
+      category: "content",
+      priority: "medium",
+      estimatedMinutes: 180,
+      toolPath: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
     });
   }
 
@@ -190,7 +300,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     category: "content",
     priority: "medium",
     estimatedMinutes: 45,
-    toolPath: "/topic-clusters",
+    toolPath: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
   });
 
   push(cal, {
@@ -202,7 +312,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     category: "content",
     priority: "high",
     estimatedMinutes: 30,
-    toolPath: `/content-decay/c/${input.clientId}`,
+    toolPath: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
   });
 
   // ============== Week 3: GBP + Local + AI visibility ==============
@@ -281,7 +391,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     category: "ai_visibility",
     priority: "medium",
     estimatedMinutes: 60,
-    toolPath: `/blog/${input.clientId}`,
+    toolPath: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
   });
 
   push(cal, {
@@ -414,7 +524,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     category: "review",
     priority: "low",
     estimatedMinutes: 15,
-    toolPath: `/clients/${input.clientId}/plan`,
+    toolPath: `/clients/${input.clientId}/onboarding`,
   });
 
   return cal;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { Loader2, Sparkles } from "lucide-react";
 import { runGeoScore, type GeoScoreState } from "./actions";
@@ -11,6 +12,8 @@ export function GeoScoreClient({
 }: {
   clients: { id: number; name: string }[];
 }) {
+  // Prefilled when opened from a client, so the domain is not retyped.
+  const presetUrl = usePresetUrl();
   const [state, formAction, pending] = useActionState<GeoScoreState, FormData>(
     runGeoScore,
     null,
@@ -28,6 +31,7 @@ export function GeoScoreClient({
             <span className="text-muted-foreground">URL to score</span>
             <input
               name="url"
+              defaultValue={presetUrl}
               required
               placeholder="https://yoursite.com/page"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"

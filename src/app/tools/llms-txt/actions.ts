@@ -1,9 +1,21 @@
 "use server";
 
+/**
+ * @ai-partial
+ *
+ * Generating a file needs a model. Validating one does not, and
+ * validation is what the nightly sweep runs.
+ *
+ * See tool-capabilities.derive.ts — this marker is what stops the badge
+ * saying the whole page is unavailable when it is not.
+ */
+
 import { fetchSiteMetadata } from "@/lib/site-metadata";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
 import type { AiFailure } from "@/lib/ai-error";
 import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type GenerateLlmsResult =
   | { ok: true; content: string; aiFailure?: AiFailure | null }
@@ -12,6 +24,17 @@ export type GenerateLlmsResult =
 export type ValidateLlmsResult =
   | {
       ok: true;
+      /**
+       * Whether the site actually has an llms.txt.
+       *
+       * "There is no file" is an answer, not a failure, and it used to
+       * be reported as `ok: false` — so the tool recorded nothing, the
+       * nightly sweep logged a broken check, and a site with no llms.txt
+       * left no trace that anyone had ever looked. The distinction that
+       * matters is between a check that could not run and a check that
+       * ran and found nothing.
+       */
+      present: boolean;
       content: string;
       issues: string[];
       sectionCount: number;
@@ -106,15 +129,18 @@ export async function validateLlmsTxt(
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), 10_000);
   let body = "";
+  let present = true;
   try {
-    const res = await fetch(llmsUrl, { signal: c.signal });
-    if (!res.ok) {
+    const res = await guardedFetch(llmsUrl, { signal: c.signal });
+    // A 404 is a definite answer about the site. Only a fetch that never
+    // completed is a check that could not run.
+    if (res.status === 404 || res.status === 410) present = false;
+    else if (!res.ok) {
       return {
         ok: false,
-        error: `No llms.txt found at ${llmsUrl} (${res.status}).`,
+        error: `Couldn't read ${llmsUrl} (${res.status}).`,
       };
-    }
-    body = await res.text();
+    } else body = await res.text();
   } catch (err) {
     return {
       ok: false,
@@ -124,20 +150,88 @@ export async function validateLlmsTxt(
     clearTimeout(t);
   }
 
+  if (!present) {
+    // Recorded, and deliberately with no finding.
+    //
+    // llms.txt is a proposal, not a standard any search engine has
+    // committed to. Raising "you are missing llms.txt" as work would put
+    // this tool on the wrong side of its own rule about folklore — the
+    // same rule that keeps keyword density and directory submission out.
+    // Absence is reported, and left as the user's call.
+    const absent = {
+      ok: true as const,
+      present: false,
+      content: "",
+      issues: [] as string[],
+      sectionCount: 0,
+      linkCount: 0,
+    };
+    await recordToolRun({
+      toolId: "llms-txt",
+      label: `${llmsUrl} · not present`,
+      input: { url: rawUrl },
+      result: absent,
+      findings: [],
+    });
+    return absent;
+  }
+
   const issues: string[] = [];
+  // The same problems with an identity that survives a re-run. The
+  // strings above carry the file's current length, so a signature built
+  // from one would change every time the file is edited and could never
+  // be marked resolved.
+  const findings: FindingDraft[] = [];
+
   if (!/^#\s+\S/m.test(body)) {
     issues.push("Missing top-level H1 (single # line at the start).");
+    findings.push({
+      signature: "llms-txt.no_h1",
+      title: "llms.txt has no top-level heading",
+      severity: "medium",
+      category: "ai-visibility",
+      details:
+        "The single # line is how a parser learns whose site this is. Without it the file " +
+        "reads as a fragment rather than a directory.",
+    });
   }
   if (!/^>\s+\S/m.test(body)) {
     issues.push("Missing blockquote with the one-sentence value prop.");
+    findings.push({
+      signature: "llms-txt.no_summary",
+      title: "llms.txt has no one-line summary",
+      severity: "low",
+      category: "ai-visibility",
+      details:
+        "The blockquote is the sentence an assistant is most likely to repeat when asked " +
+        "what this site is. Leaving it out means the model writes its own.",
+    });
   }
   if (body.length > 2000) {
     issues.push(
       `File is ${body.length} chars — most parsers expect ≤ 2000.`,
     );
+    findings.push({
+      signature: "llms-txt.too_long",
+      title: "llms.txt is longer than parsers expect",
+      severity: "low",
+      category: "ai-visibility",
+      details:
+        `The file is ${body.length} characters and most parsers expect 2000 or fewer. ` +
+        "Anything past the limit may simply not be read.",
+    });
   }
   if (body.length < 50) {
     issues.push("File looks too short — add a description and key links.");
+    findings.push({
+      signature: "llms-txt.too_short",
+      title: "llms.txt is effectively empty",
+      severity: "medium",
+      category: "ai-visibility",
+      details:
+        "The file exists, which tells an assistant to read it, and then says nothing — " +
+        "which is worse than not having one, because it looks deliberate.",
+    });
   }
 
   const sectionCount = (body.match(/^##\s+/gm) ?? []).length;
@@ -145,16 +239,18 @@ export async function validateLlmsTxt(
 
   const result = {
     ok: true as const,
+    present: true,
     content: body,
     issues,
     sectionCount,
     linkCount,
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "llms-txt",
     label: `${llmsUrl} · ${issues.length} issues`,
     input: { url: rawUrl },
     result,
-  }).catch(() => undefined);
+    findings,
+  });
   return result;
 }

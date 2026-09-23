@@ -6,8 +6,11 @@ import { clients } from "@/db/schema";
 import { scanCwv } from "@/lib/pagespeed";
 import { auditEeat } from "@/lib/eeat-audit";
 import { scoreAllPassages } from "@/lib/aio-passage-scorer";
+import { parseHtmlToMarkdown } from "@/lib/main-content-extractor";
 import { fetchCruxData } from "@/lib/crux";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { geoScoreFindings } from "@/lib/tool-finding-builders";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type GeoScoreState =
   | {
@@ -34,7 +37,7 @@ async function fetchHtml(url: string): Promise<string | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12_000);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       headers: { "user-agent": USER_AGENT, accept: "text/html" },
       signal: ctrl.signal,
       redirect: "follow",
@@ -67,7 +70,11 @@ export async function runGeoScore(
   const html = await fetchHtml(url);
   let citability = { score: 0, weight: 25, note: "Could not fetch page" };
   if (html) {
-    const passages = scoreAllPassages(html);
+    // The scorer reads markdown paragraphs. Handed raw HTML it stripped
+    // the tags but kept everything between them, so inline scripts,
+    // styles and JSON-LD were scored as prose — the /tools/aio-passage
+    // page already extracted first; this one did not.
+    const passages = scoreAllPassages(parseHtmlToMarkdown(html).markdown);
     if (passages.length > 0) {
       const avg = Math.round(
         passages.reduce((s, p) => s + p.score, 0) / passages.length,
@@ -212,12 +219,20 @@ export async function runGeoScore(
     dimensions: { citability, brandAuthority, contentEeat, technical, schema, platformTactics },
     summary,
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "geo-score",
     label: `${url} · ${composite}/100`,
     input: { url, clientId },
     result,
     clientId,
-  }).catch(() => undefined);
+    findings: geoScoreFindings({
+      citability,
+      brandAuthority,
+      contentEeat,
+      technical,
+      schema,
+      platformTactics,
+    }),
+  });
   return result;
 }

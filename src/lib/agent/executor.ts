@@ -23,6 +23,18 @@
  */
 
 import { eq } from "drizzle-orm";
+import { AI_BOTS } from "../ai-bot-robots";
+import {
+  getHardening,
+  getRedirects,
+  getRobotsTxt,
+  setHardening,
+  setRedirects,
+  setRobotsTxt,
+  HARDENING_KEYS,
+  type WpHardening,
+  type WpRedirect,
+} from "../wp-bridge";
 import { db } from "@/db/client";
 import { agentActions, type AgentAction } from "@/db/schema";
 import {
@@ -89,14 +101,175 @@ export function requiresDraft(kind: string): boolean {
   return (
     kind === "write_schema" ||
     kind === "write_internal_links" ||
+    // Deterministic, but still drafted. "Requires a draft" means "must
+    // not be executed with an empty string" — it does not mean "must ask
+    // a model". Leaving these out would send "" to the site, verify
+    // cleanly against a field that never changed, and report the page as
+    // fixed. That exact sequence already shipped for alt text.
+    kind === "write_canonical" ||
+    kind === "write_robots_meta" ||
+    kind === "write_robots_txt" ||
+    // Both site-wide, both deterministic, both still drafted. Hardening
+    // needs the switch name and redirects need the rule; executing
+    // either with "" would write nothing and verify against nothing.
+    kind === "write_hardening" ||
+    kind === "write_redirects" ||
     kind in DRAFT_SPECS
   );
 }
 
+/**
+ * What the drafter knows about the page it is rewriting.
+ *
+ * `business` is the late addition and the important one. Without it a
+ * model rewriting a title sees a domain, a URL and the broken title it
+ * is replacing — and when the broken title is "Home Page", that is
+ * genuinely all there is. On a real client it filled the gap from the
+ * company's name and proposed "Dice Codes: Free Monopoly GO Dice Links
+ * & Codes", a headline for a mobile game that shares two words with a
+ * web agency in Punjab. The model was not malfunctioning; nobody had
+ * told it what the business does, and a model with no facts and a
+ * required output will produce plausible ones.
+ */
+export type DraftContext = {
+  siteName: string;
+  pageUrl: string;
+  pageTitle?: string | null;
+  /**
+   * What the business is, from client-knowledge.ts, already marked up
+   * with where each part came from. Null when nothing is known, in which
+   * case the section is left out of the prompt entirely rather than sent
+   * empty — an empty heading reads to a model as "known to be nothing".
+   */
+  business?: string | null;
+};
+
+/**
+ * The business block, or "" so it adds no blank lines when absent.
+ *
+ * Leads the user message rather than trailing it, so every prompt reads
+ * as facts first and instruction last. Prepended in one place instead of
+ * threaded through each spec's template: four near-identical strings is
+ * how a fifth one gets added later without it.
+ */
+function businessBlock(c: DraftContext): string {
+  return c.business ? `About this business:\n${c.business}\n\n` : "";
+}
+
 export async function draftValue(
   action: PlannedAction,
-  context: { siteName: string; pageTitle?: string | null; pageUrl: string },
+  context: DraftContext,
 ): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
+  // robots.txt: the block of directives that must be present.
+  //
+  // Not the whole file — the executor merges this into whatever the site
+  // already serves, because replacing robots.txt wholesale would throw
+  // away Disallow rules somebody added on purpose and the agent has no
+  // way to know were deliberate.
+  //
+  // Allow, not Disallow. The finding is "nobody decided", and the agent
+  // must not decide to block AI crawlers on a user's behalf — that is a
+  // business decision with revenue attached, and it is far easier to
+  // flip a written Allow to Disallow than to notice a silent one.
+  if (action.kind === "write_robots_txt") {
+    // Which robots.txt job this is. The planner puts it in targetRef
+    // because both jobs share a kind and need different content written.
+    if (action.targetRef === "site:robots_txt:create") {
+      // A site with no robots.txt at all. The only thing worth asserting
+      // is where the sitemap is. Everything else this could add would be
+      // a rule nobody asked for, and allow-all is already what a missing
+      // file meant — so nothing is newly blocked, and the file has
+      // somewhere obvious to grow from.
+      let sitemap = "/wp-sitemap.xml";
+      try {
+        sitemap = new URL("/wp-sitemap.xml", action.targetUrl).toString();
+      } catch {
+        /* keep the relative path — robots.txt accepts one */
+      }
+      return {
+        ok: true,
+        value:
+          [
+            "# robots.txt — created by SEO Tool.",
+            "# Allow-all is what a missing file already meant, so nothing",
+            "# is newly blocked here. Add Disallow rules as you need them.",
+            "User-agent: *",
+            "Allow: /",
+            "",
+            `Sitemap: ${sitemap}`,
+          ].join("\n") + "\n",
+      };
+    }
+
+    const lines = [
+      "# AI crawler policy — added by SEO Tool. Change Allow to Disallow",
+      "# for any of these you would rather keep out.",
+      ...AI_BOTS.flatMap((b) => [`User-agent: ${b.ua}`, "Allow: /", ""]),
+    ];
+    return { ok: true, value: lines.join("\n").trimEnd() + "\n" };
+  }
+
+  // Hardening: the value is the switch to flip, which the planner
+  // already decided from the finding type. Nothing to draft, but it goes
+  // through here so the empty-string path stays closed.
+  if (action.kind === "write_hardening") {
+    const key = hardeningKeyOf(action.targetRef);
+    return key
+      ? { ok: true, value: key }
+      : {
+          ok: false,
+          error:
+            "This change doesn't name a WordPress setting to turn on, so there is nothing to write.",
+        };
+  }
+
+  // A redirect: where from, where to. The planner computes both from the
+  // finding — a 404'd URL and the page it should have been — so there is
+  // nothing for a model to choose.
+  if (action.kind === "write_redirects") {
+    const raw = (action.currentValue ?? "").trim();
+    if (!raw) {
+      return {
+        ok: false,
+        error:
+          "This change doesn't say where the redirect should point, so writing it would send visitors nowhere.",
+      };
+    }
+    return { ok: true, value: raw };
+  }
+
+  // A canonical is the page's own address. There is no wording to
+  // choose and nothing for a model to get wrong, so this is computed —
+  // and computed from the URL the crawler actually fetched, not
+  // reconstructed, so it matches what the site serves.
+  if (action.kind === "write_canonical") {
+    const url = (action.targetUrl ?? "").trim();
+    if (!url) {
+      return {
+        ok: false,
+        error:
+          "No page URL to point the canonical at. Writing an empty canonical would remove the tag rather than fix it.",
+      };
+    }
+    try {
+      // Normalised so a trailing-slash difference between the crawl and
+      // the site's own permalink doesn't read as a mismatch forever.
+      const u = new URL(url);
+      u.hash = "";
+      return { ok: true, value: u.toString() };
+    } catch {
+      return { ok: false, error: `"${url}" isn't a valid URL to canonicalise to.` };
+    }
+  }
+
+  // Removing a noindex means saying the opposite explicitly rather than
+  // deleting the directive: an absent robots meta inherits whatever the
+  // SEO plugin's site-wide default is, which on some setups is the
+  // noindex we are trying to remove.
+  if (action.kind === "write_robots_meta") {
+    return { ok: true, value: "index,follow" };
+  }
+
   // Internal links are decided by the planner, not written by a model.
   // The orphan page, the page to link it from, and the anchor phrase
   // are all computable — see anchor-text.ts. Drafting here is just
@@ -127,7 +300,7 @@ export async function draftValue(
 
   const res = await callAIResult({
     system: spec.system,
-    user: spec.user(action, context),
+    user: `${businessBlock(context)}${spec.user(action, context)}`,
     maxTokens: 200,
     feature: "general",
   });
@@ -204,7 +377,7 @@ const DRAFT_SPECS: Record<
   string,
   {
     system: string;
-    user: (a: PlannedAction, c: { siteName: string; pageUrl: string; pageTitle?: string | null }) => string;
+    user: (a: PlannedAction, c: DraftContext) => string;
     validate: (v: string) => string | null;
   }
 > = {
@@ -222,6 +395,35 @@ Rules:
       if (v.length > TITLE_MAX)
         return `The replacement is ${v.length} characters, still over the ${TITLE_MAX}-character display limit.`;
       if (v.length < 15) return "The replacement is too short to be useful.";
+      return null;
+    },
+  },
+  /**
+   * The share title. One field, deliberately.
+   *
+   * A social card wants a headline that reads well out of context, on a
+   * phone, next to an image — which is a different job from a search
+   * title, where the same words compete against nine other blue links.
+   * Drafting only og:title and letting the description and image fall
+   * back to the page's own is the smaller, safer change: Open Graph
+   * inherits sensibly, and inventing an image URL is how you get a
+   * broken card instead of no card.
+   */
+  write_social_meta: {
+    system: `You write the Open Graph title for a web page — the headline someone sees when the page is shared on Facebook, LinkedIn, WhatsApp or X. Output ONLY the title, no quotes and no explanation.
+
+Rules:
+- Between 20 and 70 characters. Longer gets cut off in the card.
+- It is read on its own, with no surrounding page, so it must make sense cold.
+- Say what the page actually is. Do not invent offers, prices, statistics or locations you were not given.
+- No clickbait, no ALL CAPS, no "You won't believe".
+- Plainer than a search title. This is a sentence a person reads, not a keyword slot.`,
+    user: (a, c) =>
+      `Site: ${c.siteName}\nPage: ${c.pageUrl}\nPage title: ${c.pageTitle ?? "(unknown)"}\nProblem: ${a.reason}\n\nWrite the Open Graph title.`,
+    validate: (v) => {
+      if (v.length > 70)
+        return `The share title is ${v.length} characters and gets cut off past 70.`;
+      if (v.length < 15) return "The share title is too short to say anything.";
       return null;
     },
   },
@@ -348,6 +550,232 @@ export async function executeAction(opts: {
       error: "No usable WordPress credentials for this client.",
     });
     return { status: "failed", actionId: id, error: "No WordPress credentials." };
+  }
+
+  // robots.txt is site-wide, so it never resolves a post id.
+  //
+  // It reads what the site serves, merges the drafted block in, and
+  // writes the result — rather than replacing the file. Anything already
+  // there was put there by somebody, and this has no way to tell a
+  // deliberate Disallow from an accidental one.
+  if (action.kind === "write_robots_txt") {
+    const current = await getRobotsTxt(creds);
+    if (!current.ok) {
+      const id = await insert({ status: "failed", error: current.error });
+      return { status: "failed", actionId: id, error: current.error };
+    }
+
+    // A real file on disk beats every plugin. Saying so is the whole
+    // point — writing anyway would report a success the user could only
+    // disprove by loading the URL.
+    if (current.data.physicalFile) {
+      const why =
+        "This site serves a real robots.txt file from disk, which WordPress uses instead of anything a plugin provides. Edit that file directly.";
+      const id = await insert({ status: "skipped", error: why });
+      return { status: "skipped", actionId: id };
+    }
+
+    const existing = current.data.served;
+    const merged = mergeRobotsBlock(existing, opts.newValue);
+    if (merged === existing) {
+      const id = await insert({
+        status: "skipped",
+        beforeValue: existing,
+        error:
+          "Every one of these directives is already in robots.txt, so nothing needed changing.",
+      });
+      return { status: "skipped", actionId: id };
+    }
+
+    const res = await setRobotsTxt(creds, merged);
+    if (!res.ok) {
+      const id = await insert({
+        status: "failed",
+        beforeValue: existing,
+        error: res.error,
+      });
+      return { status: "failed", actionId: id, error: res.error ?? "Write failed." };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: "site:robots_txt",
+      beforeValue: existing,
+      afterValue: merged,
+      appliedAt: new Date(),
+    });
+
+    // Read it back. The write returning ok only means the request was
+    // accepted; this is what proves the site changed.
+    const after = await getRobotsTxt(creds);
+    if (after.ok && after.data.served === merged) {
+      await db
+        .update(agentActions)
+        .set({ status: "verified", verifiedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { status: "verified", actionId };
+    }
+    return { status: "applied", actionId };
+  }
+
+  // A hardening toggle. Site-wide, one switch per finding, and the
+  // switch to flip is in targetRef because six findings share this kind.
+  //
+  // Reads the current state first and skips when the switch is already
+  // on. Writing anyway would record an action, verify against a value
+  // that never changed, and report having fixed something it did not
+  // touch — the alt-text failure, in a different costume.
+  if (action.kind === "write_hardening") {
+    const key = hardeningKeyOf(action.targetRef);
+    if (!key) {
+      const id = await insert({
+        status: "failed",
+        error:
+          "This change didn't say which setting to turn on. This is a bug in the agent, not a problem with your site.",
+      });
+      return { status: "failed", actionId: id, error: "No hardening key." };
+    }
+
+    const current = await getHardening(creds);
+    if (!current.ok) {
+      const id = await insert({ status: "failed", error: current.error });
+      return { status: "failed", actionId: id, error: current.error };
+    }
+
+    if (current.data[key]) {
+      const id = await insert({
+        status: "skipped",
+        targetRef: action.targetRef,
+        beforeValue: "on",
+        error:
+          "This setting is already on, so there was nothing to change. The finding may be describing a page cached before it was switched on.",
+      });
+      return { status: "skipped", actionId: id };
+    }
+
+    const res = await setHardening(creds, { [key]: true });
+    if (!res.ok) {
+      const id = await insert({
+        status: "failed",
+        targetRef: action.targetRef,
+        beforeValue: "off",
+        error: res.error,
+      });
+      return {
+        status: "failed",
+        actionId: id,
+        error: res.error ?? "Write failed.",
+      };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: action.targetRef,
+      beforeValue: "off",
+      afterValue: "on",
+      appliedAt: new Date(),
+    });
+
+    // Read it back. An accepted write is not a changed site.
+    const after = await getHardening(creds);
+    if (after.ok && after.data[key]) {
+      await db
+        .update(agentActions)
+        .set({ status: "verified", verifiedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { status: "verified", actionId };
+    }
+    return { status: "applied", actionId };
+  }
+
+  // A redirect. Site-wide, and the rule being added is in targetRef so
+  // two redirects planned in one run are two actions rather than one.
+  //
+  // Adds to the existing list rather than replacing it: the site's other
+  // redirects were put there by somebody, and this has no way to tell a
+  // deliberate one from an accidental one.
+  if (action.kind === "write_redirects") {
+    let rule: WpRedirect;
+    try {
+      const parsed = JSON.parse(opts.newValue);
+      rule = {
+        from: String(parsed.from ?? ""),
+        to: String(parsed.to ?? ""),
+        // 301 unless something explicitly asked for another valid code.
+        // The plugin coerces anything else to 301 anyway; agreeing here
+        // means the value we record is the value the site has.
+        code: redirectCode(parsed.code),
+      };
+    } catch {
+      const id = await insert({
+        status: "failed",
+        error:
+          "The redirect for this change couldn't be read back. This is a bug in the agent.",
+      });
+      return { status: "failed", actionId: id, error: "Malformed redirect." };
+    }
+
+    if (!rule.from || !rule.to) {
+      const id = await insert({
+        status: "failed",
+        error:
+          "A redirect needs both a source and a destination, and one of them was empty.",
+      });
+      return { status: "failed", actionId: id, error: "Incomplete redirect." };
+    }
+
+    const current = await getRedirects(creds);
+    if (!current.ok) {
+      const id = await insert({ status: "failed", error: current.error });
+      return { status: "failed", actionId: id, error: current.error };
+    }
+
+    const existing = current.data;
+    // Somebody already routes this path somewhere. Overwriting their
+    // destination is a decision the agent has no standing to make.
+    const clash = existing.find((r) => samePath(r.from, rule.from));
+    if (clash) {
+      const id = await insert({
+        status: "skipped",
+        targetRef: action.targetRef,
+        beforeValue: `${clash.from} -> ${clash.to}`,
+        error: `This site already redirects ${clash.from} to ${clash.to}. Changing where it points is a decision for you, not the agent.`,
+      });
+      return { status: "skipped", actionId: id };
+    }
+
+    const next = [...existing, rule];
+    const res = await setRedirects(creds, next);
+    if (!res.ok) {
+      const id = await insert({
+        status: "failed",
+        targetRef: action.targetRef,
+        error: res.error,
+      });
+      return {
+        status: "failed",
+        actionId: id,
+        error: res.error ?? "Write failed.",
+      };
+    }
+
+    const actionId = await insert({
+      status: "applied",
+      targetRef: action.targetRef,
+      beforeValue: `${existing.length} redirects`,
+      afterValue: `${rule.from} -> ${rule.to} (${rule.code})`,
+      appliedAt: new Date(),
+    });
+
+    const after = await getRedirects(creds);
+    if (after.ok && after.data.some((r) => samePath(r.from, rule.from))) {
+      await db
+        .update(agentActions)
+        .set({ status: "verified", verifiedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { status: "verified", actionId };
+    }
+    return { status: "applied", actionId };
   }
 
   // Internal links edit the article BODY, which makes them the only
@@ -507,12 +935,18 @@ export async function executeAction(opts: {
 
   const postId = await findPostIdByUrl(creds, action.targetUrl);
   if (postId === null) {
+    // Skipped, not failed. Nothing broke: this URL is a category archive,
+    // a search page, or something a page builder generates, and none of
+    // those is a post WordPress can be asked to edit. Filing it as a
+    // failure put a red row in the run log for a site behaving normally,
+    // and a log that cries wolf is one nobody reads when something real
+    // does break.
     const id = await insert({
-      status: "failed",
+      status: "skipped",
       error:
-        "Couldn't work out which WordPress post this URL is. The page may be generated by a plugin or a page builder rather than a normal post.",
+        "This URL isn't a WordPress post or page — it's most likely a category or archive listing, or something a page builder generates. There's nothing here to edit directly; change what feeds it instead.",
     });
-    return { status: "failed", actionId: id, error: "Could not resolve the page." };
+    return { status: "skipped", actionId: id };
   }
 
   // Rule 1: read the CURRENT value from the CMS, not from the audit.
@@ -704,6 +1138,62 @@ export async function revertAction(
     return { ok: true };
   }
 
+  // Both site-wide kinds undo by their own route. Their targetRef names
+  // a switch or a path, not a post — falling through to writeField
+  // would call Number() on it and write to whatever post shares that id,
+  // or to NaN. Undo landing somewhere unrelated is worse than no undo,
+  // because the user believes it worked.
+  if (action.kind === "write_hardening") {
+    const key = hardeningKeyOf(action.targetRef);
+    if (!key) {
+      return {
+        ok: false,
+        error: "This change didn't record which setting it turned on.",
+      };
+    }
+    // beforeValue is "on"/"off" — put back exactly what was there.
+    const restore = action.beforeValue === "on";
+    const res = await setHardening(creds, { [key]: restore });
+    if (!res.ok) return { ok: false, error: res.error ?? "Undo failed." };
+    await db
+      .update(agentActions)
+      .set({ status: "reverted", revertedAt: new Date() })
+      .where(eq(agentActions.id, actionId));
+    return { ok: true };
+  }
+
+  if (action.kind === "write_redirects") {
+    // The inverse of "add this rule" is "remove this rule", not "restore
+    // the old list" — anything added since would be thrown away by the
+    // second, and the agent has no claim on somebody else's redirects.
+    const path = (action.targetRef ?? "").replace(/^site:redirect:/, "");
+    if (!path) {
+      return {
+        ok: false,
+        error: "This change didn't record which redirect it added.",
+      };
+    }
+    const current = await getRedirects(creds);
+    if (!current.ok) return { ok: false, error: current.error };
+    const next = current.data.filter((r) => !samePath(r.from, path));
+    if (next.length === current.data.length) {
+      // Already gone. Someone removed it by hand, which is a fine
+      // outcome — say so rather than reporting a failure.
+      await db
+        .update(agentActions)
+        .set({ status: "reverted", revertedAt: new Date() })
+        .where(eq(agentActions.id, actionId));
+      return { ok: true };
+    }
+    const res = await setRedirects(creds, next);
+    if (!res.ok) return { ok: false, error: res.error ?? "Undo failed." };
+    await db
+      .update(agentActions)
+      .set({ status: "reverted", revertedAt: new Date() })
+      .where(eq(agentActions.id, actionId));
+    return { ok: true };
+  }
+
   if (action.beforeValue === null) {
     return {
       ok: false,
@@ -744,11 +1234,24 @@ export async function revertAction(
 }
 
 function readField(
-  seo: { title: string; metaDescription: string },
+  seo: {
+    title: string;
+    metaDescription: string;
+    canonical?: string | null;
+    robots?: string | null;
+  },
   kind: string,
 ): string | null {
   if (kind === "write_title") return seo.title ?? null;
   if (kind === "write_meta_description") return seo.metaDescription ?? null;
+  // Null here means the plugin did not report the field — an install
+  // older than 0.5.0 omits both keys. That is deliberately NOT coerced
+  // to "": the caller treats null as "no recorded undo" and refuses the
+  // write, which is the right answer. Reading a missing key as "this
+  // page has no canonical" would invite writing one onto every page on
+  // the site, with nothing to restore.
+  if (kind === "write_canonical") return seo.canonical ?? null;
+  if (kind === "write_robots_meta") return seo.robots ?? null;
   // Schema: empty string, not null, and the distinction is load-bearing.
   //
   // `getPostSeo` doesn't return the existing JSON-LD, so we can't read
@@ -765,12 +1268,33 @@ function readField(
   // markup first, or the agent would silently destroy hand-written
   // structured data with no way back.
   if (kind === "write_schema") return "";
+  // Social meta: empty string, for the same reason as schema and with the
+  // same limit. The only findings that trigger this are missing_og_tags
+  // and missing_twitter_card — the page has no such tag by definition, so
+  // the previous state is "" and the undo is to write "" back, which the
+  // plugin turns into deleting the keys rather than storing a blank
+  // override.
+  //
+  // If a "wrong og:title" finding is ever added, this must read the real
+  // value first. Writing "" back would delete a tag somebody wrote by
+  // hand, and report success doing it.
+  if (kind === "write_social_meta") return "";
   return null;
 }
 
 /** Can we confirm a write took effect by reading the page back? */
 function isVerifiable(kind: string): boolean {
-  return kind === "write_title" || kind === "write_meta_description";
+  // Canonical and robots join the list because plugin 0.5.0 returns both
+  // from GET /post/{id}/seo. Verification is the difference between
+  // "we sent it" and "the site changed" — the two came apart once
+  // already, when the client sent metaDescription and the plugin read
+  // meta_description and answered ok to a write that did nothing.
+  return (
+    kind === "write_title" ||
+    kind === "write_meta_description" ||
+    kind === "write_canonical" ||
+    kind === "write_robots_meta"
+  );
 }
 
 async function writeField(
@@ -790,6 +1314,22 @@ async function writeField(
   // exists precisely to stop that, and it was defeated by the executor
   // not implementing what the bridge already did.
   if (kind === "write_schema") return setPostSchema(creds, postId, value);
+  if (kind === "write_canonical")
+    return setPostSeo(creds, postId, { canonical: value });
+  if (kind === "write_robots_meta")
+    return setPostSeo(creds, postId, { robots: value });
+  // og:title only, and twitter:title set to match.
+  //
+  // The plugin accepts six social fields; the agent writes the two that
+  // can be drafted from the page itself. A description would duplicate
+  // the meta description it already manages, and an image URL would have
+  // to be invented — which produces a broken share card rather than the
+  // plain one the page has now.
+  if (kind === "write_social_meta")
+    return setPostSeo(creds, postId, {
+      ogTitle: value,
+      twitterTitle: value,
+    });
   // Alt text never reaches here — it has its own branch in executeAction
   // and in revertAction, because it targets an attachment rather than a
   // post and postId would be the wrong id entirely.
@@ -874,4 +1414,104 @@ export function draftRulesFor(kind: string): string | null {
  */
 export function requiresModel(kind: string): boolean {
   return requiresDraft(kind) && kind !== "write_internal_links";
+}
+
+/**
+ * Add a block of robots.txt directives without disturbing what's there.
+ *
+ * Merge rather than replace, and it matters: robots.txt is one file for
+ * a whole site, and anything already in it was put there by somebody.
+ * Replacing it wholesale would silently drop a Disallow that was
+ * protecting a staging path or an admin area, and the agent has no way
+ * to tell a deliberate rule from an accidental one.
+ *
+ * A user-agent already named in the file is left completely alone —
+ * including its existing directives — because a policy someone has
+ * already stated is a decision, not a gap. Only the ones the file says
+ * nothing about get appended.
+ */
+export function mergeRobotsBlock(existing: string, block: string): string {
+  const names = (text: string) =>
+    new Set(
+      [...text.matchAll(/^\s*User-agent:\s*(.+?)\s*$/gim)].map((m) =>
+        m[1].toLowerCase(),
+      ),
+    );
+
+  const already = names(existing);
+
+  // Walk the block in "User-agent: X" + following directives groups, and
+  // keep only the groups for agents the file has never heard of.
+  const lines = block.split(/\r?\n/);
+  const kept: string[] = [];
+  let skipping = false;
+  for (const line of lines) {
+    const ua = line.match(/^\s*User-agent:\s*(.+?)\s*$/i);
+    if (ua) {
+      skipping = already.has(ua[1].toLowerCase());
+      if (!skipping) kept.push(line);
+      continue;
+    }
+    // Comments before the first User-agent belong to the block header.
+    if (!skipping) kept.push(line);
+  }
+
+  const addition = kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Nothing new to say. Returning `existing` unchanged is what lets the
+  // caller record "skipped" rather than writing an identical file and
+  // reporting it as a fix.
+  if (!/^\s*User-agent:/im.test(addition)) return existing;
+
+  const base = existing.trimEnd();
+  return (base ? base + "\n\n" : "") + addition + "\n";
+}
+
+/**
+ * The hardening switch a targetRef names, or null.
+ *
+ * targetRef is written as "site:hardening:<key>". Validated against
+ * HARDENING_KEYS rather than trusted, because an unrecognised key sent
+ * to the plugin is ignored: the write returns ok, nothing changes, and
+ * the read-back says the switch is still off — which reads as the site
+ * refusing rather than as the agent asking for something that does not
+ * exist.
+ */
+function hardeningKeyOf(ref: string | null | undefined): keyof WpHardening | null {
+  if (!ref) return null;
+  const key = ref.startsWith("site:hardening:")
+    ? ref.slice("site:hardening:".length)
+    : ref;
+  return (HARDENING_KEYS as readonly string[]).includes(key)
+    ? (key as keyof WpHardening)
+    : null;
+}
+
+/**
+ * Do two redirect sources mean the same path?
+ *
+ * The plugin normalises what it stores — leading slash, no query, no
+ * trailing slash — so a plain string compare against an un-normalised
+ * candidate would miss an existing rule and add a duplicate that the
+ * plugin then silently drops.
+ */
+function samePath(a: string, b: string): boolean {
+  const norm = (v: string) => {
+    let p = v.trim();
+    try {
+      p = new URL(p, "https://x.invalid").pathname;
+    } catch {
+      /* already a path */
+    }
+    p = p.split(/[?#]/)[0];
+    if (!p.startsWith("/")) p = "/" + p;
+    if (p.length > 1) p = p.replace(/\/+$/, "");
+    return p.toLowerCase();
+  };
+  return norm(a) === norm(b);
+}
+
+/** A redirect status the plugin will actually store, defaulting to 301. */
+function redirectCode(v: unknown): WpRedirect["code"] {
+  const n = Number(v);
+  return n === 302 || n === 307 || n === 308 ? n : 301;
 }

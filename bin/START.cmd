@@ -33,21 +33,27 @@ if "%PORT%"=="" (
 if "%PORT%"=="" set "PORT=3000"
 
 REM ---- 2. Find pnpm or npm
-where pnpm >nul 2>&1
-if %errorlevel%==0 (
-  set "PM=pnpm"
-) else (
-  where npm >nul 2>&1
-  if %errorlevel%==0 (
-    set "PM=npm"
-  ) else (
-    echo.
-    echo Node / npm not found.
-    echo Install Node 20+ from https://nodejs.org and try again.
-    echo.
-    pause
-    exit /b 1
-  )
+REM
+REM     Uses && rather than a nested `if %errorlevel%`. Inside a
+REM     parenthesised block cmd expands %errorlevel% when it PARSES the
+REM     block, not when it runs — so the inner check was reusing the
+REM     result of the OUTER `where pnpm`. On any machine with npm but
+REM     no pnpm (a stock Node install, i.e. most of them) this printed
+REM     "Node / npm not found" and stopped, on a machine with Node
+REM     plainly installed. && evaluates immediately and sidesteps it.
+set "PM="
+where pnpm >nul 2>&1 && set "PM=pnpm"
+if not defined PM where npm >nul 2>&1 && set "PM=npm"
+if not defined PM (
+  echo.
+  echo Node / npm not found.
+  echo Install Node 20+ from https://nodejs.org and try again.
+  echo.
+  REM  Only wait for a keypress when a human is watching. The control
+  REM  panel runs this with no stdin, so a pause here hangs the task
+  REM  forever instead of reporting the failure.
+  if not defined SEO_NONINTERACTIVE pause
+  exit /b 1
 )
 
 REM ---- 2b. First-run self-bootstrap.
@@ -96,7 +102,7 @@ if not exist "node_modules" (
     echo.
     echo Dependency install failed. Check the messages above.
     echo If it's a network error, check your connection and re-run.
-    pause
+    if not defined SEO_NONINTERACTIVE pause
     exit /b 1
   )
   REM Rebuild native modules (better-sqlite3 etc.)
@@ -112,7 +118,7 @@ if not exist ".next\BUILD_ID" (
   call !PM! run build
   if errorlevel 1 (
     echo.
-    echo Production build failed. Will fall back to dev mode (slower but works).
+    echo Production build failed. Will fall back to dev mode ^(slower but works^).
     REM Don't exit — dev mode still works, just slower
   )
 )
@@ -149,7 +155,7 @@ REM     install. /api/v1/health reports its installRoot; if it doesn't
 REM     match this install dir, someone else is on this port — pick a
 REM     new one rather than opening THEIR data in the user's browser.
 set "MY_ROOT=%CD%"
-for /f "tokens=*" %%R in ('powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri http://localhost:%PORT%/api/v1/health -TimeoutSec 2 -ErrorAction Stop; $j = $r.Content ^| ConvertFrom-Json; if ($j.installRoot) { Write-Output $j.installRoot } } catch {}"') do set "REMOTE_ROOT=%%R"
+for /f "tokens=*" %%R in ('powershell -NoProfile -Command "try { $r = Invoke-WebRequest -UseBasicParsing -Uri http://localhost:%PORT%/api/v1/health -TimeoutSec 2 -ErrorAction Stop; $j = $r.Content | ConvertFrom-Json; if ($j.installRoot) { Write-Output $j.installRoot } } catch {}"') do set "REMOTE_ROOT=%%R"
 if defined REMOTE_ROOT (
   REM Case-insensitive compare for Windows paths
   if /I "!REMOTE_ROOT!"=="!MY_ROOT!" (
@@ -170,7 +176,7 @@ if defined REMOTE_ROOT (
 )
 
 REM On restart, give the old server a moment to free the port.
-if "%SEO_RESTART%"=="1" timeout /t 2 /nobreak >nul
+if "%SEO_RESTART%"=="1" ping -n 3 127.0.0.1 >nul
 
 REM ---- 3b. Is the saved port occupied by SOMETHING ELSE (not us)?
 REM     Delegate to scripts/pick-port.cjs which uses the stable
@@ -193,7 +199,7 @@ if %errorlevel%==0 (
       )
     )
     echo No free port found. Set PORT manually before re-running.
-    pause
+    if not defined SEO_NONINTERACTIVE pause
     exit /b 1
   )
   echo   using port %PORT%
@@ -261,7 +267,7 @@ if errorlevel 1 (
       echo Rebuild done. Restarting server...
       type nul > dev-server.log
       type nul > dev-server.err.log
-      powershell -NoProfile -Command "$p = Start-Process -FilePath '.dev-server.cmd' -WindowStyle Hidden -WorkingDirectory \"%CD%\" -RedirectStandardOutput 'dev-server.log' -RedirectStandardError 'dev-server.err.log' -PassThru; if ($p) { $p.Id ^| Out-File '.dev-server.pid' -Encoding ascii -Force }"
+      powershell -NoProfile -Command "$p = Start-Process -FilePath '.dev-server.cmd' -WindowStyle Hidden -WorkingDirectory \"%CD%\" -RedirectStandardOutput 'dev-server.log' -RedirectStandardError 'dev-server.err.log' -PassThru; if ($p) { $p.Id | Out-File '.dev-server.pid' -Encoding ascii -Force }"
       powershell -NoProfile -Command "for ($i=0; $i -lt 60; $i++) { try { (Invoke-WebRequest -UseBasicParsing -Uri http://localhost:%PORT%/api/v1/health -TimeoutSec 1).StatusCode | Out-Null; break } catch { Start-Sleep -Seconds 1 } }"
     )
   )

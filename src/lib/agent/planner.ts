@@ -32,6 +32,8 @@ import { agentActions, auditIssues, audits, clients } from "@/db/schema";
 import type { AgentSettings } from "./autonomy";
 import { has, type ClientCapabilities } from "./capabilities";
 import { analyseInternalLinks } from "../internal-link-graph";
+import { loadActionableToolFindings } from "./tool-finding-map";
+import { withoutInfrastructure } from "../infrastructure-urls";
 import { pickAnchor } from "./anchor-text";
 
 export type PlannedAction = {
@@ -69,12 +71,59 @@ export type PlannedAction = {
   links?: { anchor: string; url: string }[];
 };
 
+/**
+ * Kinds whose target is the site, not a page.
+ *
+ * They dedup on the kind alone and their cooldown is site-wide, because
+ * there is only one of the thing being edited no matter how many URLs
+ * describe it.
+ */
+export const SITE_WIDE_KINDS: ReadonlySet<string> = new Set([
+  "write_robots_txt",
+  "write_hardening",
+  "write_redirects",
+]);
+
+/**
+ * Which hardening toggle each WordPress finding turns on.
+ *
+ * Six findings, six switches, one per problem. Kept as a map rather than
+ * six near-identical FIXABLE entries carrying the key in prose, because
+ * the executor has to read the key back and a typo in a string literal
+ * would silently toggle nothing while reporting success.
+ *
+ * Every key here must exist in HARDENING_KEYS — hardening-map.test.ts
+ * fails if one does not.
+ */
+export const HARDENING_FOR_FINDING: Record<string, string> = {
+  wp_xmlrpc_exposed: "disable_xmlrpc",
+  wp_version_disclosed: "hide_wp_version",
+  wp_rest_api_advertised: "hide_rest_discovery",
+  wp_emoji_bloat: "disable_emoji",
+  wp_heartbeat_on_frontend: "disable_heartbeat_frontend",
+  wp_author_archive_indexed: "noindex_author_archives",
+};
+
 export type PlannableKind =
   | "write_title"
   | "write_meta_description"
   | "write_image_alt"
   | "write_schema"
-  | "write_internal_links";
+  | "write_internal_links"
+  | "write_social_meta"
+  // Per-page metadata, plugin 0.5.0 and up.
+  | "write_canonical"
+  | "write_robots_meta"
+  // Site-wide, plugin 0.5.0 and up. Not a page edit — the target is the
+  // site itself, which is why the executor handles it separately and the
+  // risk is always needs_review.
+  | "write_robots_txt"
+  // Site-wide, plugin 0.5.0 and up. Each carries the specific thing it
+  // changes in targetRef — the toggle key, or the 404 being redirected —
+  // because the site is the target and the kind alone does not say what
+  // about it is changing.
+  | "write_hardening"
+  | "write_redirects";
 
 /**
  * Audit finding types the agent can actually fix, and what fixing one is
@@ -154,6 +203,257 @@ const FIXABLE: Record<
     reason:
       "No structured data, so this page can't qualify for rich results. Which schema type fits is a judgement call worth checking.",
   },
+
+  // ---- Metadata that duplicates or under-uses the space -------------
+  //
+  // These reuse the title and description writers unchanged. They were
+  // simply never listed, so the crawler flagged them and the agent had
+  // no entry for them — detected, never actionable.
+
+  duplicate_title: {
+    kind: "write_title",
+    capability: "write_title",
+    weight: 85,
+    // Which of the two pages should keep the title is a judgement about
+    // what each page is for, and the agent cannot see that.
+    risk: "needs_review",
+    reason:
+      "Another page on the site uses this exact title, so Google has to guess which one to show for it — and often shows neither.",
+  },
+  duplicate_meta_description: {
+    kind: "write_meta_description",
+    capability: "write_meta_description",
+    weight: 55,
+    risk: "needs_review",
+    reason:
+      "This description is copied on another page. Identical descriptions give searchers no reason to pick one result over the other.",
+  },
+  short_meta_description: {
+    kind: "write_meta_description",
+    capability: "write_meta_description",
+    weight: 45,
+    risk: "needs_review",
+    reason:
+      "The description is much shorter than the space search results allow, which is unused room to say why this page answers the question.",
+  },
+
+  // ---- Canonical tags ------------------------------------------------
+
+  missing_canonical: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 75,
+    // A page with no canonical at all gets a self-referencing one. There
+    // is no judgement in pointing a page at itself.
+    risk: "safe",
+    reason:
+      "This page doesn't say which address is the real one, so if it's reachable at more than one URL, Google picks for you.",
+  },
+  non_self_canonical: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 95,
+    // Pointing elsewhere is sometimes deliberate — syndicated content,
+    // deliberate consolidation. Changing it without looking can hand a
+    // page's rankings to a page that shouldn't have them.
+    risk: "needs_review",
+    reason:
+      "This page's canonical points at a different URL, which tells Google to rank that one instead. Sometimes deliberate, often a template mistake.",
+  },
+  invalid_canonical: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 100,
+    // Not "safe", even though a broken canonical is unambiguously wrong.
+    // The contract test refuses a safe flag on anything that isn't an
+    // absence or a measured limit, and it is right to: a malformed
+    // canonical can be a templating bug the owner wants to see, and
+    // apply_safe would rewrite it on a live site without asking.
+    risk: "needs_review",
+    reason:
+      "The canonical tag isn't a usable URL, so Google ignores it and the page is left with no canonical at all.",
+  },
+  canonical_chain: {
+    kind: "write_canonical",
+    capability: "write_canonical",
+    weight: 80,
+    risk: "needs_review",
+    reason:
+      "The canonical points at a page that then points somewhere else. Google follows one hop, so the intended destination is never reached.",
+  },
+
+  // ---- Indexing directives -------------------------------------------
+  //
+  // Both are needs_review without exception. A noindex is occasionally
+  // deliberate — a thank-you page, a staging route left public — and
+  // removing one the owner meant to keep is how a private page ends up
+  // in search results.
+
+  noindex_set: {
+    kind: "write_robots_meta",
+    capability: "write_robots_meta",
+    weight: 120,
+    risk: "needs_review",
+    reason:
+      "This page tells Google not to index it, so it cannot appear in search at all. Worth confirming that's intended.",
+  },
+  xrobots_noindex: {
+    kind: "write_robots_meta",
+    capability: "write_robots_meta",
+    weight: 120,
+    risk: "needs_review",
+    reason:
+      "The server sends an X-Robots-Tag noindex header for this page, which keeps it out of search regardless of what the page itself says.",
+  },
+
+  // ---- robots.txt ----------------------------------------------------
+  //
+  // Site-wide, so needs_review without exception. One wrong Disallow line
+  // takes a whole site out of Google, and unlike a page edit there is no
+  // partial blast radius to limit it.
+
+  // ---- Social previews ------------------------------------------------
+  //
+  // Both are `safe`: the page has no Open Graph or Twitter tags at all,
+  // so there is nothing to overwrite and no judgement about whether the
+  // existing wording was better. Adding an absent tag cannot be worse
+  // than the platform scraping the navigation for a title, which is what
+  // it does now.
+  //
+  // Deliberately low weight. A share card nobody has shared yet is worth
+  // less than a title Google is already showing, and this list is
+  // ordered by what changes most per minute spent.
+  missing_og_tags: {
+    kind: "write_social_meta",
+    capability: "write_social_meta",
+    weight: 30,
+    risk: "safe",
+    reason:
+      "This page has no Open Graph tags, so anyone sharing it gets whatever text the platform scrapes — usually the navigation menu rather than the page.",
+  },
+  missing_twitter_card: {
+    kind: "write_social_meta",
+    capability: "write_social_meta",
+    weight: 20,
+    risk: "safe",
+    reason:
+      "No Twitter card tags. X falls back to Open Graph, so this is the smaller half of the same job — worth doing while the page is open.",
+  },
+
+  missing_robots_txt: {
+    kind: "write_robots_txt",
+    capability: "write_robots_txt",
+    weight: 80,
+    // Still needs_review despite being an absence rather than a
+    // judgement. Everything that writes robots.txt is, because one wrong
+    // Disallow takes a whole site out of Google and there is no partial
+    // blast radius to limit it.
+    risk: "needs_review",
+    reason:
+      "This site serves no robots.txt at all. Crawlers cope, but nothing points them at the sitemap and there is nowhere to say anything when you need to.",
+  },
+  // invalid_robots_txt is deliberately NOT here. "Invalid" means lines
+  // that do not parse, and repairing those requires knowing what the
+  // author meant — a Disallow with a typo could be protecting something.
+  // Guessing would be the one mistake in this file that can deindex a
+  // site, so it stays a finding a person reads.
+
+  missing_ai_crawler_policy: {
+    kind: "write_robots_txt",
+    capability: "write_robots_txt",
+    weight: 65,
+    risk: "needs_review",
+    reason:
+      "robots.txt says nothing about AI crawlers, so each of them applies its own default — some read the site, some don't, and nobody decided which. Saying so explicitly is the decision, whichever way it goes.",
+  },
+  partial_ai_crawler_policy: {
+    kind: "write_robots_txt",
+    capability: "write_robots_txt",
+    weight: 35,
+    risk: "needs_review",
+    reason:
+      "robots.txt names some AI crawlers and not others, so the ones left out fall back to their own defaults rather than the policy that was chosen for the rest.",
+  },
+
+  // --- WordPress hardening -------------------------------------------
+  //
+  // Every one is needs_review, at every autonomy level. These change how
+  // the whole site behaves rather than what one page says, and each has
+  // a real if uncommon way to be wrong: a site whose app genuinely calls
+  // XML-RPC, a theme that depends on the emoji script, an author archive
+  // somebody ranks on deliberately. The cost of asking is one click; the
+  // cost of not asking is a site that quietly stopped doing something.
+  wp_xmlrpc_exposed: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 45,
+    risk: "needs_review",
+    reason:
+      "XML-RPC is advertised on this site. It is the endpoint brute-force tools target first, and almost nothing modern uses it — but the Jetpack and WordPress mobile apps do, so this is worth a look before switching it off.",
+  },
+  wp_version_disclosed: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 30,
+    risk: "needs_review",
+    reason:
+      "The exact WordPress version is published in the page source, which tells anyone scanning precisely which known vulnerabilities to try.",
+  },
+  wp_rest_api_advertised: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 25,
+    risk: "needs_review",
+    reason:
+      "The REST API is linked from every page, which enumerates users and content to anyone who follows it. Hiding the link does not disable the API — anything of yours that uses it keeps working.",
+  },
+  wp_emoji_bloat: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 35,
+    risk: "needs_review",
+    reason:
+      "WordPress loads an emoji script on every page to support browsers that have not needed it in years. It is pure weight on Core Web Vitals.",
+  },
+  wp_heartbeat_on_frontend: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 30,
+    risk: "needs_review",
+    reason:
+      "The admin heartbeat is polling on public pages, so every visitor's browser makes a request every fifteen seconds for a feature only logged-in editors use.",
+  },
+  wp_author_archive_indexed: {
+    kind: "write_hardening",
+    capability: "write_hardening",
+    weight: 40,
+    risk: "needs_review",
+    reason:
+      "Author archives are indexable. On a one-author site they duplicate the blog index exactly, so the two compete for the same searches — but on a site with named expert contributors they can be worth ranking, which is why this asks first.",
+  },
+
+  // --- Redirects -----------------------------------------------------
+  //
+  // Always needs_review, at every autonomy level, for a reason worth
+  // stating plainly: a wrong redirect takes traffic off a page and sends
+  // it somewhere else, and the symptom is a page that quietly stops
+  // earning rather than an error anyone sees.
+  broken_link: {
+    kind: "write_redirects",
+    capability: "write_redirects",
+    weight: 55,
+    risk: "needs_review",
+    reason:
+      "A link on this site points at a URL that returns 404. A redirect sends the people and the link equity somewhere useful instead of into a dead end.",
+  },
+  redirect_chain: {
+    kind: "write_redirects",
+    capability: "write_redirects",
+    weight: 40,
+    risk: "needs_review",
+    reason:
+      "This URL redirects to a URL that redirects again. Each hop costs time and loses a little of what the link passes on, and pointing the first one straight at the destination removes both.",
+  },
 };
 
 export type PlanOutcome = {
@@ -178,10 +478,27 @@ export async function planForClient(opts: {
   // Most recent completed audit only. Older audits describe a site that
   // may already have been fixed, and acting on a stale finding means
   // editing a page to solve a problem it no longer has.
+  // The latest COMPLETED CRAWL, not the latest row in the table.
+  //
+  // Two things were wrong with taking whatever came last. A crawl that
+  // failed or is still running counts as an audit, so the agent would
+  // read a half-finished one and plan nothing. And the AI site audit
+  // writes into this same table with kind "ai_full" — a different
+  // vocabulary of its own check ids, none of which the planner can fix.
+  // So running an AI audit made the agent stop finding work entirely:
+  // it read 27 AI rows, matched none of them against FIXABLE, and
+  // reported that there was nothing to do while a crawl with 134
+  // findings sat one row above it.
   const [latestAudit] = await db
     .select({ id: audits.id })
     .from(audits)
-    .where(eq(audits.clientId, opts.clientId))
+    .where(
+      and(
+        eq(audits.clientId, opts.clientId),
+        eq(audits.status, "completed"),
+        eq(audits.kind, "crawler"),
+      ),
+    )
     .orderBy(desc(audits.id))
     .limit(1);
 
@@ -192,15 +509,20 @@ export async function planForClient(opts: {
     };
   }
 
-  const issues = await db
-    .select()
-    .from(auditIssues)
-    .where(
-      and(
-        eq(auditIssues.auditId, latestAudit.id),
-        eq(auditIssues.status, "new"),
+  // Infrastructure rows out. The planner writes to live sites, and an old
+  // audit's /cdn-cgi/ finding would have it drafting a meta description
+  // for a Cloudflare redirect that no CMS has a post for.
+  const issues = withoutInfrastructure(
+    await db
+      .select()
+      .from(auditIssues)
+      .where(
+        and(
+          eq(auditIssues.auditId, latestAudit.id),
+          eq(auditIssues.status, "new"),
+        ),
       ),
-    );
+  );
 
   // 1. Only findings we know how to fix.
   const candidates: PlannedAction[] = [];
@@ -218,9 +540,58 @@ export async function planForClient(opts: {
       risk: spec.risk,
       weight: spec.weight + severityBonus(issue.severity),
       issueId: issue.id,
+      // Site-wide kinds need to say WHICH site-wide thing they change.
+      // Without it six hardening findings dedup down to one and the
+      // executor has no switch to flip.
+      ...siteWideTarget(issue.type, issue.url),
     });
   }
   note("Findings the agent has no way to fix automatically.", notFixable);
+
+  // 1a. The same, from tools rather than the crawler.
+  //
+  // The tools produce findings into their own table and, until now, the
+  // agent had never read one — so a tool could detect a problem the
+  // agent already knew how to fix and the two never met. See
+  // tool-finding-map.ts for why the mapping goes onto the crawler's
+  // vocabulary rather than beside it.
+  //
+  // Deliberately after the audit findings and before dedup: an audit
+  // finding and a tool finding for the same page and the same problem
+  // collapse to one action at step 3, and the audit's copy wins because
+  // it is already in the list.
+  let fromTools = 0;
+  try {
+    const toolFound = await loadActionableToolFindings({
+      clientId: opts.clientId,
+      now,
+    });
+    for (const f of toolFound) {
+      const spec = FIXABLE[f.type];
+      if (!spec) continue;
+      // Without a URL there is nothing for a per-page action to target.
+      // Site-wide kinds ignore targetUrl, but they still carry one so
+      // the dedup key and the run log have something to show.
+      if (!f.url) continue;
+      candidates.push({
+        kind: spec.kind,
+        targetUrl: f.url,
+        // Says where it came from. A user reading the run log should be
+        // able to tell a crawl finding from a tool's, because they can
+        // disagree and the tool is usually the more specific of the two.
+        reason: `${spec.reason} (found by the ${f.toolId} tool)`,
+        risk: spec.risk,
+        weight: spec.weight + severityBonus(f.severity),
+        ...siteWideTarget(f.type, f.url),
+      });
+      fromTools++;
+    }
+  } catch {
+    // A broken tool-findings read must not take the whole run down —
+    // the crawler findings above are the primary source and still stand.
+    fromTools = 0;
+  }
+  void fromTools;
 
   // 1b. Internal links, which don't come from a finding.
   //
@@ -255,11 +626,27 @@ export async function planForClient(opts: {
   // 3. One action per page+kind. An audit can report the same problem
   //    from several crawl paths, and without this the agent would edit
   //    one page three times in a row.
+  //
+  //    Site-wide kinds key on the kind alone. There is one robots.txt
+  //    however many URLs point at it, and the crawler and the ai-robots
+  //    tool describe it with different ones — the crawl says
+  //    "https://site/robots.txt", the tool says "https://site/". Keying
+  //    on the URL let both through, so the agent planned the same
+  //    site-wide edit twice and burned two of its per-run slots to
+  //    apply it once.
   const seen = new Set<string>();
   const deduped: PlannedAction[] = [];
   let duplicates = 0;
   for (const a of capable) {
-    const key = `${a.kind}::${a.targetUrl}`;
+    const key = SITE_WIDE_KINDS.has(a.kind)
+      ? // targetRef distinguishes one site-wide change from another.
+        // robots.txt has none — there is one file — but six hardening
+        // toggles share a kind and a site URL, and keying on either
+        // alone would apply one and silently drop the other five.
+        a.targetRef
+        ? `${a.kind}::${a.targetRef}`
+        : a.kind
+      : `${a.kind}::${a.targetUrl}`;
     if (seen.has(key)) {
       duplicates++;
       continue;
@@ -301,6 +688,63 @@ export async function planForClient(opts: {
   );
 
   return { actions, skipped };
+}
+
+/**
+ * What a site-wide action actually changes, when the kind alone does not
+ * say.
+ *
+ * A per-page action is identified by its URL. A site-wide one is not —
+ * every hardening finding on a site shares the same target, and six of
+ * them share the same kind. targetRef is what tells them apart, through
+ * dedup, through the cooldown, and in the executor which reads the
+ * switch back out of it.
+ *
+ * Redirects additionally carry where to send the 404, which is computed
+ * here rather than drafted: the destination is the site's home page
+ * unless something better is known, and "somewhere on this site" beats
+ * a dead end while still being obvious enough that a person reviewing
+ * it will correct it if it is wrong. Every redirect is needs_review, so
+ * one always does.
+ */
+function siteWideTarget(
+  findingType: string,
+  url: string,
+): Pick<PlannedAction, "targetRef" | "currentValue"> {
+  const toggle = HARDENING_FOR_FINDING[findingType];
+  if (toggle) return { targetRef: `site:hardening:${toggle}` };
+
+  // robots.txt findings share a kind and need different content written,
+  // so the drafter is told which one this is. Without it, "create the
+  // missing file" and "add an AI policy" are indistinguishable by the
+  // time they reach draftValue, and dedup would collapse them into one.
+  if (findingType === "missing_robots_txt") {
+    return { targetRef: "site:robots_txt:create" };
+  }
+  if (
+    findingType === "missing_ai_crawler_policy" ||
+    findingType === "partial_ai_crawler_policy"
+  ) {
+    return { targetRef: "site:robots_txt:ai_policy" };
+  }
+
+  if (findingType === "broken_link" || findingType === "redirect_chain") {
+    let from = url;
+    let home = "/";
+    try {
+      const u = new URL(url);
+      from = u.pathname + u.search;
+      home = u.origin + "/";
+    } catch {
+      /* a relative URL is already a path */
+    }
+    return {
+      targetRef: `site:redirect:${from}`,
+      currentValue: JSON.stringify({ from, to: home, code: 301 }),
+    };
+  }
+
+  return {};
 }
 
 function severityBonus(severity: string): number {
@@ -457,6 +901,10 @@ async function filterCooldown(
     .select({
       kind: agentActions.kind,
       targetUrl: agentActions.targetUrl,
+      // Site-wide actions share a target URL, so without this one
+      // hardening toggle applied on Monday would put the other five on
+      // cooldown until Thursday.
+      targetRef: agentActions.targetRef,
     })
     .from(agentActions)
     .where(
@@ -469,8 +917,14 @@ async function filterCooldown(
       ),
     );
 
-  const blocked = new Set(recent.map((r) => `${r.kind}::${r.targetUrl ?? ""}`));
-  return actions.filter((a) => !blocked.has(`${a.kind}::${a.targetUrl}`));
+  const key = (kind: string, url: string | null, ref: string | null | undefined) =>
+    ref ? `${kind}::${ref}` : `${kind}::${url ?? ""}`;
+  const blocked = new Set(
+    recent.map((r) => key(r.kind, r.targetUrl, r.targetRef)),
+  );
+  return actions.filter(
+    (a) => !blocked.has(key(a.kind, a.targetUrl, a.targetRef)),
+  );
 }
 
 async function countActionsSince(clientId: number, since: Date): Promise<number> {

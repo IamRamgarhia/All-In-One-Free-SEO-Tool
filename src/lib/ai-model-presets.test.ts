@@ -107,9 +107,35 @@ describe("model presets", () => {
     }
   });
 
-  it("does not use the deprecated Google -latest suffix", () => {
+  it("does not use the deprecated version-pinned -latest aliases", () => {
+    // What Google actually deprecated was the version-pinned alias —
+    // "gemini-1.5-flash-latest", "gemini-1.5-pro-latest". Those 404.
+    //
+    // The unversioned "gemini-flash-latest" is a different thing and is
+    // live today: it is in the models endpoint, it answers, and it is
+    // the one id that survives Google retiring a numbered release. This
+    // repo has now been bitten twice by pinning — the 1.5 family in
+    // Sept 2025 and gemini-2.0-flash, which was this list's default and
+    // the provider's only fallback when it started answering 404.
+    //
+    // So the rule is narrowed rather than dropped: no version number
+    // followed by -latest.
     for (const preset of MODEL_PRESETS.gemini) {
-      expect(preset.id.endsWith("-latest")).toBe(false);
+      expect(
+        /\d[\d.]*-\w+-latest$/.test(preset.id),
+        `${preset.id} pins a version AND uses -latest, which is the combination Google retired`,
+      ).toBe(false);
+    }
+  });
+
+  it("offers no Gemini model Google has taken away", () => {
+    // gemini-2.0-flash answered 404 on 12 Sep 2026 while still being
+    // offered here as "Free tier · fast · default". Picking it gave a
+    // model that could not be called, and nothing said why.
+    const gone = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+    const offered = MODEL_PRESETS.gemini.map((p) => p.id);
+    for (const id of gone) {
+      expect(offered, `${id} is retired and still offered`).not.toContain(id);
     }
   });
 });

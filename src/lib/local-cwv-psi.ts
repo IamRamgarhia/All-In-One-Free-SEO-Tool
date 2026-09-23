@@ -20,11 +20,19 @@
  *     residential proxy
  *
  * The local-cwv tool exposes both paths and lets the user pick which
- * one to run. Default is PSI when a key is present and the URL is
- * public (most reports), local browser otherwise.
+ * one to run. When PSI fails — which, with no key, it does the moment
+ * Google's shared daily allowance runs out — the tool falls back to the
+ * local path automatically rather than showing the user a quota error
+ * for a tool called "no PSI key".
  */
 
-import { getSetting } from "./settings-store";
+import { getPageSpeedKey } from "./pagespeed";
+import {
+  psiBodyFailure,
+  psiHttpFailure,
+  psiNetworkFailure,
+  type PsiFailure,
+} from "./psi-error";
 import type { CwvResult } from "./local-cwv";
 
 const ENDPOINT = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
@@ -59,18 +67,11 @@ type PsiResponse = {
   error?: { message?: string };
 };
 
-/**
- * Returns a free PSI key from settings.api.psi_key if the user
- * configured one, falling back to env PAGESPEED_API_KEY, then to
- * unauthenticated (very low quota). PSI accepts anonymous calls
- * at a much lower rate-limit; useful for testing without a key.
- */
-async function getPsiKey(): Promise<string | null> {
-  const fromDb = await getSetting<string>("api.pagespeed");
-  if (fromDb && fromDb.length > 0) return fromDb;
-  const env = process.env.PAGESPEED_API_KEY;
-  return env && env.length > 0 ? env : null;
-}
+// The key reader lives in pagespeed.ts. There were two of them, reading
+// the same "api.pagespeed" setting and the same env var through two
+// functions — the duplicate-definition pattern CLAUDE.md's fourth rule
+// is about, and the two had already drifted in their doc comments about
+// what the anonymous quota actually is.
 
 function verdictFromValue(
   ms: number | null,
@@ -126,8 +127,15 @@ export async function measureCwvPsi(
     strategy: device,
     category: "PERFORMANCE",
   });
-  const key = await getPsiKey();
+  const key = await getPageSpeedKey();
   if (key) params.set("key", key);
+
+  const failed = (f: PsiFailure): CwvResult => ({
+    ...empty,
+    error: f.message,
+    failure: f,
+    source: "psi",
+  });
 
   let data: PsiResponse;
   try {
@@ -136,19 +144,20 @@ export async function measureCwvPsi(
       signal: AbortSignal.timeout(45_000),
     });
     if (!res.ok) {
+      // This used to forward 200 characters of Google's raw JSON, which
+      // is how a user came to read "consumer 'project_number:583797351'"
+      // — Google's own shared anonymous project — and reasonably conclude
+      // the app was broken.
       const body = await res.text().catch(() => "");
-      return {
-        ...empty,
-        error: `PSI ${res.status}: ${body.slice(0, 200) || res.statusText}`,
-      };
+      return failed(psiHttpFailure(res.status, body));
     }
     data = (await res.json()) as PsiResponse;
   } catch (err) {
-    return { ...empty, error: (err as Error).message };
+    return failed(psiNetworkFailure(err));
   }
 
   if (data.error?.message) {
-    return { ...empty, error: data.error.message };
+    return failed(psiBodyFailure(data));
   }
 
   const audits = data.lighthouseResult?.audits ?? {};

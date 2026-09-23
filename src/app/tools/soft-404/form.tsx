@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Loader2, Unlink } from "lucide-react";
 import { runSoft404, type SoftState } from "./actions";
+import { ClientIdField } from "@/components/client-id-field";
 
 const REASON_TONE: Record<string, string> = {
   "thin-content": "bg-amber-500/15 text-amber-300 ring-amber-500/30",
@@ -23,6 +24,7 @@ export function Soft404Form() {
         action={formAction}
         className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3"
       >
+        <ClientIdField />
         <div className="grid gap-3 md:grid-cols-[1fr_120px_140px]">
           <input
             name="startUrl"

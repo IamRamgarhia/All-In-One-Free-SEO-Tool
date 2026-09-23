@@ -1,0 +1,1 @@
+ALTER TABLE `bot_log_uploads` ADD `bot_verification` text;

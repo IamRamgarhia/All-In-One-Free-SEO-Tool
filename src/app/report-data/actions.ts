@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients, manualReportData } from "@/db/schema";
-import { callAI } from "@/lib/ai-call";
+import { callAI, lastAiFailure } from "@/lib/ai-call";
 
 export type ParseState =
   | {
@@ -90,7 +90,7 @@ export async function parseReportDataPaste(
     return {
       ok: false,
       error:
-        "AI provider didn't respond. Configure one in Settings → AI, or click Test next to your provider to see the actual error.",
+        lastAiFailure()?.message ?? "AI provider didn't respond. Configure one in Settings → AI, or click Test next to your provider to see the actual error.",
     };
   }
 

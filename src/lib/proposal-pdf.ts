@@ -27,6 +27,52 @@ export type ProposalDoc = {
   terms: string | null;
   basedOnScore: number | null;
   basedOnAt: Date | null;
+  /**
+   * Where the site ranks today, before any work. Optional, and only
+   * populated for a kickoff document — a client signing off on a plan
+   * needs the starting line written down, or there is nothing to measure
+   * the next report against.
+   *
+   * Counts are computed from tracked keywords and their latest checked
+   * rank. Nothing here is model-written.
+   */
+  keywordBaseline?: {
+    tracked: number;
+    ranking: number;
+    inTopTen: number;
+    strikingDistance: number;
+    /** A few real examples, so the number is checkable. */
+    examples: { keyword: string; position: number | null }[];
+    /**
+     * The list itself. Optional — documents built before this existed
+     * carry counts and no list, and those must keep rendering.
+     */
+    map?: {
+      keyword: string;
+      intent: string;
+      position: number | null;
+      targetPage: string | null;
+    }[];
+  } | null;
+  /** Week-by-week plan the client is being asked to approve. */
+  timeline?: {
+    week: string;
+    focus: string;
+    items: string[];
+    /** "Foundation · days 1-30" etc. Absent on older documents. */
+    phase?: string;
+  }[] | null;
+  /**
+   * Where we'll work — the engagement's boundary, in and out.
+   *
+   * The section every agency scope-of-work leads with, and the one this
+   * document had no answer for: it told the client what we found and
+   * when things happen, and never what places the work covers.
+   */
+  surfaces?: {
+    inScope: { label: string; detail: string }[];
+    outOfScope: { label: string }[];
+  } | null;
 };
 
 const INK = "#111827";
@@ -141,6 +187,54 @@ export async function generateProposalPdf(
       );
   }
 
+  // ---- Where we'll work --------------------------------------------
+  // Placed before the findings-derived scope on purpose. Findings say
+  // what is broken; this says what the engagement covers, and a reader
+  // needs the boundary before the detail. The out-of-scope half is the
+  // part that prevents the month-three conversation that starts "I
+  // assumed you were also doing…".
+  const sf = proposal.surfaces;
+  if (sf && (sf.inScope.length > 0 || sf.outOfScope.length > 0)) {
+    doc.moveDown(1.4);
+    ensure(90);
+    heading(doc, F, "Where we'll work", accent);
+
+    for (const line of sf.inScope) {
+      ensure(52);
+      doc.moveDown(0.45);
+      doc
+        .font(F("bold"))
+        .fontSize(11.5)
+        .fillColor(INK)
+        .text(line.label, doc.page.margins.left, doc.y, { width });
+      doc
+        .font(F("regular"))
+        .fontSize(10)
+        .fillColor(MUTE)
+        .text(line.detail, doc.page.margins.left, doc.y + 2, {
+          width,
+          lineGap: 2,
+        });
+    }
+
+    if (sf.outOfScope.length > 0) {
+      doc.moveDown(0.7);
+      ensure(36);
+      doc
+        .font(F("regular"))
+        .fontSize(9.5)
+        .fillColor(MUTE)
+        .text(
+          `Not included in this engagement: ${sf.outOfScope
+            .map((o) => o.label.toLowerCase())
+            .join(", ")}.`,
+          doc.page.margins.left,
+          doc.y,
+          { width, lineGap: 2 },
+        );
+    }
+  }
+
   // ---- Scope -------------------------------------------------------
   if (proposal.scope.length > 0) {
     doc.moveDown(1.4);
@@ -178,6 +272,225 @@ export async function generateProposalPdf(
           width,
           lineGap: 2,
         });
+    }
+  }
+
+  // ---- Where you stand today ---------------------------------------
+  // The starting line, in writing. Without it the first monthly report
+  // has nothing to compare against and "we improved things" is unprovable.
+  const kb = proposal.keywordBaseline;
+  if (kb && kb.tracked > 0) {
+    doc.moveDown(1.6);
+    ensure(120);
+    heading(doc, F, "Where you stand today", accent);
+    doc.moveDown(0.4);
+
+    const stats: [string, string][] = [
+      ["Keywords tracked", String(kb.tracked)],
+      ["Already ranking", String(kb.ranking)],
+      ["On page one", String(kb.inTopTen)],
+      ["Close to page one (11–20)", String(kb.strikingDistance)],
+    ];
+    for (const [label, value] of stats) {
+      ensure(20);
+      const y = doc.y;
+      doc
+        .font(F("regular"))
+        .fontSize(10.5)
+        .fillColor(MUTE)
+        .text(label, doc.page.margins.left, y, { width: width - 70 });
+      doc
+        .font(F("bold"))
+        .fontSize(10.5)
+        .fillColor(INK)
+        .text(value, doc.page.margins.left + width - 70, y, {
+          width: 70,
+          align: "right",
+        });
+      doc.x = doc.page.margins.left;
+    }
+
+    // The list itself.
+    //
+    // This used to be "For example:" and three keywords. The keyword
+    // list is the one part of the document a client can check against
+    // their own knowledge of their business — it is what they will push
+    // back on, and withholding it made the numbers above unarguable
+    // rather than trustworthy. Falls back to the old sentence for
+    // documents built before the map existed.
+    if (kb.map && kb.map.length > 0) {
+      doc.moveDown(0.9);
+      ensure(70);
+      doc
+        .font(F("bold"))
+        .fontSize(10.5)
+        .fillColor(INK)
+        .text("The keywords", doc.page.margins.left, doc.y, { width });
+      doc.moveDown(0.3);
+
+      // Column geometry, once. Position is right-aligned because a
+      // column of numbers that does not line up is harder to scan than
+      // no column at all.
+      const cKw = Math.round(width * 0.42);
+      const cIntent = Math.round(width * 0.2);
+      const cPos = Math.round(width * 0.1);
+      const cPage = width - cKw - cIntent - cPos;
+      const L = doc.page.margins.left;
+
+      const headRow = doc.y;
+      doc.font(F("bold")).fontSize(8.5).fillColor(MUTE);
+      doc.text("KEYWORD", L, headRow, { width: cKw });
+      doc.text("INTENT", L + cKw, headRow, { width: cIntent });
+      doc.text("NOW", L + cKw + cIntent, headRow, {
+        width: cPos,
+        align: "right",
+      });
+      doc.text("PAGE", L + cKw + cIntent + cPos + 8, headRow, {
+        width: cPage - 8,
+      });
+      doc.x = L;
+      doc.y = headRow + 12;
+      rule(doc, RULE, width);
+      doc.moveDown(0.35);
+
+      for (const k of kb.map) {
+        ensure(18);
+        const y = doc.y;
+        doc.font(F("regular")).fontSize(9.5).fillColor(INK);
+        doc.text(k.keyword, L, y, { width: cKw - 6, ellipsis: true, lineBreak: false });
+        doc.fillColor(MUTE);
+        doc.text(shortIntent(k.intent), L + cKw, y, {
+          width: cIntent,
+          lineBreak: false,
+        });
+        doc.fillColor(k.position === null ? MUTE : INK);
+        doc.text(
+          k.position === null ? "—" : String(k.position),
+          L + cKw + cIntent,
+          y,
+          { width: cPos, align: "right", lineBreak: false },
+        );
+        doc.fillColor(MUTE);
+        doc.text(k.targetPage ?? "needs a page", L + cKw + cIntent + cPos + 8, y, {
+          width: cPage - 8,
+          ellipsis: true,
+          lineBreak: false,
+        });
+        doc.x = L;
+        doc.y = y + 13;
+      }
+
+      doc.moveDown(0.5);
+      doc
+        .font(F("regular"))
+        .fontSize(8.5)
+        .fillColor(MUTE)
+        .text(
+          "“Now” is the current Google position, blank where the site does not rank for it yet.",
+          L,
+          doc.y,
+          { width, lineGap: 2 },
+        );
+    } else if (kb.examples.length > 0) {
+      doc.moveDown(0.6);
+      ensure(40);
+      doc
+        .font(F("regular"))
+        .fontSize(9.5)
+        .fillColor(MUTE)
+        .text(
+          `For example: ${kb.examples
+            .map(
+              (e) =>
+                `“${e.keyword}” ${
+                  e.position === null ? "not ranking yet" : `at #${e.position}`
+                }`,
+            )
+            .join(", ")}.`,
+          doc.page.margins.left,
+          doc.y,
+          { width, lineGap: 2 },
+        );
+    }
+  }
+
+  // ---- The plan ----------------------------------------------------
+  const timeline = proposal.timeline;
+  if (timeline && timeline.length > 0) {
+    doc.moveDown(1.6);
+    ensure(120);
+    heading(doc, F, "What happens, and when", accent);
+
+    // When to expect results, said before the plan rather than after it.
+    //
+    // Search takes roughly 60 to 90 days to move, which means the work in
+    // month one shows up in month three. A client who is not told that
+    // reads month one's report, sees flat traffic, and concludes it is
+    // not working — at exactly the point where nothing could have shown
+    // yet. Saying it here costs a paragraph and is the difference between
+    // a client who waits and one who leaves.
+    doc
+      .font(F("regular"))
+      .fontSize(9)
+      .fillColor(MUTE)
+      .text(
+        "A note on timing. Most of what follows is built in the first month and " +
+          "shows up in the third: search engines have to re-crawl the pages, " +
+          "re-evaluate them, and then move them. Expect the first ranking " +
+          "movement around day 60 to 90, and read months one and two by whether " +
+          "the work below actually happened rather than by the traffic line.",
+        { lineGap: 2 },
+      );
+    doc.moveDown(0.9);
+    doc.fillColor(INK);
+
+    // Phase banners between the weeks.
+    //
+    // A list of thirteen weeks is a list; the phases are what make it a
+    // plan a client can hold in their head. Printed only when the phase
+    // changes, and skipped entirely on documents built before phases
+    // existed — where `phase` is undefined, this renders exactly as it
+    // used to.
+    let lastPhase: string | null = null;
+
+    for (const phase of timeline) {
+      if (phase.phase && phase.phase !== lastPhase) {
+        lastPhase = phase.phase;
+        ensure(46);
+        doc.moveDown(timeline[0] === phase ? 0.4 : 1);
+        doc
+          .font(F("bold"))
+          .fontSize(9)
+          .fillColor(accent)
+          .text(phase.phase.toUpperCase(), doc.page.margins.left, doc.y, {
+            width,
+            characterSpacing: 0.6,
+          });
+        doc.moveDown(0.15);
+        rule(doc, RULE, width);
+      }
+
+      ensure(70);
+      doc.moveDown(0.5);
+      doc
+        .font(F("bold"))
+        .fontSize(11.5)
+        .fillColor(INK)
+        .text(`${phase.week} — ${phase.focus}`, doc.page.margins.left, doc.y, {
+          width,
+        });
+      for (const item of phase.items) {
+        ensure(18);
+        doc
+          .font(F("regular"))
+          .fontSize(10)
+          .fillColor(MUTE)
+          .text(`·  ${item}`, doc.page.margins.left + 10, doc.y + 2, {
+            width: width - 10,
+            lineGap: 2,
+          });
+      }
+      doc.x = doc.page.margins.left;
     }
   }
 
@@ -308,6 +621,28 @@ function rule(doc: PDFKit.PDFDocument, color: string, width: number) {
     .strokeColor(color)
     .stroke();
   doc.y += 2;
+}
+
+/**
+ * Intent, in words a client understands.
+ *
+ * "transactional" and "commercial" are our vocabulary, not theirs, and
+ * this document is the one place in the app written for somebody who
+ * does not do SEO for a living.
+ */
+function shortIntent(intent: string): string {
+  switch (intent) {
+    case "transactional":
+      return "ready to buy";
+    case "commercial":
+      return "comparing";
+    case "navigational":
+      return "looking for you";
+    case "informational":
+      return "researching";
+    default:
+      return intent;
+  }
 }
 
 function stripScheme(url: string): string {

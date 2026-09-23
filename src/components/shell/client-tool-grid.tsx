@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Dropdown } from "@/components/ui/dropdown";
 import { ArrowUpRight, Globe } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { QuickAddClientButton } from "./quick-add-client-dialog";
@@ -205,23 +206,23 @@ function ClientJumpDropdown({
 }) {
   if (clients.length <= 1) return null;
   return (
-    <details className="group relative">
-      <summary className="cursor-pointer list-none rounded-md bg-white/5 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground [&::-webkit-details-marker]:hidden">
-        Jump to client ▾
-      </summary>
-      <div className="absolute right-0 top-full z-20 mt-1 max-h-80 w-56 overflow-y-auto rounded-lg border border-white/10 bg-card/95 shadow-xl backdrop-blur-md">
-        {clients.map((c) => (
-          <Link
-            key={c.id}
-            href={`${basePath}/${c.id}`}
-            className={`block px-3 py-2 text-sm transition-colors hover:bg-white/5 ${
-              c.id === currentId ? "bg-violet-500/10 text-violet-300" : ""
-            }`}
-          >
-            {c.name}
-          </Link>
-        ))}
-      </div>
-    </details>
+    <Dropdown
+      align="right"
+      width={224}
+      className="cursor-pointer rounded-md bg-white/5 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+      trigger={<>Jump to client ▾</>}
+    >
+      {clients.map((c) => (
+        <Link
+          key={c.id}
+          href={`${basePath}/${c.id}`}
+          className={`block px-3 py-2 text-sm transition-colors hover:bg-accent ${
+            c.id === currentId ? "bg-violet-500/10 text-violet-300" : ""
+          }`}
+        >
+          {c.name}
+        </Link>
+      ))}
+    </Dropdown>
   );
 }

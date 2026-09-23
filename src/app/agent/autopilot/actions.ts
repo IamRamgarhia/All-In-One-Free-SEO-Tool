@@ -1,6 +1,11 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+// Bulk approval calls approveAction in a loop, and a loop can run
+// outside a request — from the scheduler, or a script. revalidatePath
+// throws there rather than no-opping, which turned a working bulk apply
+// into a crash after the first item had already been written to the
+// live site.
+import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { agentActions } from "@/db/schema";
@@ -56,7 +61,7 @@ export async function saveAgentSettings(
     throw new Error("Only the owner can change what the agent may do.");
   }
   const next = await setAgentSettings(patch);
-  revalidatePath("/agent/autopilot");
+  safeRevalidatePath("/agent/autopilot");
   return next;
 }
 
@@ -114,8 +119,8 @@ export async function runNow(clientId?: number): Promise<RunNowResult> {
           ),
         );
 
-  revalidatePath("/agent/autopilot");
-  revalidatePath("/tasks");
+  safeRevalidatePath("/agent/autopilot");
+  safeRevalidatePath("/tasks");
 
   const total = results.reduce(
     (acc, r) => ({
@@ -182,7 +187,7 @@ export async function approveAction(
     .set({ status: "skipped", error: "Superseded — approved and applied." })
     .where(eq(agentActions.id, actionId));
 
-  revalidatePath("/agent/autopilot");
+  safeRevalidatePath("/agent/autopilot");
   return outcome.status === "failed"
     ? { ok: false, error: outcome.error }
     : { ok: true };
@@ -198,7 +203,7 @@ export async function rejectAction(
     .update(agentActions)
     .set({ status: "skipped", error: "Rejected by you." })
     .where(eq(agentActions.id, actionId));
-  revalidatePath("/agent/autopilot");
+  safeRevalidatePath("/agent/autopilot");
   return { ok: true };
 }
 
@@ -209,7 +214,7 @@ export async function undoAction(
   if (!guard.ok) return guard;
 
   const result = await revertAction(actionId);
-  revalidatePath("/agent/autopilot");
+  safeRevalidatePath("/agent/autopilot");
   return result;
 }
 
@@ -248,6 +253,56 @@ export async function undoRun(
     else failed++;
   }
 
-  revalidatePath("/agent/autopilot");
+  safeRevalidatePath("/agent/autopilot");
   return { ok: failed === 0, undone, failed };
+}
+
+/**
+ * Approve every waiting change of one kind, for one client.
+ *
+ * The caps are per run — five actions by default, twenty a day — so a
+ * site with two hundred pages missing a description takes ten days at
+ * the defaults, and each of those days needs somebody to come back and
+ * click. The decision was made on day one. This is the clicking.
+ *
+ * Routed through approveAction rather than reimplementing the write, so
+ * the risk gate, the revision and the verification cannot drift from
+ * the single-action path — and the one that drifted would be the one
+ * nobody tested.
+ */
+export async function approveAllOfKind(opts: {
+  clientId: number;
+  kind: string;
+  includeNeedsReview?: boolean;
+}): Promise<import("@/lib/agent/bulk").BulkResult> {
+  const { applyBulk } = await import("@/lib/agent/bulk");
+  const result = await applyBulk({
+    clientId: opts.clientId,
+    kind: opts.kind,
+    includeNeedsReview: opts.includeNeedsReview,
+    approve: approveAction,
+  });
+  safeRevalidatePath("/agent/autopilot");
+  safeRevalidatePath(`/clients/${opts.clientId}`);
+  return result;
+}
+
+/** What is waiting, grouped by kind, for the bulk panel. */
+export async function waitingByKind(
+  clientId: number,
+): Promise<import("@/lib/agent/bulk").BulkGroup[]> {
+  const { groupForBulk } = await import("@/lib/agent/bulk");
+  const rows = await db
+    .select({
+      id: agentActions.id,
+      kind: agentActions.kind,
+      risk: agentActions.risk,
+      status: agentActions.status,
+      targetUrl: agentActions.targetUrl,
+      afterValue: agentActions.afterValue,
+    })
+    .from(agentActions)
+    .where(eq(agentActions.clientId, clientId))
+    .limit(1000);
+  return groupForBulk(rows);
 }

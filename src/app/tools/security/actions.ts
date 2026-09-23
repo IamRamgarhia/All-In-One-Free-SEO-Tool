@@ -1,6 +1,7 @@
 "use server";
 
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
+import { guardedFetch } from "@/lib/url-guard";
 
 export type SecurityResult =
   | {
@@ -82,7 +83,7 @@ async function fetchJson<T>(url: string, timeoutMs = 12_000): Promise<T | null> 
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
       headers: { accept: "application/json" },
     });
@@ -162,7 +163,7 @@ async function checkSsl(host: string): Promise<SslResult | null> {
 async function checkHeaders(rawUrl: string): Promise<HttpHeader[]> {
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       method: "HEAD",
       redirect: "follow",
       headers: {
@@ -190,8 +191,90 @@ async function checkHeaders(rawUrl: string): Promise<HttpHeader[]> {
   }
 }
 
+/**
+ * The security problems worth putting on somebody's list.
+ *
+ * Missing headers are grouped into one finding rather than one each:
+ * they are set in the same place, usually in the same commit, and five
+ * rows for one edit is five things to close for one piece of work.
+ *
+ * Not mapped for the agent. Every one of these is set on the server or
+ * the CDN — a WordPress plugin cannot add HSTS — so planning them would
+ * manufacture actions the agent has no way to carry out. That honesty
+ * is the point of the map being small.
+ */
+function securityFindings(
+  headers: HttpHeader[],
+  ssl: SslResult | null,
+  observatory: ObservatoryResult | null,
+): FindingDraft[] {
+  const out: FindingDraft[] = [];
+
+  const missing = headers.filter((h) => !h.good);
+  if (missing.length > 0) {
+    out.push({
+      signature: "security.missing_headers",
+      title: `${missing.length} security header${missing.length === 1 ? "" : "s"} missing`,
+      severity: missing.length >= 4 ? "medium" : "low",
+      category: "security",
+      details:
+        `Missing: ${missing.map((h) => h.name).join(", ")}. ` +
+        "These are set once on the server or CDN and cost nothing to serve.",
+    });
+  }
+
+  // A failing TLS grade is the one thing here a visitor sees, because
+  // the browser is what tells them.
+  if (ssl?.grade && /^[CDEFT]/i.test(ssl.grade)) {
+    out.push({
+      signature: "security.weak_tls",
+      title: `SSL Labs grades this site ${ssl.grade}`,
+      severity: /^[EFT]/i.test(ssl.grade) ? "high" : "medium",
+      category: "security",
+      details:
+        `Protocol ${ssl.protocol ?? "unknown"}, issued by ${ssl.issuer ?? "unknown"}. ` +
+        "A weak grade usually means an outdated protocol or cipher suite still enabled.",
+    });
+  }
+
+  // A certificate about to lapse is the failure that takes a whole site
+  // off the internet, and it always looks fine right up until it does.
+  if (ssl?.validTo) {
+    const days = Math.floor(
+      (new Date(ssl.validTo).getTime() - Date.now()) / 86_400_000,
+    );
+    if (Number.isFinite(days) && days < 30) {
+      out.push({
+        signature: "security.cert_expiring",
+        title:
+          days < 0
+            ? "The SSL certificate has expired"
+            : `SSL certificate expires in ${days} day${days === 1 ? "" : "s"}`,
+        severity: days < 7 ? "critical" : "high",
+        category: "security",
+        details:
+          "An expired certificate makes every browser refuse the site outright. " +
+          `Valid to ${ssl.validTo}.`,
+      });
+    }
+  }
+
+  if (observatory?.grade && /^[DEF]/i.test(observatory.grade)) {
+    out.push({
+      signature: "security.observatory_low",
+      title: `Mozilla Observatory grades this site ${observatory.grade}`,
+      severity: "low",
+      category: "security",
+      details: `${observatory.testsFailed} of ${observatory.testsPassed + observatory.testsFailed} checks failed.`,
+    });
+  }
+
+  return out;
+}
+
 export async function checkSecurity(
   rawUrl: string,
+  clientId?: number | null,
 ): Promise<SecurityResult> {
   if (!rawUrl?.trim()) return { ok: false, error: "URL is required" };
   const host = hostnameOf(rawUrl);
@@ -204,11 +287,13 @@ export async function checkSecurity(
   ]);
 
   const out: SecurityResult = { ok: true, hostname: host, observatory, ssl, headers };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "security",
     label: `${host} · obs ${observatory?.grade ?? "—"} · ssl ${ssl?.grade ?? "—"}`,
-    input: { url: rawUrl },
+    clientId: clientId ?? null,
+    input: { url: rawUrl, clientId },
     result: out,
-  }).catch(() => undefined);
+    findings: securityFindings(headers, ssl, observatory),
+  });
   return out;
 }

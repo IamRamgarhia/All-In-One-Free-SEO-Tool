@@ -144,11 +144,16 @@ describe("draftValue — meta descriptions", () => {
 
 describe("draftValue — unknown kinds", () => {
   it("refuses rather than guessing", async () => {
-    // A kind with no drafting path at all. This used to name
-    // write_schema, which passed for the wrong reason once schema got a
-    // generator — it failed on the mocked fetch, not on being unknown.
+    // A kind with no drafting path at all.
+    //
+    // This named write_schema, then write_canonical, and each time the
+    // kind was later implemented the test kept passing for the wrong
+    // reason — or, the second time, started failing and looked like a
+    // regression in the feature rather than a stale fixture. So it now
+    // names something that is not a kind and never will be. The point is
+    // "an unrecognised kind is refused", not "this particular one is."
     const r = await draftValue(
-      { ...action, kind: "write_canonical" as never },
+      { ...action, kind: "write_a_kind_that_does_not_exist" as never },
       context,
     );
     expect(r.ok).toBe(false);
@@ -172,7 +177,19 @@ describe("requiresDraft", () => {
   });
 
   it("is false for a kind nothing can draft", () => {
-    expect(requiresDraft("write_canonical")).toBe(false);
+    // Deliberately not a real kind — see the note above.
+    expect(requiresDraft("write_a_kind_that_does_not_exist")).toBe(false);
+  });
+
+  it("is true for the deterministic kinds too", () => {
+    // "Requires a draft" means "must not be executed with an empty
+    // string", not "must ask a model". Canonical and robots values are
+    // computed, and leaving them out of requiresDraft would send "" to a
+    // live site, verify cleanly against a field that never changed, and
+    // report the page as fixed — which is exactly what shipped for alt
+    // text once.
+    expect(requiresDraft("write_canonical")).toBe(true);
+    expect(requiresDraft("write_robots_meta")).toBe(true);
   });
 });
 
@@ -219,5 +236,65 @@ describe("draftValue — alt text", () => {
     await draftValue(altAction, context);
     const prompt = callAIResult.mock.calls[0]?.[0] as { user: string };
     expect(prompt.user).toContain("handmade-soap-bars.jpg");
+  });
+});
+
+/**
+ * Telling the model what the business is.
+ *
+ * Without it the drafter sees a domain, a URL and the broken title it is
+ * replacing — and when the broken title is "Home Page" that is genuinely
+ * all there is. On a real client it filled the gap from the company name
+ * and proposed "Dice Codes: Free Monopoly GO Dice Links & Codes", a
+ * headline for a mobile game that shares two words with a web agency.
+ * The model was not malfunctioning: nobody had told it anything, and a
+ * model with no facts and a required output produces plausible ones.
+ */
+describe("the business context reaches the model", () => {
+  const titleAction = {
+    kind: "write_title" as const,
+    targetUrl: "https://dicecodes.com/",
+    reason: "The title is 'Home Page', which says nothing.",
+    risk: "safe" as const,
+    currentValue: "Home Page",
+    weight: 10,
+  };
+
+  it("is in the prompt when we know it", async () => {
+    reply("Web design and SEO for small businesses in Punjab");
+    await draftValue(titleAction, {
+      siteName: "Dice Codes",
+      pageUrl: "https://dicecodes.com/",
+      business:
+        "The business (confirmed by the user): web design agency\nWhat the site calls its own products and services: website development, seo services",
+    });
+    const prompt = callAIResult.mock.calls[0]?.[0] as { user: string };
+    expect(prompt.user).toContain("website development");
+    expect(prompt.user).toContain("confirmed by the user");
+  });
+
+  it("leads with the facts and ends with the instruction", async () => {
+    reply("Web design and SEO for small businesses in Punjab");
+    await draftValue(titleAction, {
+      siteName: "Dice Codes",
+      pageUrl: "https://dicecodes.com/",
+      business: "The business (confirmed by the user): web design agency",
+    });
+    const { user } = callAIResult.mock.calls[0]?.[0] as { user: string };
+    expect(user.indexOf("About this business")).toBeLessThan(
+      user.indexOf("Write the replacement title"),
+    );
+  });
+
+  it("sends no heading at all when nothing is known", async () => {
+    // An empty "About this business:" reads to a model as "this is known
+    // to be nothing", which is worse than silence.
+    reply("Web design and SEO for small businesses in Punjab");
+    await draftValue(titleAction, {
+      siteName: "Dice Codes",
+      pageUrl: "https://dicecodes.com/",
+    });
+    const prompt = callAIResult.mock.calls[0]?.[0] as { user: string };
+    expect(prompt.user).not.toContain("About this business");
   });
 });

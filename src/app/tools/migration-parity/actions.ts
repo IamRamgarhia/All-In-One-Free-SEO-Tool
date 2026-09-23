@@ -1,7 +1,8 @@
 "use server";
 
 import { auditParity, type ParityReport } from "@/lib/migration-parity";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { parityFindings } from "@/lib/tool-finding-builders";
 
 export type ParityState =
   | { ok: true; report: ParityReport }
@@ -25,12 +26,13 @@ export async function runParity(
   if (oldUrls.length === 0) return { ok: false, error: "No URLs found." };
   try {
     const report = await auditParity({ oldUrls, newDomain });
-    await saveToolRun({
+    await recordToolRun({
       toolId: "migration-parity",
       label: `${oldUrls.length} URLs${newDomain ? ` → ${newDomain}` : ""}`,
       input: { newDomain, urlCount: oldUrls.length },
       result: { ok: true, report },
-    }).catch(() => undefined);
+      findings: parityFindings(report),
+    });
     return { ok: true, report };
   } catch (err) {
     return { ok: false, error: (err as Error).message ?? "Audit failed" };

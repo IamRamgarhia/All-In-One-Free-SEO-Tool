@@ -1,0 +1,376 @@
+{
+  "source": "https://status.search.google.com/products/rGHU1u87FJnkP6W2GwMi/history",
+  "fetchedAt": "2026-09-13T07:26:01.071Z",
+  "timeZone": "US/Pacific",
+  "updates": [
+    {
+      "id": "LEubPCm2octf2uMqCFKE",
+      "name": "August 2026 spam update",
+      "type": "spam",
+      "date": "2026-08-18",
+      "endDate": "2026-08-21",
+      "url": "https://status.search.google.com/incidents/LEubPCm2octf2uMqCFKE",
+      "summary": "Released the August 2026 spam update, which applies globally and to all languages. The rollout may take a few days to complete."
+    },
+    {
+      "id": "YUX1peHev5a4fkxLDiUQ",
+      "name": "June 2026 spam update",
+      "type": "spam",
+      "date": "2026-06-24",
+      "endDate": "2026-06-26",
+      "url": "https://status.search.google.com/incidents/YUX1peHev5a4fkxLDiUQ",
+      "summary": "Released the June 2026 spam update, which applies globally and to all languages. The rollout may take a few days to complete."
+    },
+    {
+      "id": "wdAXJk6LRRihEjpzEeWE",
+      "name": "May 2026 core update",
+      "type": "core",
+      "date": "2026-05-21",
+      "endDate": "2026-06-02",
+      "url": "https://status.search.google.com/incidents/wdAXJk6LRRihEjpzEeWE",
+      "summary": "Released the May 2026 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "7eTbAa2jWdToLkraZj5y",
+      "name": "March 2026 core update",
+      "type": "core",
+      "date": "2026-03-27",
+      "endDate": "2026-04-08",
+      "url": "https://status.search.google.com/incidents/7eTbAa2jWdToLkraZj5y",
+      "summary": "Released the March 2026 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "VbnSXAH4SmEcxPtx4YSD",
+      "name": "March 2026 spam update",
+      "type": "spam",
+      "date": "2026-03-24",
+      "endDate": "2026-03-25",
+      "url": "https://status.search.google.com/incidents/VbnSXAH4SmEcxPtx4YSD",
+      "summary": "Released the March 2026 spam update, which applies globally and to all languages. The rollout may take a few days to complete."
+    },
+    {
+      "id": "mYbNTqV1ytDc2fA8hUz4",
+      "name": "February 2026 Discover update",
+      "type": "other",
+      "date": "2026-02-05",
+      "endDate": "2026-02-27",
+      "url": "https://status.search.google.com/incidents/mYbNTqV1ytDc2fA8hUz4",
+      "summary": "Released the February 2026 Discover core update for English language users in the US (will look to expand it to all countries and languages in the future). This update is designed to improve the quality of Discover overall. Our guidance about general core updates and Discover applies. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "DsirqJ1gpPRgVQeccPRv",
+      "name": "December 2025 core update",
+      "type": "core",
+      "date": "2025-12-11",
+      "endDate": "2025-12-29",
+      "url": "https://status.search.google.com/incidents/DsirqJ1gpPRgVQeccPRv",
+      "summary": "Released the December 2025 core update. The rollout may take up to 3 weeks to complete."
+    },
+    {
+      "id": "a7Aainy6E9rZsmfq82xt",
+      "name": "August 2025 spam update",
+      "type": "spam",
+      "date": "2025-08-26",
+      "endDate": "2025-09-22",
+      "url": "https://status.search.google.com/incidents/a7Aainy6E9rZsmfq82xt",
+      "summary": "Released the August 2025 spam update, which applies globally and to all languages. The rollout may take a few weeks to complete."
+    },
+    {
+      "id": "riq1AuqETW46NfBCe5NT",
+      "name": "June 2025 core update",
+      "type": "core",
+      "date": "2025-06-30",
+      "endDate": "2025-07-17",
+      "url": "https://status.search.google.com/incidents/riq1AuqETW46NfBCe5NT",
+      "summary": "Released the June 2025 core update. The rollout may take up to 3 weeks to complete."
+    },
+    {
+      "id": "zpmwuSwifjDjfrVdaZUx",
+      "name": "March 2025 core update",
+      "type": "core",
+      "date": "2025-03-13",
+      "endDate": "2025-03-27",
+      "url": "https://status.search.google.com/incidents/zpmwuSwifjDjfrVdaZUx",
+      "summary": "Released the March 2025 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "UUq2WSouY7PhSm8zvtD1",
+      "name": "December 2024 spam update",
+      "type": "spam",
+      "date": "2024-12-19",
+      "endDate": "2024-12-26",
+      "url": "https://status.search.google.com/incidents/UUq2WSouY7PhSm8zvtD1",
+      "summary": "Released the December 2024 spam update, which applies globally and to all languages. The rollout may take up to 1 week to complete."
+    },
+    {
+      "id": "V9nDKuo6nWKh2ThBALgA",
+      "name": "December 2024 core update",
+      "type": "core",
+      "date": "2024-12-12",
+      "endDate": "2024-12-18",
+      "url": "https://status.search.google.com/incidents/V9nDKuo6nWKh2ThBALgA",
+      "summary": "Released the December 2024 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "G7rp11wqTaTGn6JjiPF3",
+      "name": "November 2024 core update",
+      "type": "core",
+      "date": "2024-11-11",
+      "endDate": "2024-12-05",
+      "url": "https://status.search.google.com/incidents/G7rp11wqTaTGn6JjiPF3",
+      "summary": "Released the November 2024 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "gVx6b2o78zke7GrMidGy",
+      "name": "August 2024 core update",
+      "type": "core",
+      "date": "2024-08-15",
+      "endDate": "2024-09-03",
+      "url": "https://status.search.google.com/incidents/gVx6b2o78zke7GrMidGy",
+      "summary": "Released the August 2024 core update. The rollout may take up to a month to complete."
+    },
+    {
+      "id": "42XCLGtpuCZkzqe4dc6S",
+      "name": "Ranking is experiencing an ongoing issue.",
+      "type": "issue",
+      "date": "2024-08-15",
+      "endDate": "2024-08-20",
+      "url": "https://status.search.google.com/incidents/42XCLGtpuCZkzqe4dc6S",
+      "summary": "There's an ongoing issue with ranking in Google Search that's affecting a large number of search results. We've identified the root cause and this issue is unrelated to the ongoing core update rollout. Next update will be within 12 hours."
+    },
+    {
+      "id": "QdUeCQx3LRVbzQ3E7FiD",
+      "name": "June 2024 spam update",
+      "type": "spam",
+      "date": "2024-06-20",
+      "endDate": "2024-06-27",
+      "url": "https://status.search.google.com/incidents/QdUeCQx3LRVbzQ3E7FiD",
+      "summary": "Released the June 2024 spam update. The rollout may take up to 1 week to complete."
+    },
+    {
+      "id": "1jW2F89qC2NxJBWGiKxE",
+      "name": "March 2024 core update",
+      "type": "core",
+      "date": "2024-03-05",
+      "endDate": "2024-04-19",
+      "url": "https://status.search.google.com/incidents/1jW2F89qC2NxJBWGiKxE",
+      "summary": "Released the March 2024 core update. The rollout may take up to a month to complete."
+    },
+    {
+      "id": "iXz2PJfodvyjaVUeqxZE",
+      "name": "March 2024 spam update",
+      "type": "spam",
+      "date": "2024-03-05",
+      "endDate": "2024-03-20",
+      "url": "https://status.search.google.com/incidents/iXz2PJfodvyjaVUeqxZE",
+      "summary": "Released the March 2024 spam update. The rollout may take up 2 weeks to complete."
+    },
+    {
+      "id": "VqRTcmyQCwfpuYeaVNfn",
+      "name": "November 2023 reviews update",
+      "type": "product_review",
+      "date": "2023-11-08",
+      "endDate": "2023-12-07",
+      "url": "https://status.search.google.com/incidents/VqRTcmyQCwfpuYeaVNfn",
+      "summary": "Released the November 2023 reviews update. Learn more about how to write high quality reviews. Going forward, as the reviews system is now being improved at a regular and ongoing pace, we will no longer be posting about future updates on the status dashboard."
+    },
+    {
+      "id": "WtY1CQgfqrr2cjxKbyUk",
+      "name": "November 2023 core update",
+      "type": "core",
+      "date": "2023-11-02",
+      "endDate": "2023-11-28",
+      "url": "https://status.search.google.com/incidents/WtY1CQgfqrr2cjxKbyUk",
+      "summary": "Released the November 2023 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "VKyoS53ULWzSp8BoDxqk",
+      "name": "October 2023 core update",
+      "type": "core",
+      "date": "2023-10-05",
+      "endDate": "2023-10-19",
+      "url": "https://status.search.google.com/incidents/VKyoS53ULWzSp8BoDxqk",
+      "summary": "Released the October 2023 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "fCUAy6TvbDMkkLAGcwkj",
+      "name": "Ranking is experiencing an ongoing issue",
+      "type": "issue",
+      "date": "2023-10-05",
+      "endDate": "2023-10-31",
+      "url": "https://status.search.google.com/incidents/fCUAy6TvbDMkkLAGcwkj",
+      "summary": "On October 5, we found a bug with how our October 2023 core update was applied to Discover."
+    },
+    {
+      "id": "NzcEhGMDhbQEdXCS35xL",
+      "name": "October 2023 spam update",
+      "type": "spam",
+      "date": "2023-10-04",
+      "endDate": "2023-10-19",
+      "url": "https://status.search.google.com/incidents/NzcEhGMDhbQEdXCS35xL",
+      "summary": "Released the October 2023 spam update, which applies globally and improves our coverage in many languages, including Turkish, Vietnamese, Indonesian, Hindi, Chinese, and other languages."
+    },
+    {
+      "id": "53diuQvcEsgzqXTPBb8p",
+      "name": "September 2023 helpful content update",
+      "type": "helpful_content",
+      "date": "2023-09-14",
+      "endDate": "2023-09-28",
+      "url": "https://status.search.google.com/incidents/53diuQvcEsgzqXTPBb8p",
+      "summary": "Released the September 2023 helpful content update, which improves our classifier. It will take about two weeks to complete."
+    },
+    {
+      "id": "nBtYtBeex4GYBbdDS2LX",
+      "name": "August 2023 core update",
+      "type": "core",
+      "date": "2023-08-22",
+      "endDate": "2023-09-07",
+      "url": "https://status.search.google.com/incidents/nBtYtBeex4GYBbdDS2LX",
+      "summary": "Released the August 2023 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "5XRfC46rorevFt8yN8iR",
+      "name": "April 2023 reviews update",
+      "type": "product_review",
+      "date": "2023-04-12",
+      "endDate": "2023-04-25",
+      "url": "https://status.search.google.com/incidents/5XRfC46rorevFt8yN8iR",
+      "summary": "Released the April 2023 reviews update, which now covers reviews about products, services, and things. Learn more about how to write high quality reviews."
+    },
+    {
+      "id": "Cou8Tr74r7EXNthuEsaG",
+      "name": "March 2023 core update",
+      "type": "core",
+      "date": "2023-03-15",
+      "endDate": "2023-03-28",
+      "url": "https://status.search.google.com/incidents/Cou8Tr74r7EXNthuEsaG",
+      "summary": "Released the March 2023 core update. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "NDjZ11MEUJb5i62hy5aN",
+      "name": "February 2023 product reviews update",
+      "type": "product_review",
+      "date": "2023-02-21",
+      "endDate": "2023-03-07",
+      "url": "https://status.search.google.com/incidents/NDjZ11MEUJb5i62hy5aN",
+      "summary": "Released the February 2023 product reviews update. This update applies to the following languages globally: English, Spanish, German, French, Italian, Vietnamese, Indonesian, Russian, Dutch, Portuguese, Polish."
+    },
+    {
+      "id": "CxXUEK28vCKqkNocPhKR",
+      "name": "December 2022 link spam update",
+      "type": "spam",
+      "date": "2022-12-14",
+      "endDate": "2023-01-12",
+      "url": "https://status.search.google.com/incidents/CxXUEK28vCKqkNocPhKR",
+      "summary": "Released the December 2022 link spam update. This update is global and affects all languages."
+    },
+    {
+      "id": "XMdX5PmbMvKW4fv3CRvn",
+      "name": "December 2022 helpful content update",
+      "type": "helpful_content",
+      "date": "2022-12-05",
+      "endDate": "2023-01-12",
+      "url": "https://status.search.google.com/incidents/XMdX5PmbMvKW4fv3CRvn",
+      "summary": "Released the December 2022 helpful content update, which improves our classifier and works across content globally in all languages."
+    },
+    {
+      "id": "SAeYuxVSo39HHotQNXHr",
+      "name": "October 2022 spam update",
+      "type": "spam",
+      "date": "2022-10-19",
+      "endDate": "2022-10-21",
+      "url": "https://status.search.google.com/incidents/SAeYuxVSo39HHotQNXHr",
+      "summary": "Released the October 2022 spam update. This update is global and affects all languages."
+    },
+    {
+      "id": "ZYwuBXDhkwaoop2V5epM",
+      "name": "September 2022 product reviews update",
+      "type": "product_review",
+      "date": "2022-09-20",
+      "endDate": "2022-09-26",
+      "url": "https://status.search.google.com/incidents/ZYwuBXDhkwaoop2V5epM",
+      "summary": "Released the September 2022 product reviews update. This update applies to English-language product reviews."
+    },
+    {
+      "id": "Y2Cg5k2xLJvfNqR58kEt",
+      "name": "September 2022 core update",
+      "type": "core",
+      "date": "2022-09-12",
+      "endDate": "2022-09-26",
+      "url": "https://status.search.google.com/incidents/Y2Cg5k2xLJvfNqR58kEt",
+      "summary": "Released the September 2022 core update."
+    },
+    {
+      "id": "sbKc4YSptrSxcUZFDKwU",
+      "name": "August 2022 helpful content update",
+      "type": "helpful_content",
+      "date": "2022-08-25",
+      "endDate": "2022-09-09",
+      "url": "https://status.search.google.com/incidents/sbKc4YSptrSxcUZFDKwU",
+      "summary": "Released the August 2022 helpful content update."
+    },
+    {
+      "id": "Xiid524od7fpCak86sNS",
+      "name": "July 2022 product reviews update",
+      "type": "product_review",
+      "date": "2022-07-27",
+      "endDate": "2022-08-02",
+      "url": "https://status.search.google.com/incidents/Xiid524od7fpCak86sNS",
+      "summary": "Released the July 2022 product reviews update for English-language product reviews."
+    },
+    {
+      "id": "GHwLLtDS64a7nDng8xhD",
+      "name": "May 2022 core update",
+      "type": "core",
+      "date": "2022-05-25",
+      "endDate": "2022-06-09",
+      "url": "https://status.search.google.com/incidents/GHwLLtDS64a7nDng8xhD",
+      "summary": "Released the May 2022 core update."
+    },
+    {
+      "id": "iYWoNu4QXRsQUrzxrbLv",
+      "name": "March 2022 product reviews update",
+      "type": "product_review",
+      "date": "2022-03-23",
+      "endDate": "2022-04-06",
+      "url": "https://status.search.google.com/incidents/iYWoNu4QXRsQUrzxrbLv",
+      "summary": "Released the March 2022 product reviews update."
+    },
+    {
+      "id": "zDCQR5mxLU3ZrQeQvwqN",
+      "name": "Page experience update for desktop",
+      "type": "other",
+      "date": "2022-02-22",
+      "endDate": "2022-03-03",
+      "url": "https://status.search.google.com/incidents/zDCQR5mxLU3ZrQeQvwqN",
+      "summary": "Released the page experience update for desktop."
+    },
+    {
+      "id": "hgwP7ei5H1uKbYSeZrBZ",
+      "name": "December 2021 product reviews update",
+      "type": "product_review",
+      "date": "2021-12-01",
+      "endDate": "2021-12-21",
+      "url": "https://status.search.google.com/incidents/hgwP7ei5H1uKbYSeZrBZ",
+      "summary": "Released the December 2021 product reviews update."
+    },
+    {
+      "id": "FncPfR7zRSZ3diemah4o",
+      "name": "November 2021 core update",
+      "type": "core",
+      "date": "2021-11-17",
+      "endDate": "2021-11-30",
+      "url": "https://status.search.google.com/incidents/FncPfR7zRSZ3diemah4o",
+      "summary": "Released the November 2021 core update."
+    },
+    {
+      "id": "AFdXceQVsh1GEfKFvHyD",
+      "name": "November 2021 spam update",
+      "type": "spam",
+      "date": "2021-11-03",
+      "endDate": "2021-11-11",
+      "url": "https://status.search.google.com/incidents/AFdXceQVsh1GEfKFvHyD",
+      "summary": "Released the November 2021 spam update."
+    }
+  ]
+}

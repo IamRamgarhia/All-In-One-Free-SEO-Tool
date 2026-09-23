@@ -1,7 +1,8 @@
 "use server";
 
 import { auditFreshness, type FreshnessAudit } from "@/lib/freshness-check";
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun } from "@/lib/tool-findings";
+import { freshnessFindings } from "@/lib/tool-finding-builders";
 
 export async function runFreshnessAudit(
   url: string,
@@ -12,7 +13,7 @@ export async function runFreshnessAudit(
   const result = await auditFreshness(trimmed, {
     sitemapUrl: sitemapUrl?.trim() || undefined,
   });
-  await saveToolRun({
+  await recordToolRun({
     toolId: "freshness",
     label:
       result.ok
@@ -20,6 +21,7 @@ export async function runFreshnessAudit(
         : `${trimmed} · error`,
     input: { url: trimmed, sitemapUrl: sitemapUrl ?? null },
     result,
-  }).catch(() => undefined);
+    findings: result.ok ? freshnessFindings(result) : [],
+  });
   return result;
 }

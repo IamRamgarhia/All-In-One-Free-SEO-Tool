@@ -1,0 +1,247 @@
+import { describe, it, expect } from "vitest";
+import { deriveToolCapabilities } from "./tool-capabilities.derive";
+import { TOOL_CAPABILITIES } from "./tool-capabilities.generated";
+import {
+  badgeFor,
+  capabilityOf,
+  worksIn,
+  AI_TOOL_COUNT,
+  FREE_TOOL_COUNT,
+  TOTAL_TOOL_COUNT,
+  aiUsageOf,
+} from "./tool-capabilities";
+
+describe("tool capabilities", () => {
+  it("the committed flags still match the code", () => {
+    // If this fails, a page started or stopped using AI (or a browser) and
+    // nobody regenerated the badges. Run `pnpm gen:capabilities`.
+    // Left stale, the UI would tell users a paid tool is free.
+    //
+    // Only the derived fields are compared here; title and description
+    // come from the tools-grid parser and are checked separately below.
+    const flagsOnly = TOOL_CAPABILITIES.map((c) => ({
+      route: c.route,
+      needsAI: c.needsAI,
+      // Included deliberately. This is the field that decides whether a
+      // working page is advertised as unavailable, so leaving it out of
+      // the comparison would let exactly the drift it exists to prevent
+      // go unnoticed.
+      aiUsage: c.aiUsage,
+      usesBrowser: c.usesBrowser,
+    }));
+    expect(deriveToolCapabilities()).toEqual(flagsOnly);
+    // Reads every page in the source tree. About 0.6s alone, but it timed
+    // out at vitest's 5s default during a full parallel run, so it gets
+    // room rather than failing for a reason unrelated to what it checks.
+  }, 30_000);
+
+  it("the committed copy still matches the tools grid", async () => {
+    // The docs render these strings. If someone edits a tool's card and
+    // does not regenerate, the docs keep describing the old behaviour —
+    // which is the failure mode that makes documentation untrustworthy.
+    const { readToolCopy } = await import("../../scripts/gen-tool-capabilities");
+    const fresh = readToolCopy();
+    const stale = TOOL_CAPABILITIES.filter(
+      (c) =>
+        "title" in c &&
+        (fresh.get(c.route)?.title !== c.title ||
+          fresh.get(c.route)?.description !== c.description),
+    ).map((c) => c.route);
+    expect(stale).toEqual([]);
+  });
+
+  it("the committed file is byte-for-byte what the generator writes", async () => {
+    // The two checks above compare parsed fields, so the header counts
+    // and the ordering could drift without either noticing.
+    //
+    // This also fails loudly if the generator's run-as-a-script guard
+    // ever stops firing. That guard exists because importing the script
+    // used to write this file, so a run that failed for genuine drift
+    // repaired itself on the way out and the re-run was green.
+    const fs = await import("node:fs/promises");
+    const { renderCapabilities } = await import(
+      "../../scripts/gen-tool-capabilities"
+    );
+    const committed = await fs.readFile(
+      new URL("./tool-capabilities.generated.ts", import.meta.url),
+      "utf8",
+    );
+    // Line endings are the checkout's business, not the generator's.
+    const norm = (s: string) => s.replace(/\r\n/g, "\n");
+    expect(norm(committed)).toBe(norm(renderCapabilities()));
+    // Also scans the whole tree; see the first test in this block.
+  }, 30_000);
+
+  it("finds a route from a real link target", () => {
+    expect(capabilityOf("/tools/health-check")?.route).toBe(
+      "/tools/health-check",
+    );
+    expect(capabilityOf("/tools/health-check?url=x")?.route).toBe(
+      "/tools/health-check",
+    );
+    expect(capabilityOf("/tools/health-check#top")?.route).toBe(
+      "/tools/health-check",
+    );
+    expect(capabilityOf("/tools/health-check/")?.route).toBe(
+      "/tools/health-check",
+    );
+    expect(capabilityOf("/does-not-exist")).toBeNull();
+  });
+
+  it("covers sidebar routes, not just /tools/*", () => {
+    // The sidebar links to plenty of pages that are not tools. Before the
+    // table covered every route these all returned null, so the whole
+    // sidebar rendered unbadged.
+    for (const route of ["/agent", "/seo-chat", "/reports", "/audits"]) {
+      expect(capabilityOf(route), `${route} should be in the table`).not.toBeNull();
+    }
+  });
+
+  it("knows image-gen costs money even though it skips ai-call", () => {
+    // Regression: the first cut of the derivation treated lib/ai-call as the
+    // only way to spend credits. image-gen.ts posts straight to OpenAI, so
+    // it was labelled "Free" — a confidently wrong answer about money.
+    expect(capabilityOf("/tools/image-gen")?.needsAI).toBe(true);
+  });
+
+  it("never charges for a page that does not call a model", () => {
+    const free = TOOL_CAPABILITIES.filter((c) => !c.needsAI);
+    for (const cap of free) {
+      for (const mode of ["none", "mcp", "api", "both"] as const) {
+        expect(badgeFor(cap, mode)?.tone).toBe("free");
+        expect(worksIn(cap, mode)).toBe(true);
+      }
+    }
+  });
+
+  it("a subscription does NOT make this app's AI pages work", () => {
+    // The correction that matters most here. MCP lets a chat app call
+    // into this one; it gives this app nothing to call. Claiming
+    // otherwise sent people to a page that answers "No active AI
+    // provider" while the settings screen said AI was connected.
+    const ai = TOOL_CAPABILITIES.find((c) => c.needsAI)!;
+    expect(worksIn(ai, "none")).toBe(false);
+    expect(worksIn(ai, "mcp")).toBe(false);
+    expect(worksIn(ai, "api")).toBe(true);
+    expect(worksIn(ai, "both")).toBe(true);
+  });
+
+  it("does not advertise an AI page as usable under a subscription", () => {
+    const ai = TOOL_CAPABILITIES.find((c) => c.needsAI)!;
+    expect(badgeFor(ai, "mcp")?.tone).toBe("key");
+    expect(badgeFor(ai, "mcp")?.label).toBe("Needs a key");
+  });
+
+  it("counts only top-level tools, so the copy matches the grid", () => {
+    // Nested routes like /tools/geo-swot/c/[clientId] are the same tool
+    // seen from a client. Counting them would overstate the number.
+    expect(TOTAL_TOOL_COUNT).toBe(AI_TOOL_COUNT + FREE_TOOL_COUNT);
+    expect(TOTAL_TOOL_COUNT).toBeLessThan(TOOL_CAPABILITIES.length);
+    expect(TOTAL_TOOL_COUNT).toBeGreaterThan(80);
+  });
+
+  it("every sidebar link resolves in the table", async () => {
+    // The sidebar tags rows by looking each href up. A nav entry that
+    // does not resolve is not an error anywhere — it just silently never
+    // gets a tag, which is impossible to notice by looking at the UI.
+    const { NAV_GROUPS } = await import("@/components/shell/nav-items");
+    const missing = NAV_GROUPS.flatMap((g) => g.items)
+      // An external entry is a link off this app entirely — content
+      // writing now lives in BlogPilot — so there is no route of ours
+      // for it to resolve to, and expecting one would be a false alarm.
+      .filter((i) => !i.external)
+      .map((i) => i.href)
+      .filter((href) => capabilityOf(href) === null);
+    expect(missing).toEqual([]);
+  });
+});
+
+/**
+ * How load-bearing a model is, as opposed to merely reachable.
+ *
+ * The import graph can see that a page can reach the AI client. It
+ * cannot see whether the answer depends on it, and that distinction was
+ * being lost: traffic-drop reads Search Console, computes every number
+ * without a model, and asks one only to write an optional sentence. The
+ * grid told users it needed a key. Four more pages work for their main
+ * job and lose one feature, and were painted the same colour as a tool
+ * that does nothing at all without one.
+ *
+ * Telling someone a free tool costs money is the safer error than the
+ * reverse, so anything unmarked stays "required".
+ */
+describe("how much a model is actually needed", () => {
+  const usage = (route: string) => aiUsageOf(capabilityOf(route)!);
+
+  it("defaults to required when the file says nothing", () => {
+    // The safe direction. An author who adds an AI call and no marker
+    // gets the cautious answer rather than a page that quietly claims to
+    // be free.
+    expect(usage("/tools/schema")).toBe("required");
+    expect(usage("/tools/image-gen")).toBe("required");
+  });
+
+  it("reports none for a page that never reaches a model", () => {
+    expect(usage("/tools/robots")).toBe("none");
+    expect(usage("/tools/headers")).toBe("none");
+  });
+
+  it("believes a page that declares the model optional", () => {
+    // Verified by running it against a live Search Console property with
+    // no provider configured: every number came back, and only the prose
+    // `diagnosis` field was empty.
+    expect(usage("/tools/traffic-drop")).toBe("optional");
+  });
+
+  it("believes a page that declares the model partial", () => {
+    for (const r of [
+      "/tools/llms-txt",
+      "/tools/gsc-coverage",
+      "/tools/gbp-reply",
+      "/tools/content-score",
+    ]) {
+      expect(usage(r), r).toBe("partial");
+    }
+  });
+});
+
+describe("what the badge tells the user", () => {
+  const badge = (route: string, mode: Parameters<typeof badgeFor>[1]) =>
+    badgeFor(capabilityOf(route), mode)!;
+
+  it("does not call an optional-AI tool unavailable", () => {
+    // The bug this whole mechanism exists for.
+    for (const mode of ["none", "mcp"] as const) {
+      const b = badge("/tools/traffic-drop", mode);
+      expect(b.tone, mode).toBe("free");
+      expect(b.label, mode).not.toMatch(/needs a key/i);
+    }
+    expect(worksIn(capabilityOf("/tools/traffic-drop"), "mcp")).toBe(true);
+  });
+
+  it("distinguishes a partial tool from one that needs a key outright", () => {
+    const partial = badge("/tools/llms-txt", "none");
+    const required = badge("/tools/schema", "none");
+    expect(partial.tone).toBe("partial");
+    expect(required.tone).toBe("key");
+    expect(partial.tone).not.toBe(required.tone);
+  });
+
+  it("says why a subscription is not a substitute", () => {
+    // The question users keep asking. The answer has to be on the badge,
+    // not only in a doc nobody opens.
+    for (const r of ["/tools/schema", "/tools/llms-txt"]) {
+      expect(badge(r, "mcp").detail, r).toMatch(/chat|MCP|other way/i);
+    }
+  });
+
+  it("still never calls a paid tool free", () => {
+    // The invariant that outranks all of the above.
+    for (const c of TOOL_CAPABILITIES) {
+      if (aiUsageOf(c) !== "required") continue;
+      for (const mode of ["none", "mcp"] as const) {
+        expect(badgeFor(c, mode)?.tone, `${c.route} ${mode}`).not.toBe("free");
+      }
+    }
+  });
+});

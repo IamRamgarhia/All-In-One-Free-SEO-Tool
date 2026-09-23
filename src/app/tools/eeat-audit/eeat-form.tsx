@@ -1,12 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { runEeatAudit, type EeatState } from "./actions";
 import { AiFeedback } from "@/components/ai-feedback";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
 
 export function EeatForm() {
+  // Prefilled when opened from a client, so the domain is not retyped.
+  const presetUrl = usePresetUrl();
   const [state, formAction, pending] = useActionState<EeatState | null, FormData>(
     runEeatAudit,
     null,
@@ -23,6 +26,7 @@ export function EeatForm() {
             <span className="text-muted-foreground">Page URL</span>
             <input
               name="url"
+              defaultValue={presetUrl}
               required
               placeholder="https://yoursite.com/blog/post"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

@@ -43,6 +43,7 @@ export default async function OnboardingPage({
           name: client.name,
           url: client.url,
           niche: client.niche,
+          surfacesJson: client.surfacesJson,
           description: client.description,
           businessType: client.businessType,
           country: client.country ?? "US",

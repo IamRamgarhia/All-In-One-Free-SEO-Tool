@@ -16,11 +16,20 @@ import { deleteMonitoredPage, setMonitorStatus } from "@/app/monitor/actions";
 import { clientScope } from "@/lib/client-scope";
 
 const fieldTone: Record<string, string> = {
+  status: "bg-rose-500/15 text-rose-300 ring-rose-500/30",
   title: "bg-violet-500/15 text-violet-300 ring-violet-500/30",
   description: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
   h1: "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
   canonical: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
-  content: "bg-rose-500/15 text-rose-300 ring-rose-500/30",
+  robots: "bg-orange-500/15 text-orange-300 ring-orange-500/30",
+  schema: "bg-sky-500/15 text-sky-300 ring-sky-500/30",
+  content: "bg-white/5 text-muted-foreground ring-white/10",
+};
+
+const severityTone: Record<string, string> = {
+  critical: "bg-rose-500/20 text-rose-200 ring-rose-500/40",
+  warning: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
+  info: "bg-white/5 text-muted-foreground ring-white/10",
 };
 
 export default async function PerClientMonitorPage({
@@ -83,7 +92,7 @@ export default async function PerClientMonitorPage({
 
       <PageHeader
         title={`Page monitor · ${client.name}`}
-        description="Track meta title / description / H1 / canonical changes on key pages."
+        description="Tracks the status code, title, description, H1, canonical, robots directives and structured data of key pages, checked daily. A page answering with an error, a noindex, or a removed canonical, title, H1 or structured data is flagged critical."
         icon={Activity}
         accent="violet"
         actions={pages.length > 0 ? <CheckAllPagesButton /> : undefined}
@@ -133,10 +142,20 @@ export default async function PerClientMonitorPage({
                       >
                         {p.status}
                       </span>
+                      {p.lastStatus !== null && p.lastStatus >= 400 && (
+                        <span className="inline-flex items-center rounded-full bg-rose-500/20 px-2 py-0.5 text-[11px] font-medium text-rose-200 ring-1 ring-inset ring-rose-500/40">
+                          answering HTTP {p.lastStatus}
+                        </span>
+                      )}
                     </div>
                     {p.lastTitle && (
                       <div className="truncate text-xs text-muted-foreground">
                         Title: {p.lastTitle}
+                      </div>
+                    )}
+                    {p.lastRobots && (
+                      <div className="truncate text-xs text-muted-foreground">
+                        Robots: {p.lastRobots}
                       </div>
                     )}
                     {p.lastCheckedAt && (
@@ -184,6 +203,13 @@ export default async function PerClientMonitorPage({
             {recentChanges.map((c) => (
               <li key={c.id} className="px-5 py-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
+                  {c.severity && (
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${severityTone[c.severity]}`}
+                    >
+                      {c.severity}
+                    </span>
+                  )}
                   <span
                     className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${fieldTone[c.field] ?? fieldTone.title}`}
                   >

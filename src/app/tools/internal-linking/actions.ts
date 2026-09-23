@@ -1,6 +1,7 @@
 "use server";
 
-import { saveToolRun } from "@/lib/tool-runs";
+import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
+import { guardedFetch } from "@/lib/url-guard";
 
 const UA =
   "Mozilla/5.0 (compatible; SeoToolBot/0.1; +https://localhost) InternalLinker";
@@ -29,7 +30,7 @@ async function fetchText(url: string, timeoutMs = 12_000): Promise<string | null
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await guardedFetch(url, {
       signal: c.signal,
       headers: { "user-agent": UA, accept: "text/html" },
     });
@@ -112,11 +113,46 @@ function pageLinksTo(html: string, target: string, base: string): boolean {
   );
 }
 
+/**
+ * One finding: this page has internal links available that nobody made.
+ *
+ * Keyed on the target URL rather than on each suggestion, because the
+ * suggestions themselves change every run — a page gets rewritten, a
+ * phrase moves — and a signature that changes is one nobody can ever
+ * mark resolved. The stable fact is "this page is under-linked for this
+ * keyword", and it stops being true when the links exist.
+ *
+ * Not mapped for the agent. Placing a link inside someone's prose is a
+ * judgement about that sentence, and the plugin's write_internal_links
+ * capability exists but nothing plans it precisely because "insert a
+ * link somewhere in this paragraph" is not a mechanical edit.
+ */
+function linkFindings(
+  targetUrl: string,
+  keyword: string,
+  available: number,
+): FindingDraft[] {
+  if (available === 0) return [];
+  return [
+    {
+      signature: `internal-linking.unlinked.${targetUrl}`,
+      title: `${available} page${available === 1 ? "" : "s"} could link to this one and do not`,
+      severity: available >= 5 ? "medium" : "low",
+      category: "internal-linking",
+      details:
+        `Pages on this site already mention "${keyword}" without linking to ${targetUrl}. ` +
+        "Internal links are the cheapest ranking signal there is — they need no outreach and " +
+        "no permission, and they tell Google which page is the one about this topic.",
+    },
+  ];
+}
+
 export async function suggestInternalLinks(input: {
   targetUrl: string;
   targetKeyword: string;
   /** How many internal pages to crawl from the target's site. Default 25. */
   limit?: number;
+  clientId?: number | null;
 }): Promise<InternalLinkResult> {
   const target = input.targetUrl.trim();
   const keyword = input.targetKeyword.trim();
@@ -204,11 +240,21 @@ export async function suggestInternalLinks(input: {
     pagesScanned: combined.length,
     suggestions,
   };
-  await saveToolRun({
+  await recordToolRun({
     toolId: "internal-linking",
     label: `${keyword} · ${suggestions.length} link ops · ${combined.length} pages scanned`,
-    input: { targetUrl: parsedTarget.toString(), keyword },
+    clientId: input.clientId ?? null,
+    input: {
+      targetUrl: parsedTarget.toString(),
+      keyword,
+      clientId: input.clientId,
+    },
     result: out,
-  }).catch(() => undefined);
+    findings: linkFindings(
+      parsedTarget.toString(),
+      keyword,
+      suggestions.filter((s) => !s.alreadyLinks).length,
+    ),
+  });
   return out;
 }

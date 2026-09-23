@@ -216,9 +216,14 @@ function runBin(name) {
     log(`Missing ${script} — this install looks incomplete.`);
     return Promise.resolve(false);
   }
+  // Tell the script nobody is watching. bin/START.cmd pauses for a
+  // keypress on failure, which is right in a terminal and fatal here —
+  // the panel has no stdin, so the task would sit "working" forever
+  // instead of reporting what went wrong.
+  const env = { SEO_NONINTERACTIVE: "1" };
   return IS_WINDOWS
-    ? runStep("cmd", ["/c", script])
-    : runStep("bash", [script]);
+    ? runStep("cmd", ["/c", script], { env })
+    : runStep("bash", [script], { env });
 }
 
 /**

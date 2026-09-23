@@ -1,20 +1,22 @@
 import Link from "next/link";
+import { ToolDot } from "@/components/tool-dot";
+import { toolReadiness } from "@/lib/tool-readiness";
+import { SWEPT_TOOL_IDS } from "@/lib/swept-tools";
 import {
   Activity,
   AlertTriangle,
-  BookOpen,
   Bot,
   ClipboardCheck,
   Code2,
   Compass,
   Eye,
+  FileSearch,
   FileText,
   Flame,
   Gauge,
   Globe,
   Link as LinkIcon,
   Network,
-  RefreshCw,
   ScanLine,
   Search as SearchIcon,
   ShieldCheck,
@@ -40,6 +42,15 @@ export type ClientToolLink = {
   blurb: string;
   /** Optional — shown as a chip when the tool needs setup. */
   needs?: "gsc" | "gbp" | "ga4" | "wp-bridge" | null;
+  /**
+   * This tool already runs on a schedule for this client.
+   *
+   * Derived from the scheduler's own list rather than written down a
+   * second time, so the badge cannot claim something the sweep does not
+   * actually do. The tool stays openable — the point is that you never
+   * have to.
+   */
+  autoRuns?: boolean;
 };
 
 export type ClientToolGroup = {
@@ -60,7 +71,44 @@ export type ClientToolsClient = {
 export function buildClientToolGroups(
   client: ClientToolsClient,
 ): ClientToolGroup[] {
-  return buildGroups(client);
+  return withClientId(buildGroups(client), client.id);
+}
+
+/**
+ * Every tool link says which client it is for.
+ *
+ * Roughly half the links below pre-fill the URL and stop there. A tool
+ * opened that way records its run — and any findings it writes — against
+ * no client at all, so the result never reaches that client's ranked
+ * list, the agent's planner, or a report. It renders on the tool's own
+ * page and is invisible everywhere else.
+ *
+ * Done here rather than on each href because there are forty of them and
+ * the next one added would be the one that forgot. The test in
+ * client-tools-launcher.test.ts fails if any ever does.
+ */
+function withClientId(
+  groups: ClientToolGroup[],
+  id: number,
+): ClientToolGroup[] {
+  const tag = (href: string): string => {
+    if (!href.startsWith("/tools/")) return href;
+    if (/[?&]clientId=/.test(href)) return href;
+    return href + (href.includes("?") ? "&" : "?") + "clientId=" + id;
+  };
+  const swept: ReadonlySet<string> = new Set<string>(SWEPT_TOOL_IDS);
+  const slugOf = (href: string) =>
+    href.startsWith("/tools/")
+      ? href.slice("/tools/".length).split(/[?#]/)[0]
+      : "";
+  return groups.map((g) => ({
+    ...g,
+    tools: g.tools.map((t) => ({
+      ...t,
+      href: tag(t.href),
+      autoRuns: swept.has(slugOf(t.href)),
+    })),
+  }));
 }
 
 function buildGroups(client: {
@@ -192,48 +240,6 @@ function buildGroups(client: {
       ],
     },
     {
-      label: "Content for this client",
-      blurb: "Briefs, refresh, writing, AI / human checks.",
-      tools: [
-        {
-          href: `/content/c/${id}`,
-          title: "Content calendar",
-          icon: FileText,
-          blurb: "Plan + draft posts for this client.",
-        },
-        {
-          href: `/content-decay/c/${id}`,
-          title: "Refresh candidates",
-          icon: RefreshCw,
-          blurb: "Pages losing traffic, prioritized by recovery value.",
-        },
-        {
-          href: `/topic-clusters/c/${id}`,
-          title: "Topic clusters",
-          icon: Network,
-          blurb: "Map pillar + supporting pages by topic.",
-        },
-        {
-          href: `/tools/brief`,
-          title: "Composite content brief",
-          icon: BookOpen,
-          blurb: "Length + headings + semantic + PAA in one brief.",
-        },
-        {
-          href: `/tools/expert-panel`,
-          title: "Expert-panel scorer",
-          icon: Bot,
-          blurb: "Score a draft against a domain expert panel.",
-        },
-        {
-          href: `/tools/ai-slop`,
-          title: "AI slop detector",
-          icon: AlertTriangle,
-          blurb: "24-pattern humanizer check.",
-        },
-      ],
-    },
-    {
       label: "Links — internal + outbound",
       blurb: "Internal linking, prospects, anchor profile.",
       tools: [
@@ -334,6 +340,21 @@ function buildGroups(client: {
           icon: Eye,
           blurb: "See how Googlebot renders the page.",
         },
+        // Both of these run nightly for this client already. They are
+        // listed anyway: a check that happens invisibly is one nobody
+        // trusts, and the rail is where someone looks to confirm it.
+        {
+          href: `/tools/robots?url=${u}`,
+          title: "Robots.txt + sitemap",
+          icon: FileSearch,
+          blurb: "Crawl blocks, missing or broken sitemaps.",
+        },
+        {
+          href: `/tools/ai-robots?url=${u}`,
+          title: "AI crawler policy",
+          icon: Bot,
+          blurb: "Which AI crawlers robots.txt has decided about.",
+        },
       ],
     },
     {
@@ -399,19 +420,17 @@ function buildGroups(client: {
   ];
 }
 
-export const CLIENT_TOOL_NEEDS_HINTS: Record<
-  NonNullable<ClientToolLink["needs"]>,
-  string
-> = {
-  gsc: "Connect Google Search Console first",
-  gbp: "Add the client's GBP URL on this page first",
-  ga4: "Connect Google Analytics 4 first",
-  "wp-bridge": "Install the WordPress SEO Tool Bridge plugin first",
-};
-const NEEDS_HINTS = CLIENT_TOOL_NEEDS_HINTS;
+/**
+ * Re-exported so existing importers keep working. The table itself lives
+ * in lib/tool-readiness.ts — it was written here and again in the
+ * readiness rule, and two copies of a hint string is exactly the drift
+ * CLAUDE.md's fourth standing rule is about.
+ */
+export { NEEDS_HINTS as CLIENT_TOOL_NEEDS_HINTS } from "@/lib/tool-readiness";
 
 export function ClientToolsLauncher({
   client,
+  hasAiKey = false,
 }: {
   client: {
     id: number;
@@ -421,6 +440,8 @@ export function ClientToolsLauncher({
     ga4PropertyId: string | null;
     wpEndpoint: string | null;
   };
+  /** Whether an AI key exists, so the dots can tell ready from blocked. */
+  hasAiKey?: boolean;
 }) {
   const groups = buildGroups(client);
 
@@ -449,6 +470,12 @@ export function ClientToolsLauncher({
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {g.tools.map((t) => {
                 const Icon = t.icon;
+                const r = toolReadiness({
+                  href: t.href,
+                  needs: t.needs,
+                  hasAiKey,
+                });
+                const blocked = r.state === "blocked" ? r : null;
                 return (
                   <Link
                     key={t.href}
@@ -460,16 +487,34 @@ export function ClientToolsLauncher({
                         <Icon className="size-3.5 text-violet-300" />
                       </div>
                       <div className="min-w-0 flex-1 space-y-0.5">
-                        <p className="truncate text-xs font-medium group-hover:text-violet-200">
-                          {t.title}
+                        {/* Same dot, same rule, as the main sidebar
+                            and the per-client rail — one function in
+                            lib/tool-readiness.ts decides all three.
+                            This panel used to paint green wherever the
+                            sidebar stayed silent, so the same tool got
+                            two different answers depending on which
+                            panel you were looking at. */}
+                        <p className="flex items-start gap-1.5 truncate text-xs font-medium group-hover:text-violet-200">
+                          <ToolDot
+                            href={t.href}
+                            needs={t.needs}
+                            hasAiKey={hasAiKey}
+                            className="mt-[0.25rem]"
+                          />
+                          <span className="min-w-0 flex-1 truncate">
+                            {t.title}
+                          </span>
                         </p>
                         <p className="text-[11px] text-muted-foreground">
                           {t.blurb}
                         </p>
-                        {t.needs && (
-                          <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300 ring-1 ring-inset ring-amber-500/30">
-                            {NEEDS_HINTS[t.needs]}
-                          </p>
+                        {/* A span, not a link: the whole card is
+                            already a <Link>, and nesting one inside
+                            another is invalid HTML. */}
+                        {blocked && (
+                          <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-300 ring-1 ring-inset ring-amber-500/30">
+                            {blocked.label}
+                          </span>
                         )}
                       </div>
                     </div>
