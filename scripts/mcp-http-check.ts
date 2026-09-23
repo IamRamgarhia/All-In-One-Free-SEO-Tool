@@ -5,6 +5,10 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+// The registered list, not a number typed here. This asserted "12 tools"
+// while 22 were registered — a check that only fails once somebody adds
+// a tool is a check that reports the wrong thing for months.
+import { MCP_TOOL_LIST } from "../src/lib/mcp/server";
 
 const URL_ = process.env.MCP_URL ?? "http://localhost:63140/api/mcp";
 const TOKEN = process.argv[2] ?? "";
@@ -46,11 +50,20 @@ async function main() {
   check("handshake completes", true);
 
   const tools = await client.listTools();
-  check("tools/list returns 12 tools", tools.tools.length === 12, `got ${tools.tools.length}`);
+  const expected = MCP_TOOL_LIST.map((t) => t.name).sort();
+  const served = tools.tools.map((t) => t.name).sort();
   check(
-    "tool names match the stdio server",
-    tools.tools.some((t) => t.name === "list_clients") &&
-      tools.tools.some((t) => t.name === "apply_fix"),
+    `tools/list serves all ${expected.length} registered tools`,
+    served.length === expected.length,
+    `got ${served.length}`,
+  );
+  check(
+    "the remote transport serves exactly what stdio serves",
+    JSON.stringify(served) === JSON.stringify(expected),
+    [
+      ...served.filter((n) => !expected.includes(n)).map((n) => `extra: ${n}`),
+      ...expected.filter((n) => !served.includes(n)).map((n) => `missing: ${n}`),
+    ].join(", "),
   );
 
   const res = await client.callTool({ name: "list_clients", arguments: {} });

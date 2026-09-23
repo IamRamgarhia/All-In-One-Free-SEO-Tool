@@ -331,10 +331,10 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 
 ### 🧩 Use it from Claude, Cursor, or any MCP client
 ✅ **Built-in MCP server** — point Claude Code, Claude Desktop or Cursor at your install and ask questions in plain English against your own data ([setup](docs/mcp-server.md))  
-✅ **Ten tools**, backed by the joined history — crawl findings, rank movements, AI citations and every change the agent made, in one place. Most SEO MCP servers wrap a single API; "why did this page drop last month" needs all of it  
+✅ **22 tools**, backed by the joined history — crawl findings, rank movements, AI citations, Search Console indexing and every change the agent made, in one place. Most SEO MCP servers wrap a single API; "why did this page drop last month" needs all of it  
 ✅ **It can act, and undo** — `run_agent` respects your autonomy setting exactly as the scheduler does, so at the default nothing is written to a live site  
 ✅ **Numbers arrive with their provenance.** A Search Console average and a browser scrape are different measurements, so movement between them is reported as *not comparable* rather than as a confident "up 6 places" that never happened  
-✅ stdio only — no port, nothing listening, runs as whoever owns the database file  
+✅ **stdio by default** — no port, nothing listening, runs as whoever owns the database file. A remote endpoint (`/api/mcp`, Streamable HTTP) exists for connectors and stays off until you generate a token  
 
 ### 🔌 Integrations
 ✅ **One setup page** (`/connect`) — every connection in one place, with what each one gets you, what you lose without it, how long it takes, and step-by-step instructions written for someone who's never seen that vendor's console  
