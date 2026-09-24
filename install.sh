@@ -606,9 +606,65 @@ DESKTOP_ENTRY
   fi
 fi
 
-# ---- 5b. Auto-start at login (opt-in via SEO_AUTOSTART=1) ------------------
+# ---- 5b. Auto-start at login ----------------------------------------------
 # macOS: drop a LaunchAgent plist. Linux: drop a systemd-user service.
 # Both run on user login, no sudo / admin required.
+#
+# This used to be opt-in through an environment variable nobody knew
+# existed, so almost nobody had it on -- and the nightly work (audits,
+# rank checks, page monitoring, the agent) only runs while the app is
+# running. On one real install every scheduled job had last run twelve
+# days earlier, because the app was simply closed. Automation that needs
+# someone to remember to start it is not automation, so we ask.
+#
+# SEO_AUTOSTART=1 or =0 still wins, so scripted installs stay scripted.
+# With no answer available (piped, no terminal) the default is off --
+# nothing should quietly add a login item you did not agree to.
+if [ "$HAS_DOCKER" != "1" ] && [ -z "$SEO_AUTOSTART" ]; then
+  # Opening /dev/tty is the test, not -r. In a piped install -r passes
+  # and the open then fails, so the question got asked into the void
+  # followed by "No such device or address".
+  if { : < /dev/tty; } 2>/dev/null; then
+    printf "
+"
+    printf "  Start the SEO Tool automatically when you log in?
+"
+    printf "
+"
+    printf "  The daily audits, rank checks and monitoring only run while
+"
+    printf "  the app is running. Saying yes means they happen on their own.
+"
+    printf "  Saying no means you start it from the Desktop icon when you
+"
+    printf "  want it, and nothing runs in between.
+"
+    printf "
+"
+    printf "  You can change this later -- it is a normal login item.
+"
+    printf "
+"
+    printf "  Start automatically? [Y/n] "
+    # 30s cap: an installer that waits forever on a prompt nobody is
+    # watching is worse than one that picks a safe default.
+    if read -r -t 30 AUTOSTART_REPLY < /dev/tty 2>/dev/null; then
+      case "$AUTOSTART_REPLY" in
+        [Nn]*) SEO_AUTOSTART=0 ;;
+        *)     SEO_AUTOSTART=1 ;;
+      esac
+    else
+      printf "
+"
+      SEO_AUTOSTART=0
+      warn "No answer -- leaving auto-start off."
+    fi
+  else
+    SEO_AUTOSTART=0
+    say "Auto-start left off (no terminal to ask). Re-run with SEO_AUTOSTART=1 to enable it."
+  fi
+fi
+
 if [ "$SEO_AUTOSTART" = "1" ] && [ "$HAS_DOCKER" != "1" ]; then
   OS="$(uname -s)"
   if [ "$OS" = "Darwin" ]; then

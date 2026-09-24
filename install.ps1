@@ -820,6 +820,36 @@ if (-not $hasDocker -and $env:SEO_DEFENDER_EXCLUDE -eq "1") {
 # Registers a per-user scheduled task that runs START.cmd at logon. No admin
 # rights needed; safe for any standard user account. Skip on Docker (Docker
 # Desktop handles container auto-restart via its own settings).
+# This used to be opt-in through an environment variable nobody knew
+# existed, so almost nobody had it on - and the nightly work (audits,
+# rank checks, page monitoring, the agent) only runs while the app is
+# running. On one real install every scheduled job had last run twelve
+# days earlier, because the app was simply closed. Automation that needs
+# someone to remember to start it is not automation, so we ask.
+#
+# SEO_AUTOSTART=1 or =0 still wins, so scripted installs stay scripted.
+# With nobody at the keyboard the default is off - nothing should quietly
+# add a login item you did not agree to.
+if (-not $hasDocker -and [string]::IsNullOrEmpty($env:SEO_AUTOSTART)) {
+    if ([Environment]::UserInteractive -and -not $env:CI) {
+        Write-Host ""
+        Write-Host "  Start the SEO Tool automatically when you log in?"
+        Write-Host ""
+        Write-Host "  The daily audits, rank checks and monitoring only run while"
+        Write-Host "  the app is running. Saying yes means they happen on their own."
+        Write-Host "  Saying no means you start it from the Desktop icon when you"
+        Write-Host "  want it, and nothing runs in between."
+        Write-Host ""
+        Write-Host "  You can change this later - it is a normal scheduled task."
+        Write-Host ""
+        $reply = Read-Host "  Start automatically? [Y/n]"
+        if ($reply -match '^[Nn]') { $env:SEO_AUTOSTART = "0" } else { $env:SEO_AUTOSTART = "1" }
+    } else {
+        $env:SEO_AUTOSTART = "0"
+        Say "Auto-start left off (nothing to ask on). Re-run with SEO_AUTOSTART=1 to enable it."
+    }
+}
+
 if (-not $hasDocker -and $env:SEO_AUTOSTART -eq "1") {
     try {
         $taskName = "SEO Tool - Start at login"
