@@ -243,6 +243,79 @@ function checks(): SweepCheck[] {
       },
     },
     {
+      toolId: "health-check",
+      label: "Is the site up, and does it answer correctly",
+      // One request. Catches the failure that makes every other check
+      // here meaningless — a site that is down, redirecting to a parked
+      // page, or serving a 500 to everyone but the person who owns it.
+      run: async (c) =>
+        (await import("@/app/tools/health-check/actions")).runHealthCheck(
+          c.url,
+          c.id,
+        ),
+    },
+    {
+      toolId: "eeat-audit",
+      label: "Author, sourcing and trust signals",
+      // Weekly: it reads the page and looks for bylines, dates, about
+      // and contact routes. Nothing here changes day to day, and the
+      // answer is only interesting when it changes.
+      cadence: "weekly",
+      run: async (c) => {
+        const form = new FormData();
+        form.set("url", c.url);
+        return (await import("@/app/tools/eeat-audit/actions")).runEeatAudit(
+          null,
+          form,
+        );
+      },
+    },
+    {
+      toolId: "geo-score",
+      label: "How quotable the page is to an AI answer",
+      // Weekly, same reasoning. No model is called — it is structural:
+      // whether the page is chunkable, factual and attributable.
+      cadence: "weekly",
+      run: async (c) => {
+        const form = new FormData();
+        form.set("url", c.url);
+        form.set("clientId", String(c.id));
+        return (await import("@/app/tools/geo-score/actions")).runGeoScore(
+          { ok: false, error: "" },
+          form,
+        );
+      },
+    },
+    // perf-budget is deliberately NOT here, and this is what the bar at
+    // the top of this file is for. It reads page weight through Google's
+    // PageSpeed API, and without a key that is a shared keyless quota.
+    // Measured when it was added: it failed on all four clients with
+    // "Google's free PageSpeed quota is used up for today" — before
+    // running nightly, for every client, forever. A scheduled check that
+    // reliably produces a quota error is not a check, it is a log full
+    // of noise that trains you to ignore the log.
+    //
+    // It belongs here the day a PageSpeed key is a thing the sweep can
+    // require, the same way the GSC checks require a property.
+    {
+      toolId: "render",
+      label: "What the page looks like once JavaScript has run",
+      // Weekly and the most expensive thing in the sweep: it drives a
+      // real browser. It is also the only check that can tell you the
+      // difference between what the crawler sees and what a person sees,
+      // which is the entire failure mode of a JavaScript site.
+      cadence: "weekly",
+      run: async (c) => {
+        const form = new FormData();
+        form.set("url", c.url);
+        form.set("device", "desktop");
+        return (await import("@/app/tools/render/actions")).runRender(
+          null,
+          form,
+        );
+      },
+    },
+    {
       toolId: "security",
       label: "Security headers, TLS and certificate expiry",
       // Two external APIs rather than a fetch of the site, so it is the
