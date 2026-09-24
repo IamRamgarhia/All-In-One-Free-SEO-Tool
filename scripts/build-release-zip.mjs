@@ -65,19 +65,103 @@ function say(msg) {
  * exclusions means the contents are whatever is committed, which is
  * checkable, rather than whatever my ignore list happened to remember.
  */
+/**
+ * What a person needs to install and run this, and nothing else.
+ *
+ * An allowlist of top-level entries rather than a list of things to
+ * exclude, so a new dev folder added next year is left out by default
+ * instead of quietly shipping. Anything genuinely needed gets added
+ * here deliberately, and the install test below is what proves the list
+ * is not too small.
+ */
+const SHIP_TOP_LEVEL = new Set([
+  // Build and run
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "next.config.ts",
+  "tsconfig.json",
+  "postcss.config.mjs",
+  "components.json",
+  "drizzle.config.ts",
+  ".env.example",
+  "src",
+  "public",
+  "bin",
+  "scripts",
+  // Documented install path, and the app's own docs link to these
+  "Dockerfile",
+  "docker-compose.yml",
+  "docs",
+  "README.md",
+  "LICENSE",
+  // Things the app tells people to use. The client screen literally
+  // says "wordpress-plugin/seo-tool-bridge.php", so shipping the app
+  // without it points at a file that is not there.
+  "wordpress-plugin",
+  "extension",
+  "plugins",
+]);
+
+/**
+ * Paths inside those entries that are for developing this, not running
+ * it. Each one is here for a measured reason, noted where it is not
+ * obvious.
+ */
+const DROP = [
+  // 91 files. Nothing imports them at runtime.
+  /(^|\/)[^/]+\.test\.(ts|tsx)$/,
+  // 4.2 MB of drizzle-kit snapshots. scripts/migrate.cjs reads only the
+  // .sql files — checked, it filters on endsWith(".sql") — so these are
+  // needed to *generate* a migration and never to *apply* one.
+  /^src\/db\/migrations\/meta\//,
+  // 1 MB of README images. GitHub serves them from the repo; a local
+  // copy of the README is not why anyone downloaded this.
+  /^docs\/screenshots\//,
+  // Notes to ourselves, not to the person installing.
+  /^docs\/audits\//,
+  /^docs\/competitive-review/,
+  /^docs\/mcp-connections-plan/,
+  // The PHP suite for the WordPress plugin.
+  /^wordpress-plugin\/tests\//,
+  // Dev-only scripts. Kept: migrate, migrate-watch, control-panel,
+  // mcp-server (the MCP server is a shipped feature people point Claude
+  // at), package.ts.
+  /^scripts\/(audit-fixtures|mcp-check|mcp-http-check|wp-bridge-check|gen-social-preview|gen-tool-capabilities|report-batch-check|first-run-check|route-sweep|build-release-zip|migrate-watch)\./,
+  // Superseded by the launchers at the top of this zip.
+  /^install\.(ps1|sh)$/,
+];
+
+function shouldShip(path) {
+  const top = path.split("/")[0];
+  if (!SHIP_TOP_LEVEL.has(top)) return false;
+  return !DROP.some((rx) => rx.test(path));
+}
+
 function exportTrackedFiles(into) {
   mkdirSync(into, { recursive: true });
-  // Relative filename, with cwd set to the destination. GNU tar on
-  // Windows reads "C:\..." as a remote host spec and tries to resolve
-  // "C" as a hostname, so an absolute path here fails with the
-  // wonderfully unhelpful "Cannot connect to C: resolve failed".
-  const tarball = join(into, "tracked.tar");
-  execFileSync("git", ["archive", "--format=tar", "-o", tarball, "HEAD"], {
+  // git, so only committed files can ship — never a stray data.db, .env
+  // or half-finished file sitting in the working tree.
+  const tracked = execFileSync("git", ["ls-files", "-z"], {
     cwd: ROOT,
-    stdio: "pipe",
-  });
-  execFileSync("tar", ["-xf", "tracked.tar"], { cwd: into, stdio: "pipe" });
-  rmSync(tarball, { force: true });
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split("\0")
+    .filter(Boolean);
+
+  let shipped = 0;
+  for (const rel of tracked) {
+    if (!shouldShip(rel)) continue;
+    const from = join(ROOT, rel);
+    if (!existsSync(from)) continue;
+    const to = join(into, rel);
+    mkdirSync(dirname(to), { recursive: true });
+    cpSync(from, to);
+    shipped++;
+  }
+  say(`Shipping ${shipped} of ${tracked.length} tracked files`);
+  return { shipped, tracked: tracked.length };
 }
 
 function main() {

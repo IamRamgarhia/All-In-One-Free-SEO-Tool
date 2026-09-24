@@ -17,14 +17,14 @@
   try {
     var saved = localStorage.getItem("seo-docs-theme");
     if (saved) root.setAttribute("data-theme", saved);
-  } catch (e) {}
+  } catch (_e) {}
 
   var toggle = document.getElementById("theme-toggle");
   if (toggle) {
     toggle.addEventListener("click", function () {
       var next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
       root.setAttribute("data-theme", next);
-      try { localStorage.setItem("seo-docs-theme", next); } catch (e) {}
+      try { localStorage.setItem("seo-docs-theme", next); } catch (_e) {}
       toggle.textContent = next === "light" ? "Dark" : "Light";
     });
     toggle.textContent = root.getAttribute("data-theme") === "light" ? "Dark" : "Light";
@@ -61,7 +61,7 @@
         ta.value = text;
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand("copy"); done(); } catch (e) { b.textContent = "Press Ctrl+C"; }
+        try { document.execCommand("copy"); done(); } catch (_e) { b.textContent = "Press Ctrl+C"; }
         document.body.removeChild(ta);
       }
     });
@@ -111,14 +111,39 @@
       .catch(function () { loading = false; });
   }
 
+  /**
+   * Rank a result rather than demand a perfect match.
+   *
+   * The first version required every word to appear, so "how do i back
+   * up" found nothing while "backup" found six things — which is the
+   * opposite of how people type. Now any word can match and more
+   * matches rank higher, with a bonus when all of them hit, so precise
+   * queries still come first.
+   */
+  var STOP = { the: 1, a: 1, an: 1, of: 1, to: 1, in: 1, is: 1, it: 1, do: 1, i: 1,
+               how: 1, my: 1, for: 1, and: 1, on: 1, can: 1, me: 1, you: 1, what: 1,
+               where: 1, why: 1, does: 1, with: 1, from: 1 };
+
   function score(item, terms) {
+    var title = item.title.toLowerCase();
     var hay = (item.title + " " + item.page + " " + item.text).toLowerCase();
     var total = 0;
+    var hits = 0;
     for (var i = 0; i < terms.length; i++) {
       var t = terms[i];
-      if (hay.indexOf(t) === -1) return 0;
-      total += item.title.toLowerCase().indexOf(t) !== -1 ? 12 : 1;
+      var inTitle = title.indexOf(t);
+      var inText = hay.indexOf(t);
+      if (inTitle === -1 && inText === -1) continue;
+      hits++;
+      if (inTitle === 0) total += 30;          // title starts with it
+      else if (inTitle !== -1) total += 18;    // somewhere in the title
+      else total += 2;
+      // A word on its own beats the same letters inside another word,
+      // so "rank" does not lose to "franking".
+      if (new RegExp("\\b" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(hay)) total += 2;
     }
+    if (!hits) return 0;
+    if (hits === terms.length && terms.length > 1) total += 25; // everything matched
     return total;
   }
 
@@ -127,7 +152,12 @@
     if (query.length < 2) { results.classList.remove("open"); results.innerHTML = ""; return; }
     if (!index) { load(); return; }
 
-    var terms = query.split(/\s+/);
+    // Drop filler words, but never all of them — "how do i" would
+    // otherwise become an empty query and look broken.
+    var raw = query.split(/\s+/);
+    var terms = raw.filter(function (t) { return t.length > 1 && !STOP[t]; });
+    if (!terms.length) terms = raw;
+
     var hits = index
       .map(function (item) { return { item: item, s: score(item, terms) }; })
       .filter(function (h) { return h.s > 0; })

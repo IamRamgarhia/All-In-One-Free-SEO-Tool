@@ -15,7 +15,11 @@
 import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PAGES, SITE } from "./content.mjs";
+import { PAGES as WRITTEN, SITE } from "./content.mjs";
+import { toolsPage, screensPage } from "./reference.mjs";
+
+/* Written pages, then the two generated from the app's own source. */
+const PAGES = [...WRITTEN, toolsPage(), screensPage()];
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "dist");
@@ -189,8 +193,17 @@ function build() {
       title: page.title,
       page: page.group,
       url: page.slug,
-      text: text(page.lede || "") + " " + text(page.sections.map((s) => s.html).join(" ")).slice(0, 1200),
+      // Keywords are the words people actually type, which are often not
+      // the words on the page — "crash" for troubleshooting, "licence"
+      // for the FAQ, "setup" for install.
+      text:
+        (page.keywords || "") + " " +
+        text(page.lede || "") + " " +
+        text(page.sections.map((s) => s.html).join(" ")).slice(0, 1200),
     });
+    for (const extra of page.searchExtra || []) {
+      index.push({ title: extra.title, page: page.title, url: extra.url, text: extra.text });
+    }
     for (const s of page.sections) {
       if (!s.id || !s.h2) continue;
       index.push({

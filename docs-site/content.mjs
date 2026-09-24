@@ -31,6 +31,7 @@ export const PAGES = [
   // ───────────────────────────── Start here ─────────────────────────────
   {
     slug: "index.html",
+    keywords: "overview what is this free seo tool alternative ahrefs semrush moz start begin introduction",
     group: "Start here",
     title: "What this is",
     navTitle: "Overview",
@@ -105,6 +106,7 @@ you ask it to, call the APIs you connect, and check for its own updates.</p>
 
   {
     slug: "install.html",
+    keywords: "install setup download zip launcher windows mac linux docker node npm requirements first time getting started exe msi unzip extract",
     group: "Start here",
     title: "Install",
     lede:
@@ -202,6 +204,7 @@ backup buttons cannot reach it. Use <em>Settings &rarr; Backup</em> inside the a
 
   {
     slug: "first-run.html",
+    keywords: "getting started first steps begin setup wizard onboarding new user what next add site",
     group: "Start here",
     title: "Your first 10 minutes",
     navTitle: "First 10 minutes",
@@ -263,6 +266,7 @@ running, which is worth understanding early.</p>`,
   // ───────────────────────────── Everyday ─────────────────────────────
   {
     slug: "clients.html",
+    keywords: "client website site add customer project dashboard health score portal share link white label",
     group: "Everyday",
     title: "Clients and the dashboard",
     navTitle: "Clients",
@@ -302,6 +306,7 @@ was the decision.</p>`,
 
   {
     slug: "audits.html",
+    keywords: "audit crawl scan site health errors issues findings problems broken technical seo checker severity fix",
     group: "Everyday",
     title: "Audits and findings",
     navTitle: "Audits",
@@ -351,6 +356,7 @@ directly — and undo them. <a href="agent.html">How the agent works &rarr;</a><
 
   {
     slug: "tasks.html",
+    keywords: "task todo checklist work plan kanban priority assign done skipped playbook",
     group: "Everyday",
     title: "Tasks and ranked work",
     navTitle: "Tasks",
@@ -393,6 +399,7 @@ link straight to the tool that does them, so there is no hunting for the right s
 
   {
     slug: "keywords.html",
+    keywords: "keyword rank ranking position serp track tracker search console gsc average position quick wins cannibalization research volume",
     group: "Everyday",
     title: "Keywords and rankings",
     navTitle: "Keywords &amp; ranks",
@@ -450,6 +457,7 @@ labelled by intent.</p>`,
 
   {
     slug: "reports.html",
+    keywords: "report pdf client report white label branding monthly export deliver send schedule proposal invoice summary",
     group: "Everyday",
     title: "Reports and client delivery",
     navTitle: "Reports",
@@ -497,6 +505,7 @@ a second tool.</p>`,
   // ───────────────────────────── Growth ─────────────────────────────
   {
     slug: "content.html",
+    keywords: "content brief writing blog article decay refresh title test meta description rewrite editor score",
     group: "Growth",
     title: "Content",
     lede: "Briefs, scoring, decay detection and the experiments that move click-through.",
@@ -529,6 +538,7 @@ than one screen at a time.</p>`,
 
   {
     slug: "backlinks.html",
+    keywords: "backlink link building outreach referring domains anchor broken link prospect disavow toxic",
     group: "Growth",
     title: "Backlinks and outreach",
     navTitle: "Backlinks",
@@ -567,6 +577,7 @@ pointing at them — the basis of broken-link building.</p>`,
 
   {
     slug: "local-seo.html",
+    keywords: "local seo google business profile gbp map pack citations nap reviews near me location city grid heatmap",
     group: "Growth",
     title: "Local SEO",
     lede: "For businesses with an address or a service area, where the map pack is the ranking that pays.",
@@ -598,6 +609,7 @@ disagree — inconsistency is the quiet cause of a lot of local ranking trouble.
 
   {
     slug: "competitors.html",
+    keywords: "competitor rival compare benchmark share of voice brand mention monitoring",
     group: "Growth",
     title: "Competitors and brand",
     navTitle: "Competitors",
@@ -630,6 +642,7 @@ while replying to it is still useful.</p>`,
 
   {
     slug: "ai-visibility.html",
+    keywords: "ai visibility chatgpt perplexity claude gemini ai overview llm citation llms.txt gptbot crawler geo aeo",
     group: "Growth",
     title: "AI visibility",
     lede:
@@ -668,6 +681,7 @@ and generate the robots.txt to match.</p>`,
   // ───────────────────────────── Automation ─────────────────────────────
   {
     slug: "agent.html",
+    keywords: "agent autopilot automatic fix apply autonomy undo revert wordpress plugin bridge write changes ai agent",
     group: "Automation",
     title: "The AI agent",
     navTitle: "AI agent",
@@ -725,6 +739,7 @@ for WordPress sites behind Cloudflare. <a href="integrations.html#wordpress">Set
 
   {
     slug: "automation.html",
+    keywords: "automation schedule scheduler cron nightly daily weekly monitor alerts notifications slack email digest always on startup",
     group: "Automation",
     title: "Automation and monitoring",
     navTitle: "Automation",
@@ -778,6 +793,7 @@ change is rated by how much it matters.</p>`,
   // ───────────────────────────── Connections ─────────────────────────────
   {
     slug: "integrations.html",
+    keywords: "connect integration google search console analytics ga4 oauth api key wordpress plugin bing shopify webflow ollama openai gemini groq provider",
     group: "Connections",
     title: "Connections",
     lede:
@@ -850,6 +866,7 @@ Slack / Discord / Teams / email for alerts, and Shopify and Webflow for non-Word
 
   {
     slug: "mcp.html",
+    keywords: "mcp claude cursor claude desktop model context protocol token connector ai assistant chat",
     group: "Connections",
     title: "Use it from Claude or Cursor",
     navTitle: "Claude &amp; MCP",
@@ -902,6 +919,7 @@ different sources is reported as not comparable rather than as a confident figur
   // ───────────────────────────── Running it ─────────────────────────────
   {
     slug: "backup.html",
+    keywords: "backup restore save data database db export move migrate transfer another computer update upgrade version",
     group: "Running it",
     title: "Backup, restore and updating",
     navTitle: "Backup &amp; updating",
@@ -947,6 +965,7 @@ automatically on the next start.</p>`,
 
   {
     slug: "troubleshooting.html",
+    keywords: "troubleshoot problem error crash broken not working fails wont start blank page port in use stuck help fix issue",
     group: "Running it",
     title: "Troubleshooting",
     lede: "The things that actually go wrong, and what to do about them.",
@@ -1001,6 +1020,7 @@ and that diagnostic output.</p>`,
 
   {
     slug: "faq.html",
+    keywords: "faq question limit limitation free cost price licence license commercial privacy data safe compare paid",
     group: "Running it",
     title: "Questions and limits",
     navTitle: "FAQ &amp; limits",
