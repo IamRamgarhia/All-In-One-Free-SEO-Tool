@@ -191,6 +191,71 @@ function resolveBackup(id) {
   return { ...entry, path: join(BACKUP_BUCKETS[bucket](), name) };
 }
 
+/**
+ * Is this folder run by Docker Compose rather than natively?
+ *
+ * It matters because every button here drives bin/START.* and bin/STOP.*,
+ * which install Node modules and run `next start` in this folder. Press
+ * Start on a Docker install and you get a second copy of the app running
+ * beside the container, both pointed at different databases — the
+ * container's volume and a fresh local data.db. Nothing would error.
+ *
+ * So the panel asks first, and refuses rather than doing the wrong thing.
+ * `-a` because a stopped container is still a Docker install, and that is
+ * exactly when someone comes here looking for a Start button.
+ */
+let dockerCheck = { at: 0, value: false };
+
+function execCapped(cmd, args, ms) {
+  return new Promise((resolve) => {
+    try {
+      execFile(
+        cmd,
+        args,
+        { cwd: ROOT, timeout: ms, windowsHide: true },
+        (err, stdout) => resolve(err ? null : String(stdout)),
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function isDockerInstall() {
+  // Detection is never perfect, so it can be overridden — the same rule
+  // this project applies to tech-stack detection. Also the only way to
+  // exercise the Docker branch on a machine without Docker:
+  //   SEO_INSTALL_MODE=docker  (or native)
+  const forced = String(process.env.SEO_INSTALL_MODE ?? "").toLowerCase();
+  if (forced === "docker") return true;
+  if (forced === "native") return false;
+
+  // State is polled every few seconds; shelling out to Docker that often
+  // would make the page crawl when Docker Desktop is slow to answer.
+  if (Date.now() - dockerCheck.at < 30_000) return dockerCheck.value;
+  let value = false;
+  if (existsSync(join(ROOT, "docker-compose.yml")) && (await which("docker"))) {
+    const out = await execCapped("docker", ["compose", "ps", "-a", "--format", "json"], 6000);
+    value = Boolean(out && out.trim() && out.includes("seo"));
+  }
+  dockerCheck = { at: Date.now(), value };
+  return value;
+}
+
+/** Refuse a native action on a Docker install, and say what to do instead. */
+function refuseOnDocker(action, command) {
+  log(`This install runs in Docker, so "${action}" here would not do what`);
+  log("you expect — it would start a second copy beside the container,");
+  log("with its own separate database.");
+  log("");
+  log("Run this instead, from this folder:");
+  log(`    ${command}`);
+  log("");
+  log("Backups live inside the app for Docker installs: open it and go to");
+  log("Settings -> Backup.");
+  return false;
+}
+
 /** The port bin/START.* chose, so "Open the app" goes to the right place. */
 function appPort() {
   const fromFile = readTextIfPresent(join(ROOT, ".seo-port"));
@@ -236,6 +301,7 @@ async function readState() {
       ? Math.round((statSync(dbPath).size / 1024 / 1024) * 10) / 10
       : 0,
     backups: listBackups(),
+    dockerInstall: await isDockerInstall(),
     running: await appIsResponding(),
     appPort: appPort(),
     version,
@@ -388,17 +454,27 @@ const TASKS = {
   // whatever is already done. So "Install" and "Start" are the same
   // script — the difference is only what the user is told to expect.
   install: async () => {
+    if (await isDockerInstall())
+      return refuseOnDocker("Install", "docker compose up -d");
     const ok = await runBin("START");
     // Only on success: a Desktop icon pointing at a half-built install
     // is worse than none.
     if (ok) await addDesktopShortcut();
     return ok;
   },
-  start: () => runBin("START"),
-  stop: () => runBin("STOP"),
+  start: async () =>
+    (await isDockerInstall())
+      ? refuseOnDocker("Start", "docker compose up -d")
+      : runBin("START"),
+  stop: async () =>
+    (await isDockerInstall())
+      ? refuseOnDocker("Stop", "docker compose down")
+      : runBin("STOP"),
   shortcut: () => addDesktopShortcut(),
 
   update: async () => {
+    if (await isDockerInstall())
+      return refuseOnDocker("Update", "git pull && docker compose up -d --build");
     if (!(await which("git"))) {
       log("git isn't installed, so the code can't update itself.");
       log("Download the latest zip from GitHub and replace this folder,");
@@ -426,6 +502,14 @@ const TASKS = {
    * and a backup made by the app are the same kind of file.
    */
   async backup() {
+    if (await isDockerInstall()) {
+      log("This install keeps its data in a Docker volume, which this");
+      log("panel cannot reach from outside the container.");
+      log("");
+      log("Open the app and use Settings -> Backup. It takes the same");
+      log("kind of snapshot, from inside, where the database actually is.");
+      return false;
+    }
     const dbPath = dbFilePath();
     if (!existsSync(dbPath)) {
       log("No data.db yet — there's nothing to back up.");
@@ -490,6 +574,11 @@ const TASKS = {
    * one database against another is how you corrupt both.
    */
   async restore(id) {
+    if (await isDockerInstall()) {
+      log("Restoring into a Docker volume has to happen from inside the");
+      log("container. Open the app and use Settings -> Backup.");
+      return false;
+    }
     // Never resolve a path the browser sent — only an entry already in
     // the list, matched exactly, with its directory decided here.
     const choice = resolveBackup(id);

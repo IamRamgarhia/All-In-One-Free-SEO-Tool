@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import type { SystemError } from "@/db/schema";
+import { REPO_NEW_ISSUE_URL } from "@/lib/repo";
 
 export function ErrorRowControls({
   error,
@@ -37,7 +38,7 @@ ${error.stack ? `\n### Stack trace\n\n\`\`\`\n${error.stack}\n\`\`\`\n` : ""}`;
     `[Bug] ${error.message.slice(0, 80)}`,
   );
   const issueBody = encodeURIComponent(buildIssueBody());
-  const githubUrl = `https://github.com/IamRamgarhia/SEO-Tool/issues/new?title=${issueTitle}&body=${issueBody}`;
+  const githubUrl = `${REPO_NEW_ISSUE_URL}?title=${issueTitle}&body=${issueBody}`;
 
   return (
     <div className="flex flex-wrap items-center gap-2 pt-2">

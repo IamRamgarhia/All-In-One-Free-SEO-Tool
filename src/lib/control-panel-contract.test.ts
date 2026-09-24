@@ -81,6 +81,29 @@ describe("control panel: page and server agree", () => {
     expect(restoreFn).toMatch(/run\(['"]restore['"]/);
   });
 
+  it("every task that touches this folder checks for Docker first", () => {
+    // A Docker install keeps its database in a volume and runs the app in
+    // a container. These tasks drive bin/START.*, bin/STOP.* and the
+    // local data.db, so on a Docker install they would start a second
+    // copy of the app against a different, empty database — and report
+    // success. Each one has to ask before acting.
+    const start = PANEL_JS.indexOf("const TASKS = {");
+    const body = PANEL_JS.slice(start, PANEL_JS.indexOf("\n};", start));
+    for (const task of ["install", "start", "stop", "update", "backup", "restore"]) {
+      const from = body.search(new RegExp(`^ {2}(?:async )?${task}[:(]`, "m"));
+      expect(from, `task "${task}" not found`).toBeGreaterThan(-1);
+      // Up to the next top-level task declaration.
+      const rest = body.slice(from + 1);
+      const to = rest.search(/^ {2}(?:async )?[a-zA-Z_]+[:(]/m);
+      const fn = to === -1 ? rest : rest.slice(0, to);
+      expect(
+        fn.includes("isDockerInstall"),
+        `"${task}" does not check isDockerInstall(), so on a Docker ` +
+          `install it would act on the wrong files and report success.`,
+      ).toBe(true);
+    }
+  });
+
   it("the server never resolves a path the browser sent", () => {
     // Restore takes a filename over HTTP. It must be matched against
     // the known list, never joined onto disk directly.

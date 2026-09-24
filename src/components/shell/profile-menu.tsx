@@ -12,6 +12,7 @@ import {
   Heart,
   Users2,
 } from "lucide-react";
+import { REPO_URL } from "@/lib/repo";
 
 type AuthStatus = {
   enabled: boolean;
@@ -183,7 +184,7 @@ export function ProfileMenu() {
               About &amp; support the developer
             </Link>
             <a
-              href="https://github.com/IamRamgarhia/SEO-Tool"
+              href={REPO_URL}
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5"

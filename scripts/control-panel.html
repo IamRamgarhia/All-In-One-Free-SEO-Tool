@@ -68,6 +68,7 @@
   <p class="sub">Everything you need to run it, in one place. Leave the black terminal window open — closing it closes this.</p>
 
   <div id="nodeWarn" class="banner bad hidden"></div>
+  <div id="dockerNote" class="banner hidden"></div>
 
   <div class="card">
     <div class="status"><span id="dot" class="dot off"></span><strong id="statusText">Checking…</strong></div>
@@ -153,6 +154,21 @@ async function refresh() {
     '<dt>Folder</dt><dd><code>' + esc(s.root) + '</code></dd>';
 
   fillRestore(s);
+
+  // Docker installs drive everything through compose, not through the
+  // scripts these buttons call. Say so at the top rather than letting
+  // someone find out by pressing Start.
+  var dk = document.getElementById("dockerNote");
+  if (s.dockerInstall) {
+    dk.classList.remove("hidden");
+    dk.innerHTML = '<strong>This install runs in Docker.</strong> ' +
+      'Start, stop and update it with <code>docker compose up -d</code> / ' +
+      '<code>docker compose down</code> from this folder, and take backups ' +
+      'inside the app at <em>Settings &rarr; Backup</em> — the database ' +
+      'lives in a Docker volume this page cannot reach.';
+  } else {
+    dk.classList.add("hidden");
+  }
 
   const busy = Boolean(s.busy);
   let buttons = "";

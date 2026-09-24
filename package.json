@@ -3,10 +3,10 @@
   "version": "0.6.0",
   "description": "All-in-one free SEO tool you'll ever need — open-source, self-hosted alternative to Ahrefs, Semrush, Moz, SE Ranking. Site audits, rank tracking, keyword research, AI visibility (ChatGPT / Perplexity / Gemini citations), content briefs, backlink analysis, local SEO, white-label client reports, automations. Works with free AI keys (Gemini, Groq) — no paid APIs required.",
   "license": "MIT",
-  "homepage": "https://github.com/IamRamgarhia/SEO-Tool",
+  "homepage": "https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool",
   "repository": {
     "type": "git",
-    "url": "https://github.com/IamRamgarhia/SEO-Tool.git"
+    "url": "https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool.git"
   },
   "author": {
     "name": "DiceCodes",

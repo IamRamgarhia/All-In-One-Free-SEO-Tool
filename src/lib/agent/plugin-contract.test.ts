@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Engine } from "php-parser";
+import { REPO_SLUG } from "../repo";
 
 /**
  * The WordPress plugin, checked against the code that talks to it.
@@ -283,7 +284,11 @@ describe("what the plugins screen shows", () => {
 
   it("links out to the project rather than nowhere", () => {
     expect(source).toContain("plugin_row_meta");
-    expect(source).toMatch(/github\.com\/IamRamgarhia\/SEO-Tool/);
+    // Against the shared constant, not a literal — this assertion used
+    // to hardcode the pre-rename slug, so it kept passing while the
+    // plugin pointed at a repository name that only resolved through
+    // GitHub's rename redirect.
+    expect(source).toContain(`https://github.com/${REPO_SLUG}`);
   });
 
   it("says when nothing has ever connected", () => {

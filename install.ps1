@@ -1,5 +1,5 @@
 # One-line installer for Windows. Run via:
-#   iwr -useb https://raw.githubusercontent.com/IamRamgarhia/SEO-Tool/main/install.ps1 | iex
+#   iwr -useb https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.ps1 | iex
 #
 # What it does:
 #   1. Downloads the repo as a ZIP (no git required)
@@ -20,7 +20,7 @@ $ProgressPreference   = "SilentlyContinue"  # speeds up Invoke-WebRequest 5-10x
 
 # ---- config ----------------------------------------------------------------
 $repoOwner   = "IamRamgarhia"
-$repoName    = "SEO-Tool"
+$repoName    = "All-In-One-Free-SEO-Tool"
 $branch      = if ($env:SEO_BRANCH) { $env:SEO_BRANCH } else { "main" }
 $zipUrl      = "https://codeload.github.com/$repoOwner/$repoName/zip/refs/heads/$branch"
 $dir         = if ($env:SEO_INSTALL_DIR) { $env:SEO_INSTALL_DIR } else { Join-Path $HOME "seo" }
@@ -66,7 +66,7 @@ function Save-LogAndExit([bool]$failed) {
         Write-Host ""
         Write-Host "  To get help, email this log to: Contact@dicecodes.com"
         Write-Host "  Or open an issue with the log attached:"
-        Write-Host "    https://github.com/IamRamgarhia/SEO-Tool/issues"
+        Write-Host "    https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues"
     } else {
         Write-Host "============================================================" -ForegroundColor Green
         Write-Host "  INSTALL FINISHED" -ForegroundColor Green
@@ -262,7 +262,7 @@ if (Test-PortInUse $port) {
             "Could not find a free port in the ephemeral range after 200 probes.",
             "Set SEO_PORT to a known-free port and re-run, e.g.:",
             '  $env:SEO_PORT = "7777"',
-            "  iwr -useb https://raw.githubusercontent.com/IamRamgarhia/SEO-Tool/main/install.ps1 | iex"
+            "  iwr -useb https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.ps1 | iex"
         )
     }
 }
@@ -969,7 +969,7 @@ The only outbound network calls are:
    - SERP scraping via headless browser (only when you check rankings)
 
 ----------------------- HELP -------------------------
-Repo + issues:    https://github.com/IamRamgarhia/SEO-Tool
+Repo + issues:    https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool
 Troubleshooting:  $dir\TROUBLESHOOTING.md
 Hosting guides:   $dir\docs\HOSTING.md
 README:           $dir\README.md
@@ -979,7 +979,7 @@ Email support:    Contact@dicecodes.com
 This tool is free and self-hosted. If it saves you the cost of
 an Ahrefs or Semrush subscription:
    - Star the repo (huge impact, zero cost):
-     https://github.com/IamRamgarhia/SEO-Tool
+     https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool
    - UPI (India): princeramgarhiaa-1@okaxis
      (Open the app -> click the Support button for QR + presets)
    - PayPal (international):

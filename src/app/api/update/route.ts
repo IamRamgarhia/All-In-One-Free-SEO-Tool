@@ -18,6 +18,7 @@ import path from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import { logActivity } from "@/lib/activity";
 import { guardAdminRequest } from "@/lib/admin-auth";
+import { REPO_SLUG } from "@/lib/repo";
 
 const exec = promisify(execFile);
 
@@ -25,7 +26,7 @@ export const dynamic = "force-dynamic";
 // Required: spawns git + pnpm + reads package.json. Edge can't.
 export const runtime = "nodejs";
 
-const REPO = "IamRamgarhia/SEO-Tool";
+const REPO = REPO_SLUG;
 const BRANCH = "main";
 
 async function getLocalSha(): Promise<string | null> {
