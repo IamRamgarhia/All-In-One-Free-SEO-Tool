@@ -175,7 +175,45 @@ function emptyDist() {
   }
 }
 
+/**
+ * Refuse to ship a heading that reads `What &ldquo;free&rdquo; means`.
+ *
+ * Four fields go through esc() before they reach the page — title,
+ * navTitle, description and every section heading — because they land
+ * in a <title>, a meta attribute and an <h1>. Writing an HTML entity in
+ * one of them escapes the ampersand a second time, and the reader sees
+ * the entity spelled out. It shipped that way once, in the heading of
+ * the first page anyone opens.
+ *
+ * Section bodies are different: they are authored HTML, inserted raw,
+ * and entities there are correct. So the rule is narrow — no entities
+ * in the fields that get escaped. Type the real character instead.
+ */
+function assertNoEntities(pages) {
+  const entity = /&[a-zA-Z]+;|&#\d+;/;
+  const problems = [];
+  for (const page of pages) {
+    const check = (field, value) => {
+      if (typeof value === "string" && entity.test(value)) {
+        problems.push(`${page.slug} → ${field}: ${value}`);
+      }
+    };
+    check("title", page.title);
+    check("navTitle", page.navTitle);
+    check("description", page.description);
+    for (const s of page.sections) check(`section "${s.id}" h2`, s.h2);
+  }
+  if (problems.length) {
+    throw new Error(
+      "HTML entities in fields that are escaped — the reader would see them spelled out.\n" +
+        "Use the real character instead (“ ” & — …):\n  " +
+        problems.join("\n  "),
+    );
+  }
+}
+
 function build() {
+  assertNoEntities(PAGES);
   emptyDist();
   mkdirSync(join(OUT, "assets"), { recursive: true });
 
