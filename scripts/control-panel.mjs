@@ -1,6 +1,13 @@
 /**
- * The control panel — one screen that installs, starts, stops, updates
- * and backs up this tool, with buttons that actually do it.
+ * The control panel — one screen that installs, starts, stops, updates,
+ * backs up and restores this tool, with buttons that actually do it.
+ *
+ * This is the whole product for anyone who does not live in a terminal:
+ * one icon on the Desktop, one page, and nothing to remember. If you add
+ * a button here, add the task behind it in the same commit —
+ * src/lib/control-panel-contract.test.ts fails the build otherwise,
+ * because a button that looks real and does nothing is the worst thing
+ * this file can ship.
  *
  * WHY THIS ISN'T A PLAIN .html FILE IN THE ROOT FOLDER
  *
@@ -46,12 +53,14 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { homedir, platform } from "node:os";
+import { createRequire } from "node:module";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -101,21 +110,85 @@ function which(cmd) {
   });
 }
 
-function dirSizeMb(path) {
-  try {
-    let total = 0;
-    for (const f of readdirSync(path)) {
+/**
+ * Where backups actually live.
+ *
+ * Two things write them and they used to disagree. The app's own
+ * scheduler (src/lib/auto-backup.ts) writes `data.db.bak-<ISO>` next to
+ * the database, in the data dir; this panel wrote `backups/data-*.db`.
+ * So the panel reported "Backups: none yet" on an install that had a
+ * week of daily backups sitting beside data.db — a wrong answer about
+ * the one thing you check before trusting an update.
+ *
+ * Both shapes are listed now, newest first, and a backup taken here
+ * lands where the app already puts them so retention prunes them too.
+ */
+function dataDirPath() {
+  return process.env.SEO_DATA_DIR ?? ROOT;
+}
+
+function dbFilePath() {
+  return process.env.SEO_DB_PATH ?? join(ROOT, "data.db");
+}
+
+/**
+ * The two places a backup can be, as named buckets.
+ *
+ * An id is `<bucket>/<filename>` and nothing else — never a path. A
+ * path relative to ROOT would be `../../data/...` the moment the data
+ * dir moves (Docker mounts it at /data), and a path from the browser is
+ * a directory-traversal hole waiting to be found. The bucket is looked
+ * up here and the filename is checked for separators.
+ */
+const BACKUP_BUCKETS = {
+  data: () => dataDirPath(),
+  backups: () => join(ROOT, "backups"),
+};
+
+function listBackups() {
+  const dbName = basename(dbFilePath());
+  const found = [];
+  const scan = (bucket, match) => {
+    const dir = BACKUP_BUCKETS[bucket]();
+    let entries = [];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const f of entries) {
+      if (!match(f)) continue;
       try {
-        const s = statSync(join(path, f));
-        if (s.isFile()) total += s.size;
+        const s = statSync(join(dir, f));
+        if (!s.isFile()) continue;
+        found.push({
+          id: `${bucket}/${f}`,
+          name: f,
+          sizeMb: Math.round((s.size / 1024 / 1024) * 10) / 10,
+          when: s.mtime.toISOString(),
+        });
       } catch {
         /* skip */
       }
     }
-    return Math.round((total / 1024 / 1024) * 10) / 10;
-  } catch {
-    return 0;
+  };
+  scan("data", (f) => f.startsWith(`${dbName}.bak-`));
+  scan("backups", (f) => f.endsWith(".db"));
+  return found.sort((a, b) => (a.when < b.when ? 1 : -1));
+}
+
+/** An id from the browser → a real path, or null. Never trusts the input. */
+function resolveBackup(id) {
+  const entry = listBackups().find((b) => b.id === id);
+  if (!entry) return null;
+  const [bucket, ...rest] = entry.id.split("/");
+  const name = rest.join("/");
+  // Belt and braces: the name came from readdirSync, so it cannot
+  // contain a separator — assert it rather than assume it.
+  if (!BACKUP_BUCKETS[bucket] || name.includes("/") || name.includes("\\")) {
+    return null;
   }
+  return { ...entry, path: join(BACKUP_BUCKETS[bucket](), name) };
 }
 
 /** The port bin/START.* chose, so "Open the app" goes to the right place. */
@@ -162,7 +235,7 @@ async function readState() {
     dataSizeMb: hasData
       ? Math.round((statSync(dbPath).size / 1024 / 1024) * 10) / 10
       : 0,
-    backupsMb: dirSizeMb(join(ROOT, "backups")),
+    backups: listBackups(),
     running: await appIsResponding(),
     appPort: appPort(),
     version,
@@ -337,42 +410,135 @@ const TASKS = {
 
   doctor: () => runStep("node", [join(ROOT, "bin", "seo-doctor.cjs")]),
 
+  /**
+   * A backup you can actually restore from.
+   *
+   * This used to prefer the `sqlite3` CLI and fall back to copying
+   * data.db. On Windows that fallback is the normal path — sqlite3 is
+   * not installed — and copying data.db in WAL mode leaves behind
+   * every committed page still sitting in data.db-wal. Measured on the
+   * machine this was written on: 119 KB of real data outside the file
+   * being copied, while the log said "fine for everyday use".
+   *
+   * better-sqlite3 is already installed (the app cannot run without
+   * it), and VACUUM INTO is exactly what the app's own /api/backup and
+   * nightly auto-backup use. Use the same thing, so a backup made here
+   * and a backup made by the app are the same kind of file.
+   */
   async backup() {
-    const dbPath = process.env.SEO_DB_PATH ?? join(ROOT, "data.db");
+    const dbPath = dbFilePath();
     if (!existsSync(dbPath)) {
       log("No data.db yet — there's nothing to back up.");
       return false;
     }
-    const dir = join(ROOT, "backups");
+
+    // Same directory and naming as src/lib/auto-backup.ts, so the app's
+    // retention pruning sees these too and there is one place to look.
+    const dir = dataDirPath();
     mkdirSync(dir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const name = `data-${stamp}.db`;
+    const stamp = new Date().toISOString().replace(/:/g, "-").replace(/\..+$/, "Z");
+    const name = `${basename(dbPath)}.bak-${stamp}`;
     const dest = join(dir, name);
 
-    // Copying a live SQLite file can catch it mid-write. If the app is
-    // up and sqlite3 exists, let SQLite make the copy — that is what
-    // .backup is for. Otherwise say plainly what the caveat is.
-    const running = await appIsResponding();
-    if (running && (await which("sqlite3"))) {
-      log("App is running — using sqlite3 .backup for a consistent copy.");
-      if (!(await runStep("sqlite3", [dbPath, `.backup '${dest}'`]))) return false;
-    } else {
-      if (running) {
-        log("The app is running and sqlite3 isn't installed, so this is a");
-        log("plain file copy. Stop the app first if you want a guaranteed");
-        log("clean backup — otherwise this is fine for everyday use.");
+    let done = false;
+    try {
+      const require = createRequire(import.meta.url);
+      const Database = require("better-sqlite3");
+      const sqlite = new Database(dbPath, { readonly: true });
+      try {
+        // VACUUM INTO writes a fresh, fully-checkpointed copy and works
+        // while the app is running, without blocking it.
+        sqlite.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
+        done = true;
+        log("Took a consistent snapshot with SQLite (VACUUM INTO).");
+      } finally {
+        sqlite.close();
+      }
+    } catch (e) {
+      log(`SQLite snapshot unavailable (${e.message.split("\n")[0]}).`);
+    }
+
+    if (!done) {
+      // Last resort, and honest about what it is. The -wal file holds
+      // committed data that data.db does not, so it has to come too or
+      // the backup is quietly incomplete.
+      if (await appIsResponding()) {
+        log("The app is running and SQLite isn't available here, so this");
+        log("is a plain file copy — press Stop first for a clean one.");
       }
       copyFileSync(dbPath, dest);
       log("> copied data.db");
+      for (const suffix of ["-wal", "-shm"]) {
+        if (existsSync(dbPath + suffix)) {
+          copyFileSync(dbPath + suffix, dest + suffix);
+          log(`> copied data.db${suffix} (it holds data the main file doesn't)`);
+        }
+      }
     }
-    log(`\nSaved to backups/${name}`);
-    log("To move this tool to another computer: copy the whole folder,");
-    log("then press Install there. Your data comes with it.");
+
+    const mb = Math.round((statSync(dest).size / 1024 / 1024) * 10) / 10;
+    log(`\nSaved ${name} (${mb} MB)`);
+    log(`in ${dir}`);
+    log("\nRestore it from this same screen if you ever need to go back.");
+    return true;
+  },
+
+  /**
+   * Put a backup back. The one destructive button here, so: the app is
+   * stopped first, the current database is copied aside before anything
+   * is overwritten, and the stale -wal/-shm are removed — a WAL from
+   * one database against another is how you corrupt both.
+   */
+  async restore(id) {
+    // Never resolve a path the browser sent — only an entry already in
+    // the list, matched exactly, with its directory decided here.
+    const choice = resolveBackup(id);
+    if (!choice) {
+      log("That backup isn't in the list any more. Refresh and try again.");
+      return false;
+    }
+
+    const dbPath = dbFilePath();
+    const source = choice.path;
+
+    if (await appIsResponding()) {
+      log("Stopping the app first…");
+      await runBin("STOP");
+    }
+
+    if (existsSync(dbPath)) {
+      const stamp = new Date().toISOString().replace(/:/g, "-").replace(/\..+$/, "Z");
+      const aside = join(dataDirPath(), `${basename(dbPath)}.before-restore-${stamp}`);
+      copyFileSync(dbPath, aside);
+      log(`Copied your current data aside as ${basename(aside)}`);
+      log("so this is undoable if you restore the wrong one.");
+    }
+
+    copyFileSync(source, dbPath);
+    log(`Restored ${choice.name}`);
+
+    for (const suffix of ["-wal", "-shm"]) {
+      const stale = dbPath + suffix;
+      const fromBackup = source + suffix;
+      try {
+        if (existsSync(fromBackup)) {
+          copyFileSync(fromBackup, stale);
+          log(`> restored data.db${suffix} from the same backup`);
+        } else if (existsSync(stale)) {
+          rmSync(stale, { force: true });
+          log(`> removed the old data.db${suffix} (it belongs to the replaced database)`);
+        }
+      } catch (e) {
+        log(`Could not clear data.db${suffix}: ${e.message}`);
+      }
+    }
+
+    log("\nDone. Press Start to bring the app back up.");
     return true;
   },
 };
 
-async function startTask(name) {
+async function startTask(name, arg) {
   if (current && !current.done) return false;
   const fn = TASKS[name];
   if (!fn) return false;
@@ -380,7 +546,7 @@ async function startTask(name) {
   void (async () => {
     let ok = false;
     try {
-      ok = await fn();
+      ok = await fn(arg);
     } catch (e) {
       log(`\nSomething went wrong: ${e.message}`);
     }
@@ -442,7 +608,18 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && url.pathname.startsWith("/api/run/")) {
     const task = url.pathname.slice("/api/run/".length);
-    return send(200, { started: await startTask(task) });
+    const started = await startTask(task, url.searchParams.get("file") ?? undefined);
+    // Saying "started: false" is not enough on its own — the page used
+    // to ignore it and sit on "Working…" forever. It reports the reason
+    // now, and the page shows it.
+    return send(200, {
+      started,
+      reason: started
+        ? null
+        : current && !current.done
+          ? `Already running: ${current.name}`
+          : `Unknown action: ${task}`,
+    });
   }
 
   send(404, { error: "not found" });

@@ -859,15 +859,26 @@ Backup:   Settings -> Backup & restore -> Download backup
 "@
     } else {
 @"
-Start:    Double-click "Start SEO Tool" shortcut on your Desktop
-          (or run: $dir\bin\START.cmd)
-Stop:     Double-click "Stop SEO Tool" shortcut on your Desktop
-          (or run: $dir\bin\STOP.cmd)
-          (or in app: profile menu -> System health -> Shutdown)
-Restart:  In the app -> profile menu -> Restart server (top-right power icon)
-Logs:     Get-Content "$dir\dev-server.log" -Wait -Tail 100
-Update:   Re-run the installer command (one-liner from README)
-Backup:   Settings -> Backup & restore -> Download backup
+EVERYTHING is one icon: "SEO Tool" on your Desktop.
+
+Double-click it and a control panel opens in your browser with
+buttons for all of this. You never need to remember a command,
+or work out which file to click.
+
+  Start / Stop      buttons on that panel
+  Update            button on that panel
+  Back up           button on that panel
+  Restore a backup  button on that panel (it asks first)
+  Something wrong?  "Collect info for support" on that panel
+
+If you ever delete the icon, double-click "SEO Tool.cmd" in
+$dir and press "Add to Desktop".
+
+Prefer a terminal? The same things, by hand:
+  Start:   $dir\bin\START.cmd
+  Stop:    $dir\bin\STOP.cmd
+  Logs:    Get-Content "$dir\dev-server.log" -Wait -Tail 100
+  Update:  node "$dir\bin\seo-update.cjs"
 "@
     }
 
