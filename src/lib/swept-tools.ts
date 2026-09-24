@@ -26,10 +26,15 @@ export const SWEPT_TOOL_IDS = [
   "cannibalization",
   "traffic-drop",
   "facet-trap",
-  // Weekly rather than nightly — both crawl to answer. See the cadence
-  // note in tool-sweep.ts.
+  "health-check",
+  // Weekly rather than nightly — these crawl, render, or read enough of
+  // the page that a nightly run would be more than the "handful of
+  // requests" the sweep promises. See the cadence note in tool-sweep.ts.
   "canonical-audit",
   "soft-404",
+  "eeat-audit",
+  "geo-score",
+  "render",
 ] as const;
 
 export type SweptToolId = (typeof SWEPT_TOOL_IDS)[number];
