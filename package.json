@@ -102,6 +102,7 @@
     "setup": "node scripts/migrate.cjs && next build && playwright install chromium",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.cjs",
+    "build:release": "node scripts/build-release-zip.mjs",
     "db:studio": "drizzle-kit studio",
     "package": "tsx scripts/package.ts",
     "gen:social-preview": "tsx scripts/gen-social-preview.ts",

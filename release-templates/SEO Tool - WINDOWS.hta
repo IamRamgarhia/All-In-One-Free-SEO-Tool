@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>SEO Tool</title>
+  <HTA:APPLICATION
+    ID="seotool"
+    APPLICATIONNAME="SeoToolLauncher"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="normal"
+    CONTEXTMENU="no"
+    BORDER="thin"
+    INNERBORDER="no"
+    SCROLL="auto"
+    MAXIMIZEBUTTON="no"
+    ICON="_system\public\icon.ico" />
+  <style>
+    /* Trident (IE11) draws this window. No CSS variables, no flex, no
+       grid, no gap — centred blocks and floats look the same on Windows
+       7 through 11, and this is the first screen someone sees.
+
+       Why an .hta at all, when the app's control panel is a real web
+       page: this has to open when NOTHING is installed. A .cmd that
+       needs Node can only print "go and install Node first", which is
+       where a non-technical person stops. An .hta is a window Windows
+       can already draw. It is the front door, not the app. */
+    body {
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: #11131a;
+      color: #e7e9ee;
+      margin: 0;
+      padding: 26px 30px 22px 30px;
+      -ms-user-select: none;
+    }
+    #brand { font-size: 21px; font-weight: 600; letter-spacing: -0.2px; }
+    #tagline { color: #8b93a7; font-size: 12px; margin-top: 3px; }
+    .rule { border-top: 1px solid #262a36; margin: 16px 0 0 0; }
+    #stateTitle { font-size: 16px; font-weight: 600; margin: 16px 0 6px 0; }
+    #stateTitle.err { color: #ff8a8a; }
+    #stateTitle.ok { color: #8fe3a6; }
+    #stateBody { color: #b9c0d0; font-size: 13px; line-height: 1.55; }
+    #steps { color: #b9c0d0; font-size: 13px; line-height: 1.6; }
+    #steps ol { margin: 10px 0 0 20px; padding: 0; }
+    #steps li { margin-bottom: 5px; }
+    #primaryWrap { margin: 20px 0 4px 0; }
+    button.primary {
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      font-size: 15px; font-weight: 600;
+      color: #0b0c10; background: #7cc4ff;
+      border: 0; padding: 11px 22px; cursor: pointer;
+    }
+    button.primary:hover { background: #a3d5ff; }
+    .hint { color: #8b93a7; font-size: 12px; margin-top: 7px; }
+    #moreToggle {
+      color: #7cc4ff; font-size: 12px; cursor: pointer;
+      margin-top: 18px; text-decoration: underline;
+    }
+    #more { margin-top: 10px; display: none; }
+    #more a {
+      display: block; color: #cdd3e0; font-size: 13px;
+      text-decoration: none; padding: 5px 0; cursor: pointer;
+    }
+    #more a:hover { color: #7cc4ff; }
+    #where {
+      color: #666e82; font-size: 11px; margin-top: 18px;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div id="brand">SEO Tool</div>
+  <div id="tagline">Runs on this computer. Your data never leaves it.</div>
+  <div class="rule"></div>
+
+  <div id="stateTitle">Checking&hellip;</div>
+  <div id="stateBody"></div>
+  <div id="steps"></div>
+  <div id="primaryWrap"></div>
+
+  <div id="moreToggle" onclick="toggleMore()">More options</div>
+  <div id="more"></div>
+
+  <div id="where"></div>
+
+<script type="text/javascript">
+  var fso = new ActiveXObject("Scripting.FileSystemObject");
+  var shell = new ActiveXObject("WScript.Shell");
+  var ROOT = launcherFolder();
+  var SYSTEM = ROOT + "\\_system";
+  var watching = null;
+
+  function launcherFolder() {
+    var p = unescape(document.location.pathname);
+    if (p.charAt(0) === "/") p = p.substring(1);
+    p = p.replace(/\//g, "\\");
+    return fso.GetParentFolderName(p);
+  }
+
+  function fileExists(rel) { return fso.FileExists(ROOT + "\\" + rel); }
+  function folderExists(rel) { return fso.FolderExists(ROOT + "\\" + rel); }
+
+  /* Windows will happily open an .hta straight out of a ZIP, unpacking
+     that one file to a temp folder. Everything it needs is then missing,
+     and the error you get says nothing about the real cause. */
+  function runningFromZip() {
+    var lower = ROOT.toLowerCase();
+    return lower.indexOf("\\temp\\") !== -1 ||
+           lower.indexOf("\\temporary internet files\\") !== -1 ||
+           lower.indexOf("\\appdata\\local\\temp") !== -1;
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function runScript(name, keepOpen) {
+    var scriptPath = SYSTEM + "\\_system-scripts\\" + name;
+    if (!fso.FileExists(scriptPath)) {
+      alert("Missing file:\n" + scriptPath + "\n\nPlease download the app again.");
+      return false;
+    }
+    var cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + scriptPath + '"';
+    try { shell.Run(cmd, 1, false); return true; }
+    catch (e) { alert("Could not start " + name + ":\n" + e.message); return false; }
+  }
+
+  function openFolder() { try { shell.Run('explorer.exe "' + ROOT + '"', 1, false); } catch (e) {} }
+  function openReadme() {
+    var f = ROOT + "\\READ ME FIRST.txt";
+    if (fso.FileExists(f)) { try { shell.Run('notepad.exe "' + f + '"', 1, false); } catch (e) {} }
+    else alert("READ ME FIRST.txt is not next to this launcher.");
+  }
+  function openDownloads() {
+    try { shell.Run('explorer.exe "' + shell.SpecialFolders("MyDocuments") + '\\..\\Downloads"', 1, false); } catch (e) {}
+  }
+  function openHelp() {
+    try { shell.Run("https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues", 1, false); } catch (e) {}
+  }
+
+  /* Installed means dependencies are present. A half-extracted folder
+     has the source but no node_modules, and pressing "Open" on that
+     produces a stack trace rather than an app. */
+  function installState() {
+    if (!fso.FolderExists(SYSTEM)) return "no-system";
+    if (!fileExists("_system\\package.json")) return "no-system";
+    if (folderExists("_system\\node_modules")) return "ready";
+    return "not-installed";
+  }
+
+  function setState(title, body, cls) {
+    var t = document.getElementById("stateTitle");
+    t.innerHTML = title;
+    t.className = cls || "";
+    document.getElementById("stateBody").innerHTML = body || "";
+  }
+  function setSteps(html) { document.getElementById("steps").innerHTML = html || ""; }
+
+  function setPrimary(label, hint, fn) {
+    var wrap = document.getElementById("primaryWrap");
+    wrap.innerHTML = "";
+    if (!label) return;
+    var b = document.createElement("button");
+    b.className = "primary";
+    b.innerHTML = esc(label);
+    b.onclick = fn;
+    wrap.appendChild(b);
+    if (hint) {
+      var h = document.createElement("div");
+      h.className = "hint";
+      h.innerHTML = esc(hint);
+      wrap.appendChild(h);
+    }
+  }
+
+  function setMore(items) {
+    var m = document.getElementById("more");
+    m.innerHTML = "";
+    for (var i = 0; i < items.length; i++) {
+      var a = document.createElement("a");
+      a.innerHTML = esc(items[i].label);
+      a.onclick = items[i].run;
+      m.appendChild(a);
+    }
+  }
+
+  function toggleMore() {
+    var m = document.getElementById("more");
+    var t = document.getElementById("moreToggle");
+    if (m.style.display === "block") { m.style.display = "none"; t.innerHTML = "More options"; }
+    else { m.style.display = "block"; t.innerHTML = "Fewer options"; }
+  }
+
+  function startInstall() {
+    if (!runScript("install-windows.ps1")) return;
+    setState("Setting up&hellip;",
+      "A black window is doing the work. Leave it alone — it closes on its own. " +
+      "The first run fetches dependencies and builds the app, which takes a few minutes.", "");
+    setSteps("");
+    setPrimary(null);
+    watchForInstall();
+  }
+
+  function openPanel() {
+    if (!runScript("panel-windows.ps1")) return;
+    setState("Opening&hellip;",
+      "The control panel opens in your browser. Keep the black window open — " +
+      "closing it closes the panel.", "ok");
+    setSteps("");
+  }
+
+  /* Poll rather than wait on the process: the install runs detached so
+     the window stays usable, and a person watching a spinner wants the
+     button to change by itself when it is done. */
+  function watchForInstall() {
+    stopWatching();
+    watching = window.setInterval(function () {
+      if (installState() === "ready") { stopWatching(); draw(); }
+    }, 2500);
+  }
+  function stopWatching() {
+    if (watching) { window.clearInterval(watching); watching = null; }
+  }
+
+  function draw() {
+    var state = installState();
+    document.getElementById("where").innerHTML = esc(ROOT);
+
+    if (state === "no-system") {
+      if (runningFromZip()) {
+        setState("Please extract the ZIP first",
+          "Windows opened this file straight out of the ZIP, so the rest of the app did not come with it.",
+          "err");
+        setSteps("<ol>" +
+          "<li>Close this window.</li>" +
+          "<li>Right-click the ZIP you downloaded and choose <b>Extract All&hellip;</b></li>" +
+          "<li>Open the new folder and double-click <b>SEO Tool - WINDOWS</b> again.</li>" +
+          "</ol>");
+        setPrimary("Open my Downloads folder", "The ZIP is in there", openDownloads);
+        setMore([{ label: "Read me first", run: openReadme },
+                 { label: "Get help on GitHub", run: openHelp }]);
+        return;
+      }
+      setState("Some files are missing",
+        "The <b>_system</b> folder is not next to this launcher, so there is nothing to start. " +
+        "The usual cause is a ZIP that was only half extracted.", "err");
+      setSteps("");
+      setPrimary("Open this folder and look", "", openFolder);
+      setMore([{ label: "Get help on GitHub", run: openHelp }]);
+      return;
+    }
+
+    if (state === "not-installed") {
+      setState("Ready to set up",
+        "Nothing is installed yet. This fetches what the app needs and builds it. " +
+        "You do not need administrator rights, and nothing is added to Windows outside this folder.", "");
+      setSteps("<ol>" +
+        "<li>Click <b>Set up the SEO Tool</b>.</li>" +
+        "<li>Wait — the first run takes a few minutes.</li>" +
+        "<li>It opens in your browser by itself.</li>" +
+        "</ol>");
+      setPrimary("Set up the SEO Tool", "One click. There is nothing to fill in.", startInstall);
+      setMore([{ label: "Read me first", run: openReadme },
+               { label: "Open this folder", run: openFolder },
+               { label: "Get help on GitHub", run: openHelp }]);
+      return;
+    }
+
+    setState("Ready", "Opens the control panel, where every button lives: start, stop, " +
+      "update, back up and restore.", "ok");
+    setSteps("");
+    setPrimary("Open the SEO Tool", "", openPanel);
+    setMore([
+      { label: "Set up again (repair)", run: startInstall },
+      { label: "Stop the app", run: function () { runScript("stop-windows.ps1"); } },
+      { label: "Open this folder", run: openFolder },
+      { label: "Read me first", run: openReadme },
+      { label: "Get help on GitHub", run: openHelp }
+    ]);
+  }
+
+  function fitWindow() {
+    try {
+      var h = document.body.scrollHeight + 70;
+      if (h < 300) h = 300;
+      if (h > 620) h = 620;
+      window.resizeTo(560, h);
+      window.moveTo(Math.max(0, (screen.availWidth - 560) / 2),
+                    Math.max(0, (screen.availHeight - h) / 2));
+    } catch (e) {}
+  }
+
+  function render() { draw(); fitWindow(); }
+  window.onload = render;
+</script>
+</body>
+</html>
