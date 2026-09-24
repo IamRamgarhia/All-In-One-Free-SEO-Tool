@@ -18,9 +18,10 @@
  */
 
 import { guardedFetch } from "./url-guard";
+import { REPO_UA_SUFFIX } from "./repo";
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; SEO-Tool-Freshness/1.0; +https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool)";
+  `Mozilla/5.0 (compatible; SEO-Tool-Freshness/1.0; ${REPO_UA_SUFFIX})`;
 
 export type FreshnessSignal = {
   source:

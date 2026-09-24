@@ -20,6 +20,7 @@ import {
   activityLog,
 } from "@/db/schema";
 import { getSetting, setSetting } from "./settings-store";
+import { REPO_API_URL } from "./repo";
 
 const exec = promisify(execFile);
 
@@ -72,7 +73,7 @@ async function getLocalSha(): Promise<string | null> {
 async function getRemoteSha(): Promise<string | null> {
   try {
     const res = await fetch(
-      "https://api.github.com/repos/IamRamgarhia/SEO-Tool/commits/main",
+      `${REPO_API_URL}/commits/main`,
       {
         headers: { accept: "application/vnd.github+json" },
         cache: "no-store",

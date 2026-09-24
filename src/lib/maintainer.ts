@@ -12,6 +12,8 @@
  * a different identity.
  */
 
+import { REPO_URL } from "./repo";
+
 export const MAINTAINER = {
   name: process.env.MAINTAINER_NAME ?? "DiceCodes",
   /**
@@ -23,7 +25,7 @@ export const MAINTAINER = {
    * Public GitHub URL. Used for "Source", "Report a bug", "Star us"
    * style links. Empty string disables the GitHub link in the UI.
    */
-  github: process.env.MAINTAINER_GITHUB ?? "https://github.com/IamRamgarhia/SEO-Tool",
+  github: process.env.MAINTAINER_GITHUB ?? REPO_URL,
   /**
    * UPI handle for INR tips. The UI shows both raw and a deep link
    * (upi://pay?pa=...&pn=...&cu=INR) so any UPI app — GPay, PhonePe,

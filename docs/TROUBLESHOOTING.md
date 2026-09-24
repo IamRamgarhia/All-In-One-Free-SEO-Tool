@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues and how to fix them. If your problem isn't here, open an [issue](https://github.com/IamRamgarhia/SEO-Tool/issues) — chances are someone else hit the same thing.
+Common issues and how to fix them. If your problem isn't here, open an [issue](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues) — chances are someone else hit the same thing.
 
 ## 📑 Table of contents
 
@@ -58,10 +58,10 @@ The installer auto-detects this and tries 3001-3010, then 8080/8081/4000/5000. T
 
 ```bash
 # macOS / Linux
-SEO_PORT=4000 curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/SEO-Tool/main/install.sh | bash
+SEO_PORT=4000 curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.sh | bash
 
 # Windows
-$env:SEO_PORT='4000'; iwr -useb https://raw.githubusercontent.com/IamRamgarhia/SEO-Tool/main/install.ps1 | iex
+$env:SEO_PORT='4000'; iwr -useb https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.ps1 | iex
 ```
 
 ### "Node version too old"
@@ -82,6 +82,28 @@ The first build takes 1-2 minutes — that's normal. If it hangs for 5+ minutes:
 3. As a fallback, skip the build: launchers fall back to dev mode automatically. Re-run `pnpm build` manually later.
 
 ---
+
+### The control panel says the wrong thing about Docker
+
+The Desktop icon opens a control panel that starts, stops, updates and
+backs up your install. It works out whether you run natively or under
+Docker, because the buttons do entirely different things in each case —
+on a Docker install a native "Start" would launch a second copy of the
+app beside your container, pointed at a different, empty database.
+
+Detection is not perfect. If it guesses wrong, tell it:
+
+```bash
+# Windows (PowerShell)
+$env:SEO_INSTALL_MODE = "native"    # or "docker"
+
+# macOS / Linux
+export SEO_INSTALL_MODE=native      # or docker
+```
+
+Then open the panel again. `native` makes the buttons act on this folder;
+`docker` makes the panel refuse them and show the `docker compose`
+commands instead.
 
 ## Startup issues
 
@@ -459,7 +481,7 @@ You installed via ZIP (no git history). To enable Git updates:
 ```bash
 cd ~/seo
 git init
-git remote add origin https://github.com/IamRamgarhia/SEO-Tool.git
+git remote add origin https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool.git
 git fetch
 git reset --hard origin/main  # WARNING: only if you haven't modified files locally
 ```
@@ -504,7 +526,7 @@ Get-Content $HOME\seo\dev-server.log -Wait -Tail 100
 
 ## How to file a useful bug report
 
-When opening an issue at <https://github.com/IamRamgarhia/SEO-Tool/issues>, include:
+When opening an issue at <https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues>, include:
 
 1. **What you tried** — the exact command or click sequence
 2. **What you expected**

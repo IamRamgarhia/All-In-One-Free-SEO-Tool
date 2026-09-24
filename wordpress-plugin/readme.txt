@@ -12,7 +12,7 @@ Connects your WordPress site to the self-hosted SEO Tool by DiceCodes so AI-gene
 
 == Description ==
 
-When you're using the [SEO Tool](https://github.com/IamRamgarhia/SEO-Tool) — a free, self-hostable SEO platform — this plugin lets the tool's AI agent push title, meta description, alt text, and schema markup changes directly to your WordPress site without copy-paste.
+When you're using the [SEO Tool](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool) — a free, self-hostable SEO platform — this plugin lets the tool's AI agent push title, meta description, alt text, and schema markup changes directly to your WordPress site without copy-paste.
 
 Every change is logged with the previous value, and one-click undo works on any change.
 
@@ -66,7 +66,7 @@ You can regenerate the key at any time from `Tools → SEO Tool Bridge → Regen
 
 == Installation ==
 
-1. Download the plugin folder from <https://github.com/IamRamgarhia/SEO-Tool/tree/main/wordpress-plugin>
+1. Download the plugin folder from <https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/tree/main/wordpress-plugin>
 2. Upload `seo-tool-bridge` to `/wp-content/plugins/` (or zip it and use Plugins → Add New → Upload)
 3. Activate the plugin in WordPress admin (Plugins → Installed Plugins)
 4. Go to **Tools → SEO Tool Bridge** in the WP admin sidebar
@@ -126,7 +126,7 @@ In a single WP option (`stb_revisions`), capped at the most recent 500 revisions
 
 = Is this GDPR-compliant? =
 
-The plugin doesn't collect or transmit any personal data. It exposes a REST endpoint that only your own SEO Tool instance authenticates against using a key you control. Audit the source at <https://github.com/IamRamgarhia/SEO-Tool/tree/main/wordpress-plugin>.
+The plugin doesn't collect or transmit any personal data. It exposes a REST endpoint that only your own SEO Tool instance authenticates against using a key you control. Audit the source at <https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/tree/main/wordpress-plugin>.
 
 == Changelog ==
 

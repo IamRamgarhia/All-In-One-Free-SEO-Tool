@@ -9,6 +9,8 @@
  * GitHub-issue prefill link so the user can report it.
  */
 
+import { REPO_SLUG } from "./repo";
+
 export type FriendlyError = {
   title: string;
   explanation: string;
@@ -19,7 +21,7 @@ export type FriendlyError = {
   githubIssue?: { title: string; body: string };
 };
 
-const REPO = "IamRamgarhia/SEO-Tool";
+const REPO = REPO_SLUG;
 
 function ghIssueUrl(title: string, body: string): string {
   const u = new URL(`https://github.com/${REPO}/issues/new`);

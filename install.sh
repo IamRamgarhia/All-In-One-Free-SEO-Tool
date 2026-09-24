@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-line installer for macOS / Linux. Run via:
-#   curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/SEO-Tool/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.sh | bash
 #
 # What it does:
 #   1. Downloads the latest code as a ZIP (no git required)
@@ -17,7 +17,7 @@
 set -e
 
 REPO_OWNER="IamRamgarhia"
-REPO_NAME="SEO-Tool"
+REPO_NAME="All-In-One-Free-SEO-Tool"
 BRANCH="${SEO_BRANCH:-main}"
 ZIP_URL="https://codeload.github.com/$REPO_OWNER/$REPO_NAME/zip/refs/heads/$BRANCH"
 DIR="${SEO_INSTALL_DIR:-$HOME/seo}"
@@ -56,7 +56,7 @@ on_exit() {
     echo ""
     echo "  To get help, email this log to: Contact@dicecodes.com"
     echo "  Or open an issue with the log attached:"
-    echo "    https://github.com/IamRamgarhia/SEO-Tool/issues"
+    echo "    https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues"
   else
     echo "============================================================"
     echo "  INSTALL FINISHED"
@@ -827,7 +827,7 @@ if [ -d "$DESKTOP" ] && [ "$HAS_DOCKER" = "1" ]; then
     echo "   - SERP scraping via headless browser (only when checking rankings)"
     echo ""
     echo "----------------------- HELP -------------------------"
-    echo "Repo + issues:    https://github.com/IamRamgarhia/SEO-Tool"
+    echo "Repo + issues:    https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool"
     echo "Troubleshooting:  $DIR/TROUBLESHOOTING.md"
     echo "Hosting guides:   $DIR/docs/HOSTING.md"
     echo "README:           $DIR/README.md"
@@ -836,7 +836,7 @@ if [ -d "$DESKTOP" ] && [ "$HAS_DOCKER" = "1" ]; then
     echo "----------------------- SUPPORT THIS PROJECT ---------"
     echo "This tool is free. If it saves you the cost of an Ahrefs or"
     echo "Semrush subscription, the cheapest way to say thanks:"
-    echo "   - Star the repo: https://github.com/IamRamgarhia/SEO-Tool"
+    echo "   - Star the repo: https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool"
     echo "   - UPI (India): princeramgarhiaa-1@okaxis"
     echo "     (Open the app -> Support button -> QR code with presets)"
     echo "   - PayPal: https://www.paypal.com/donate/?business=princeramgarhiaa@gmail.com"
