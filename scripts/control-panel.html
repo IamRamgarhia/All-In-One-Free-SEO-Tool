@@ -83,6 +83,14 @@
       <button onclick="run('shortcut')" id="btnShortcut">Add to Desktop</button>
       <button onclick="run('doctor')" id="btnLogs">Collect info for support</button>
     </div>
+    <div class="row" id="restoreRow" style="margin-top:12px">
+      <select id="restorePick" style="flex:1;min-width:220px"></select>
+      <button onclick="restore()" id="btnRestore">Restore this backup</button>
+    </div>
+    <p class="hint" id="restoreHint">
+      Restoring replaces everything with the backup you pick. Your current
+      data is copied aside first, so a wrong choice is undoable.
+    </p>
     <p class="hint">
       Installing adds the Desktop icon for you. The button is here in case
       you delete it, or moved the folder.
@@ -141,8 +149,10 @@ async function refresh() {
   document.getElementById("facts").innerHTML =
     '<dt>Version</dt><dd>' + esc(s.version) + '</dd>' +
     '<dt>Your data</dt><dd>' + (s.hasData ? esc(s.dataSizeMb) + ' MB' : 'nothing saved yet') + '</dd>' +
-    '<dt>Backups</dt><dd>' + (s.backupsMb ? esc(s.backupsMb) + ' MB' : 'none yet') + '</dd>' +
+    '<dt>Backups</dt><dd>' + backupSummary(s) + '</dd>' +
     '<dt>Folder</dt><dd><code>' + esc(s.root) + '</code></dd>';
+
+  fillRestore(s);
 
   const busy = Boolean(s.busy);
   let buttons = "";
@@ -179,15 +189,77 @@ async function refresh() {
   lastBusy = s.busy;
 }
 
-async function run(task) {
+function backupSummary(s) {
+  var b = s.backups || [];
+  if (!b.length) return 'none yet';
+  var mb = 0;
+  for (var i = 0; i < b.length; i++) mb += b[i].sizeMb || 0;
+  return esc(b.length) + (b.length === 1 ? ' backup' : ' backups')
+    + ' · ' + esc(Math.round(mb * 10) / 10) + ' MB · newest '
+    + esc(when(b[0].when));
+}
+
+/** "today 14:32" reads better than an ISO string when you are picking one. */
+function when(iso) {
+  try {
+    var d = new Date(iso);
+    var today = new Date();
+    var sameDay = d.toDateString() === today.toDateString();
+    var time = d.toTimeString().slice(0, 5);
+    return sameDay ? 'today ' + time : d.toLocaleDateString() + ' ' + time;
+  } catch (e) { return iso; }
+}
+
+function fillRestore(s) {
+  var sel = document.getElementById('restorePick');
+  var btn = document.getElementById('btnRestore');
+  var row = document.getElementById('restoreRow');
+  var b = s.backups || [];
+  if (!b.length) {
+    row.style.display = 'none';
+    return;
+  }
+  row.style.display = '';
+  var keep = sel.value;
+  sel.innerHTML = b.map(function (x) {
+    return '<option value="' + esc(x.id) + '">' + esc(when(x.when))
+      + '  ·  ' + esc(x.sizeMb) + ' MB  ·  ' + esc(x.name) + '</option>';
+  }).join('');
+  if (keep) sel.value = keep;
+  btn.disabled = Boolean(s.busy);
+}
+
+function restore() {
+  var sel = document.getElementById('restorePick');
+  var opt = sel.options[sel.selectedIndex];
+  if (!opt) return;
+  // One deliberate confirmation. This is the only button here that can
+  // lose data, and the dialog says what it will do in plain words.
+  var ok = window.confirm(
+    "Replace everything with this backup?\n\n" + opt.textContent.trim() +
+    "\n\nThe app will be stopped, and your current data is copied aside " +
+    "first so you can go back. Continue?"
+  );
+  if (ok) run('restore', sel.value);
+}
+
+async function run(task, arg) {
   document.getElementById("logCard").style.display = "block";
   document.getElementById("logTitle").textContent =
     ({ install: "Installing…", update: "Updating…", start: "Starting…",
-       stop: "Stopping…", backup: "Backing up…", doctor: "Collecting…", shortcut: "Adding shortcut…" })[task] || "Working…";
+       stop: "Stopping…", backup: "Backing up…", restore: "Restoring…",
+       doctor: "Collecting…", shortcut: "Adding shortcut…" })[task] || "Working…";
   document.getElementById("log").textContent = "";
   logCursor = 0;
   for (const b of document.querySelectorAll("button")) b.disabled = true;
-  await api("/api/run/" + task, { method: "POST" });
+  const res = await api("/api/run/" + task + (arg ? "?file=" + encodeURIComponent(arg) : ""), { method: "POST" });
+  if (res && res.started === false) {
+    // It refused. Say why instead of spinning on an empty log.
+    document.getElementById("logTitle").textContent = res.reason || "That didn't start";
+    for (const b of document.querySelectorAll("button")) b.disabled = false;
+    refresh();
+    return;
+  }
   if (!polling) polling = setInterval(pollLog, 700);
   refresh();
 }

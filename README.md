@@ -102,6 +102,29 @@ or `npm install && npm run build && npm start`.
 
 Every release ships a `.sha256` next to the zip if you want to verify it.
 
+### 🖱️ After installing: one icon does everything
+
+The installer puts a single **SEO Tool** icon on your Desktop. Double-click
+it and a control panel opens in your browser:
+
+| Button | What it does |
+|---|---|
+| **Start** / **Stop** | Runs the app, or shuts it down |
+| **Open the app** | Goes to the right port, whichever one it picked |
+| **Update to latest** | Pulls the newest version and rebuilds |
+| **Back up now** | A consistent snapshot of your `data.db`, taken with SQLite so nothing in flight is missed |
+| **Restore this backup** | Puts a backup back. Asks first, and copies your current data aside so a wrong choice is undoable |
+| **Collect info for support** | Gathers diagnostics to paste into an issue |
+
+No terminal, no remembering commands, and nothing to work out about which
+file to click. If you delete the icon, double-click `SEO Tool.cmd`
+(`SEO Tool.command` on macOS/Linux) in the install folder and press
+**Add to Desktop**.
+
+> Docker installs are the exception — the data lives inside a Docker
+> volume, so the panel can't reach it. Use `docker compose up -d` /
+> `down`, and Settings → Backup inside the app.
+
 ### 💻 Running it on your own PC (free, and the most private)
 
 The commands above are the whole thing — the tool runs at
