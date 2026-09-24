@@ -61,7 +61,7 @@ rather than reselling someone else's data.</p>
       },
       {
         id: "free",
-        h2: "What &ldquo;free&rdquo; actually means",
+        h2: "What “free” actually means",
         html: `
 <p>Free to run, forever, with no paid service in the core paths. Specifically:</p>
 <ul>
@@ -151,7 +151,7 @@ and a Node you already have is left alone.</p>
       },
       {
         id: "windows-warning",
-        h2: "&ldquo;Windows protected your PC&rdquo;",
+        h2: "“Windows protected your PC”",
         html: `
 <p>Windows shows this for any program that is not code-signed. A signing certificate costs
 around $300 a year, which would rather defeat the word &ldquo;free&rdquo;.</p>
@@ -402,7 +402,7 @@ link straight to the tool that does them, so there is no hunting for the right s
     keywords: "keyword rank ranking position serp track tracker search console gsc average position quick wins cannibalization research volume",
     group: "Everyday",
     title: "Keywords and rankings",
-    navTitle: "Keywords &amp; ranks",
+    navTitle: "Keywords & ranks",
     lede:
       "Track what a site ranks for — and always know where the number came from, because " +
       "two sources that disagree are not a bug.",
@@ -869,7 +869,7 @@ Slack / Discord / Teams / email for alerts, and Shopify and Webflow for non-Word
     keywords: "mcp claude cursor claude desktop model context protocol token connector ai assistant chat",
     group: "Connections",
     title: "Use it from Claude or Cursor",
-    navTitle: "Claude &amp; MCP",
+    navTitle: "Claude & MCP",
     lede:
       "Point an AI assistant at your own SEO data and ask questions in plain English — against " +
       "your crawls, your rankings and your history, not a generic web search.",
@@ -922,7 +922,7 @@ different sources is reported as not comparable rather than as a confident figur
     keywords: "backup restore save data database db export move migrate transfer another computer update upgrade version",
     group: "Running it",
     title: "Backup, restore and updating",
-    navTitle: "Backup &amp; updating",
+    navTitle: "Backup & updating",
     lede: "Everything you have is one file. Copying it is the whole backup strategy.",
     sections: [
       {
@@ -1023,7 +1023,7 @@ and that diagnostic output.</p>`,
     keywords: "faq question limit limitation free cost price licence license commercial privacy data safe compare paid",
     group: "Running it",
     title: "Questions and limits",
-    navTitle: "FAQ &amp; limits",
+    navTitle: "FAQ & limits",
     lede: "Including the parts that are genuinely weaker than a paid tool.",
     sections: [
       {
