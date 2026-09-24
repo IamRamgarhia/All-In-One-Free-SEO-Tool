@@ -15,7 +15,7 @@
  * Each step is wrapped so a failure in one doesn't block the next.
  */
 
-import { desc, eq, lt, lte, and, isNotNull } from "drizzle-orm";
+import { desc, eq, lt, lte, gt, and, isNotNull, notExists, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, clients, keywords, keywordRankings } from "@/db/schema";
 import { getSetting, setSetting } from "./settings-store";
@@ -385,35 +385,73 @@ async function distillRecentFeedback(): Promise<string> {
   }
 }
 
-async function weeklyRankSweep(): Promise<string> {
-  // Pick keywords that haven't been checked in 7d, cap to 30 to be polite.
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const stale = await db
-    .select({
-      id: keywords.id,
-    })
+/**
+ * Keywords that need a rank reading: never checked, or not in 7 days.
+ *
+ * Exported because the version this replaced could not check a new
+ * keyword at all, and said nothing. It asked for rows where
+ * `keyword_rankings.checked_at` was NOT NULL and older than the cutoff —
+ * over a LEFT JOIN, so a keyword with no readings yet produced NULL and
+ * was excluded. A keyword therefore had to already have a rank before it
+ * could ever be given one.
+ *
+ * Measured on the install this was found on: 25 keywords tracked, 25
+ * never checked, 0 rank readings ever recorded, and the step reporting
+ * "no stale keywords" every run — a green tick for work that could not
+ * happen.
+ *
+ * The join had a second fault. One row per reading means a keyword
+ * checked this morning still matched if any older reading existed, so
+ * busy keywords were re-checked forever while new ones starved. Asking
+ * "is there a recent reading for this keyword" answers both, and returns
+ * each keyword once.
+ */
+export function keywordsNeedingRankCheck(cutoff: Date, limit = 30) {
+  return db
+    .select({ id: keywords.id })
     .from(keywords)
-    .leftJoin(keywordRankings, eq(keywordRankings.keywordId, keywords.id))
     .where(
-      and(
-        isNotNull(keywordRankings.checkedAt),
-        lte(keywordRankings.checkedAt, cutoff),
+      notExists(
+        db
+          .select({ one: sql`1` })
+          .from(keywordRankings)
+          .where(
+            and(
+              eq(keywordRankings.keywordId, keywords.id),
+              gt(keywordRankings.checkedAt, cutoff),
+            ),
+          ),
       ),
     )
-    .limit(30);
-  if (stale.length === 0) return "no stale keywords";
+    .limit(limit);
+}
+
+async function weeklyRankSweep(): Promise<string> {
+  // Cap to 30 to be polite to whatever we are asking for positions.
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const stale = await keywordsNeedingRankCheck(cutoff, 30);
+  if (stale.length === 0) return "every keyword has a reading from the last 7 days";
 
   const { checkRankAction } = await import("@/app/keywords/rank-actions");
   let done = 0;
+  let failed = 0;
   for (const k of stale) {
     try {
       await checkRankAction(k.id);
       done++;
     } catch {
-      continue;
+      // Search engines block datacentre and residential IPs without
+      // warning. Swallowing that and reporting only successes turns a
+      // rank tracker that cannot see anything into one that looks idle.
+      failed++;
     }
   }
-  return `re-checked ${done} keywords`;
+  if (done === 0) {
+    return `could not check any of ${stale.length} keywords — the search page was unreadable (blocked, or the network refused)`;
+  }
+  return failed > 0
+    ? `checked ${done} keywords, ${failed} could not be read`
+    : `checked ${done} keywords`;
 }
 
 // ============== New auto-steps ==============
