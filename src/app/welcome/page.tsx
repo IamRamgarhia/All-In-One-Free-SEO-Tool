@@ -155,6 +155,7 @@ export default async function WelcomePage() {
         description="Each step unlocks more of the tool. You can skip any step and come back to it later — but doing them in order works best."
         icon={Bot}
         accent="violet"
+        noHelp
       />
 
       {/* Progress bar */}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpLink } from "./help-link";
 
 type Crumb = { href?: string; label: string };
 
@@ -23,6 +24,8 @@ type PageHeaderProps = {
   crumbs?: Crumb[];
   actions?: React.ReactNode;
   meta?: React.ReactNode;
+  /** Screens that are themselves an explanation do not need a help link. */
+  noHelp?: boolean;
 };
 
 export function PageHeader({
@@ -33,6 +36,7 @@ export function PageHeader({
   crumbs,
   actions,
   meta,
+  noHelp,
 }: PageHeaderProps) {
   return (
     <section className="flex flex-wrap items-center justify-between gap-3 space-y-2">
@@ -77,9 +81,18 @@ export function PageHeader({
         {meta && <div className="pt-1">{meta}</div>}
       </div>
 
-      {actions && (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
-      )}
+      {/* Help sits with the actions, on every screen that uses this
+          header — which is 195 of them. One link here rather than a
+          decision on each page, and it points at the documentation for
+          this screen rather than at a table of contents.
+
+          `noHelp` is for the handful of screens that are already an
+          explanation: the docs index, the welcome flow, the learn
+          section. */}
+      <div className="flex shrink-0 items-center gap-2">
+        {actions}
+        {!noHelp && <HelpLink />}
+      </div>
     </section>
   );
 }

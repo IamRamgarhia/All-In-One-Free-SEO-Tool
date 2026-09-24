@@ -131,3 +131,6 @@ backups/
 
 # Built plugin archive — regenerate with the packaging script, do not commit.
 wordpress-plugin/*.zip
+
+# Built docs site — regenerate with `node docs-site/build.mjs`
+/docs-site/dist

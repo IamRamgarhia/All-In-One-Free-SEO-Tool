@@ -175,6 +175,7 @@ export default function LearnPage() {
         description="Plain-language SEO basics. Every recommendation in this tool is grounded in what Google has actually confirmed — not folklore."
         icon={GraduationCap}
         accent="emerald"
+        noHelp
       />
 
       {/* Golden rules */}
