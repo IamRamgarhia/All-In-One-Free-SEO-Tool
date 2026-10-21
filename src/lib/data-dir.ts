@@ -15,6 +15,7 @@
  *   - .seo-encryption-key (AES key for API keys / OAuth tokens)
  *   - .seo-port (last-bound port)
  *   - screenshots/ (SERP screenshots from rank checks)
+ *   - audit-previews/ (SEOmator landing PNGs per audit id)
  */
 
 import path from "node:path";

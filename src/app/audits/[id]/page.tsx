@@ -34,6 +34,8 @@ import {
   verdictForScore,
 } from "@/lib/seomator-meta";
 import { setStatusForType } from "../issue-actions";
+import { SeomatorAuditProgressLive } from "@/components/audits/seomator-audit-progress";
+import { SeomatorGeoPanel } from "@/components/audits/seomator-geo-panel";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -127,9 +129,11 @@ export default async function AuditDetailPage({
       issuesCount: audits.issuesCount,
       pagesCrawled: audits.pagesCrawled,
       kind: audits.kind,
+      targetUrl: audits.targetUrl,
       summary: audits.summary,
       categoryScores: audits.categoryScores,
       rawReport: audits.rawReport,
+      previewScreenshotPath: audits.previewScreenshotPath,
       startedAt: audits.startedAt,
       completedAt: audits.completedAt,
       createdAt: audits.createdAt,
@@ -249,6 +253,24 @@ export default async function AuditDetailPage({
     audit.kind === "seomator" && audit.score != null
       ? verdictForScore(audit.score)
       : null;
+
+  const geoIssues = issues
+    .filter(
+      (i) =>
+        i.category === "geo" ||
+        (typeof i.type === "string" && i.type.startsWith("seomator:geo-")),
+    )
+    .map((i) => ({
+      type: i.type,
+      severity: i.severity,
+      message: i.message,
+      url: i.url,
+    }));
+
+  const showLandingPreview =
+    audit.kind === "seomator" &&
+    audit.status === "completed" &&
+    Boolean(audit.previewScreenshotPath);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -374,6 +396,20 @@ export default async function AuditDetailPage({
         </div>
       </section>
 
+      {showLandingPreview ? (
+        <section className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/audits/${auditId}/preview`}
+            alt={`Rendered preview of ${client.url}`}
+            className="aspect-[16/10] w-full object-cover object-top"
+          />
+          <p className="border-t border-white/5 px-4 py-2 text-xs text-muted-foreground">
+            Landing page as rendered during the SEOmator audit (Playwright).
+          </p>
+        </section>
+      ) : null}
+
       {scoreCap ? (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs text-amber-100">
           Score capped at {audit.score}/100 (uncapped {scoreCap.uncappedScore}
@@ -433,6 +469,13 @@ export default async function AuditDetailPage({
             })}
           </div>
         </section>
+      ) : null}
+
+      {audit.kind === "seomator" && audit.status === "completed" ? (
+        <SeomatorGeoPanel
+          categoryScores={audit.categoryScores}
+          geoIssues={geoIssues}
+        />
       ) : null}
 
       {audit.kind === "seomator" && audit.categoryScores ? (
@@ -774,7 +817,36 @@ export default async function AuditDetailPage({
         Auto-refreshes, because an audit finishing is not something the
         user can trigger and a page that never updates looks broken.
       */}
-      {audit.status === "running" && (
+      {audit.status === "running" && audit.kind === "seomator" ? (
+        <div className="space-y-4">
+          <SeomatorAuditProgressLive
+            auditId={auditId}
+            targetUrl={audit.targetUrl ?? client.url}
+            initialPagesCrawled={pagesCrawled}
+          />
+          {isStalled ? (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+              <p className="text-sm font-medium text-amber-200">
+                This one has been running for a while
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Audits that take more than ten minutes have usually been
+                interrupted. Start a new audit from the client page to take
+                over.
+              </p>
+              <Link
+                href={`/clients/${audit.clientId}`}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-200 hover:underline"
+              >
+                Go to the client page
+                <ArrowUpRight className="size-3" />
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {audit.status === "running" && audit.kind !== "seomator" ? (
         <div className="relative overflow-hidden rounded-2xl border border-sky-500/20 bg-sky-500/5 px-6 py-12 text-center backdrop-blur-md">
           <meta httpEquiv="refresh" content="10" />
           <div className="pointer-events-none absolute left-1/2 top-1/2 size-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl" />
@@ -784,37 +856,12 @@ export default async function AuditDetailPage({
             </div>
             <h2 className="text-lg font-semibold">Audit in progress</h2>
             <p className="text-sm text-muted-foreground">
-              Crawling {client?.url ?? "the site"} and running its checks. Most
-              sites take 30–60 seconds; a large one with JavaScript rendering
-              can take a few minutes.
+              Crawling {client?.url ?? "the site"}. This page refreshes every
+              10 seconds.
             </p>
-            <p className="text-xs text-muted-foreground">
-              This page refreshes itself — you can leave it open, or come back
-              later. The audit keeps running either way.
-            </p>
-            {isStalled && (
-              <div className="mt-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-left">
-                <p className="text-sm font-medium text-amber-200">
-                  This one has been running for a while
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Audits that take more than ten minutes have usually been
-                  interrupted — a restart, or the tab being closed mid-crawl.
-                  Running a new audit from the client page will take over from
-                  it rather than waiting.
-                </p>
-                <Link
-                  href={`/clients/${audit.clientId}`}
-                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-200 hover:underline"
-                >
-                  Go to the client page
-                  <ArrowUpRight className="size-3" />
-                </Link>
-              </div>
-            )}
           </div>
         </div>
-      )}
+      ) : null}
 
       {audit.status === "failed" && (
         <div className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-rose-500/5 px-6 py-12 text-center backdrop-blur-md">

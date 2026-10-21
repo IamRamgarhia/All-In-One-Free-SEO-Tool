@@ -156,6 +156,12 @@ export const audits = sqliteTable("audits", {
   rawReport: text("raw_report", { mode: "json" }).$type<
     Record<string, unknown>
   >(),
+  /** Relative path under SEO_DATA_DIR, e.g. audit-previews/12.png */
+  previewScreenshotPath: text("preview_screenshot_path"),
+  /** Live SEOmator category progress while status = running */
+  progressJson: text("progress_json", { mode: "json" }).$type<
+    Record<string, unknown>
+  >(),
   ...timestamps,
 });
 
