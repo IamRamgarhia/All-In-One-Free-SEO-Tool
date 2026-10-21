@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
     "@resvg/resvg-js",
     "satori",
     "qrcode",
+    // SEOmator pulls Playwright + better-sqlite3; keep it out of the bundle.
+    "@seomator/seo-audit",
   ],
 
   // Hide the dev-mode "Compiling…" bottom-left indicator. For self-hosters

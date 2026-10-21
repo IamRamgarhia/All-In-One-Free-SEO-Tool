@@ -12,35 +12,19 @@ import { confidenceForIssue } from "@/lib/audit-confidence";
 import { notify, type NotificationField } from "@/lib/notifier";
 import { logActivity } from "@/lib/activity";
 import { runAutomations } from "@/lib/automation-engine";
+import {
+  runSeomatorAudit,
+  seomatorFindingsToTasks,
+} from "@/lib/seomator-audit";
 
 const SCORE_DROP_THRESHOLD = 5;
+const STALLED_AFTER_MS = 10 * 60 * 1000;
 
-export async function runAuditForClient(clientId: number) {
-  const [client] = await db
-    .select()
-    .from(clients)
-    .where(eq(clients.id, clientId))
-    .limit(1);
-
-  if (!client) return;
-
-  // Concurrency guard.
-  //
-  // This used to `return` silently when an audit was already running,
-  // with a one-hour window. That produced the worst first-run
-  // experience in the product: a user adds their site, the audit gets
-  // interrupted (a restart, a navigation, a slow site), the row is left
-  // "running" — and from then on every click of "Run audit" does
-  // absolutely nothing, with no message, for a full hour. Reproduced in
-  // 3ms: one click, no new audit row, no error, no feedback.
-  //
-  // Two changes. A genuinely in-flight audit now sends the user to it,
-  // so clicking Run shows them the audit that is already running
-  // instead of appearing to do nothing. And a stalled one is taken over
-  // rather than blocking: nothing reports progress mid-crawl, so an
-  // audit still "running" after this long is dead, and making a person
-  // wait an hour to retry is not a guard, it's a lockout.
-  const STALLED_AFTER_MS = 10 * 60 * 1000;
+/**
+ * If an audit is genuinely in flight, send the user there. If it has
+ * stalled, mark it failed and return null so a new run can start.
+ */
+async function takeOverOrRedirectInFlight(clientId: number): Promise<void> {
   const [inFlight] = await db
     .select({ id: audits.id, startedAt: audits.startedAt })
     .from(audits)
@@ -51,11 +35,8 @@ export async function runAuditForClient(clientId: number) {
   if (inFlight?.startedAt) {
     const age = Date.now() - inFlight.startedAt.getTime();
     if (age < STALLED_AFTER_MS) {
-      // Really running — show it, don't swallow the click.
       redirect(`/audits/${inFlight.id}`);
     }
-    // Stalled. Mark it failed so the history is honest about what
-    // happened, then fall through and start a fresh one.
     await db
       .update(audits)
       .set({
@@ -65,6 +46,18 @@ export async function runAuditForClient(clientId: number) {
       })
       .where(eq(audits.id, inFlight.id));
   }
+}
+
+export async function runAuditForClient(clientId: number) {
+  const [client] = await db
+    .select()
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+
+  if (!client) return;
+
+  await takeOverOrRedirectInFlight(clientId);
 
   // Look up previous completed audit BEFORE running the new one,
   // so we can compute score delta on completion.
@@ -343,6 +336,251 @@ export async function runAuditForClient(clientId: number) {
   } catch {
     // ignore
   }
+
+  safeRevalidatePath(`/clients/${clientId}`);
+  safeRevalidatePath("/");
+  redirect(`/audits/${auditRow.id}`);
+}
+
+/**
+ * Deep technical audit powered by SEOmator (373 rules / 20 categories).
+ *
+ * Stored as `kind = "seomator"` so the agent planner keeps reading crawler
+ * audits for auto-fixes, while humans get the mature technical report here.
+ */
+export async function runSeomatorAuditForClient(clientId: number) {
+  const [client] = await db
+    .select()
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+
+  if (!client) return;
+
+  await takeOverOrRedirectInFlight(clientId);
+
+  const [previousAudit] = await db
+    .select()
+    .from(audits)
+    .where(
+      and(
+        eq(audits.clientId, clientId),
+        eq(audits.status, "completed"),
+        eq(audits.kind, "seomator"),
+      ),
+    )
+    .orderBy(desc(audits.completedAt))
+    .limit(1);
+  const previousScore = previousAudit?.score ?? null;
+
+  const startedAt = new Date();
+  const [auditRow] = await db
+    .insert(audits)
+    .values({
+      clientId,
+      status: "running",
+      kind: "seomator",
+      targetUrl: client.url,
+      startedAt,
+    })
+    .returning({ id: audits.id });
+
+  let result;
+  try {
+    let lastWrite = 0;
+    result = await runSeomatorAudit(client.url, {
+      crawl: true,
+      maxPages: 20,
+      concurrency: 3,
+      measureCwv: true,
+      onCrawlProgress: (crawled) => {
+        const now = Date.now();
+        if (now - lastWrite < 300) return;
+        lastWrite = now;
+        void db
+          .update(audits)
+          .set({ pagesCrawled: crawled })
+          .where(eq(audits.id, auditRow.id))
+          .catch(() => {});
+      },
+    });
+  } catch (err) {
+    const reason =
+      err instanceof Error ? err.message : "SEOmator audit failed unexpectedly.";
+    await db
+      .update(audits)
+      .set({
+        status: "failed",
+        summary: reason.slice(0, 2000),
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(audits.id, auditRow.id));
+
+    notify({
+      title: `Deep audit failed for ${client.name}`,
+      body: reason.slice(0, 400),
+      level: "error",
+      fields: [{ label: "Client", value: client.name }],
+    }).catch(() => {});
+
+    await logActivity({
+      kind: "audit.failed",
+      message: `SEOmator audit failed for ${client.name}: ${reason.slice(0, 200)}`,
+      level: "error",
+      clientId,
+      entityType: "audit",
+      entityId: auditRow.id,
+    });
+
+    await runAutomations("audit_failed", {
+      clientId,
+      clientName: client.name,
+      data: { url: client.url, auditId: auditRow.id, engine: "seomator" },
+    });
+
+    safeRevalidatePath(`/clients/${clientId}`);
+    return;
+  }
+
+  const realFindings = withoutInfrastructure(result.findings);
+
+  if (realFindings.length > 0) {
+    const priorIssues = await db
+      .select({
+        type: auditIssues.type,
+        url: auditIssues.url,
+        status: auditIssues.status,
+      })
+      .from(auditIssues)
+      .innerJoin(audits, eq(audits.id, auditIssues.auditId))
+      .where(
+        and(eq(audits.clientId, clientId), ne(auditIssues.status, "new")),
+      );
+    const statusByKey = new Map<string, string>();
+    for (const p of priorIssues) {
+      if (p.type && p.url) statusByKey.set(`${p.type}::${p.url}`, p.status);
+    }
+
+    await db.insert(auditIssues).values(
+      realFindings.map((f) => {
+        const inheritedStatus = statusByKey.get(`${f.type}::${f.url}`);
+        return {
+          auditId: auditRow.id,
+          type: f.type,
+          severity: f.severity,
+          url: f.url,
+          message: f.message,
+          category: f.category,
+          fixSteps: f.fixSteps,
+          confidence: f.confidence,
+          aiGenerated: false,
+          ...(inheritedStatus
+            ? {
+                status: inheritedStatus as
+                  | "ignored"
+                  | "resolved"
+                  | "false_positive",
+              }
+            : {}),
+        };
+      }),
+    );
+
+    const generatedTasks = seomatorFindingsToTasks(realFindings);
+    if (generatedTasks.length > 0) {
+      const open = await db
+        .select({ sourceRef: tasks.sourceRef })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.clientId, clientId),
+            like(tasks.sourceRef, "seomator:%"),
+            inArray(tasks.status, ["todo", "in_progress"]),
+          ),
+        );
+      const alreadyOpen = new Set(open.map((t) => t.sourceRef));
+      const fresh = generatedTasks.filter(
+        (t) => !alreadyOpen.has(`seomator:${t.type}`),
+      );
+      const now = Date.now();
+      const dayMs = 86_400_000;
+      if (fresh.length > 0) {
+        await db.insert(tasks).values(
+          fresh.map((t) => ({
+            clientId,
+            title: t.title,
+            description: t.description,
+            whyItMatters: t.whyItMatters,
+            priority: t.priority,
+            toolPath: t.toolPath,
+            status: "todo" as const,
+            sourceRef: `seomator:${t.type}`,
+            dueDate:
+              t.priority === "high"
+                ? new Date(now + 7 * dayMs)
+                : t.priority === "medium"
+                  ? new Date(now + 30 * dayMs)
+                  : null,
+          })),
+        );
+      }
+    }
+  }
+
+  await db
+    .update(audits)
+    .set({
+      status: "completed",
+      score: result.score,
+      issuesCount: realFindings.length,
+      pagesCrawled: result.pagesCrawled,
+      summary: result.summary,
+      completedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(audits.id, auditRow.id));
+
+  const score = result.score;
+  const delta = previousScore !== null ? score - previousScore : null;
+  const topIssue =
+    realFindings.find((f) => f.severity === "critical")?.message ??
+    realFindings.find((f) => f.severity === "high")?.message ??
+    null;
+  const isScoreDrop = delta !== null && delta <= -SCORE_DROP_THRESHOLD;
+
+  notify({
+    title: `${isScoreDrop ? "Deep audit score dropped" : "Deep audit completed"} — ${client.name}`,
+    body: `SEOmator audit on ${client.url}: ${score}/100, ${realFindings.length} issues.`,
+    level: isScoreDrop ? "warning" : "success",
+    fields: [
+      { label: "Score", value: `${score}/100` },
+      { label: "Issues", value: `${realFindings.length} found` },
+      { label: "Engine", value: "SEOmator (373 rules)" },
+    ] satisfies NotificationField[],
+  }).catch(() => {});
+
+  await logActivity({
+    kind: "audit.completed",
+    message: `SEOmator audit #${auditRow.id} for ${client.name} — score ${score}/100, ${realFindings.length} issues.`,
+    level: isScoreDrop ? "warning" : "success",
+    clientId,
+    entityType: "audit",
+    entityId: auditRow.id,
+  });
+
+  await runAutomations("audit_completed", {
+    clientId,
+    clientName: client.name,
+    data: {
+      auditId: auditRow.id,
+      score,
+      previousScore,
+      issuesCount: realFindings.length,
+      topIssue: topIssue ?? "",
+      engine: "seomator",
+    },
+  });
 
   safeRevalidatePath(`/clients/${clientId}`);
   safeRevalidatePath("/");

@@ -117,6 +117,8 @@ export default async function AuditDetailPage({
       score: audits.score,
       issuesCount: audits.issuesCount,
       pagesCrawled: audits.pagesCrawled,
+      kind: audits.kind,
+      summary: audits.summary,
       startedAt: audits.startedAt,
       completedAt: audits.completedAt,
       createdAt: audits.createdAt,
@@ -170,6 +172,8 @@ export default async function AuditDetailPage({
     issueIds: number[];
     confidence: "definitely" | "probably" | "test" | null;
     aiGenerated: boolean;
+    category: string | null;
+    fixSteps: string | null;
   };
   const CONF_RANK: Record<string, number> = { definitely: 3, probably: 2, test: 1 };
   function groupByType(issues: typeof sorted): Group[] {
@@ -189,6 +193,9 @@ export default async function AuditDetailPage({
         ) {
           existing.confidence = iConf;
         }
+        if (!existing.fixSteps && i.fixSteps) {
+          existing.fixSteps = i.fixSteps;
+        }
       } else {
         map.set(key, {
           severity: i.severity as Group["severity"],
@@ -198,6 +205,8 @@ export default async function AuditDetailPage({
           issueIds: [i.id],
           confidence: iConf,
           aiGenerated: iAi,
+          category: i.category ?? null,
+          fixSteps: i.fixSteps ?? null,
         });
       }
     }
@@ -260,6 +269,12 @@ export default async function AuditDetailPage({
                     ? `Completed ${audit.completedAt.toLocaleString()}`
                     : `Started ${(audit.startedAt ?? audit.createdAt).toLocaleString()}`}{" "}
                   · {client.name}
+                  {" · "}
+                  {audit.kind === "seomator"
+                    ? "SEOmator deep audit (373 rules)"
+                    : audit.kind === "ai_full"
+                      ? "AI site audit"
+                      : "Built-in crawl"}
                 </p>
               </div>
             </div>
@@ -296,15 +311,30 @@ export default async function AuditDetailPage({
                 source="crawl"
                 asOf={audit.completedAt}
                 note={
-                  pagesCrawled !== null
-                    ? `Based on the ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} we crawled.`
-                    : "This audit predates page-count tracking, so we can only show the pages that had findings — the crawl covered at least that many."
+                  audit.kind === "seomator"
+                    ? pagesCrawled !== null
+                      ? `SEOmator crawl of ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} against 373 technical rules.`
+                      : "SEOmator deep technical audit."
+                    : pagesCrawled !== null
+                      ? `Based on the ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} we crawled.`
+                      : "This audit predates page-count tracking, so we can only show the pages that had findings — the crawl covered at least that many."
                 }
               />
             </div>
           </div>
         </div>
       </section>
+
+      {audit.kind === "seomator" && audit.summary ? (
+        <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Category breakdown
+          </h2>
+          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted-foreground">
+            {audit.summary}
+          </pre>
+        </section>
+      ) : null}
 
       {closedCount > 0 && (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2 text-xs text-emerald-200">
@@ -420,7 +450,7 @@ export default async function AuditDetailPage({
                 <li key={g.type} className="px-5 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {issueTypeToTerm[g.type] ? (
                           <Term term={issueTypeToTerm[g.type]}>
                             <span className="font-medium capitalize">
@@ -429,7 +459,14 @@ export default async function AuditDetailPage({
                           </Term>
                         ) : (
                           <span className="font-medium capitalize">
-                            {g.type.replace(/_/g, " ")}
+                            {g.type.startsWith("seomator:")
+                              ? g.type.slice("seomator:".length).replace(/-/g, " ")
+                              : g.type.replace(/_/g, " ")}
+                          </span>
+                        )}
+                        {g.category && (
+                          <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30">
+                            {g.category}
                           </span>
                         )}
                         {g.affectedUrls.length > 1 && (
@@ -451,6 +488,14 @@ export default async function AuditDetailPage({
                       <p className="text-sm leading-relaxed text-muted-foreground">
                         {g.sample}
                       </p>
+                      {g.fixSteps ? (
+                        <p className="mt-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs leading-relaxed text-cyan-100/90">
+                          <span className="font-semibold text-cyan-200">
+                            Fix:{" "}
+                          </span>
+                          {g.fixSteps}
+                        </p>
+                      ) : null}
                       <details className="mt-1.5">
                         <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
                           {g.affectedUrls.length === 1

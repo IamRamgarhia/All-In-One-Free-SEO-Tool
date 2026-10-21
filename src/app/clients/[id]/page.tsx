@@ -37,7 +37,10 @@ import {
   refreshClientMetadataForm,
 } from "../actions";
 import { pickStackTemplates, STACK_LABELS } from "@/lib/tech-stack-templates";
-import { runAuditForClient } from "@/app/audits/actions";
+import {
+  runAuditForClient,
+  runSeomatorAuditForClient,
+} from "@/app/audits/actions";
 import { ShareCard } from "./share-card";
 import { ClientGooglePanel } from "./google-panel";
 import { PerClientGoogleConnect } from "./per-client-google";
@@ -299,6 +302,7 @@ export default async function ClientDetailPage({
   const redetectAction = redetectTechStack.bind(null, client.id);
   const refreshMetadataAction = refreshClientMetadataForm.bind(null, client.id);
   const runAction = runAuditForClient.bind(null, client.id);
+  const runDeepAction = runSeomatorAuditForClient.bind(null, client.id);
   const applyTemplatesAction = applyNicheTemplates.bind(null, client.id);
   const applyStackAction = applyStackTemplates.bind(null, client.id);
   const { matched: matchedStacks } = pickStackTemplates(client.techStack);
@@ -634,15 +638,26 @@ export default async function ClientDetailPage({
               {/* Hairline + action row */}
               <div className="mt-7 border-t border-border pt-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* HERO action — Run audit */}
-                  <form action={runAction}>
+                  {/* HERO action — Deep SEOmator audit (373 rules) */}
+                  <form action={runDeepAction}>
                     <SubmitButton
                       icon={<Play className="size-3.5" />}
-                      pendingChildren="Running audit…"
-                      pendingToast="Starting audit"
-                      pendingToastDescription="Crawling the site and running 30+ checks. Takes ~30-60 s."
+                      pendingChildren="Running deep audit…"
+                      pendingToast="Starting SEOmator audit"
+                      pendingToastDescription="373 technical rules across 20 categories, with Core Web Vitals. Often 1–3 minutes."
                     >
-                      Run audit
+                      Deep technical audit
+                    </SubmitButton>
+                  </form>
+                  <form action={runAction}>
+                    <SubmitButton
+                      variant="outline"
+                      icon={<Play className="size-3.5" />}
+                      pendingChildren="Running crawl…"
+                      pendingToast="Starting crawl audit"
+                      pendingToastDescription="Fast built-in crawl (~72 checks). Best for agent auto-fixes."
+                    >
+                      Quick crawl
                     </SubmitButton>
                   </form>
 
@@ -895,7 +910,7 @@ export default async function ClientDetailPage({
             </p>
           </header>
           <div className="relative mt-5 grid gap-3 sm:grid-cols-3">
-            <form action={runAction} className="contents">
+            <form action={runDeepAction} className="contents">
               <button
                 type="submit"
                 className="group flex flex-col items-start gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/[0.06] p-4 text-left transition-colors hover:bg-cyan-500/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -904,14 +919,12 @@ export default async function ClientDetailPage({
                   <Play className="size-4" />
                 </span>
                 <div>
-                  <div className="text-sm font-semibold">Run an audit</div>
+                  <div className="text-sm font-semibold">Deep technical audit</div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    30+ SEO checks. ~60 seconds. Sets the baseline health
-                    score.
+                    SEOmator — 373 rules, CWV, security, GEO. ~1–3 minutes.
                   </div>
                 </div>
-                <span className="mt-1 text-[11px] font-medium text-cyan-300 transition-transform group-hover:translate-x-0.5">
-                  Run now →
+                <span className="mt-1 text-[11px] font-medium text-cyan-300 transition-transform group-hover:translate-x-0.5">                  Run now →
                 </span>
               </button>
             </form>
@@ -1232,7 +1245,7 @@ export default async function ClientDetailPage({
         <div className="relative">
           {recentAudits.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-              No audits yet. Click Run audit above to do your first one.
+              No audits yet. Run a deep technical audit above to set the baseline.
             </p>
           ) : (
             <ul className="divide-y divide-white/5">
@@ -1246,6 +1259,13 @@ export default async function ClientDetailPage({
                     className="font-medium hover:underline"
                   >
                     Audit #{a.id}
+                    <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                      {a.kind === "seomator"
+                        ? "SEOmator"
+                        : a.kind === "ai_full"
+                          ? "AI"
+                          : "Crawl"}
+                    </span>
                   </Link>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground">

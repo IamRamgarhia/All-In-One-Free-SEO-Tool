@@ -9,7 +9,10 @@ import { audits, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
 import { Button } from "@/components/ui/button";
-import { runAuditForClient } from "@/app/audits/actions";
+import {
+  runAuditForClient,
+  runSeomatorAuditForClient,
+} from "@/app/audits/actions";
 import { clientScope } from "@/lib/client-scope";
 
 const statusTone: Record<string, string> = {
@@ -71,7 +74,8 @@ export default async function PerClientAuditsPage({
     .where(eq(audits.clientId, clientId))
     .orderBy(desc(audits.createdAt));
 
-  const runAction = runAuditForClient.bind(null, clientId);
+  const runCrawlAction = runAuditForClient.bind(null, clientId);
+  const runDeepAction = runSeomatorAuditForClient.bind(null, clientId);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -90,21 +94,29 @@ export default async function PerClientAuditsPage({
 
       <PageHeader
         title={`Audits · ${client.name}`}
-        description="Every audit run for this client. Click an audit to see issues, severity grouping, and the tasks generated from it."
+        description="Deep technical audits (SEOmator, 373 rules) plus the classic crawl the agent can auto-fix. Open any run for issues, severity, and tasks."
         icon={ClipboardList}
         accent="cyan"
         actions={
-          <form action={runAction}>
-            <Button type="submit">Run new audit</Button>
-          </form>
+          <div className="flex flex-wrap items-center gap-2">
+            <form action={runDeepAction}>
+              <Button type="submit">Deep technical audit</Button>
+            </form>
+            <form action={runCrawlAction}>
+              <Button type="submit" variant="outline">
+                Quick crawl
+              </Button>
+            </form>
+          </div>
         }
       />
 
       {rows.length === 0 ? (
         <div className="glass-apple relative overflow-hidden rounded-2xl px-6 py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            No audits yet for this client. Click &ldquo;Run new audit&rdquo; to
-            do the first one.
+            No audits yet for this client. Start with a deep technical audit
+            (SEOmator) for a full report, or a quick crawl for agent-ready
+            findings.
           </p>
         </div>
       ) : (
@@ -113,6 +125,7 @@ export default async function PerClientAuditsPage({
             <thead>
               <tr className="border-b border-white/5 text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-5 py-3 text-left font-medium">Audit</th>
+                <th className="px-5 py-3 text-left font-medium">Engine</th>
                 <th className="px-5 py-3 text-left font-medium">Status</th>
                 <th className="px-5 py-3 text-left font-medium">Issues</th>
                 <th className="px-5 py-3 text-left font-medium">When</th>
@@ -141,6 +154,15 @@ export default async function PerClientAuditsPage({
                           diff vs #{previousCompleted.id}
                         </Link>
                       )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-muted-foreground ring-1 ring-inset ring-white/10">
+                        {a.kind === "seomator"
+                          ? "SEOmator"
+                          : a.kind === "ai_full"
+                            ? "AI"
+                            : "Crawl"}
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <span
