@@ -17,7 +17,20 @@ import {
   seomatorFindingsToTasks,
 } from "@/lib/seomator-audit";
 import { normalizeSeomatorReport } from "@/lib/cabinet/normalize";
+import { getCategoryIds } from "@seomator/seo-audit";
+import {
+  auditPreviewAbsolutePath,
+  auditPreviewRelativePath,
+} from "@/lib/audit-preview-screenshot";
+import {
+  initialSeomatorProgress,
+  progressOnCategoryComplete,
+  progressOnCategoryStart,
+  progressOnRuleComplete,
+  type SeomatorAuditProgress,
+} from "@/lib/seomator-audit-progress";
 import { QUICK_AUDIT_CATEGORIES } from "@/lib/seomator-meta";
+import { existsSync } from "node:fs";
 
 const SCORE_DROP_THRESHOLD = 5;
 const STALLED_AFTER_MS = 10 * 60 * 1000;
@@ -383,6 +396,11 @@ export async function runSeomatorAuditForClient(
   const isQuick = mode === "quick";
 
   const startedAt = new Date();
+  const categoryIds = isQuick
+    ? [...QUICK_AUDIT_CATEGORIES]
+    : getCategoryIds();
+  const initialProgress = initialSeomatorProgress(categoryIds);
+
   const [auditRow] = await db
     .insert(audits)
     .values({
@@ -391,27 +409,72 @@ export async function runSeomatorAuditForClient(
       kind: "seomator",
       targetUrl: client.url,
       startedAt,
+      progressJson: initialProgress,
     })
     .returning({ id: audits.id });
 
   let result;
+  let progressState: SeomatorAuditProgress = initialProgress;
   try {
     let lastWrite = 0;
+
+    const persistProgress = (pagesCrawled?: number) => {
+      const now = Date.now();
+      if (now - lastWrite < 300) return;
+      lastWrite = now;
+      void db
+        .update(audits)
+        .set({
+          progressJson: progressState,
+          ...(pagesCrawled !== undefined ? { pagesCrawled } : {}),
+        })
+        .where(eq(audits.id, auditRow.id))
+        .catch(() => {});
+    };
+
     result = await runSeomatorAudit(client.url, {
       crawl: true,
       maxPages: isQuick ? 8 : 20,
       concurrency: 3,
       measureCwv: true,
       categories: isQuick ? [...QUICK_AUDIT_CATEGORIES] : [],
-      onCrawlProgress: (crawled) => {
-        const now = Date.now();
-        if (now - lastWrite < 300) return;
-        lastWrite = now;
+      previewScreenshotPath: auditPreviewAbsolutePath(auditRow.id),
+      onPreviewScreenshot: () => {
         void db
           .update(audits)
-          .set({ pagesCrawled: crawled })
+          .set({
+            previewScreenshotPath: auditPreviewRelativePath(auditRow.id),
+          })
           .where(eq(audits.id, auditRow.id))
           .catch(() => {});
+      },
+      onCrawlProgress: (crawled) => {
+        progressState = {
+          ...progressState,
+          pagesCrawled: crawled,
+          updatedAt: new Date().toISOString(),
+        };
+        persistProgress(crawled);
+      },
+      onCategoryStart: (categoryId, categoryName) => {
+        progressState = progressOnCategoryStart(
+          progressState,
+          categoryId,
+          categoryName,
+        );
+        persistProgress();
+      },
+      onCategoryComplete: (categoryId, categoryName, categoryResult) => {
+        progressState = progressOnCategoryComplete(
+          progressState,
+          categoryId,
+          categoryResult,
+        );
+        persistProgress();
+      },
+      onRuleComplete: (_ruleId, ruleName) => {
+        progressState = progressOnRuleComplete(progressState, ruleName);
+        persistProgress();
       },
     });
   } catch (err) {
@@ -538,6 +601,9 @@ export async function runSeomatorAuditForClient(
     }
   }
 
+  const previewRel = auditPreviewRelativePath(auditRow.id);
+  const hasPreview = existsSync(auditPreviewAbsolutePath(auditRow.id));
+
   await db
     .update(audits)
     .set({
@@ -548,6 +614,12 @@ export async function runSeomatorAuditForClient(
       summary: result.summary,
       categoryScores: result.categoryScores,
       rawReport: result.raw as unknown as Record<string, unknown>,
+      previewScreenshotPath: hasPreview ? previewRel : null,
+      progressJson: {
+        ...progressState,
+        phase: "done",
+        updatedAt: new Date().toISOString(),
+      },
       completedAt: new Date(),
       updatedAt: new Date(),
     })

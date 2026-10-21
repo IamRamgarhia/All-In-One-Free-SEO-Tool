@@ -15,6 +15,7 @@
 import {
   createAuditor,
   type AuditResult as SeomatorAuditResult,
+  type CategoryResult,
   type RuleResult,
 } from "@seomator/seo-audit";
 import type { AuditFinding, Severity } from "./audit";
@@ -78,6 +79,17 @@ export type RunSeomatorAuditOptions = {
   timeoutMs?: number;
   onPageComplete?: (url: string, pageNumber: number, totalPages: number) => void;
   onCrawlProgress?: (crawled: number) => void;
+  onCategoryStart?: (categoryId: string, categoryName: string) => void;
+  onCategoryComplete?: (
+    categoryId: string,
+    categoryName: string,
+    result: CategoryResult,
+  ) => void;
+  onRuleComplete?: (ruleId: string, ruleName: string) => void;
+  /** Absolute path for first desktop render screenshot (Playwright). */
+  previewScreenshotPath?: string;
+  /** Fired once after the landing PNG is written. */
+  onPreviewScreenshot?: () => void;
 };
 
 const CRITICAL_CATEGORIES = new Set(["core", "security", "technical", "crawl"]);
@@ -307,20 +319,34 @@ export async function runSeomatorAudit(
   const simulateInteraction =
     options.simulateInteraction ?? measureCwv;
 
+  let previewCaptured = false;
+
   const auditor = createAuditor({
     measureCwv,
     simulateInteraction,
     timeout: options.timeoutMs ?? 30_000,
     categories: options.categories ?? [],
+    onCategoryStart: options.onCategoryStart,
+    onCategoryComplete: options.onCategoryComplete,
+    onRuleComplete: options.onRuleComplete,
     browserFetcher: measureCwv
       ? async (pageUrl, timeout, renderOpts) => {
+          const wantPreview =
+            !previewCaptured &&
+            !renderOpts?.mobile &&
+            options.previewScreenshotPath;
           const result = await fetchPageWithBrowserPool(pageUrl, timeout, {
             mobile: renderOpts?.mobile,
             simulateInteraction:
               renderOpts?.simulateInteraction ?? simulateInteraction,
             signal: renderOpts?.signal,
             allowPrivate: true,
+            screenshotPath: wantPreview ? options.previewScreenshotPath : undefined,
           });
+          if (wantPreview) {
+            previewCaptured = true;
+            options.onPreviewScreenshot?.();
+          }
           // Map to SEOmator's PlaywrightFetchResult; omit diagnostics rather
           // than invent ConsoleMessageInfo fields we don't fully share.
           return {

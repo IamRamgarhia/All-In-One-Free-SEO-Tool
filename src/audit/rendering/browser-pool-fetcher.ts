@@ -6,6 +6,8 @@
  * Measures lab CWV including a synthetic INP click when requested.
  */
 
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import type { Page } from "playwright";
 import { withBrowserPage } from "@/lib/browser-pool";
 import { guardUrl, SsrfBlockedError } from "@/lib/url-guard";
@@ -39,6 +41,8 @@ export type BrowserPoolRenderOptions = {
   signal?: AbortSignal;
   /** Operator audits may target private LAN hosts. */
   allowPrivate?: boolean;
+  /** When set, capture a viewport PNG after render (SEOmator landing preview). */
+  screenshotPath?: string;
 };
 
 async function collectLabCwv(page: Page): Promise<BrowserPoolCwv> {
@@ -165,6 +169,16 @@ export async function fetchPageWithBrowserPool(
           }
         } catch {
           /* synthetic INP is best-effort */
+        }
+      }
+
+      if (options.screenshotPath) {
+        try {
+          await mkdir(path.dirname(options.screenshotPath), { recursive: true });
+          const png = await page.screenshot({ type: "png", fullPage: false });
+          await writeFile(options.screenshotPath, png);
+        } catch {
+          /* preview is best-effort */
         }
       }
 
