@@ -1,33 +1,26 @@
 # Technical audit engine
 
-SEO-Tool’s deep technical audit runs **SEOmator’s 373 rules / 20 categories**
-into the existing `/audits` tables (`kind = "seomator"`).
+SEO-Tool’s **production** deep technical audit is **SEOmator** (`@seomator/seo-audit`):
+**373 rules / 20 categories**, stored in `audits` with `kind = "seomator"`.
 
-## Current product path (corrected)
+## Product path
 
 | Mode | Behaviour |
 |---|---|
-| **Audit rapide** | SEOmator quick categories + CWV |
-| **Audit complet** | Full 373-rule crawl + CWV |
+| **Audit rapide** | SEOmator quick categories + CWV (`runSeomatorAuditForClient(..., "quick")`) |
+| **Audit complet** | Full 373-rule crawl + CWV (`"full"`) |
 
-- Playwright goes through the **shared browser-pool** (`src/audit/rendering/browser-pool-fetcher.ts`) with SSRF guard + synthetic INP when measuring CWV.
-- Results land in `audits` / `audit_issues` — same UI as `/audits/[id]`.
-- The incomplete hand-rolled Waves 1–5 rule set under `src/audit/rules` (~216 rules) and the parallel `native_audit_*` / `/audits/native` / `/api/v1/native-audits` surfaces were a mistake and are **no longer the primary path**. Native API/pages were removed; `native_audit_*` tables remain in the schema for cleanup in a follow-up migration.
+- Playwright uses the **shared browser-pool** (`src/audit/rendering/browser-pool-fetcher.ts`).
+- UI: `/audits/[id]` — category scores, caps, CWV, rule history, diff via `/audits/diff`.
+- Exports: `/audits/[id]/export?format=markdown|llm`.
 
-## `src/audit` still hosts
+## Cleanup (parallel native experiment removed)
 
-```
-src/audit/
-  rendering/   browser-pool fetcher (used by the live 373-rule run)
-  crawler/     fetch with status-bearing redirect chains (for remaining native rules)
-  rules/       incomplete Wave port — not the production engine
-  engine/      scoring helpers / leftover runner
-  storage/     native_audit_* writers (legacy; do not use for new audits)
-```
+The Waves 1–5 **native sidecar** (~216 rules, `/audits/native`, `/api/v1/native-audits`,
+`native_audit_*` tables) was a mistaken parallel path. It is **removed from the product**;
+migration `0074_drop_native_audit_engine.sql` drops the orphan tables.
 
-Long-term: vendor the full SEOmator rule sources into `src/audit/rules` and drop the `@seomator/seo-audit` npm dependency once parity tests stay green without it.
+## `src/audit` (sidecar only)
 
-## Scoring / UI
-
-Category scores, caps, CWV, and markdown summary are produced by the SEOmator
-result mapper (`src/lib/seomator-audit.ts`) and shown on `/audits/[id]`.
+Incomplete in-house rule port + crawler helpers — **not** used for client quick/full buttons.
+Long-term option: vendor full SEOmator sources here and drop the npm package when parity tests allow.

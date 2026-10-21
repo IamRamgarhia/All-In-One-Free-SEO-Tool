@@ -299,13 +299,37 @@ export default async function AuditDetailPage({
                 </p>
               </div>
             </div>
-            <Link
-              href={`/clients/${client.id}`}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-            >
-              <ExternalLink className="size-3" />
-              View client
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/clients/${client.id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              >
+                <ExternalLink className="size-3" />
+                View client
+              </Link>
+              {audit.kind === "seomator" && audit.status === "completed" ? (
+                <>
+                  <Link
+                    href={`/audits/${auditId}/export?format=markdown`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    Export Markdown
+                  </Link>
+                  <Link
+                    href={`/audits/${auditId}/export?format=llm`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    Export LLM
+                  </Link>
+                  <Link
+                    href={`/audits/c/${client.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    All audits
+                  </Link>
+                </>
+              ) : null}
+            </div>
           </div>
 
           <div className="relative flex items-center gap-5 rounded-2xl border border-white/10 bg-black/20 p-5 backdrop-blur">
