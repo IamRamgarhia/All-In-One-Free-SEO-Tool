@@ -22,6 +22,7 @@ import { Term } from "@/components/ui/term";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { FixWizard } from "@/components/fix-wizard";
 import { IssueExplainer } from "@/components/issue-explainer";
+import { getExplainer } from "@/lib/issue-explainers.server";
 import { isFixable } from "@/lib/fix-suggestions";
 import { confidenceReason } from "@/lib/audit-confidence";
 import {
@@ -648,6 +649,7 @@ export default async function AuditDetailPage({
                         <IssueExplainer
                           issueType={g.type}
                           url={g.affectedUrls[0]}
+                          explainer={getExplainer(g.type)}
                         />
                       </div>
 

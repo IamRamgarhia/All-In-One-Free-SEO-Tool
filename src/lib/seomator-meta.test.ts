@@ -8,7 +8,7 @@ import {
   seomatorCategories,
   verdictForScore,
 } from "./seomator-meta";
-import { getExplainer } from "./issue-explainers";
+import { getExplainer } from "./issue-explainers.server";
 import type { AuditResult } from "@seomator/seo-audit";
 
 describe("seomator-meta", () => {

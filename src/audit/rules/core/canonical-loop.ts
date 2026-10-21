@@ -1,4 +1,4 @@
-import { defineRule, fail, pass, unmeasured, warn } from "@/audit/engine/define-rule";
+import { defineRule, fail, pass, unmeasured } from "@/audit/engine/define-rule";
 import { normalizeUrl } from "@/audit/crawler/link-graph";
 
 export const canonicalLoopRule = defineRule({

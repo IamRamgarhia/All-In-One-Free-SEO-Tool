@@ -12,7 +12,10 @@ import {
   AlertTriangle,
   FlaskConical,
 } from "lucide-react";
-import { getExplainer } from "@/lib/issue-explainers";
+import {
+  getStaticExplainer,
+  type IssueExplainer,
+} from "@/lib/issue-explainers";
 import { REPO_NEW_ISSUE_URL } from "@/lib/repo";
 
 type Props = {
@@ -20,6 +23,8 @@ type Props = {
   url?: string;
   /** Render compact (just the button) or expanded by default. */
   defaultOpen?: boolean;
+  /** Resolved on the server for SEOmator rule ids (see issue-explainers.server). */
+  explainer?: IssueExplainer | null;
 };
 
 const CONFIDENCE_META = {
@@ -40,10 +45,18 @@ const CONFIDENCE_META = {
   },
 } as const;
 
-export function IssueExplainer({ issueType, url, defaultOpen = false }: Props) {
+export function IssueExplainer({
+  issueType,
+  url,
+  defaultOpen = false,
+  explainer: explainerProp,
+}: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
-  const explainer = getExplainer(issueType);
+  const explainer =
+    explainerProp !== undefined
+      ? explainerProp
+      : getStaticExplainer(issueType);
 
   if (!explainer) {
     // Say so, rather than rendering nothing.
