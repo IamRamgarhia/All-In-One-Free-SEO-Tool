@@ -25,7 +25,8 @@
       "monitoring": "Monitoring + history",
       "imports": "Imports",
       "deliverables": "Deliverables",
-      "account": "Account"
+      "account": "Account",
+      "viewer": "Your workspace"
     },
     "items": {
       "home": "Dashboard",

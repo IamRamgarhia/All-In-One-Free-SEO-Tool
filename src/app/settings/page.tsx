@@ -27,6 +27,8 @@ import { db } from "@/db/client";
 import { audits, clients, keywords, tasks, users } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { getSetting } from "@/lib/settings-store";
+import { currentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import {
   configuredProviders,
   getActiveProvider,
@@ -57,6 +59,9 @@ import { LocaleForm } from "./locale-form";
 import { getLocalePreference } from "./locale-actions";
 
 export default async function SettingsPage() {
+  const me = await currentUser();
+  if (me?.role === "viewer") redirect("/");
+
   const t = await getTranslations("settings");
   const locale = await getLocalePreference();
 

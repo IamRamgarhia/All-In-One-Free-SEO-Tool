@@ -25,7 +25,8 @@
       "monitoring": "Monitoring & historique",
       "imports": "Imports",
       "deliverables": "Livrables",
-      "account": "Compte"
+      "account": "Compte",
+      "viewer": "Votre espace"
     },
     "items": {
       "home": "Tableau de bord",

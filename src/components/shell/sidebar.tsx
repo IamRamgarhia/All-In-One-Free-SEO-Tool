@@ -6,13 +6,14 @@ import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
 import { useTranslations } from "next-intl";
 import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
-import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
+import {
+  navGroupsForRole,
+  type NavGroup,
+  type NavItem,
+} from "./nav-items";
 import { navItemMessageKey } from "@/i18n/nav";
 import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
 import { useStoredState } from "@/components/use-stored-state";
-
-/** Alias kept so the render code below reads unchanged. */
-const groups = NAV_GROUPS;
 
 /**
  * Per-group accent. Pre-baked Tailwind class strings so the JIT picks
@@ -147,8 +148,10 @@ export function Sidebar({
   unreadByHref,
   uiMode = "guided",
   hasAiKey = false,
+  userRole = null,
 }: {
   unreadByHref?: Record<string, number>;
+  userRole?: string | null;
   /**
    * Whether an AI key is configured. Decides if the amber "needs a key"
    * dot is worth showing — once a key exists nothing is blocked, so the
@@ -163,6 +166,7 @@ export function Sidebar({
    */
   uiMode?: "guided" | "pro";
 } = {}) {
+  const groups = navGroupsForRole(userRole);
   const pathname = usePathname();
   const t = useTranslations("nav");
   const tItems = useTranslations("nav.items");

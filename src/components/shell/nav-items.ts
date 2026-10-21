@@ -249,3 +249,36 @@ export const NAV_GROUPS: NavGroup[] = [
 
 /** Every nav item, flattened — used by the mobile drawer's filter. */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+
+const VIEWER_HREFS = new Set([
+  "/",
+  "/welcome",
+  "/clients",
+  "/audits",
+  "/tasks",
+  "/reports",
+  "/keywords",
+  "/morning",
+  "/digest",
+]);
+
+/**
+ * Client viewers (role `viewer`) only see assigned clients in data queries;
+ * the nav should not advertise admin surfaces they cannot use.
+ */
+export function navGroupsForRole(role: string | null | undefined): NavGroup[] {
+  if (role !== "viewer") return NAV_GROUPS;
+
+  const items = NAV_GROUPS.flatMap((g) => g.items).filter(
+    (it) => !it.external && VIEWER_HREFS.has(it.href),
+  );
+
+  return [
+    {
+      id: "viewer",
+      title: "Your workspace",
+      pinned: true,
+      items,
+    },
+  ];
+}
