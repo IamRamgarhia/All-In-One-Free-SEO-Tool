@@ -1,0 +1,183 @@
+{
+  "categories": {
+    "citability": {
+      "weight": 25,
+      "signals": {
+        "citability.self_containment": {
+          "max": 25,
+          "class": "heuristic"
+        },
+        "citability.answer_first": {
+          "max": 20,
+          "class": "heuristic"
+        },
+        "citability.structure": {
+          "max": 15,
+          "class": "deterministic"
+        },
+        "citability.evidence_density": {
+          "max": 15,
+          "class": "heuristic"
+        },
+        "citability.extractability": {
+          "max": 15,
+          "class": "deterministic"
+        },
+        "citability.attribution": {
+          "max": 10,
+          "class": "deterministic",
+          "requires": "an article"
+        },
+        "citability.render_parity": {
+          "max": 10,
+          "class": "heuristic",
+          "requires": "browser"
+        }
+      }
+    },
+    "technical": {
+      "weight": 15,
+      "signals": {
+        "technical.crawler_access": {
+          "max": 25,
+          "class": "deterministic"
+        },
+        "technical.indexability": {
+          "max": 20,
+          "class": "deterministic"
+        },
+        "technical.metadata": {
+          "max": 20,
+          "class": "deterministic"
+        },
+        "technical.status_health": {
+          "max": 15,
+          "class": "deterministic"
+        },
+        "technical.transport_security": {
+          "max": 10,
+          "class": "deterministic"
+        },
+        "technical.url_structure": {
+          "max": 10,
+          "class": "heuristic"
+        }
+      }
+    },
+    "schema": {
+      "weight": 10,
+      "signals": {
+        "schema.presence": {
+          "max": 30,
+          "class": "deterministic"
+        },
+        "schema.validity": {
+          "max": 25,
+          "class": "deterministic"
+        },
+        "schema.organization": {
+          "max": 20,
+          "class": "deterministic"
+        },
+        "schema.article": {
+          "max": 15,
+          "class": "deterministic",
+          "requires": "an article"
+        },
+        "schema.breadth": {
+          "max": 10,
+          "class": "heuristic"
+        }
+      }
+    },
+    "brand": {
+      "weight": 20,
+      "signals": {
+        "brand.encyclopedic": {
+          "max": 35,
+          "class": "live"
+        },
+        "brand.community": {
+          "max": 25,
+          "class": "live"
+        },
+        "brand.video": {
+          "max": 20,
+          "class": "live",
+          "requires": "youtube_api_key"
+        },
+        "brand.consistency": {
+          "max": 20,
+          "class": "heuristic",
+          "requires": "site"
+        }
+      }
+    },
+    "content": {
+      "weight": 20,
+      "signals": {
+        "content.depth": {
+          "max": 25,
+          "class": "heuristic"
+        },
+        "content.expertise": {
+          "max": 25,
+          "class": "deterministic",
+          "requires": "an article"
+        },
+        "content.freshness": {
+          "max": 25,
+          "class": "deterministic"
+        },
+        "content.readability": {
+          "max": 25,
+          "class": "heuristic"
+        }
+      },
+      "advisory": {
+        "content.advisory.experience": {
+          "question": "Does the page show first-hand experience of the thing it describes?",
+          "rubric": [
+            "Names specific situations, tools, versions or constraints the author met.",
+            "Reports what happened, including what did not work.",
+            "Could not have been written by summarising other pages on the topic."
+          ]
+        },
+        "content.advisory.helpfulness": {
+          "question": "Would a reader with this question leave satisfied, or keep searching?",
+          "rubric": [
+            "Answers the question the title asks, rather than the adjacent easier one.",
+            "States limits and cases where the advice does not apply.",
+            "Does not require reading another page to be actionable."
+          ]
+        }
+      }
+    },
+    "platform": {
+      "weight": 10,
+      "comment": "Deliberately narrow. Anything already scored elsewhere is left out: crawler access is technical, answer-shaped types are schema.breadth, and content quality is content. What remains is the per-surface plumbing nothing else looks at.",
+      "signals": {
+        "platform.llms_txt": {
+          "max": 35,
+          "class": "deterministic"
+        },
+        "platform.social_cards": {
+          "max": 30,
+          "class": "deterministic"
+        },
+        "platform.feeds": {
+          "max": 20,
+          "class": "deterministic"
+        },
+        "platform.hreflang": {
+          "max": 15,
+          "class": "deterministic",
+          "requires": "more than one language"
+        }
+      }
+    }
+  },
+  "planned_categories": {
+    "comment": "Declared so the divergence table can reference them before they ship. Absent from every computation until their milestone lands."
+  }
+}

@@ -36,6 +36,7 @@ import {
 import { setStatusForType } from "../issue-actions";
 import { SeomatorAuditProgressLive } from "@/components/audits/seomator-audit-progress";
 import { SeomatorGeoPanel } from "@/components/audits/seomator-geo-panel";
+import { GeoAuditPanel } from "@/components/audits/geo-audit-panel";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -132,6 +133,8 @@ export default async function AuditDetailPage({
       targetUrl: audits.targetUrl,
       summary: audits.summary,
       categoryScores: audits.categoryScores,
+      geoScore: audits.geoScore,
+      geoEnvelopeJson: audits.geoEnvelopeJson,
       rawReport: audits.rawReport,
       previewScreenshotPath: audits.previewScreenshotPath,
       startedAt: audits.startedAt,
@@ -258,7 +261,8 @@ export default async function AuditDetailPage({
     .filter(
       (i) =>
         i.category === "geo" ||
-        (typeof i.type === "string" && i.type.startsWith("seomator:geo-")),
+        (typeof i.type === "string" &&
+          (i.type.startsWith("geo:") || i.type.startsWith("seomator:geo-"))),
     )
     .map((i) => ({
       type: i.type,
@@ -475,6 +479,15 @@ export default async function AuditDetailPage({
         <SeomatorGeoPanel
           categoryScores={audit.categoryScores}
           geoIssues={geoIssues}
+        />
+      ) : null}
+
+      {audit.kind === "seomator" &&
+      audit.status === "completed" &&
+      (audit.geoScore != null || audit.geoEnvelopeJson) ? (
+        <GeoAuditPanel
+          geoScore={audit.geoScore}
+          envelope={audit.geoEnvelopeJson}
         />
       ) : null}
 

@@ -648,8 +648,8 @@ export default async function ClientDetailPage({
                     <SubmitButton
                       icon={<Play className="size-3.5" />}
                       pendingChildren="Running quick audit…"
-                      pendingToast="Starting audit rapide"
-                      pendingToastDescription="373-rule engine — core/tech/security/crawl/perf + CWV via browser-pool."
+                      pendingToast="Starting SEO + GEO quick audit"
+                      pendingToastDescription="SEOmator core/tech/security/crawl/perf + CWV, then native GEO scoring on the start URL."
                     >
                       Audit rapide
                     </SubmitButton>
@@ -659,8 +659,8 @@ export default async function ClientDetailPage({
                       variant="outline"
                       icon={<Play className="size-3.5" />}
                       pendingChildren="Running full audit…"
-                      pendingToast="Starting audit complet"
-                      pendingToastDescription="Full 373-rule technical audit with Playwright CWV (incl. synthetic INP)."
+                      pendingToast="Starting SEO + GEO full audit"
+                      pendingToastDescription="Full 373-rule SEOmator crawl + Playwright CWV, then GEO site crawl (up to 20 pages)."
                     >
                       Audit complet
                     </SubmitButton>

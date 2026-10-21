@@ -31,6 +31,7 @@ import {
 } from "@/lib/seomator-audit-progress";
 import { QUICK_AUDIT_CATEGORIES } from "@/lib/seomator-meta";
 import { existsSync } from "node:fs";
+import { runGeoSiteAudit } from "@/lib/geo-audit";
 
 const SCORE_DROP_THRESHOLD = 5;
 const STALLED_AFTER_MS = 10 * 60 * 1000;
@@ -518,6 +519,18 @@ export async function runSeomatorAuditForClient(
 
   const realFindings = withoutInfrastructure(result.findings);
 
+  let geoResult: Awaited<ReturnType<typeof runGeoSiteAudit>> | null = null;
+  try {
+    geoResult = await runGeoSiteAudit(client.url, {
+      mode: isQuick ? "quick" : "full",
+      maxPages: isQuick ? 8 : 20,
+    });
+  } catch {
+    geoResult = null;
+  }
+
+  const geoFindings = geoResult?.findings ?? [];
+
   if (realFindings.length > 0) {
     const priorIssues = await db
       .select({
@@ -601,18 +614,45 @@ export async function runSeomatorAuditForClient(
     }
   }
 
+  if (geoFindings.length > 0) {
+    await db.insert(auditIssues).values(
+      geoFindings.map((f) => ({
+        auditId: auditRow.id,
+        type: `geo:${f.id}`,
+        severity: f.severity as "critical" | "high" | "medium" | "low",
+        url: f.pages[0] ?? client.url,
+        message: f.title,
+        category: "geo",
+        fixSteps: f.remediation,
+        confidence: "probably" as const,
+        aiGenerated: false,
+      })),
+    );
+  }
+
   const previewRel = auditPreviewRelativePath(auditRow.id);
   const hasPreview = existsSync(auditPreviewAbsolutePath(auditRow.id));
+
+  const geoSummaryLine =
+    geoResult != null
+      ? `\n\n**GEO composite:** ${geoResult.composite}/100 (${Object.entries(
+          geoResult.categoryScores,
+        )
+          .map(([k, v]) => `${k} ${v}`)
+          .join(", ")})`
+      : "";
 
   await db
     .update(audits)
     .set({
       status: "completed",
       score: result.score,
-      issuesCount: realFindings.length,
+      issuesCount: realFindings.length + geoFindings.length,
       pagesCrawled: result.pagesCrawled,
-      summary: result.summary,
+      summary: `${result.summary ?? ""}${geoSummaryLine}`.trim(),
       categoryScores: result.categoryScores,
+      geoScore: geoResult?.composite ?? null,
+      geoEnvelopeJson: geoResult?.envelope ?? null,
       rawReport: result.raw as unknown as Record<string, unknown>,
       previewScreenshotPath: hasPreview ? previewRel : null,
       progressJson: {
@@ -653,18 +693,28 @@ export async function runSeomatorAuditForClient(
 
   notify({
     title: `${isScoreDrop ? "Audit score dropped" : "Audit completed"} — ${client.name}`,
-    body: `Technical audit (${engineLabel}) on ${client.url}: ${score}/100, ${realFindings.length} issues.`,
+    body: `SEO + GEO audit (${engineLabel}) on ${client.url}: SEO ${score}/100${
+      geoResult != null ? `, GEO ${geoResult.composite}/100` : ""
+    }, ${realFindings.length + geoFindings.length} issues.`,
     level: isScoreDrop ? "warning" : "success",
     fields: [
-      { label: "Score", value: `${score}/100` },
-      { label: "Issues", value: `${realFindings.length} found` },
+      { label: "SEO score", value: `${score}/100` },
+      ...(geoResult != null
+        ? [{ label: "GEO score", value: `${geoResult.composite}/100` } satisfies NotificationField]
+        : []),
+      {
+        label: "Issues",
+        value: `${realFindings.length + geoFindings.length} found`,
+      },
       { label: "Engine", value: engineLabel },
     ] satisfies NotificationField[],
   }).catch(() => {});
 
   await logActivity({
     kind: "audit.completed",
-    message: `Audit #${auditRow.id} for ${client.name} — ${engineLabel} ${score}/100, ${realFindings.length} issues.`,
+    message: `Audit #${auditRow.id} for ${client.name} — ${engineLabel} SEO ${score}/100${
+      geoResult != null ? `, GEO ${geoResult.composite}/100` : ""
+    }, ${realFindings.length + geoFindings.length} issues.`,
     level: isScoreDrop ? "warning" : "success",
     clientId,
     entityType: "audit",
@@ -678,7 +728,8 @@ export async function runSeomatorAuditForClient(
       auditId: auditRow.id,
       score,
       previousScore,
-      issuesCount: realFindings.length,
+      issuesCount: realFindings.length + geoFindings.length,
+      geoScore: geoResult?.composite ?? null,
       topIssue: topIssue ?? "",
       engine: "seomator",
       mode: isQuick ? "quick" : "full",

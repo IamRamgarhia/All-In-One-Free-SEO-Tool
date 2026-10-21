@@ -8,7 +8,8 @@ import { db } from "@/db/client";
 import { audits, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Play } from "lucide-react";
 import {
   runAuditForClient,
   runSeomatorAuditForClient,
@@ -99,23 +100,34 @@ export default async function PerClientAuditsPage({
 
       <PageHeader
         title={`Audits · ${client.name}`}
-        description="Technical audits run on SEOmator (373 rules). Agent crawl remains available for autopilot auto-fixes. Same history, same issue board."
+        description="SEO + GEO audits: SEOmator (373 rules) plus native generative-engine scoring. Agent crawl remains available for autopilot auto-fixes."
         icon={ClipboardList}
         accent="cyan"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <form action={runDeepAction}>
-              <Button type="submit">Run audit</Button>
+              <SubmitButton
+                icon={<Play className="size-3.5" />}
+                pendingToast="Starting SEO + GEO full audit"
+                pendingToastDescription="SEOmator deep crawl + native GEO scoring (up to 20 pages)."
+              >
+                Run audit
+              </SubmitButton>
             </form>
             <form action={runQuickAction}>
-              <Button type="submit" variant="outline">
+              <SubmitButton
+                variant="outline"
+                icon={<Play className="size-3.5" />}
+                pendingToast="Starting SEO + GEO quick audit"
+                pendingToastDescription="SEOmator smoke categories + GEO on the start URL."
+              >
                 Quick audit
-              </Button>
+              </SubmitButton>
             </form>
             <form action={runCrawlAction}>
-              <Button type="submit" variant="outline">
+              <SubmitButton variant="outline" pendingToast="Starting agent crawl">
                 Agent crawl
-              </Button>
+              </SubmitButton>
             </form>
           </div>
         }
