@@ -1,6 +1,9 @@
 import { defineRule, fail, pass, warn } from "@/audit/engine/define-rule";
 import { registerRule } from "@/audit/engine/rule-registry";
 
+const PERMANENT = new Set([301, 308]);
+const TEMPORARY = new Set([302, 303, 307]);
+
 export const redirectTypeRule = defineRule({
   id: "redirect-type",
   category: "redirect",
@@ -10,16 +13,28 @@ export const redirectTypeRule = defineRule({
   description: "Temporary 302/307 should not be used for permanent moves",
   recommendation: "Use 301 (or 308) for permanent URL changes.",
   check: async ({ response }) => {
-    if (!response.redirected || response.redirectChain.length === 0) {
-      return pass("No redirects on this request");
+    const hops = response.redirectChain.filter(
+      (h) => PERMANENT.has(h.statusCode) || TEMPORARY.has(h.statusCode),
+    );
+    if (hops.length === 0) {
+      return pass("Page is not a redirect");
     }
-    // We only know final status after follow; treat multi-hop as worth reviewing.
-    if (response.redirectChain.length >= 2) {
-      return warn("Multi-hop redirect before final URL", {
-        chain: response.redirectChain,
-      });
+    const statusCodes = hops.map((h) => h.statusCode);
+    const temporary = hops.filter((h) => TEMPORARY.has(h.statusCode));
+    if (temporary.length === 0) {
+      return pass(
+        `Permanent redirect (${statusCodes.join(" → ")}) correctly used`,
+        { statusCodes, type: "permanent" },
+      );
     }
-    return pass("Single redirect hop to final URL");
+    return warn(
+      `Temporary redirect (${temporary.map((h) => h.statusCode).join(", ")}) detected; use 301 or 308 for permanent moves`,
+      {
+        statusCodes,
+        type: "temporary",
+        temporaryHops: temporary,
+      },
+    );
   },
 });
 
@@ -32,7 +47,10 @@ export const redirectLoopRule = defineRule({
   description: "Detects loops while resolving the page URL",
   recommendation: "Break circular redirects between URLs.",
   check: async ({ response, page }) => {
-    const chain = [...response.redirectChain, response.finalUrl];
+    const chain = [
+      ...response.redirectChain.map((h) => h.url),
+      response.finalUrl,
+    ];
     const seen = new Set<string>();
     for (const url of chain) {
       const key = url.split("#")[0] ?? url;

@@ -41,8 +41,6 @@ import {
   runAuditForClient,
   runSeomatorAuditForClient,
 } from "@/app/audits/actions";
-import { runNativeAuditForClient } from "@/app/audits/native-actions";
-import { listNativeAudits } from "@/audit/storage/audit-repository";
 import { ShareCard } from "./share-card";
 import { ClientGooglePanel } from "./google-panel";
 import { PerClientGoogleConnect } from "./per-client-google";
@@ -308,10 +306,8 @@ export default async function ClientDetailPage({
   const redetectAction = redetectTechStack.bind(null, client.id);
   const refreshMetadataAction = refreshClientMetadataForm.bind(null, client.id);
   const runAction = runAuditForClient.bind(null, client.id);
-  const runNativeQuick = runNativeAuditForClient.bind(null, client.id, "quick");
-  const runNativeFull = runNativeAuditForClient.bind(null, client.id, "full");
+  const runQuickAction = runSeomatorAuditForClient.bind(null, client.id, "quick");
   const runDeepAction = runSeomatorAuditForClient.bind(null, client.id, "full");
-  const recentNative = await listNativeAudits(client.id, 5);
   const applyTemplatesAction = applyNicheTemplates.bind(null, client.id);
   const applyStackAction = applyStackTemplates.bind(null, client.id);
   const { matched: matchedStacks } = pickStackTemplates(client.techStack);
@@ -647,37 +643,26 @@ export default async function ClientDetailPage({
               {/* Hairline + action row */}
               <div className="mt-7 border-t border-border pt-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Primary audit = SEOmator (373 rules). Same /audits pipeline. */}
-                  <form action={runNativeQuick}>
+                  {/* Primary audit = SEOmator 373 rules → same /audits tables. */}
+                  <form action={runQuickAction}>
                     <SubmitButton
                       icon={<Play className="size-3.5" />}
                       pendingChildren="Running quick audit…"
-                      pendingToast="Starting native quick audit"
-                      pendingToastDescription="Native Waves 1–5 — HTML only (no Playwright). All categories; JS/CWV unmeasured."
+                      pendingToast="Starting audit rapide"
+                      pendingToastDescription="373-rule engine — core/tech/security/crawl/perf + CWV via browser-pool."
                     >
                       Audit rapide
-                    </SubmitButton>
-                  </form>
-                  <form action={runNativeFull}>
-                    <SubmitButton
-                      variant="outline"
-                      icon={<Play className="size-3.5" />}
-                      pendingChildren="Running full audit…"
-                      pendingToast="Starting native full audit"
-                      pendingToastDescription="Waves 1–5 + Playwright render/CWV on start pages."
-                    >
-                      Audit complet
                     </SubmitButton>
                   </form>
                   <form action={runDeepAction}>
                     <SubmitButton
                       variant="outline"
                       icon={<Play className="size-3.5" />}
-                      pendingChildren="Running SEOmator…"
-                      pendingToast="Starting SEOmator bridge"
-                      pendingToastDescription="Temporary npm bridge (373 rules) until native waves finish."
+                      pendingChildren="Running full audit…"
+                      pendingToast="Starting audit complet"
+                      pendingToastDescription="Full 373-rule technical audit with Playwright CWV (incl. synthetic INP)."
                     >
-                      SEOmator (bridge)
+                      Audit complet
                     </SubmitButton>
                   </form>
                   <form action={runAction}>
@@ -941,7 +926,7 @@ export default async function ClientDetailPage({
             </p>
           </header>
           <div className="relative mt-5 grid gap-3 sm:grid-cols-3">
-            <form action={runNativeQuick} className="contents">
+            <form action={runQuickAction} className="contents">
               <button
                 type="submit"
                 className="group flex flex-col items-start gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/[0.06] p-4 text-left transition-colors hover:bg-cyan-500/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -952,7 +937,7 @@ export default async function ClientDetailPage({
                 <div>
                   <div className="text-sm font-semibold">Audit rapide</div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    Native Waves 1–5 HTML — no Playwright.
+                    373-rule technical audit (quick categories + CWV).
                   </div>
                 </div>
                 <span className="mt-1 text-[11px] font-medium text-cyan-300 transition-transform group-hover:translate-x-0.5">
@@ -1262,49 +1247,6 @@ export default async function ClientDetailPage({
             added. Tasks include actionable next steps with the exact plugin /
             setting / step for the detected platform.
           </p>
-        </div>
-      </section>
-
-      {/* NATIVE AUDIT HISTORY */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
-        <header className="relative border-b border-white/5 px-5 py-4">
-          <h2 className="flex items-center gap-2 text-base font-semibold">
-            <ClipboardList className="size-4 text-cyan-300" />
-            Native audits (Waves 1–5)
-          </h2>
-        </header>
-        <div className="relative">
-          {recentNative.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-              No native audits yet. Launch Audit rapide or Audit complet above.
-            </p>
-          ) : (
-            <ul className="divide-y divide-white/5">
-              {recentNative.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center justify-between gap-3 px-5 py-3.5 text-sm hover:bg-white/[0.03]"
-                >
-                  <Link
-                    href={`/audits/native/${a.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    Native #{a.id}
-                    <span className="ml-2 text-[10px] font-normal text-muted-foreground">
-                      {a.mode}
-                    </span>
-                  </Link>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{a.issueCount} issues</span>
-                    <span>{a.globalScore ?? "—"}/100</span>
-                    <span>
-                      {(a.finishedAt ?? a.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </section>
 

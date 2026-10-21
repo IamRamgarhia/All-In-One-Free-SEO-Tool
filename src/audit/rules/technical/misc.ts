@@ -87,7 +87,27 @@ export const trailingSlashRule = defineRule({
   description: "Final URL slash style should be stable after redirects",
   recommendation: "Pick a trailing-slash policy and enforce it with redirects.",
   check: async ({ response }) => {
-    if (!response.redirected) return pass("No redirect to evaluate");
-    return pass("Redirect settled on a final URL", { finalUrl: response.finalUrl });
+    try {
+      const req = new URL(response.url);
+      const fin = new URL(response.finalUrl);
+      const reqSlash = req.pathname.endsWith("/") && req.pathname !== "/";
+      const finSlash = fin.pathname.endsWith("/") && fin.pathname !== "/";
+      const reqBare = req.pathname.replace(/\/$/, "") || "/";
+      const finBare = fin.pathname.replace(/\/$/, "") || "/";
+      if (reqBare === finBare && reqSlash !== finSlash) {
+        return warn("Trailing-slash redirect between equivalent paths", {
+          from: req.pathname,
+          to: fin.pathname,
+        });
+      }
+      if (!response.redirected) {
+        return pass("No redirect to evaluate", { path: fin.pathname });
+      }
+      return pass("Trailing slash is consistent with the final URL", {
+        finalUrl: response.finalUrl,
+      });
+    } catch {
+      return pass("Could not evaluate trailing slash");
+    }
   },
 });

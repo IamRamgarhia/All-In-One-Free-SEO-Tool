@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import type { CrawledPage, LinkInfo } from "@/audit/types";
+import type { CrawledPage, LinkInfo, RedirectHop } from "@/audit/types";
 
 export function parseHtmlPage(input: {
   url: string;
@@ -8,7 +8,7 @@ export function parseHtmlPage(input: {
   html: string;
   depth: number;
   headers?: Record<string, string>;
-  redirectChain?: string[];
+  redirectChain?: RedirectHop[];
   timingMs?: number;
 }): CrawledPage {
   const $ = cheerio.load(input.html);

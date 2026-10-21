@@ -32,6 +32,7 @@ import {
   type CwvSnapshot,
   type ScoreCapInfo,
 } from "@/lib/seomator-meta";
+import { fetchPageWithBrowserPool } from "@/audit/rendering/browser-pool-fetcher";
 
 export type SeomatorFinding = AuditFinding & {
   category: string;
@@ -67,6 +68,11 @@ export type RunSeomatorAuditOptions = {
   concurrency?: number;
   /** Core Web Vitals via Playwright (default true). */
   measureCwv?: boolean;
+  /**
+   * Synthetic click during render so INP can be measured (lab-only).
+   * Default true when measureCwv is on.
+   */
+  simulateInteraction?: boolean;
   /** Limit to category ids, e.g. ["core","security","perf"]. Empty = all. */
   categories?: string[];
   timeoutMs?: number;
@@ -286,6 +292,9 @@ export function seomatorFindingsToTasks(
 
 /**
  * Run a SEOmator audit against a live URL.
+ *
+ * Playwright goes through the app browser-pool (queue, stealth, SSRF guard)
+ * instead of SEOmator's private Chromium launch — same 373 rules, one pool.
  */
 export async function runSeomatorAudit(
   url: string,
@@ -295,11 +304,33 @@ export async function runSeomatorAudit(
   const maxPages = options.maxPages ?? 20;
   const concurrency = options.concurrency ?? 3;
   const measureCwv = options.measureCwv ?? true;
+  const simulateInteraction =
+    options.simulateInteraction ?? measureCwv;
 
   const auditor = createAuditor({
     measureCwv,
+    simulateInteraction,
     timeout: options.timeoutMs ?? 30_000,
     categories: options.categories ?? [],
+    browserFetcher: measureCwv
+      ? async (pageUrl, timeout, renderOpts) => {
+          const result = await fetchPageWithBrowserPool(pageUrl, timeout, {
+            mobile: renderOpts?.mobile,
+            simulateInteraction:
+              renderOpts?.simulateInteraction ?? simulateInteraction,
+            signal: renderOpts?.signal,
+            allowPrivate: true,
+          });
+          // Map to SEOmator's PlaywrightFetchResult; omit diagnostics rather
+          // than invent ConsoleMessageInfo fields we don't fully share.
+          return {
+            html: result.html,
+            statusCode: result.statusCode,
+            responseTime: result.responseTime,
+            cwv: result.cwv,
+          };
+        }
+      : undefined,
     onPageComplete: options.onPageComplete,
     onCrawlProgress: options.onCrawlProgress
       ? (progress) => {

@@ -13,13 +13,22 @@ export type RuleSeverity = "critical" | "high" | "medium" | "low" | "info";
 /** SEOmator used `not-measured`; we use `unmeasured` as specified. */
 export type RuleStatus = "pass" | "warn" | "fail" | "unmeasured";
 
+/** One hop in a manually followed redirect chain (status included for SEO checks). */
+export type RedirectHop = {
+  url: string;
+  statusCode: number;
+};
+
 export type HttpResponse = {
   url: string;
   finalUrl: string;
   status: number;
   headers: Record<string, string>;
   redirected: boolean;
-  redirectChain: string[];
+  /** Hops with HTTP status — required for redirect-type (301 vs 302). */
+  redirectChain: RedirectHop[];
+  /** Multi-value Set-Cookie when the runtime exposes them. */
+  setCookie?: string[];
   timingMs: number;
 };
 
@@ -46,7 +55,7 @@ export type CrawledPage = {
   rawHtml: string;
   renderedHtml?: string;
   headers: Record<string, string>;
-  redirectChain: string[];
+  redirectChain: RedirectHop[];
   timingMs: number;
   title: string | null;
   metaDescription: string | null;
