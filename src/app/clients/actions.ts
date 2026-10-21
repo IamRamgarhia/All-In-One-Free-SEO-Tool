@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { clients, type ClientSocialLinks } from "@/db/schema";
+import { canEdit, canSeeClient, currentUser } from "@/lib/auth";
+import { clientUrlKey } from "@/lib/client-url-key";
 import { detectTechStack } from "@/lib/tech-detect";
 import { fetchSiteMetadata, type SiteMetadata } from "@/lib/site-metadata";
 import { logActivity } from "@/lib/activity";
@@ -16,6 +18,17 @@ import {
 } from "@/lib/apply-task-templates";
 
 const niches = ["local", "ecommerce", "saas", "blog", "services"] as const;
+
+function findClientByUrlKey(url: string): { id: number; name: string } | null {
+  const key = clientUrlKey(url);
+  if (!key) return null;
+  for (const row of db.select({ id: clients.id, name: clients.name, url: clients.url }).from(clients).all()) {
+    if (clientUrlKey(row.url) === key) {
+      return { id: row.id, name: row.name };
+    }
+  }
+  return null;
+}
 
 const optionalString = z
   .string()
@@ -80,7 +93,7 @@ export async function fetchClientMetadata(
 
 export type CreateClientResult =
   | { ok: true; id: number }
-  | { ok: false; errors: Record<string, string> };
+  | { ok: false; errors: Record<string, string>; existingClientId?: number };
 
 export async function createClient(
   _prev: CreateClientResult | null,
@@ -112,6 +125,17 @@ export async function createClient(
       if (!errors[key]) errors[key] = issue.message;
     }
     return { ok: false, errors };
+  }
+
+  const existing = findClientByUrlKey(parsed.data.url);
+  if (existing) {
+    return {
+      ok: false,
+      errors: {
+        url: `This site is already in your workspace as “${existing.name}” (client #${existing.id}).`,
+      },
+      existingClientId: existing.id,
+    };
   }
 
   let detectedStack: string[] | null = null;
@@ -416,7 +440,7 @@ export async function refreshClientMetadataForm(clientId: number): Promise<void>
 
 export type QuickAddResult =
   | { ok: true; id: number }
-  | { ok: false; error: string };
+  | { ok: false; error: string; existingClientId?: number };
 
 /**
  * One-shot client onboarding: take a URL, do everything else automatically.
@@ -429,6 +453,15 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
   const url = rawUrl?.trim();
   if (!url) return { ok: false, error: "URL is required" };
   const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+
+  const existingQuick = findClientByUrlKey(normalized);
+  if (existingQuick) {
+    return {
+      ok: false,
+      error: `This site is already in your workspace as “${existingQuick.name}” (client #${existingQuick.id}).`,
+      existingClientId: existingQuick.id,
+    };
+  }
 
   // Fetch metadata + tech in parallel — both best-effort.
   const [meta, techDetection] = await Promise.all([
@@ -524,9 +557,26 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
   return { ok: true, id: row.id };
 }
 
-export async function deleteClient(id: number) {
-  await db.delete(clients).where(eq(clients.id, id));
+export async function deleteClient(
+  id: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await currentUser();
+  if (me && !canEdit(me.role)) {
+    return { ok: false, error: "You have read-only access and cannot delete clients." };
+  }
+  if (me && !(await canSeeClient(me, id))) {
+    return { ok: false, error: "You do not have access to this client." };
+  }
+
+  try {
+    await db.delete(clients).where(eq(clients.id, id));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Delete failed";
+    return { ok: false, error: msg };
+  }
+
   revalidatePath("/");
   revalidatePath("/clients");
-  redirect("/clients");
+  revalidatePath(`/clients/${id}`);
+  return { ok: true };
 }

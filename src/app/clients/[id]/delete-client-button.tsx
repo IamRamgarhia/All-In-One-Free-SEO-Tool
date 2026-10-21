@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deleteClient } from "../actions";
@@ -25,12 +26,16 @@ export function DeleteClientButton({
   clientName: string;
   counts: CountsToDelete;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [typedName, setTypedName] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const canDelete = typedName.trim().toLowerCase() === clientName.toLowerCase();
+  const normalizeName = (s: string) =>
+    s.trim().replace(/\s+/g, " ").toLowerCase();
+  const canDelete =
+    normalizeName(typedName) === normalizeName(clientName);
 
   const totalRows =
     counts.audits +
@@ -47,12 +52,14 @@ export function DeleteClientButton({
     if (!canDelete || pending) return;
     setError(null);
     startTransition(async () => {
-      try {
-        await deleteClient(clientId);
-        // Server action redirects on success — this line typically unreached
-      } catch (err) {
-        setError((err as Error).message || "Delete failed");
+      const result = await deleteClient(clientId);
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
+      setOpen(false);
+      router.push("/clients");
+      router.refresh();
     });
   }
 
@@ -77,11 +84,11 @@ export function DeleteClientButton({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:p-4"
           onClick={() => !pending && setOpen(false)}
         >
           <div
-            className="w-full max-w-lg overflow-hidden rounded-2xl border border-rose-500/30 bg-card shadow-2xl shadow-rose-500/10"
+            className="max-h-[min(90dvh,640px)] w-full max-w-lg overflow-y-auto rounded-2xl border border-rose-500/30 bg-card shadow-2xl shadow-rose-500/10"
             onClick={(e) => e.stopPropagation()}
           >
             <header className="flex items-center gap-2 border-b border-rose-500/20 bg-rose-500/[0.06] px-5 py-3">
