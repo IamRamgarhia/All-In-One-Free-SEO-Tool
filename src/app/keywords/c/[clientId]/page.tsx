@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { desc, eq, asc, inArray } from "drizzle-orm";
 import { Search, X, Camera, Activity } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import { clients, keywords, keywordRankings } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
@@ -47,7 +48,7 @@ function PositionBadge({ position }: { position: number | null | undefined }) {
   );
 }
 
-function SerpFeaturePills({
+async function SerpFeaturePills({
   hasAiOverview,
   hasFeaturedSnippet,
   hasLocalPack,
@@ -58,11 +59,12 @@ function SerpFeaturePills({
   hasLocalPack: boolean;
   paaCount: number;
 }) {
+  const t = await getTranslations("keywords");
   const any = hasAiOverview || hasFeaturedSnippet || hasLocalPack || paaCount > 0;
   if (!any) {
     return (
       <span className="text-[11px] text-muted-foreground/50">
-        — run SERP scan
+        {t("runSerpScan")}
       </span>
     );
   }
@@ -70,7 +72,7 @@ function SerpFeaturePills({
     <div className="flex flex-wrap gap-1">
       {hasAiOverview && (
         <span
-          title="Google AI Overview present for this query"
+          title={t("aioTitle")}
           className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-300 ring-1 ring-inset ring-violet-500/30"
         >
           AIO
@@ -78,7 +80,7 @@ function SerpFeaturePills({
       )}
       {hasFeaturedSnippet && (
         <span
-          title="Featured snippet present"
+          title={t("fsTitle")}
           className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-inset ring-emerald-500/30"
         >
           FS
@@ -86,7 +88,7 @@ function SerpFeaturePills({
       )}
       {hasLocalPack && (
         <span
-          title="Local 3-pack present"
+          title={t("lpTitle")}
           className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-300 ring-1 ring-inset ring-amber-500/30"
         >
           LP
@@ -94,7 +96,7 @@ function SerpFeaturePills({
       )}
       {paaCount > 0 && (
         <span
-          title={`${paaCount} People-Also-Ask questions`}
+          title={t("paaTitle", { count: paaCount })}
           className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-cyan-300 ring-1 ring-inset ring-cyan-500/30"
         >
           PAA·{paaCount}
@@ -109,6 +111,7 @@ export default async function PerClientKeywordsPage({
 }: {
   params: Promise<{ clientId: string }>;
 }) {
+  const t = await getTranslations("keywords");
   const { clientId: cidStr } = await params;
   const clientId = Number(cidStr);
   if (!Number.isFinite(clientId)) notFound();
@@ -181,13 +184,13 @@ export default async function PerClientKeywordsPage({
   // Quick wins
   type Keyword = (typeof tracked)[number];
   const quickWins: { keyword: Keyword; position: number; url: string | null }[] = [];
-  for (const t of tracked) {
-    const history = ranksByKeyword.get(t.id) ?? [];
+  for (const trackedKw of tracked) {
+    const history = ranksByKeyword.get(trackedKw.id) ?? [];
     if (history.length === 0) continue;
     const latest = history[history.length - 1];
     if (latest.position !== null && latest.position >= 4 && latest.position <= 15) {
       quickWins.push({
-        keyword: t,
+        keyword: trackedKw,
         position: latest.position,
         url: latest.url,
       });
@@ -206,16 +209,16 @@ export default async function PerClientKeywordsPage({
         }}
         allClients={allClients}
         basePath="/keywords/c"
-        toolLabel="Keywords"
+        toolLabel={t("toolLabel")}
         icon={Search}
       />
 
       <PageHeader
-        title={`Keywords · ${client.name}`}
+        title={t("clientTitle", { name: client.name })}
         description={
           client.gscProperty
-            ? "Research, track ranks, find quick wins. Rankings come from Search Console — Google's own numbers, free, no API costs."
-            : "Research, track ranks, find quick wins. Rank checks run in a headless browser — free, but connect Search Console for Google's own numbers."
+            ? t("clientDescriptionGsc")
+            : t("clientDescriptionBrowser")
         }
         icon={Search}
         accent="cyan"
@@ -225,7 +228,7 @@ export default async function PerClientKeywordsPage({
               href={`/keywords/export.csv?clientId=${client.id}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
             >
-              Export CSV
+              {t("exportCsv")}
             </Link>
           ) : undefined
         }
@@ -240,10 +243,10 @@ export default async function PerClientKeywordsPage({
           <header className="relative border-b border-white/[0.06] px-5 py-4">
             <h2 className="flex items-center gap-2 text-base font-semibold">
               <Activity className="size-4 text-amber-300" />
-              Quick wins
+              {t("quickWinsTitle")}
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Tracked keywords currently sitting at positions 4-15 — push them onto page 1.
+              {t("quickWinsDescription")}
             </p>
           </header>
           <ul className="relative divide-y divide-white/[0.04]">
@@ -274,19 +277,19 @@ export default async function PerClientKeywordsPage({
 
       {tracked.length === 0 ? (
         <div className="glass-apple relative overflow-hidden rounded-2xl px-6 py-12 text-center text-sm text-muted-foreground">
-          No keywords tracked yet. Use the research form above to find some, or paste a CSV.
+          {t("emptyTracked")}
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
           <header className="flex items-center justify-between border-b border-white/5 px-5 py-4">
             <div>
               <h2 className="text-base font-semibold">
-                Tracked keywords ({tracked.length})
+                {t("trackedTitle", { count: tracked.length })}
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {client.gscProperty
-                  ? "Rankings come from Search Console where Google has data, and a live SERP check where it doesn't."
-                  : "Rank checks run through a headless browser — slow but free."}
+                  ? t("trackedHintGsc")
+                  : t("trackedHintBrowser")}
               </p>
             </div>
             <CheckAllRanksButton />
@@ -296,21 +299,21 @@ export default async function PerClientKeywordsPage({
               <ConnectGscNudge clientId={clientId} />
               <NeedsConnection
                 id="google"
-                because="Rankings here come from loading search results in a browser."
+                because={t("needsConnectionBecause")}
               />
             </div>
           )}
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-3 text-left font-medium">Query</th>
-                <th className="px-3 py-3 text-left font-medium">Device</th>
+                <th className="px-5 py-3 text-left font-medium">{t("colQuery")}</th>
+                <th className="px-3 py-3 text-left font-medium">{t("colDevice")}</th>
                 <th className="px-3 py-3 text-center font-medium">
                   <span
                     className="inline-flex items-center gap-1"
-                    title="Every position says where it came from. Search Console numbers are Google's own, averaged over a day, lagging 2-3 days. Live checks are current but carry ~±1-2 positions of noise from personalisation and rotating SERP features. Either way, the Trend column is the stronger signal than any single reading."
+                    title={t("colPositionTitle")}
                   >
-                    Position
+                    {t("colPosition")}
                     <span
                       aria-hidden
                       className="grid size-3.5 cursor-help place-items-center rounded-full bg-muted/60 text-[8px] font-bold text-muted-foreground/80 ring-1 ring-inset ring-border"
@@ -319,9 +322,9 @@ export default async function PerClientKeywordsPage({
                     </span>
                   </span>
                 </th>
-                <th className="px-3 py-3 text-left font-medium">SERP features</th>
-                <th className="px-3 py-3 text-left font-medium">Trend</th>
-                <th className="px-3 py-3 text-right font-medium">Actions</th>
+                <th className="px-3 py-3 text-left font-medium">{t("colSerpFeatures")}</th>
+                <th className="px-3 py-3 text-left font-medium">{t("colTrend")}</th>
+                <th className="px-3 py-3 text-right font-medium">{t("colActions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -329,6 +332,10 @@ export default async function PerClientKeywordsPage({
                 const history = ranksByKeyword.get(k.id) ?? [];
                 const latest = history[history.length - 1];
                 const removeAction = untrackKeyword.bind(null, k.id);
+                const deviceKey =
+                  k.device === "desktop" || k.device === "mobile"
+                    ? k.device
+                    : "desktop";
                 return (
                   <tr key={k.id} className="hover:bg-white/[0.03]">
                     <td className="px-5 py-3">
@@ -341,7 +348,7 @@ export default async function PerClientKeywordsPage({
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${deviceTone[k.device]}`}
                       >
-                        {k.device}
+                        {t(`device.${deviceKey}`)}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-center">
@@ -379,14 +386,14 @@ export default async function PerClientKeywordsPage({
                         <Link
                           href={`/keywords/${k.id}/screenshots`}
                           className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                          title="View SERP screenshots"
+                          title={t("viewScreenshots")}
                         >
                           <Camera className="size-3.5" />
                         </Link>
                         <form action={removeAction}>
                           <button
                             type="submit"
-                            aria-label="Untrack"
+                            aria-label={t("untrack")}
                             className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-rose-500/15 hover:text-rose-300"
                           >
                             <X className="size-3.5" />
