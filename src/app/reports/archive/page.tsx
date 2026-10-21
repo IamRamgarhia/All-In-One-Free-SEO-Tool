@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { desc, eq } from "drizzle-orm";
 import { FileDown } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import { clients, reportArchives } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
@@ -46,11 +47,13 @@ export default async function ReportArchivePage({
     .orderBy(desc(reportArchives.pinned), desc(reportArchives.createdAt))
     .limit(200);
 
+  const t = await getTranslations("reports");
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
-        title="Report archive"
-        description="Every monthly client report you've generated is stored here. Re-download as PDF anytime, pin the ones you want to keep, delete the rest."
+        title={t("archiveTitle")}
+        description={t("archiveDescription")}
         icon={FileDown}
         accent="cyan"
       />

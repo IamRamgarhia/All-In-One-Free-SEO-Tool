@@ -189,5 +189,127 @@
     "counterTasks": "Tâches",
     "counterKeywords": "Mots-clés",
     "databaseFile": "Fichier base de données"
+  },
+  "reports": {
+    "title": "Rapports",
+    "description": "Choisissez un client pour télécharger son rapport SEO brandé en PDF, voir un aperçu live, ou exporter les données en CSV.",
+    "exportAllCsv": "Tout exporter en CSV",
+    "scoreOutOf": "Score {score}/100",
+    "noDataYet": "Pas encore de données",
+    "lastAudit": "Dernier audit {date}",
+    "runAuditToPopulate": "Lancez un audit pour alimenter le rapport",
+    "schedules": "{count, plural, one {# planification} other {# planifications}}",
+    "toolLabel": "Rapports",
+    "clientTitle": "Rapports · {name}",
+    "clientDescription": "Choisissez un modèle et téléchargez. Les rapports incluent les vrais chiffres Search Console + GA4 si Google est connecté, et votre branding d’agence s’il est configuré.",
+    "latestHealthScore": "Dernier score de santé",
+    "auditedOn": "Audité le {date}",
+    "runAuditFirst": "Lancez d’abord un audit",
+    "tasksCompleted": "Tâches terminées",
+    "tasksCompletedHint": "Depuis le début sur ce client",
+    "issuesInLatest": "Problèmes du dernier audit",
+    "fromTheReport": "Issu du rapport",
+    "stakeholderTitle": "Variantes par interlocuteur",
+    "stakeholderDescription": "Mêmes chiffres, cadrage différent. Utile quand un même rapport doit parler à plusieurs audiences.",
+    "quarterlyTitle": "Doc de stratégie trimestrielle",
+    "quarterlyDescription": "Autre forme que le rapport mensuel — tendance de positions sur 90 jours, vélocité vs trimestre précédent, grands wins, ce qui n’a pas marché, où investir le prochain trimestre. Ancré dans l’historique de snapshots + synthèse IA.",
+    "downloadQuarterly": "Télécharger le PDF trimestriel",
+    "emailDelivery": "Envoi par e-mail",
+    "smtpConfigured": "SMTP configuré. Vous pouvez planifier l’envoi auto sur la fiche client.",
+    "smtpMissing": "Configurez SMTP dans Paramètres → E-mail pour planifier ou envoyer à la demande.",
+    "noSchedules": "Aucune planification pour ce client pour l’instant.",
+    "monthlyOnDay": "mensuel le jour {day}",
+    "weekly": "hebdomadaire",
+    "atHour": "à {hour}:00",
+    "recipients": "{count, plural, one {# destinataire} other {# destinataires}} : {list}",
+    "nextSend": "Prochain envoi : {when}",
+    "manage": "Gérer",
+    "editSchedule": "Modifier la planification",
+    "setUpSchedule": "Créer une planification",
+    "configureSmtp": "Configurer SMTP",
+    "rawExports": "Exports de données brutes",
+    "rawExportsHint": "Sans PDF — récupérez les données sous-jacentes en CSV.",
+    "keywordsExport": "Mots-clés suivis + positions",
+    "keywordsExportHint": "Chaque mot-clé suivi pour ce client avec tout l’historique de positions.",
+    "downloadPdf": "Télécharger le PDF",
+    "auditFirstHint": "Lancez d’abord un audit pour un rapport utile.",
+    "archiveTitle": "Archives des rapports",
+    "archiveDescription": "Chaque rapport client mensuel généré est stocké ici. Retéléchargez en PDF à tout moment, épinglez ceux à garder, supprimez le reste.",
+    "batchTitle": "Générer tous les rapports",
+    "batchDescription": "Construisez le rapport de chaque client en une passe, relisez, puis envoyez. Rien ne part sans votre feu vert.",
+    "crumbReports": "Rapports",
+    "crumbGenerateAll": "Tout générer",
+    "templates": {
+      "executive": {
+        "name": "Exécutif",
+        "description": "Résumé d’une page pour les décideurs.",
+        "bullets": {
+          "0": "Résumé exécutif rédigé par l’IA",
+          "1": "Score de santé + delta vs précédent",
+          "2": "Top 5 mots-clés organiques",
+          "3": "Principaux problèmes par sévérité"
+        }
+      },
+      "detailed": {
+        "name": "Détaillé (recommandé)",
+        "description": "Rapport mensuel complet — ce que veulent la plupart des clients.",
+        "bullets": {
+          "0": "Tout l’Exécutif +",
+          "1": "Courbe de trafic organique réelle (GA4)",
+          "2": "Top 10 mots-clés avec CTR + position",
+          "3": "Opportunités quick-win",
+          "4": "Tâches terminées + recommandations"
+        }
+      },
+      "technical": {
+        "name": "Technique",
+        "description": "Remise ingénierie — chaque problème avec les URLs touchées.",
+        "bullets": {
+          "0": "Tous les problèmes d’audit sur les pages crawlées",
+          "1": "URLs touchées par problème",
+          "2": "Détail de la stack technique",
+          "3": "Utile pour vérif pré / post-déploiement"
+        }
+      },
+      "ceo": {
+        "name": "CEO — revenu + ROI",
+        "description": "Lean, centré valeur trafic. Pour la direction.",
+        "bullets": {
+          "0": "Trafic + conversions en tête",
+          "1": "Score + delta",
+          "2": "Travail réalisé",
+          "3": "Sans bruit technique"
+        }
+      },
+      "cmo": {
+        "name": "CMO — trafic + pipeline",
+        "description": "Marketing : ce qui convertit + priorités contenu.",
+        "bullets": {
+          "0": "Trafic + GA4",
+          "1": "Top mots-clés + CTR",
+          "2": "Tâches terminées",
+          "3": "Recommandations"
+        }
+      },
+      "cto": {
+        "name": "CTO — santé technique",
+        "description": "Vue ingénierie. Problèmes, correctifs, livraisons.",
+        "bullets": {
+          "0": "Problèmes d’audit par sévérité",
+          "1": "Score de santé",
+          "2": "Tâches terminées",
+          "3": "Sans jargon marketing"
+        }
+      },
+      "junior": {
+        "name": "Junior / standup",
+        "description": "Journal de travail + accomplissements — pour hand-off ou points hebdo.",
+        "bullets": {
+          "0": "Liste des tâches terminées",
+          "1": "Instantané du score",
+          "2": "Compact et scannable"
+        }
+      }
+    }
   }
 }

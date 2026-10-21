@@ -189,5 +189,127 @@
     "counterTasks": "Tasks",
     "counterKeywords": "Keywords",
     "databaseFile": "Database file"
+  },
+  "reports": {
+    "title": "Reports",
+    "description": "Pick a client to download their branded SEO report as PDF, view a live preview, or grab the raw data as CSV.",
+    "exportAllCsv": "Export all CSV",
+    "scoreOutOf": "Score {score}/100",
+    "noDataYet": "No data yet",
+    "lastAudit": "Last audit {date}",
+    "runAuditToPopulate": "Run an audit to populate the report",
+    "schedules": "{count, plural, one {# schedule} other {# schedules}}",
+    "toolLabel": "Reports",
+    "clientTitle": "Reports · {name}",
+    "clientDescription": "Pick a template and download. Reports include real Search Console + GA4 numbers when Google is connected, and your agency branding when configured.",
+    "latestHealthScore": "Latest health score",
+    "auditedOn": "Audited {date}",
+    "runAuditFirst": "Run an audit first",
+    "tasksCompleted": "Tasks completed",
+    "tasksCompletedHint": "All time on this client",
+    "issuesInLatest": "Issues in latest audit",
+    "fromTheReport": "From the report",
+    "stakeholderTitle": "Stakeholder variants",
+    "stakeholderDescription": "Same numbers, different framing. Use these when one report has to go to multiple audiences.",
+    "quarterlyTitle": "Quarterly strategy doc",
+    "quarterlyDescription": "Different shape from the monthly report — 90-day rank trend, velocity vs prior quarter, top wins, what didn't work, where to invest next quarter. Anchored in your snapshot history + AI synthesis.",
+    "downloadQuarterly": "Download quarterly PDF",
+    "emailDelivery": "Email delivery",
+    "smtpConfigured": "SMTP configured. You can schedule auto-delivery on the client detail page.",
+    "smtpMissing": "Set up SMTP in Settings → Email delivery to schedule reports or send on demand.",
+    "noSchedules": "No scheduled reports yet for this client.",
+    "monthlyOnDay": "monthly on day {day}",
+    "weekly": "weekly",
+    "atHour": "at {hour}:00",
+    "recipients": "{count, plural, one {# recipient} other {# recipients}}: {list}",
+    "nextSend": "Next send: {when}",
+    "manage": "Manage",
+    "editSchedule": "Edit schedule",
+    "setUpSchedule": "Set up schedule",
+    "configureSmtp": "Configure SMTP",
+    "rawExports": "Raw data exports",
+    "rawExportsHint": "Skip the PDF — pull the underlying data as CSV instead.",
+    "keywordsExport": "Tracked keywords + ranks",
+    "keywordsExportHint": "Every keyword tracked for this client with its full rank history.",
+    "downloadPdf": "Download PDF",
+    "auditFirstHint": "Run an audit first for the most useful report.",
+    "archiveTitle": "Report archive",
+    "archiveDescription": "Every monthly client report you've generated is stored here. Re-download as PDF anytime, pin the ones you want to keep, delete the rest.",
+    "batchTitle": "Generate all reports",
+    "batchDescription": "Build every client's report in one run, read them, then send. Nothing goes out until you say so.",
+    "crumbReports": "Reports",
+    "crumbGenerateAll": "Generate all",
+    "templates": {
+      "executive": {
+        "name": "Executive",
+        "description": "1-page summary for stakeholders.",
+        "bullets": {
+          "0": "AI-written executive summary",
+          "1": "Health score + delta vs prior",
+          "2": "Top 5 organic keywords",
+          "3": "Top issues by severity"
+        }
+      },
+      "detailed": {
+        "name": "Detailed (recommended)",
+        "description": "Full monthly report — what most clients want.",
+        "bullets": {
+          "0": "Everything in Executive +",
+          "1": "Real organic traffic chart (GA4)",
+          "2": "Top 10 keywords with CTR + position",
+          "3": "Quick-win opportunities",
+          "4": "Tasks completed + recommendations"
+        }
+      },
+      "technical": {
+        "name": "Technical",
+        "description": "Engineering hand-off — every issue with affected URLs.",
+        "bullets": {
+          "0": "Every audit issue across all crawled pages",
+          "1": "Affected URLs per issue",
+          "2": "Tech stack detail",
+          "3": "Use for pre / post-deploy verification"
+        }
+      },
+      "ceo": {
+        "name": "CEO — revenue + ROI",
+        "description": "Lean, traffic-value focused. For leadership.",
+        "bullets": {
+          "0": "Lead with traffic + conversions",
+          "1": "Score + delta",
+          "2": "Work completed",
+          "3": "Skips technical noise"
+        }
+      },
+      "cmo": {
+        "name": "CMO — traffic + pipeline",
+        "description": "Marketing leadership: what's converting + content priorities.",
+        "bullets": {
+          "0": "Traffic + GA4",
+          "1": "Top keywords + CTR",
+          "2": "Tasks completed",
+          "3": "Recommendations"
+        }
+      },
+      "cto": {
+        "name": "CTO — technical health",
+        "description": "Engineering view. Issues, fixes, what shipped.",
+        "bullets": {
+          "0": "Audit issues by severity",
+          "1": "Health score",
+          "2": "Tasks completed",
+          "3": "Skips marketing-speak"
+        }
+      },
+      "junior": {
+        "name": "Junior marketer / standup",
+        "description": "Work log + accomplishments — for hand-off or weekly check-ins.",
+        "bullets": {
+          "0": "Tasks completed list",
+          "1": "Score snapshot",
+          "2": "Compact and skim-friendly"
+        }
+      }
+    }
   }
 }
