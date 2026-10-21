@@ -11,51 +11,32 @@ src/audit/
   types/          AuditRule, RuleResult, AuditContext, CrawlResult…
   crawler/        fetch, robots, sitemap, BFS crawl, link graph
   rendering/      Optional Playwright + DOM compare + lab CWV
-  rules/          Wave folders (core, technical, crawlability, links, …)
+  rules/          Category folders (core … legal/geo)
   engine/         registry, runner, scoring + caps, diff
   storage/        persist into main SQLite via Drizzle
 ```
 
-## Wave 1 (shipped)
+## Waves (all shipped)
 
-| Category | Focus |
+| Wave | Categories |
 |---|---|
-| core | titles, meta, H1, canonicals, robots, viewport, OG |
-| technical | HTTP, soft-404, HTTPS, mixed content, robots/sitemap |
-| crawlability | orphans, depth, sitemap cross-checks, hreflang basics, pagination |
+| 1 | core, technical, crawlability |
+| 2 | links, redirect, url |
+| 3 | js, perf, images (+ optional Playwright / CWV) |
+| 4 | content, schema, security, html |
+| 5 | a11y, mobile, i18n, eeat, social, geo, legal |
 
-## Wave 2 (shipped)
-
-| Category | Focus |
-|---|---|
-| links | anchors, broken internal (capped HEAD), nofollow, localhost, fragments, inbound equity |
-| redirect | loops, meta/JS refresh, chain length, broken targets |
-| url | length, case, underscores, tracking/session params, double slash |
-
-## Wave 3 (shipped)
-
-| Category | Focus |
-|---|---|
-| js | SSR shell, raw vs rendered title/H1/meta/canonical/links/noindex, console errors |
-| perf | Lab CWV (LCP/CLS/FCP/TTFB), render-blocking, asset weight heuristics |
-| images | alt presence/quality, dimensions, lazy-load, modern formats |
-
-- **Audit rapide** — HTML only, 1 page (Playwright **off**); Wave 1–3 rules (JS/CWV → `unmeasured`)
-- **Audit complet** — multi-page crawl; Playwright render + CWV on start URL + up to 2 more pages
+- **Audit rapide** — HTML only, 1 page (Playwright **off**)
+- **Audit complet** — multi-page crawl; Playwright render + CWV on start URL + ≤2 more pages
 - Persistence: `native_audit_*` tables on the existing client schema
 - UI: `/clients/[id]` + `/audits/native/[id]`
 - API: `GET|POST /api/v1/native-audits`
 
-Legacy crawler and the temporary SEOmator npm bridge stay until later waves
-are stable.
+Legacy crawler and the temporary SEOmator npm bridge stay until the native
+engine is validated in production, then the bridge can be removed.
 
 ## Scoring
 
 - Per-rule weights → category score → weighted overall
 - Caps: noindex, robots block, missing title, thin page (&lt;20 words)
 - Diff by `rule_id`: fail→pass fixed, pass→fail regression, warn→fail worsened
-
-## Next waves
-
-4 content / schema / security / html  
-5 a11y / mobile / i18n / eeat / social / geo / legal

@@ -33,9 +33,23 @@ export const WAVE2_CATEGORIES = ["links", "redirect", "url"] as const;
 
 export const WAVE3_CATEGORIES = ["js", "perf", "images"] as const;
 
-/** Active categories through Wave 3. */
+export const WAVE4_CATEGORIES = ["content", "schema", "security", "html"] as const;
+
+export const WAVE5_CATEGORIES = [
+  "a11y",
+  "mobile",
+  "i18n",
+  "eeat",
+  "social",
+  "geo",
+  "legal",
+] as const;
+
+/** Active categories through Wave 5 (full native port). */
 export const ACTIVE_AUDIT_CATEGORIES = [
   ...WAVE1_CATEGORIES,
   ...WAVE2_CATEGORIES,
   ...WAVE3_CATEGORIES,
+  ...WAVE4_CATEGORIES,
+  ...WAVE5_CATEGORIES,
 ] as const;

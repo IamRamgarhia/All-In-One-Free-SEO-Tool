@@ -53,7 +53,7 @@ export function defaultAuditConfig(
 }
 
 /**
- * Run the native audit engine (Wave 1–3 categories).
+ * Run the native audit engine (Waves 1–5 categories).
  * Quick = HTML-only, usually 1 page, Playwright off.
  * Full = multi-page crawl; when `render:true`, Playwright enrich start + few pages.
  */

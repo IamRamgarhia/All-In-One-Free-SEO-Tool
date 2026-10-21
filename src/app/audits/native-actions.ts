@@ -10,7 +10,7 @@ import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { logActivity } from "@/lib/activity";
 
 /**
- * Launch the native Wave 1–3 audit engine (ported SEOmator expertise).
+ * Launch the native Waves 1–5 audit engine (ported SEOmator expertise).
  * Quick stays HTML-only (no Playwright). Full enables optional render + CWV.
  * Does not replace the legacy crawler or the temporary npm bridge.
  */
