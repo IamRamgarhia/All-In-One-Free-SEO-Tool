@@ -108,6 +108,7 @@
     "package": "tsx scripts/package.ts",
     "gen:social-preview": "tsx scripts/gen-social-preview.ts",
     "gen:capabilities": "tsx scripts/gen-tool-capabilities.ts",
+    "i18n:tools-catalog": "node scripts/sync-tools-catalog.mjs && node scripts/sync-tools-pages-from-catalog.mjs",
     "test:wp": "tsx scripts/wp-bridge-check.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

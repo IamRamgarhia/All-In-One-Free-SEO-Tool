@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import {
   AlertCircle,
-  ArrowLeft,
   CheckCircle2,
   Copy,
   Download,
@@ -12,6 +10,8 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
+import { ToolPageChrome } from "@/components/tools/tool-page-chrome";
+import { useToolPage } from "@/lib/i18n/use-tool-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,32 +23,16 @@ import {
 
 export default function LlmsTxtPage() {
   const [tab, setTab] = useState<"generate" | "validate">("generate");
+  const { page } = useToolPage("/tools/llms-txt");
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <Link
-        href="/tools"
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-3" />
-        All tools
-      </Link>
-
-      <header className="space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-rose-500/15 ring-1 ring-rose-400/30">
-            <Sparkles className="size-5 text-rose-300" />
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            <span className="text-gradient-brand">llms.txt manager</span>
-          </h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          The emerging standard for telling AI crawlers (ChatGPT, Claude,
-          Perplexity) what your site is about + which URLs matter.
-        </p>
-      </header>
-
+    <ToolPageChrome
+      toolHref="/tools/llms-txt"
+      icon={Sparkles}
+      accentBg="bg-rose-500/15"
+      accentRing="ring-rose-400/30"
+      iconClassName="text-rose-300"
+    >
       <div className="flex gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
         <button
           type="button"
@@ -59,7 +43,7 @@ export default function LlmsTxtPage() {
               : "text-muted-foreground"
           }`}
         >
-          Generate
+          {page("tabGenerate")}
         </button>
         <button
           type="button"
@@ -70,12 +54,12 @@ export default function LlmsTxtPage() {
               : "text-muted-foreground"
           }`}
         >
-          Validate existing
+          {page("tabValidate")}
         </button>
       </div>
 
       {tab === "generate" ? <Generator /> : <Validator />}
-    </div>
+    </ToolPageChrome>
   );
 }
 

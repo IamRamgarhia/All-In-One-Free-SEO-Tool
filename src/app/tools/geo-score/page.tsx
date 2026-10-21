@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { GeoScoreClient } from "./client";
 import { Sparkles } from "lucide-react";
+import { asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
-import { asc } from "drizzle-orm";
-import { PageHeader } from "@/components/shell/page-header";
+import { ToolPageChrome } from "@/components/tools/tool-page-chrome";
 import { clientScope } from "@/lib/client-scope";
+import { GeoScoreClient } from "./client";
 
 export default async function GeoScorePage() {
   const allClients = await db
@@ -14,15 +14,16 @@ export default async function GeoScorePage() {
     .from(clients)
     .where(await clientScope())
     .orderBy(asc(clients.name));
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <PageHeader
-        title="GEO composite score"
-        description="Weighted scorecard for AI search visibility — citability (25%), brand authority (20%), content E-E-A-T (20%), technical (15%), schema (10%), platform tactics (10%). Forces you to fix the weakest leg first."
-        icon={Sparkles}
-        accent="violet"
-      />
+    <ToolPageChrome
+      toolHref="/tools/geo-score"
+      icon={Sparkles}
+      accentBg="bg-violet-500/15"
+      accentRing="ring-violet-400/30"
+      iconClassName="text-violet-300"
+    >
       <GeoScoreClient clients={allClients} />
-    </div>
+    </ToolPageChrome>
   );
 }

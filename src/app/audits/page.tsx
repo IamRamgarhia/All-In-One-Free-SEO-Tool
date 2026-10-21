@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { clients, audits } from "@/db/schema";
 import { desc, eq, and, count } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { clientScope } from "@/lib/client-scope";
 import {
@@ -23,6 +24,7 @@ export default async function AuditsIndexPage({
   // this page ignored it and drew the picker anyway — so picking a
   // client and then picking a tool asked you to pick the client again.
   // The per-client page it would have sent you to already exists.
+  const t = await getTranslations("audits");
   const { clientId, embed } = await searchParams;
   if (clientId && /^\d+$/.test(clientId)) {
     // Carry ?embed=1 through. Without it the drawer would load the
@@ -75,10 +77,13 @@ export default async function AuditsIndexPage({
       if (lastAt) {
         const ageMs = Date.now() - lastAt.getTime();
         const days = Math.floor(ageMs / 86_400_000);
-        if (days < 1) freshness = "today";
-        else if (days < 7) freshness = `${days}d ago`;
-        else if (days < 30) freshness = `${Math.floor(days / 7)}w ago — refresh`;
-        else freshness = "stale — refresh";
+        if (days < 1) freshness = t("freshnessToday");
+        else if (days < 7) freshness = t("freshnessDays", { days });
+        else if (days < 30)
+          freshness = t("freshnessWeeksRefresh", {
+            weeks: Math.floor(days / 7),
+          });
+        else freshness = t("freshnessStale");
       }
 
       return {
@@ -87,20 +92,24 @@ export default async function AuditsIndexPage({
         url: c.url,
         logoUrl: c.logoUrl,
         niche: c.niche,
-        primary: score !== null ? `${score}/100` : "Not yet audited",
+        primary: score !== null ? `${score}/100` : t("notYetAudited"),
         primaryTone: tone,
         secondary: latest
-          ? `${total} audits · ${freshness} · ${latest.issuesCount} issues`
-          : `${total} audits run`,
+          ? t("auditsCountIssues", {
+              count: total,
+              freshness,
+              issues: latest.issuesCount,
+            })
+          : t("auditsRunCount", { count: total }),
       };
     }),
   );
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeader
-        title="Audits"
-        description="Pick a client to see every audit you've run, severity grouping, fix wizards, and trending score over time."
+        title={t("title")}
+        description={t("description")}
         icon={ClipboardList}
         accent="cyan"
         actions={
@@ -108,14 +117,14 @@ export default async function AuditsIndexPage({
             href="/audits/export.csv"
             className="inline-flex h-9 items-center rounded-md border border-white/10 bg-white/5 px-3 text-xs font-medium text-muted-foreground hover:bg-white/10 hover:text-foreground"
           >
-            Export CSV
+            {t("exportCsv")}
           </a>
         }
       />
       <ClientToolGrid
         cards={cards}
         basePath="/audits/c"
-        emptyHint="Add a client first — audits run per site."
+        emptyHint={t("emptyHint")}
       />
     </div>
   );

@@ -495,5 +495,242 @@
       "aiOverviewPresent": "AI Overview présent",
       "resultsCaptured": "{count} résultats capturés"
     }
+  },
+  "common": {
+    "helpThisScreen": "Aide pour cet écran",
+    "openDocs": "Ouvrir la documentation pour cet écran",
+    "exportCsv": "Exporter CSV",
+    "addClient": "Ajouter un client",
+    "addClientTitle": "Ajouter un client (collez une URL — le reste se remplit)",
+    "addFirstClient": "Ajouter votre premier client",
+    "open": "Ouvrir",
+    "free": "gratuit",
+    "allClients": "← Tous les clients",
+    "jumpToClient": "Changer de client ▾",
+    "noClientsYet": "Aucun client pour l’instant",
+    "addClientFirstHint": "Ajoutez d’abord un client — chaque outil est rattaché à un site.",
+    "nothingMatches": "Aucun résultat pour « {query} ».",
+    "tapOutsideClose": "Appuyez à l’extérieur pour fermer",
+    "guided": "Guidé",
+    "pro": "Pro",
+    "guidedTitle": "Mode guidé — explications et repères débutant",
+    "proTitle": "Mode pro — données denses, sans surcouche",
+    "severity": {
+      "critical": "Critique",
+      "high": "Élevé",
+      "medium": "Moyen",
+      "low": "Faible"
+    },
+    "niche": {
+      "local": "Local",
+      "ecommerce": "E-commerce",
+      "saas": "SaaS",
+      "blog": "Blog",
+      "services": "Services"
+    }
+  },
+  "auth": {
+    "appName": "SEO Tool",
+    "signInAccount": "Connectez-vous à votre compte.",
+    "signInPassword": "Instance auto-hébergée — mot de passe défini par l’admin.",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "signIn": "Connexion",
+    "signingIn": "Connexion…",
+    "loginFailed": "Échec de la connexion",
+    "noAccount": "Pas de compte ?",
+    "register": "Créer un compte"
+  },
+  "clients": {
+    "title": "Clients",
+    "description": "Sites gérés dans cet espace. Chacun a son tableau de bord, audits, tâches et rapports.",
+    "importGoogle": "Importer depuis Google",
+    "exportCsv": "Exporter CSV",
+    "addClient": "Ajouter un client",
+    "relativeToday": "aujourd’hui",
+    "relativeHoursAgo": "Il y a {count, plural, one {# heure} other {# heures}}",
+    "relativeDaysAgo": "Il y a {count, plural, one {# jour} other {# jours}}",
+    "relativeWeeksAgo": "Il y a {count, plural, one {# semaine} other {# semaines}}",
+    "relativeMonthsAgo": "Il y a {count, plural, one {# mois} other {# mois}}",
+    "relativeYearsAgo": "Il y a {count, plural, one {# an} other {# ans}}"
+  },
+  "audits": {
+    "title": "Audits",
+    "description": "Choisissez un client pour voir tous les audits, regroupement par gravité, assistants de correction et tendance du score.",
+    "emptyHint": "Ajoutez d’abord un client — les audits sont lancés par site.",
+    "toolLabel": "Audits",
+    "notYetAudited": "Pas encore audité",
+    "freshnessToday": "aujourd’hui",
+    "freshnessDays": "il y a {days} j",
+    "freshnessWeeksRefresh": "il y a {weeks} sem. — à relancer",
+    "freshnessStale": "obsolète — à relancer",
+    "auditsCount": "{count} audits",
+    "auditsCountIssues": "{count} audits · {freshness} · {issues} problèmes",
+    "auditsRunCount": "{count} audits lancés",
+    "exportCsv": "Exporter CSV",
+    "clientTitle": "Audits · {name}",
+    "clientDescription": "SEO + GEO en un clic : SEOmator (373 règles) et score moteurs génératifs natif. Le crawl intégré reste disponible pour l’autopilote.",
+    "clientEmpty": "Aucun audit pour ce client. Lancez SEO + GEO pour le technique et la visibilité IA.",
+    "runQuick": "Audit rapide (SEO + GEO)",
+    "runFull": "Audit complet (SEO + GEO)",
+    "runCrawl": "Crawl intégré",
+    "pendingFullTitle": "Lancement audit complet SEO + GEO",
+    "pendingFullDescription": "Crawl SEOmator approfondi + score GEO natif (jusqu’à 20 pages).",
+    "pendingQuickTitle": "Lancement audit rapide SEO + GEO",
+    "pendingQuickDescription": "Catégories SEOmator essentielles + GEO sur l’URL de départ.",
+    "pendingCrawlTitle": "Lancement du crawl agent",
+    "pendingCrawlDescription": "Crawl intégré (~72 contrôles) corrigeable par l’autopilote.",
+    "compareDiff": "Comparer deux audits",
+    "table": {
+      "audit": "Audit",
+      "engine": "Moteur",
+      "status": "Statut",
+      "issues": "Problèmes",
+      "when": "Date",
+      "score": "Score"
+    },
+    "geoPanel": {
+      "title": "Préparation GEO (audit natif)",
+      "description": "Score moteurs génératifs — citabilité, accès crawl, données structurées, contenu et plateforme (geo-audit v1.2.1).",
+      "composite": "Composite",
+      "tier": "Niveau : {tier}",
+      "categories": {
+        "citability": "Citabilité",
+        "technical": "Technique",
+        "schema": "Schema.org",
+        "content": "Contenu",
+        "platform": "Plateforme"
+      }
+    },
+    "status": {
+      "queued": "En file",
+      "running": "En cours",
+      "completed": "Terminé",
+      "failed": "Échoué"
+    },
+    "detail": {
+      "breadcrumbClients": "Clients",
+      "auditNumber": "Audit n°{id}",
+      "resultsTitle": "Résultats d’audit",
+      "completedAt": "Terminé le {date}",
+      "startedAt": "Démarré le {date}",
+      "seomatorKind": "Audit SEOmator (373 règles)",
+      "aiKind": "Audit IA du site",
+      "crawlerKind": "Crawl intégré",
+      "viewClient": "Voir le client",
+      "exportMarkdown": "Exporter Markdown",
+      "exportLlm": "Exporter LLM",
+      "allAudits": "Tous les audits",
+      "healthScore": "Score santé",
+      "issuesAcrossPages": "{issues} problème(s) sur {pages} page(s) crawlées",
+      "issuesOnPages": "{issues} problème(s) sur {pages} page(s)",
+      "outOf100": "Sur 100",
+      "inProgress": "Audit en cours",
+      "inProgressHint": "Crawl de {url}. Actualisation toutes les 10 secondes.",
+      "failedTitle": "Audit échoué",
+      "failedHint": "Le site était peut-être injoignable. Relancez depuis la fiche client.",
+      "backToClient": "Retour au client",
+      "noIssues": "Aucun problème. Score : {score}/100.",
+      "categoryScores": "Scores par catégorie",
+      "categoryScoresHint": "Catégories SEOmator pondérées (373 règles). Les plus faibles en premier.",
+      "cwvTitle": "Core Web Vitals",
+      "cwvHint": "Mesurés via Playwright pendant l’audit SEOmator (labo, pas CrUX terrain)."
+    }
+  },
+  "tools": {
+    "common": {
+      "allTools": "Tous les outils",
+      "urlLabel": "URL",
+      "run": "Lancer",
+      "running": "En cours…",
+      "analyze": "Analyser",
+      "analyzing": "Analyse…",
+      "copy": "Copier",
+      "copied": "Copié",
+      "save": "Enregistrer",
+      "saved": "Enregistré",
+      "download": "Télécharger",
+      "close": "Fermer",
+      "optional": "Optionnel"
+    },
+    "geoScore": {
+      "clientOptional": "Associer à un client (optionnel)",
+      "clientNone": "— aucun —",
+      "submit": "Lancer le score GEO natif",
+      "running": "Audit GEO natif en cours…",
+      "tierLine": "Niveau {tier}",
+      "findingsCount": "{count} constat(s) priorisé(s)",
+      "weightPct": "Poids {pct} %",
+      "categories": {
+        "citability": "Citabilité",
+        "technical": "Accès technique",
+        "schema": "Schema.org",
+        "content": "Signaux contenu",
+        "platform": "Plateforme"
+      }
+    },
+    "hub": {
+      "title": "Tous les outils",
+      "description": "Plus de 100 outils SEO gratuits — audits, contenu, mots-clés, local, visibilité IA, etc.",
+      "titleShort": "Outils",
+      "descriptionShort": "Plus de 100 utilitaires SEO. Épinglez vos outils du quotidien en haut.",
+      "searchPlaceholder": "Rechercher un outil…",
+      "filterPlaceholder": "Filtrer les outils… (⌘/Ctrl+K = recherche globale)",
+      "matchOne": "{count} résultat",
+      "matchMany": "{count} résultats",
+      "clearSearch": "Effacer la recherche",
+      "pinned": "Épinglés",
+      "pin": "Épingler",
+      "unpin": "Désépingler",
+      "noResults": "Aucun outil ne correspond.",
+      "showOccasional": "Afficher les outils occasionnels",
+      "hideOccasional": "Masquer les outils occasionnels"
+    },
+    "categories": {
+      "win": {
+        "label": "Gagner le contrat",
+        "description": "Évaluer un site vite et prouver qu’il y a un problème à corriger."
+      },
+      "fix": {
+        "label": "Trouver ce qui casse",
+        "description": "Diagnostic : quoi et où, quand quelque chose ne va pas."
+      },
+      "improve": {
+        "label": "Améliorer une page",
+        "description": "Mieux sur une page — contenu, meta, schema, liens."
+      },
+      "track": {
+        "label": "Suivre & rapporter",
+        "description": "Mesurer et transformer en livrable client."
+      },
+      "ai": {
+        "label": "Être cité par l’IA",
+        "description": "ChatGPT, Perplexity, AI Overviews — et contrôler les bots."
+      },
+      "occasional": {
+        "label": "Occasionnel",
+        "description": "Migrations, générateurs et jobs spécialisés."
+      }
+    }
+  },
+  "searchPalette": {
+    "placeholder": "Clients, tâches, outils…",
+    "button": "Clients, mots-clés, tâches…",
+    "modalPlaceholder": "Clients, mots-clés, tâches, audits, concurrents, briefs…",
+    "startTyping": "Tapez pour chercher dans tout le workspace.",
+    "searching": "Recherche…",
+    "noMatches": "Aucun résultat pour {query}.",
+    "type": {
+      "client": "Client",
+      "task": "Tâche",
+      "keyword": "Mot-clé",
+      "audit": "Audit",
+      "competitor": "Concurrent",
+      "brief": "Brief",
+      "outreach": "Prospection",
+      "invoice": "Facture",
+      "resource": "Ressource",
+      "tool": "Outil"
+    }
   }
 }

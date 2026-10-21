@@ -4,16 +4,26 @@ import { useActionState } from "react";
 import { usePresetUrl } from "@/components/use-preset-url";
 import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { Loader2, Sparkles } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { runGeoScore, type GeoScoreState } from "./actions";
 import { RecentRuns } from "@/components/recent-runs";
+
+const CATEGORY_KEYS = [
+  "citability",
+  "technical",
+  "schema",
+  "content",
+  "platform",
+] as const;
 
 export function GeoScoreClient({
   clients,
 }: {
   clients: { id: number; name: string }[];
 }) {
-  // Prefilled when opened from a client, so the domain is not retyped.
   const presetUrl = usePresetUrl();
+  const t = useTranslations("tools.geoScore");
+  const tCommon = useTranslations("tools.common");
   const [state, formAction, pending] = useActionState<GeoScoreState, FormData>(
     runGeoScore,
     null,
@@ -28,7 +38,7 @@ export function GeoScoreClient({
       >
         <div className="grid gap-3 md:grid-cols-[1fr_200px]">
           <label className="space-y-1 text-xs">
-            <span className="text-muted-foreground">URL to score</span>
+            <span className="text-muted-foreground">{tCommon("urlLabel")}</span>
             <input
               name="url"
               defaultValue={presetUrl}
@@ -39,14 +49,12 @@ export function GeoScoreClient({
           </label>
           {clients.length > 0 && (
             <label className="space-y-1 text-xs">
-              <span className="text-muted-foreground">
-                Tag to client (optional)
-              </span>
+              <span className="text-muted-foreground">{t("clientOptional")}</span>
               <select
                 name="clientId"
                 className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"
               >
-                <option value="">— none —</option>
+                <option value="">{t("clientNone")}</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -64,12 +72,12 @@ export function GeoScoreClient({
           {pending ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />
-              Scoring 6 dimensions… (30-60s)
+              {t("running")}
             </>
           ) : (
             <>
               <Sparkles className="mr-2 size-4" />
-              Run GEO score
+              {t("submit")}
             </>
           )}
         </button>
@@ -108,20 +116,18 @@ export function GeoScoreClient({
               </div>
             </div>
             <p className="mt-2 text-sm">{state.summary}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("tierLine", { tier: state.tier })} · {state.tierMeaning}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("findingsCount", { count: state.findingCount })}
+            </p>
           </section>
 
           <section className="space-y-2">
-            {(
-              [
-                ["citability", "Citability", "Weight 25%"],
-                ["brandAuthority", "Brand authority", "Weight 20%"],
-                ["contentEeat", "Content E-E-A-T", "Weight 20%"],
-                ["technical", "Technical foundation", "Weight 15%"],
-                ["schema", "Schema", "Weight 10%"],
-                ["platformTactics", "Platform tactics", "Weight 10%"],
-              ] as const
-            ).map(([key, label, weightLabel]) => {
-              const d = state.dimensions[key];
+            {CATEGORY_KEYS.map((key) => {
+              const d = state.categories[key];
+              if (!d) return null;
               return (
                 <div
                   key={key}
@@ -135,9 +141,11 @@ export function GeoScoreClient({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="space-y-0.5">
-                      <p className="font-medium">{label}</p>
+                      <p className="font-medium">
+                        {t(`categories.${key}` as "categories.citability")}
+                      </p>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {weightLabel}
+                        {t("weightPct", { pct: d.weightPct })}
                       </p>
                     </div>
                     <span
