@@ -1,0 +1,12 @@
+---
+description: Git workflow — branches, PRs, and safe history operations
+alwaysApply: true
+---
+
+# Git Workflow Rules
+
+- NEVER commit or push directly to `main`.
+- Always create a feature branch: `feature/<short-description>`.
+- Always open a Pull Request for review before merging.
+- Never force-push or rewrite history on shared branches.
+- Stop and ask before any `git reset --hard` or history rewrite.
