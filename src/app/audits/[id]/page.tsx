@@ -24,6 +24,14 @@ import { FixWizard } from "@/components/fix-wizard";
 import { IssueExplainer } from "@/components/issue-explainer";
 import { isFixable } from "@/lib/fix-suggestions";
 import { confidenceReason } from "@/lib/audit-confidence";
+import {
+  categoryLabel,
+  extractCwv,
+  extractScoreCap,
+  extractWaivedCaps,
+  ruleDisplayName,
+  verdictForScore,
+} from "@/lib/seomator-meta";
 import { setStatusForType } from "../issue-actions";
 
 // Map audit issue-types to the glossary term key.
@@ -120,6 +128,7 @@ export default async function AuditDetailPage({
       kind: audits.kind,
       summary: audits.summary,
       categoryScores: audits.categoryScores,
+      rawReport: audits.rawReport,
       startedAt: audits.startedAt,
       completedAt: audits.completedAt,
       createdAt: audits.createdAt,
@@ -229,6 +238,16 @@ export default async function AuditDetailPage({
   // the column; the UI shows the affected-page count instead and says so.
   const pagesCrawled = audit.pagesCrawled;
   const pagesWithIssues = new Set(issues.map((i) => i.url)).size;
+  const cwv =
+    audit.kind === "seomator" ? extractCwv(audit.rawReport) : null;
+  const scoreCap =
+    audit.kind === "seomator" ? extractScoreCap(audit.rawReport) : null;
+  const waivedCaps =
+    audit.kind === "seomator" ? extractWaivedCaps(audit.rawReport) : [];
+  const verdict =
+    audit.kind === "seomator" && audit.score != null
+      ? verdictForScore(audit.score)
+      : null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -301,7 +320,11 @@ export default async function AuditDetailPage({
                   : ` on ${pagesWithIssues} page${pagesWithIssues === 1 ? "" : "s"}`}
               </div>
               <div className="text-xs text-muted-foreground">
-                {audit.status === "completed" ? "Out of 100" : audit.status}
+                {audit.status === "completed"
+                  ? verdict
+                    ? `${verdict.grade} · ${verdict.label}`
+                    : "Out of 100"
+                  : audit.status}
               </div>
               {/* The number most likely to end up in front of a client,
                   and the one whose basis is least obvious. It describes
@@ -326,13 +349,74 @@ export default async function AuditDetailPage({
         </div>
       </section>
 
+      {scoreCap ? (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs text-amber-100">
+          Score capped at {audit.score}/100 (uncapped {scoreCap.uncappedScore}
+          ): {scoreCap.reasons.join("; ")}
+        </div>
+      ) : null}
+      {waivedCaps.length > 0 ? (
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-xs text-cyan-100">
+          Staging caps waived: {waivedCaps.join("; ")}
+        </div>
+      ) : null}
+
+      {cwv ? (
+        <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Core Web Vitals
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Measured via Playwright during the SEOmator run (lab data, not
+            CrUX field data).
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-5">
+            {(
+              [
+                ["LCP", cwv.lcp, "cwv-lcp", (v: number) => `${(v / 1000).toFixed(2)}s`],
+                ["CLS", cwv.cls, "cwv-cls", (v: number) => v.toFixed(3)],
+                ["INP", cwv.inp, "cwv-inp", (v: number) => `${Math.round(v)}ms`],
+                ["TTFB", cwv.ttfb, "cwv-ttfb", (v: number) => `${Math.round(v)}ms`],
+                ["FCP", cwv.fcp, "cwv-fcp", (v: number) => `${(v / 1000).toFixed(2)}s`],
+              ] as const
+            ).map(([label, value, ruleId, fmt]) => {
+              const status = cwv.statuses[ruleId] ?? "not-measured";
+              const tone =
+                status === "pass"
+                  ? "text-emerald-300"
+                  : status === "fail"
+                    ? "text-rose-300"
+                    : status === "warn"
+                      ? "text-amber-300"
+                      : "text-muted-foreground";
+              return (
+                <div
+                  key={label}
+                  className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    {label}
+                  </div>
+                  <div className={`mt-1 text-lg font-semibold tabular-nums ${tone}`}>
+                    {value == null ? "—" : fmt(value)}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    {status}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       {audit.kind === "seomator" && audit.categoryScores ? (
         <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
           <h2 className="text-sm font-semibold tracking-tight">
             Category scores
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            SEOmator 373-rule breakdown across technical categories.
+            Weighted SEOmator categories (373 rules). Lower scores first.
           </p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {Object.entries(audit.categoryScores)
@@ -350,8 +434,8 @@ export default async function AuditDetailPage({
                     className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                        {cat}
+                      <span className="truncate text-[11px] font-medium tracking-wide text-muted-foreground">
+                        {categoryLabel(cat)}
                       </span>
                       <span className={`text-lg font-semibold tabular-nums ${tone}`}>
                         {vals.score}
@@ -502,13 +586,15 @@ export default async function AuditDetailPage({
                         ) : (
                           <span className="font-medium capitalize">
                             {g.type.startsWith("seomator:")
-                              ? g.type.slice("seomator:".length).replace(/-/g, " ")
+                              ? ruleDisplayName(
+                                  g.type.slice("seomator:".length),
+                                )
                               : g.type.replace(/_/g, " ")}
                           </span>
                         )}
                         {g.category && (
                           <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30">
-                            {g.category}
+                            {categoryLabel(g.category)}
                           </span>
                         )}
                         {g.affectedUrls.length > 1 && (

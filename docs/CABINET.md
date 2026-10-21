@@ -34,3 +34,8 @@ Agent planners keep filtering on `kind = crawler`. SEOmator findings use
 One destination: migrate **this** app schema to PostgreSQL (`DATABASE_URL`).
 See [POSTGRES-MIGRATION.md](./POSTGRES-MIGRATION.md). Do not stand up a
 second clients/sites/audits schema.
+
+## Engine details
+
+How SEOmator plugs in, what it needs, and what it adds vs the built-in
+crawler: [SEOMATOR-ENGINE.md](./SEOMATOR-ENGINE.md).

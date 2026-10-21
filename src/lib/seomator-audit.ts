@@ -14,7 +14,6 @@
 
 import {
   createAuditor,
-  getRuleById,
   type AuditResult as SeomatorAuditResult,
   type RuleResult,
 } from "@seomator/seo-audit";
@@ -24,6 +23,15 @@ import {
   priorityForIssue,
   type ActionPriority,
 } from "@/lib/cabinet/priority";
+import {
+  categoryLabel,
+  extractCwv,
+  extractScoreCap,
+  ruleDisplayName,
+  ruleFix,
+  type CwvSnapshot,
+  type ScoreCapInfo,
+} from "@/lib/seomator-meta";
 
 export type SeomatorFinding = AuditFinding & {
   category: string;
@@ -45,6 +53,9 @@ export type SeomatorBridgeResult = {
   /** Short markdown: score + per-category breakdown for the audit row. */
   summary: string;
   categoryScores: CategoryScoreMap;
+  /** Start-page CWV metrics when Playwright measured them. */
+  cwv: CwvSnapshot | null;
+  scoreCap: ScoreCapInfo | null;
   /** Raw SEOmator payload for debugging / future compare UI. */
   raw: SeomatorAuditResult;
 };
@@ -82,16 +93,10 @@ function pageUrlOf(result: RuleResult, fallback: string): string {
   return typeof raw === "string" && raw.length > 0 ? raw : fallback;
 }
 
-function fixStepsOf(result: RuleResult, ruleId: string): string | null {
-  const fix = result.details?.fix;
-  if (typeof fix === "string" && fix.trim()) return fix.trim();
-  const rule = getRuleById(ruleId);
-  if (rule?.description) return rule.description;
-  return null;
-}
-
-function ruleNameOf(ruleId: string): string {
-  return getRuleById(ruleId)?.name ?? ruleId;
+function fixStepsOf(result: RuleResult, ruleId: string): string {
+  const fromDetails =
+    typeof result.details?.fix === "string" ? result.details.fix : null;
+  return ruleFix(ruleId, fromDetails);
 }
 
 /**
@@ -123,7 +128,7 @@ export function mapSeomatorResult(
         category: category.categoryId,
         fixSteps: fixStepsOf(rule, rule.ruleId),
         confidence: rule.status === "fail" ? "definitely" : "probably",
-        ruleName: ruleNameOf(rule.ruleId),
+        ruleName: ruleDisplayName(rule.ruleId),
       });
     }
   }
@@ -146,13 +151,14 @@ export function mapSeomatorResult(
   ];
   for (const c of result.categoryResults) {
     lines.push(
-      `| ${c.categoryId} | ${c.score} | ${c.passCount} | ${c.warnCount} | ${c.failCount} |`,
+      `| ${categoryLabel(c.categoryId)} | ${c.score} | ${c.passCount} | ${c.warnCount} | ${c.failCount} |`,
     );
   }
-  if (result.scoreCap) {
+  const scoreCap = extractScoreCap(result);
+  if (scoreCap) {
     lines.push(
       "",
-      `Score capped at ${result.overallScore} (uncapped ${result.scoreCap.uncappedScore}): ${result.scoreCap.caps.map((c) => c.reason).join("; ")}`,
+      `Score capped at ${result.overallScore} (uncapped ${scoreCap.uncappedScore}): ${scoreCap.reasons.join("; ")}`,
     );
   }
 
@@ -173,6 +179,8 @@ export function mapSeomatorResult(
     findings,
     summary: lines.join("\n"),
     categoryScores,
+    cwv: extractCwv(result),
+    scoreCap,
   };
 }
 

@@ -17,6 +17,7 @@ import {
   seomatorFindingsToTasks,
 } from "@/lib/seomator-audit";
 import { normalizeSeomatorReport } from "@/lib/cabinet/normalize";
+import { QUICK_AUDIT_CATEGORIES } from "@/lib/seomator-meta";
 
 const SCORE_DROP_THRESHOLD = 5;
 const STALLED_AFTER_MS = 10 * 60 * 1000;
@@ -344,12 +345,18 @@ export async function runAuditForClient(clientId: number) {
 }
 
 /**
- * Deep technical audit powered by SEOmator (373 rules / 20 categories).
+ * Technical audit powered by SEOmator (373 rules / 20 categories).
  *
  * Stored as `kind = "seomator"` so the agent planner keeps reading crawler
  * audits for auto-fixes, while humans get the mature technical report here.
+ *
+ * `mode: "quick"` still uses SEOmator — same tables — but only core /
+ * technical / security / crawl / perf (faster smoke with CWV).
  */
-export async function runSeomatorAuditForClient(clientId: number) {
+export async function runSeomatorAuditForClient(
+  clientId: number,
+  mode: "full" | "quick" = "full",
+) {
   const [client] = await db
     .select()
     .from(clients)
@@ -373,6 +380,7 @@ export async function runSeomatorAuditForClient(clientId: number) {
     .orderBy(desc(audits.completedAt))
     .limit(1);
   const previousScore = previousAudit?.score ?? null;
+  const isQuick = mode === "quick";
 
   const startedAt = new Date();
   const [auditRow] = await db
@@ -391,9 +399,10 @@ export async function runSeomatorAuditForClient(clientId: number) {
     let lastWrite = 0;
     result = await runSeomatorAudit(client.url, {
       crawl: true,
-      maxPages: 20,
+      maxPages: isQuick ? 8 : 20,
       concurrency: 3,
       measureCwv: true,
+      categories: isQuick ? [...QUICK_AUDIT_CATEGORIES] : [],
       onCrawlProgress: (crawled) => {
         const now = Date.now();
         if (now - lastWrite < 300) return;
@@ -419,7 +428,7 @@ export async function runSeomatorAuditForClient(clientId: number) {
       .where(eq(audits.id, auditRow.id));
 
     notify({
-      title: `Deep audit failed for ${client.name}`,
+      title: `Audit failed for ${client.name}`,
       body: reason.slice(0, 400),
       level: "error",
       fields: [{ label: "Client", value: client.name }],
@@ -566,20 +575,24 @@ export async function runSeomatorAuditForClient(clientId: number) {
     null;
   const isScoreDrop = delta !== null && delta <= -SCORE_DROP_THRESHOLD;
 
+  const engineLabel = isQuick
+    ? "SEOmator quick (core/tech/security/crawl/perf)"
+    : "SEOmator (373 rules)";
+
   notify({
     title: `${isScoreDrop ? "Audit score dropped" : "Audit completed"} — ${client.name}`,
-    body: `Technical audit (SEOmator, 373 rules) on ${client.url}: ${score}/100, ${realFindings.length} issues.`,
+    body: `Technical audit (${engineLabel}) on ${client.url}: ${score}/100, ${realFindings.length} issues.`,
     level: isScoreDrop ? "warning" : "success",
     fields: [
       { label: "Score", value: `${score}/100` },
       { label: "Issues", value: `${realFindings.length} found` },
-      { label: "Engine", value: "SEOmator (373 rules)" },
+      { label: "Engine", value: engineLabel },
     ] satisfies NotificationField[],
   }).catch(() => {});
 
   await logActivity({
     kind: "audit.completed",
-    message: `Audit #${auditRow.id} for ${client.name} — SEOmator ${score}/100, ${realFindings.length} issues.`,
+    message: `Audit #${auditRow.id} for ${client.name} — ${engineLabel} ${score}/100, ${realFindings.length} issues.`,
     level: isScoreDrop ? "warning" : "success",
     clientId,
     entityType: "audit",
@@ -596,6 +609,7 @@ export async function runSeomatorAuditForClient(clientId: number) {
       issuesCount: realFindings.length,
       topIssue: topIssue ?? "",
       engine: "seomator",
+      mode: isQuick ? "quick" : "full",
     },
   });
 

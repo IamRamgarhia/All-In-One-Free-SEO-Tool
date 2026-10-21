@@ -15,6 +15,7 @@ import { audits, auditIssues, auditRuleHistory, clients } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
 import { assertClientAccess } from "@/lib/client-scope";
 import { diffRuleStatuses } from "@/lib/cabinet/diff";
+import { categoryLabel } from "@/lib/seomator-meta";
 
 type IssueRow = typeof auditIssues.$inferSelect;
 
@@ -235,8 +236,8 @@ export default async function AuditDiffPage({
                 key={cat}
                 className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
               >
-                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {cat}
+                <div className="text-[11px] font-medium tracking-wide text-muted-foreground">
+                  {categoryLabel(cat)}
                 </div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="text-sm tabular-nums text-muted-foreground">

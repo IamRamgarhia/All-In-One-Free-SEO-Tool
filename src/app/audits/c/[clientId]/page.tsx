@@ -75,7 +75,12 @@ export default async function PerClientAuditsPage({
     .orderBy(desc(audits.createdAt));
 
   const runCrawlAction = runAuditForClient.bind(null, clientId);
-  const runDeepAction = runSeomatorAuditForClient.bind(null, clientId);
+  const runDeepAction = runSeomatorAuditForClient.bind(null, clientId, "full");
+  const runQuickAction = runSeomatorAuditForClient.bind(
+    null,
+    clientId,
+    "quick",
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -101,6 +106,11 @@ export default async function PerClientAuditsPage({
           <div className="flex flex-wrap items-center gap-2">
             <form action={runDeepAction}>
               <Button type="submit">Run audit</Button>
+            </form>
+            <form action={runQuickAction}>
+              <Button type="submit" variant="outline">
+                Quick audit
+              </Button>
             </form>
             <form action={runCrawlAction}>
               <Button type="submit" variant="outline">

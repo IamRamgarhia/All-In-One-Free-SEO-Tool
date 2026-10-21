@@ -306,7 +306,12 @@ export default async function ClientDetailPage({
   const redetectAction = redetectTechStack.bind(null, client.id);
   const refreshMetadataAction = refreshClientMetadataForm.bind(null, client.id);
   const runAction = runAuditForClient.bind(null, client.id);
-  const runDeepAction = runSeomatorAuditForClient.bind(null, client.id);
+  const runDeepAction = runSeomatorAuditForClient.bind(null, client.id, "full");
+  const runQuickAction = runSeomatorAuditForClient.bind(
+    null,
+    client.id,
+    "quick",
+  );
   const applyTemplatesAction = applyNicheTemplates.bind(null, client.id);
   const applyStackAction = applyStackTemplates.bind(null, client.id);
   const { matched: matchedStacks } = pickStackTemplates(client.techStack);
@@ -651,6 +656,17 @@ export default async function ClientDetailPage({
                       pendingToastDescription="SEOmator — 373 rules, 20 categories, Core Web Vitals. Usually 1–3 minutes."
                     >
                       Run audit
+                    </SubmitButton>
+                  </form>
+                  <form action={runQuickAction}>
+                    <SubmitButton
+                      variant="outline"
+                      icon={<Play className="size-3.5" />}
+                      pendingChildren="Running quick audit…"
+                      pendingToast="Starting quick audit"
+                      pendingToastDescription="SEOmator core + tech + security + crawl + CWV. Same engine, fewer categories."
+                    >
+                      Quick audit
                     </SubmitButton>
                   </form>
                   <form action={runAction}>
