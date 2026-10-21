@@ -311,5 +311,92 @@
         }
       }
     }
+  },
+  "tasks": {
+    "title": "Tasks",
+    "description": "Auto-generated from audits and niche templates, plus anything you add manually.",
+    "playbooks": "Playbooks",
+    "list": "List",
+    "kanban": "Kanban",
+    "openCount": "{count} open",
+    "doneCount": "{count} done",
+    "skippedCount": "{count} skipped",
+    "emptyTitle": "No tasks in this view",
+    "emptyAll": "Run an audit on a client and we'll generate prioritised tasks automatically.",
+    "emptyFiltered": "Switch to All to see every task, or pick a different time window.",
+    "filters": {
+      "all": "All",
+      "today": "Today",
+      "week": "This week",
+      "month": "This month"
+    },
+    "status": {
+      "todo": "To do",
+      "in_progress": "In progress",
+      "done": "Done",
+      "skipped": "Skipped"
+    },
+    "priority": {
+      "high": "High priority",
+      "medium": "Medium priority",
+      "low": "Low priority"
+    },
+    "priorityShort": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "due": {
+      "wasDue": "was due {date}",
+      "overdueDays": "{days}d overdue",
+      "today": "due today",
+      "inDays": "due in {days}d"
+    },
+    "setPriority": "Set priority…",
+    "closed": "Closed",
+    "done": "Done",
+    "dropHere": "Drop here",
+    "selectedCount": "{count} selected",
+    "markDone": "Mark done",
+    "reopen": "Reopen",
+    "delete": "Delete",
+    "selectAll": "Select all",
+    "clearSelection": "Clear selection",
+    "selectTask": "Select task",
+    "cycleStatus": "Cycle status",
+    "advanceStatus": "Advance status",
+    "deleteTask": "Delete task",
+    "taskCount": "{count, plural, one {# task} other {# tasks}}",
+    "completedCount": "{count} completed",
+    "skippedInClosed": "· {count} skipped",
+    "openTool": "Open the tool",
+    "deleteConfirmTitle": "Delete {count, plural, one {# task} other {# tasks}}?",
+    "deleteConfirmBody": "This can't be undone. The tasks will be removed from your list.",
+    "form": {
+      "addClientFirst": "Add a client to create tasks",
+      "addTask": "Add task",
+      "newTask": "New task",
+      "close": "Close",
+      "client": "Client",
+      "title": "Title",
+      "titlePlaceholder": "Refresh top 5 cornerstone articles",
+      "whyItMatters": "Why it matters (optional)",
+      "whyPlaceholder": "Stops content decay on traffic-driving pages",
+      "priority": "Priority",
+      "dueInDays": "Due in (days)",
+      "repeat": "Repeat",
+      "repeatNone": "No",
+      "repeatDaily": "Daily",
+      "repeatWeekly": "Weekly",
+      "repeatMonthly": "Monthly",
+      "repeatQuarterly": "Quarterly",
+      "created": "Created.",
+      "creating": "Creating…",
+      "createTask": "Create task"
+    },
+    "time": {
+      "subtract15": "Subtract 15 min",
+      "add15": "Add 15 min"
+    }
   }
 }

@@ -311,5 +311,92 @@
         }
       }
     }
+  },
+  "tasks": {
+    "title": "Tâches",
+    "description": "Générées automatiquement depuis les audits et modèles de niche, plus celles que vous ajoutez à la main.",
+    "playbooks": "Playbooks",
+    "list": "Liste",
+    "kanban": "Kanban",
+    "openCount": "{count} ouvertes",
+    "doneCount": "{count} terminées",
+    "skippedCount": "{count} ignorées",
+    "emptyTitle": "Aucune tâche dans cette vue",
+    "emptyAll": "Lancez un audit sur un client et nous générerons des tâches priorisées automatiquement.",
+    "emptyFiltered": "Passez sur Toutes pour tout voir, ou choisissez une autre fenêtre temporelle.",
+    "filters": {
+      "all": "Toutes",
+      "today": "Aujourd’hui",
+      "week": "Cette semaine",
+      "month": "Ce mois"
+    },
+    "status": {
+      "todo": "À faire",
+      "in_progress": "En cours",
+      "done": "Terminée",
+      "skipped": "Ignorée"
+    },
+    "priority": {
+      "high": "Priorité haute",
+      "medium": "Priorité moyenne",
+      "low": "Priorité basse"
+    },
+    "priorityShort": {
+      "high": "Haute",
+      "medium": "Moyenne",
+      "low": "Basse"
+    },
+    "due": {
+      "wasDue": "échéance était le {date}",
+      "overdueDays": "{days} j de retard",
+      "today": "échéance aujourd’hui",
+      "inDays": "échéance dans {days} j"
+    },
+    "setPriority": "Définir la priorité…",
+    "closed": "Fermées",
+    "done": "Terminées",
+    "dropHere": "Déposer ici",
+    "selectedCount": "{count} sélectionnée(s)",
+    "markDone": "Marquer terminée",
+    "reopen": "Rouvrir",
+    "delete": "Supprimer",
+    "selectAll": "Tout sélectionner",
+    "clearSelection": "Effacer la sélection",
+    "selectTask": "Sélectionner la tâche",
+    "cycleStatus": "Changer le statut",
+    "advanceStatus": "Avancer le statut",
+    "deleteTask": "Supprimer la tâche",
+    "taskCount": "{count, plural, one {# tâche} other {# tâches}}",
+    "completedCount": "{count} terminées",
+    "skippedInClosed": "· {count} ignorées",
+    "openTool": "Ouvrir l’outil",
+    "deleteConfirmTitle": "Supprimer {count, plural, one {# tâche} other {# tâches}} ?",
+    "deleteConfirmBody": "Cette action est irréversible. Les tâches seront retirées de votre liste.",
+    "form": {
+      "addClientFirst": "Ajoutez un client pour créer des tâches",
+      "addTask": "Ajouter une tâche",
+      "newTask": "Nouvelle tâche",
+      "close": "Fermer",
+      "client": "Client",
+      "title": "Titre",
+      "titlePlaceholder": "Actualiser les 5 articles piliers principaux",
+      "whyItMatters": "Pourquoi c’est important (optionnel)",
+      "whyPlaceholder": "Évite la dégradation de contenu sur les pages qui amènent du trafic",
+      "priority": "Priorité",
+      "dueInDays": "Échéance (jours)",
+      "repeat": "Récurrence",
+      "repeatNone": "Non",
+      "repeatDaily": "Quotidienne",
+      "repeatWeekly": "Hebdomadaire",
+      "repeatMonthly": "Mensuelle",
+      "repeatQuarterly": "Trimestrielle",
+      "created": "Créée.",
+      "creating": "Création…",
+      "createTask": "Créer la tâche"
+    },
+    "time": {
+      "subtract15": "Retirer 15 min",
+      "add15": "Ajouter 15 min"
+    }
   }
 }

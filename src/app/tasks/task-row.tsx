@@ -2,28 +2,22 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat, ArrowUpRight } from "lucide-react";
 import { setTaskStatus, deleteTask } from "./actions";
 import { TimeTracker } from "./time-tracker";
 
-const statusConfig: Record<
-  string,
-  { label: string; className: string }
-> = {
+const statusConfig: Record<string, { className: string }> = {
   todo: {
-    label: "To do",
     className: "bg-white/5 text-muted-foreground ring-white/10",
   },
   in_progress: {
-    label: "In progress",
     className: "bg-violet-500/15 text-violet-300 ring-violet-500/20",
   },
   done: {
-    label: "Done",
     className: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/20",
   },
   skipped: {
-    label: "Skipped",
     className: "bg-white/5 text-muted-foreground ring-white/10",
   },
 };
@@ -57,8 +51,16 @@ export function TaskRow({
   task: TaskRowData;
   nowMs: number;
 }) {
+  const t = useTranslations("tasks");
   const [pending, startTransition] = useTransition();
   const sCfg = statusConfig[task.status] ?? statusConfig.todo;
+  const statusKey =
+    task.status === "todo" ||
+    task.status === "in_progress" ||
+    task.status === "done" ||
+    task.status === "skipped"
+      ? task.status
+      : "todo";
 
   const next: "todo" | "in_progress" | "done" =
     task.status === "todo"
@@ -72,7 +74,7 @@ export function TaskRow({
       <div className="flex items-start gap-3">
         <button
           type="button"
-          aria-label="Cycle status"
+          aria-label={t("cycleStatus")}
           disabled={pending}
           onClick={() =>
             startTransition(() => setTaskStatus(task.id, next))
@@ -112,7 +114,7 @@ export function TaskRow({
                 }
                 className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary ring-1 ring-inset ring-primary/20 hover:bg-primary/20"
               >
-                Open the tool
+                {t("openTool")}
                 <ArrowUpRight className="size-3" />
               </Link>
             )}
@@ -147,7 +149,7 @@ export function TaskRow({
           <span
             className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${sCfg.className}`}
           >
-            {sCfg.label}
+            {t(`status.${statusKey}`)}
           </span>
           <DeleteButton taskId={task.id} />
         </div>
@@ -157,11 +159,12 @@ export function TaskRow({
 }
 
 export function DeleteButton({ taskId }: { taskId: number }) {
+  const t = useTranslations("tasks");
   const [pending, startTransition] = useTransition();
   return (
     <button
       type="button"
-      aria-label="Delete task"
+      aria-label={t("deleteTask")}
       disabled={pending}
       onClick={() => startTransition(() => deleteTask(taskId))}
       className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-rose-500/15 hover:text-rose-300"
@@ -171,40 +174,48 @@ export function DeleteButton({ taskId }: { taskId: number }) {
   );
 }
 
+type TasksTranslate = {
+  (key: "due.wasDue", values: { date: string }): string;
+  (key: "due.overdueDays", values: { days: number }): string;
+  (key: "due.today"): string;
+  (key: "due.inDays", values: { days: number }): string;
+};
+
 function dueBadgeProps(
   dueDate: Date,
   done: boolean,
   nowMs: number,
+  t: TasksTranslate,
 ): { tone: string; label: string } {
   const ms = dueDate.getTime() - nowMs;
   const days = Math.round(ms / 86_400_000);
   if (done) {
     return {
       tone: "bg-white/5 text-muted-foreground ring-white/10",
-      label: `was due ${dueDate.toLocaleDateString()}`,
+      label: t("due.wasDue", { date: dueDate.toLocaleDateString() }),
     };
   }
   if (days < 0) {
     return {
       tone: "bg-rose-500/15 text-rose-300 ring-rose-500/30",
-      label: `${Math.abs(days)}d overdue`,
+      label: t("due.overdueDays", { days: Math.abs(days) }),
     };
   }
   if (days === 0) {
     return {
       tone: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
-      label: "due today",
+      label: t("due.today"),
     };
   }
   if (days <= 7) {
     return {
       tone: "bg-amber-500/10 text-amber-300 ring-amber-500/20",
-      label: `due in ${days}d`,
+      label: t("due.inDays", { days }),
     };
   }
   return {
     tone: "bg-white/5 text-muted-foreground ring-white/10",
-    label: `due in ${days}d`,
+    label: t("due.inDays", { days }),
   };
 }
 
@@ -217,7 +228,8 @@ function DueBadge({
   done: boolean;
   nowMs: number;
 }) {
-  const { tone, label } = dueBadgeProps(dueDate, done, nowMs);
+  const t = useTranslations("tasks");
+  const { tone, label } = dueBadgeProps(dueDate, done, nowMs, t);
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${tone}`}
@@ -234,6 +246,7 @@ export function KanbanCard({
   task: TaskRowData;
   nowMs: number;
 }) {
+  const t = useTranslations("tasks");
   const [pending, startTransition] = useTransition();
   const next: "todo" | "in_progress" | "done" =
     task.status === "todo"
@@ -248,13 +261,20 @@ export function KanbanCard({
     low: "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
   };
 
+  const priorityKey =
+    task.priority === "high" ||
+    task.priority === "medium" ||
+    task.priority === "low"
+      ? task.priority
+      : "medium";
+
   return (
     <div className="rounded-xl border border-white/5 bg-card/60 p-3 backdrop-blur-md transition-colors hover:border-white/10">
       <div className="flex items-start justify-between gap-2">
         <div className="text-sm font-medium leading-snug">{task.title}</div>
         <button
           type="button"
-          aria-label="Advance status"
+          aria-label={t("advanceStatus")}
           disabled={pending}
           onClick={() =>
             startTransition(() => setTaskStatus(task.id, next))
@@ -272,7 +292,7 @@ export function KanbanCard({
         <span
           className={`rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${priorityTone[task.priority] ?? "bg-white/5"}`}
         >
-          {task.priority}
+          {t(`priorityShort.${priorityKey}`)}
         </span>
         {task.clientName && task.clientId && (
           <Link

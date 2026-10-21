@@ -11,6 +11,7 @@ import {
   type DraggableProvided,
   type DraggableStateSnapshot,
 } from "@hello-pangea/dnd";
+import { useTranslations } from "next-intl";
 import { Clock, Sparkles, Check } from "lucide-react";
 import { KanbanCard, type TaskRowData } from "./task-row";
 import { setTaskStatus } from "./actions";
@@ -21,28 +22,24 @@ const statusOrder: Status[] = ["todo", "in_progress", "done", "skipped"];
 
 const statusMeta: Record<
   Status,
-  { label: string; icon: typeof Clock; iconText: string; iconBg: string }
+  { icon: typeof Clock; iconText: string; iconBg: string }
 > = {
   todo: {
-    label: "To do",
     icon: Clock,
     iconText: "text-muted-foreground",
     iconBg: "bg-white/5 ring-white/10",
   },
   in_progress: {
-    label: "In progress",
     icon: Sparkles,
     iconText: "text-violet-300",
     iconBg: "bg-violet-500/15 ring-violet-400/30",
   },
   done: {
-    label: "Done",
     icon: Check,
     iconText: "text-emerald-300",
     iconBg: "bg-emerald-500/15 ring-emerald-400/30",
   },
   skipped: {
-    label: "Skipped",
     icon: Check,
     iconText: "text-muted-foreground",
     iconBg: "bg-white/5 ring-white/10",
@@ -56,6 +53,7 @@ export function KanbanBoard({
   initialTasks: TaskRowData[];
   nowMs: number;
 }) {
+  const t = useTranslations("tasks");
   const [optimistic, applyOptimistic] = useOptimistic(
     initialTasks,
     (current: TaskRowData[], update: { id: number; status: Status }) =>
@@ -110,7 +108,9 @@ export function KanbanBoard({
                   >
                     <Icon className={`size-3.5 ${meta.iconText}`} />
                   </div>
-                  <span className="text-sm font-semibold">{meta.label}</span>
+                  <span className="text-sm font-semibold">
+                    {t(`status.${s}`)}
+                  </span>
                 </div>
                 <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-white/10">
                   {list.length}
@@ -129,13 +129,13 @@ export function KanbanBoard({
                   >
                     {list.length === 0 && !snapshot.isDraggingOver ? (
                       <div className="rounded-lg border border-dashed border-white/5 px-3 py-6 text-center text-xs text-muted-foreground">
-                        Drop here
+                        {t("dropHere")}
                       </div>
                     ) : (
-                      list.map((t, i) => (
+                      list.map((task, i) => (
                         <Draggable
-                          key={t.id}
-                          draggableId={String(t.id)}
+                          key={task.id}
+                          draggableId={String(task.id)}
                           index={i}
                         >
                           {(dp: DraggableProvided, snap: DraggableStateSnapshot) => (
@@ -150,7 +150,7 @@ export function KanbanBoard({
                                   : ""
                               }
                             >
-                              <KanbanCard task={t} nowMs={nowMs} />
+                              <KanbanCard task={task} nowMs={nowMs} />
                             </div>
                           )}
                         </Draggable>
