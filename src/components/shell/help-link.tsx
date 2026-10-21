@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { CircleHelp } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { docsUrlFor } from "@/lib/docs-links";
 
 /**
@@ -17,14 +18,15 @@ import { docsUrlFor } from "@/lib/docs-links";
  */
 export function HelpLink({ className = "" }: { className?: string }) {
   const pathname = usePathname();
+  const t = useTranslations("common");
 
   return (
     <a
       href={docsUrlFor(pathname)}
       target="_blank"
       rel="noopener noreferrer"
-      title="Open the documentation for this screen"
-      aria-label="Help for this screen"
+      title={t("openDocs")}
+      aria-label={t("helpThisScreen")}
       className={
         "inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 " +
         "bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-muted-foreground " +

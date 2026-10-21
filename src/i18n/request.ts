@@ -27,10 +27,25 @@ async function resolveLocale(): Promise<Locale> {
   return defaultLocale;
 }
 
+import toolsCatalogEn from "../../messages/tools-catalog.en.json";
+import toolsCatalogFr from "../../messages/tools-catalog.fr.json";
+
+const TOOL_CATALOGS = {
+  en: toolsCatalogEn,
+  fr: toolsCatalogFr,
+} as const;
+
 export default getRequestConfig(async () => {
   const locale = await resolveLocale();
+  const base = (await import(`../../messages/${locale}.json`)).default;
   return {
     locale,
-    messages: (await import(`../../messages/${locale}.json`)).default,
+    messages: {
+      ...base,
+      tools: {
+        ...(base.tools ?? {}),
+        catalog: TOOL_CATALOGS[locale],
+      },
+    },
   };
 });

@@ -131,7 +131,11 @@ export function PowerWidget() {
   }
 
   return (
-    <div ref={ref} className="fixed bottom-5 right-20 z-40">
+    <div
+      ref={ref}
+      className="fixed bottom-3 right-14 z-40 sm:bottom-5 sm:right-20"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
       {open && (
         <div className="mb-2 w-64 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
