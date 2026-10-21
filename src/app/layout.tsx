@@ -17,6 +17,7 @@ import { ClientErrorCapture } from "@/components/shell/client-error-capture";
 import { QuickAddClientProvider } from "@/components/shell/quick-add-client-dialog";
 import { ShortcutsHelpHotkey } from "@/components/shell/shortcuts-help-hotkey";
 import { getUnreadCounts } from "@/lib/unread-counts";
+import { currentUser } from "@/lib/auth";
 import { getUiMode } from "./settings/ui-actions";
 import { getThemePreference } from "./settings/theme-actions";
 import "./globals.css";
@@ -73,6 +74,8 @@ export default async function RootLayout({
   }
 
   const uiMode = await getUiMode();
+  const me = await currentUser().catch(() => null);
+  const userRole = me?.role ?? null;
 
   // Server-side embed detection. The middleware sees ?embed=1 in the
   // request URL and forwards it as an x-embed header (see
@@ -141,9 +144,14 @@ export default async function RootLayout({
                       unreadByHref={unreadByHref}
                       uiMode={uiMode}
                       hasAiKey={aiAvailability.hasKey}
+                      userRole={userRole}
                     />
                     <div className="flex h-full min-w-0 flex-1 flex-col">
-                      <TopBar unreadByHref={unreadByHref} theme={theme} />
+                      <TopBar
+                        unreadByHref={unreadByHref}
+                        theme={theme}
+                        userRole={userRole}
+                      />
                       <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-24 sm:p-4 sm:pb-20 md:p-6 md:pb-6">
                         {/* One place, so all 38 AI pages say the same thing
                             — and /agent, /blog and the assistant too, not

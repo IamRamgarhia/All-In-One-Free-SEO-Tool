@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Menu, Search, X } from "lucide-react";
-import { NAV_GROUPS, type NavItem } from "./nav-items";
+import { navGroupsForRole, type NavItem } from "./nav-items";
 import { navItemMessageKey } from "@/i18n/nav";
 import { capabilityOf } from "@/lib/tool-capabilities";
 
@@ -26,8 +26,10 @@ import { capabilityOf } from "@/lib/tool-capabilities";
  */
 export function MobileNav({
   unreadByHref,
+  userRole = null,
 }: {
   unreadByHref?: Record<string, number>;
+  userRole?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -63,9 +65,11 @@ export function MobileNav({
   }, [open]);
 
   const q = query.trim().toLowerCase();
+  const baseGroups = useMemo(() => navGroupsForRole(userRole), [userRole]);
+
   const groups = useMemo(() => {
-    if (!q) return NAV_GROUPS;
-    return NAV_GROUPS.map((g) => ({
+    if (!q) return baseGroups;
+    return baseGroups.map((g) => ({
       ...g,
       items: g.items.filter((it: NavItem) => {
         const translated = itemLabel(it.href).toLowerCase();
@@ -76,7 +80,7 @@ export function MobileNav({
     })).filter((g) => g.items.length > 0);
     // itemLabel closes over tItems for the active locale
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, tItems]);
+  }, [q, tItems, baseGroups]);
 
   return (
     <>
