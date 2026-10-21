@@ -610,6 +610,21 @@
     }
   },
   "tools": {
+    "common": {
+      "allTools": "All tools",
+      "urlLabel": "URL",
+      "run": "Run",
+      "running": "Running…",
+      "analyze": "Analyze",
+      "analyzing": "Analyzing…",
+      "copy": "Copy",
+      "copied": "Copied",
+      "save": "Save",
+      "saved": "Saved",
+      "download": "Download",
+      "close": "Close",
+      "optional": "Optional"
+    },
     "hub": {
       "title": "All tools",
       "description": "100+ free SEO tools in one searchable grid — audits, content, keywords, local, AI visibility, and more.",

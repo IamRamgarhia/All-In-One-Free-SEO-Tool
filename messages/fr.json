@@ -610,6 +610,21 @@
     }
   },
   "tools": {
+    "common": {
+      "allTools": "Tous les outils",
+      "urlLabel": "URL",
+      "run": "Lancer",
+      "running": "En cours…",
+      "analyze": "Analyser",
+      "analyzing": "Analyse…",
+      "copy": "Copier",
+      "copied": "Copié",
+      "save": "Enregistrer",
+      "saved": "Enregistré",
+      "download": "Télécharger",
+      "close": "Fermer",
+      "optional": "Optionnel"
+    },
     "hub": {
       "title": "Tous les outils",
       "description": "Plus de 100 outils SEO gratuits — audits, contenu, mots-clés, local, visibilité IA, etc.",
