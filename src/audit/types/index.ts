@@ -30,6 +30,15 @@ export type LinkInfo = {
   isNoFollow: boolean;
 };
 
+export type PageCwv = {
+  lcp?: number;
+  cls?: number;
+  fcp?: number;
+  ttfb?: number;
+  inp?: number;
+  tbt?: number;
+};
+
 export type CrawledPage = {
   url: string;
   finalUrl: string;
@@ -48,6 +57,10 @@ export type CrawledPage = {
   wordCount: number;
   fetchedAt: Date;
   error?: string;
+  /** Lab CWV from Playwright (Wave 3). */
+  cwv?: PageCwv;
+  consoleErrors?: string[];
+  failedRequests?: Array<{ url: string; status?: number; error?: string }>;
 };
 
 export type CrawlResult = {
@@ -90,6 +103,9 @@ export type AuditContext = {
   crawl?: CrawlResult;
   config: AuditConfig;
   $: CheerioAPI;
+  /** Cheerio over rendered DOM when Playwright ran. */
+  $rendered?: CheerioAPI;
+  cwv?: PageCwv;
 };
 
 export type RuleResult = {

@@ -40,12 +40,14 @@ export async function POST(request: Request) {
   }
 
   const mode = body.mode === "full" ? "full" : "quick";
+  const isFull = mode === "full";
   const result = await runNativeAudit({
     site: { id: client.id, name: client.name, url: client.url },
     config: {
       mode,
-      maxPages: mode === "quick" ? 1 : 25,
-      render: false,
+      maxPages: isFull ? 25 : 1,
+      render: isFull,
+      measureCwv: isFull,
     },
   });
   const saved = await saveNativeAuditRun({ clientId, result });

@@ -653,7 +653,7 @@ export default async function ClientDetailPage({
                       icon={<Play className="size-3.5" />}
                       pendingChildren="Running quick audit…"
                       pendingToast="Starting native quick audit"
-                      pendingToastDescription="Native Wave 1–2 — HTML only: core, technical, crawl, links, redirects, URLs."
+                      pendingToastDescription="Native Wave 1–3 — HTML only: core, technical, crawl, links, redirects, URLs, images + JS/perf unmeasured."
                     >
                       Audit rapide
                     </SubmitButton>
@@ -664,7 +664,7 @@ export default async function ClientDetailPage({
                       icon={<Play className="size-3.5" />}
                       pendingChildren="Running full audit…"
                       pendingToast="Starting native full audit"
-                      pendingToastDescription="Multi-page crawl, Wave 1–2 rules (Playwright still off)."
+                      pendingToastDescription="Multi-page crawl + Playwright render/CWV on start pages (js, perf, images)."
                     >
                       Audit complet
                     </SubmitButton>
@@ -952,7 +952,7 @@ export default async function ClientDetailPage({
                 <div>
                   <div className="text-sm font-semibold">Audit rapide</div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    Native Wave 1 — core, technical, crawlability.
+                    Native Wave 1–3 HTML — no Playwright.
                   </div>
                 </div>
                 <span className="mt-1 text-[11px] font-medium text-cyan-300 transition-transform group-hover:translate-x-0.5">
@@ -1270,7 +1270,7 @@ export default async function ClientDetailPage({
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <ClipboardList className="size-4 text-cyan-300" />
-            Native audits (Wave 1–2)
+            Native audits (Wave 1–3)
           </h2>
         </header>
         <div className="relative">

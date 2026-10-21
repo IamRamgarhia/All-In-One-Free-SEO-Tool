@@ -5,10 +5,13 @@ import { registerCrawlabilityRules } from "@/audit/rules/crawlability";
 import { registerLinkRules } from "@/audit/rules/links";
 import { registerRedirectRules } from "@/audit/rules/redirects";
 import { registerUrlStructureRules } from "@/audit/rules/url-structure";
+import { registerJavascriptRules } from "@/audit/rules/javascript";
+import { registerPerformanceRules } from "@/audit/rules/performance";
+import { registerImageRules } from "@/audit/rules/images";
 
 let loaded = false;
 
-/** Wave 1 + Wave 2 rule registration (idempotent). */
+/** Wave 1–3 rule registration (idempotent). */
 export function ensureNativeRulesRegistered(): number {
   if (loaded && getRuleCount() > 0) return getRuleCount();
   clearRegistry();
@@ -20,6 +23,10 @@ export function ensureNativeRulesRegistered(): number {
   registerLinkRules();
   registerRedirectRules();
   registerUrlStructureRules();
+  // Wave 3
+  registerJavascriptRules();
+  registerPerformanceRules();
+  registerImageRules();
   loaded = true;
   return getRuleCount();
 }
@@ -36,4 +43,11 @@ export const WAVE1_AND_2_CATEGORIES = [
   "links",
   "redirect",
   "url",
+] as const;
+
+export const WAVE1_2_3_CATEGORIES = [
+  ...WAVE1_AND_2_CATEGORIES,
+  "js",
+  "perf",
+  "images",
 ] as const;

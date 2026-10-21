@@ -14,7 +14,7 @@ export type CrawlOptions = Pick<
 
 /**
  * Multi-page BFS crawler. Quick audits typically use maxPages=1.
- * Playwright rendering is intentionally out of scope here (Wave 3).
+ * Playwright enrichment happens in the audit runner when config.render.
  */
 export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
   const startUrl = normalizeUrl(options.startUrl);

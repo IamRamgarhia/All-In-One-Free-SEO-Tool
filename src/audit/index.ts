@@ -1,7 +1,7 @@
 /**
  * Native technical audit engine (SEOmator expertise ported in-house).
  *
- * Wave 1: core + technical + crawlability.
+ * Waves 1–3: core, technical, crawlability, links, redirect, url, js, perf, images.
  * Legacy `src/lib/audit.ts` and the temporary npm bridge remain until stable.
  */
 

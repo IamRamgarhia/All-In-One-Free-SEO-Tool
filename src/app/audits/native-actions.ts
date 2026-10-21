@@ -10,7 +10,8 @@ import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { logActivity } from "@/lib/activity";
 
 /**
- * Launch the native Wave 1 audit engine (ported SEOmator expertise).
+ * Launch the native Wave 1–3 audit engine (ported SEOmator expertise).
+ * Quick stays HTML-only (no Playwright). Full enables optional render + CWV.
  * Does not replace the legacy crawler or the temporary npm bridge.
  */
 export async function runNativeAuditForClient(
@@ -24,14 +25,15 @@ export async function runNativeAuditForClient(
     .limit(1);
   if (!client) return;
 
+  const isFull = mode === "full";
   const result = await runNativeAudit({
     site: { id: client.id, name: client.name, url: client.url },
     config: {
       mode,
-      maxPages: mode === "quick" ? 1 : 25,
-      render: false,
-      measureCwv: false,
-      // Wave 1+2 categories (core/technical/crawlability/links/redirect/url)
+      maxPages: isFull ? 25 : 1,
+      // Playwright only on full — quick must not require a browser.
+      render: isFull,
+      measureCwv: isFull,
     },
   });
 

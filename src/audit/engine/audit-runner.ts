@@ -9,11 +9,17 @@ import {
 } from "@/audit/engine/score-calculator";
 import { resetCrossPageState, getAllRules } from "@/audit/engine/rule-registry";
 import { runRules } from "@/audit/engine/rule-runner";
+import {
+  enrichPagesWithRender,
+  MAX_RENDERED_PAGES,
+} from "@/audit/rendering/enrich-pages";
 import { ensureNativeRulesRegistered } from "@/audit/rules/register-native";
 import type {
   AuditConfig,
   AuditIssue,
   AuditRunResult,
+  CrawledPage,
+  CrawlResult,
   RuleStatus,
   SiteRef,
 } from "@/audit/types";
@@ -47,8 +53,9 @@ export function defaultAuditConfig(
 }
 
 /**
- * Run the native audit engine (Wave 1 + Wave 2 categories).
- * Quick = HTML-only, usually 1 page. Full = multi-page crawl, still no Playwright by default.
+ * Run the native audit engine (Wave 1–3 categories).
+ * Quick = HTML-only, usually 1 page, Playwright off.
+ * Full = multi-page crawl; when `render:true`, Playwright enrich start + few pages.
  */
 export async function runNativeAudit(
   input: RunNativeAuditInput,
@@ -65,6 +72,14 @@ export async function runNativeAudit(
     respectRobots: config.respectRobots,
     timeoutMs: config.timeoutMs,
   });
+
+  if (config.render) {
+    await enrichPagesWithRender(crawl.pages, {
+      timeoutMs: config.timeoutMs,
+      measureCwv: config.measureCwv,
+      maxPages: MAX_RENDERED_PAGES,
+    });
+  }
 
   const activeCats = new Set(
     config.categories ?? [...ACTIVE_AUDIT_CATEGORIES],
@@ -168,8 +183,8 @@ export async function runNativeAudit(
 
 function buildPageContext(input: {
   site: SiteRef;
-  page: import("@/audit/types").CrawledPage;
-  crawl: import("@/audit/types").CrawlResult;
+  page: CrawledPage;
+  crawl: CrawlResult;
   config: AuditConfig;
 }) {
   const { site, page, crawl, config } = input;
@@ -191,6 +206,10 @@ function buildPageContext(input: {
     crawl,
     config,
     $: loadCheerio(page.rawHtml || "<html></html>"),
+    $rendered: page.renderedHtml
+      ? loadCheerio(page.renderedHtml)
+      : undefined,
+    cwv: page.cwv,
   };
 }
 
