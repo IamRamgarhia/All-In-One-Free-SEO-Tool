@@ -4,6 +4,7 @@ import path from "node:path";
 import { headers } from "next/headers";
 import { count } from "drizzle-orm";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import {
   ArrowRight,
   Bell,
@@ -52,8 +53,13 @@ import { desc as descSql } from "drizzle-orm";
 import { InboundWebhooksManager } from "./inbound-webhooks/manager";
 import { UpdateCard } from "./update-card";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
+import { LocaleForm } from "./locale-form";
+import { getLocalePreference } from "./locale-actions";
 
 export default async function SettingsPage() {
+  const t = await getTranslations("settings");
+  const locale = await getLocalePreference();
+
   const [{ value: clientCount }] = await db
     .select({ value: count() })
     .from(clients);
@@ -127,8 +133,8 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
-        title="Settings"
-        description="Workspace preferences, integrations, and where your data lives."
+        title={t("title")}
+        description={t("description")}
         icon={SettingsIcon}
         accent="violet"
       />
@@ -141,17 +147,17 @@ export default async function SettingsPage() {
           <span className="inline-flex items-center gap-1.5 font-medium">
             <span className="size-1.5 rounded-full bg-emerald-400" />
             {teamCount > 0
-              ? `Local · ${teamCount} ${teamCount === 1 ? "account" : "accounts"}`
-              : "Local · single-user"}
+              ? t("localAccounts", { count: teamCount })
+              : t("localSingle")}
           </span>
           <span className="text-muted-foreground">{tz}</span>
-          <span className="text-muted-foreground">Dark mode</span>
+          <span className="text-muted-foreground">{t("darkMode")}</span>
           <Link
             href="/shortcuts"
             className="ml-auto inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             <Sparkles className="size-3" />
-            Keyboard shortcuts
+            {t("keyboardShortcuts")}
             <ArrowRight className="size-3" />
           </Link>
         </div>
@@ -169,45 +175,46 @@ export default async function SettingsPage() {
             About     — install / privacy / maintainer credit
           Anchors and section IDs are preserved so deep-links keep working. */}
       <nav
-        aria-label="Settings sections"
+        aria-label={t("tocAria")}
         className="space-y-2 text-xs"
       >
         {(
           [
             {
-              label: "Setup",
+              label: t("toc.setup"),
               items: [
-                { href: "#ai", label: "AI keys", primary: true },
-                { href: "#google", label: "Google" },
-                { href: "#team", label: "Team" },
-                { href: "#email", label: "Email" },
+                { href: "#ai", label: t("toc.ai"), primary: true },
+                { href: "#google", label: t("toc.google") },
+                { href: "#team", label: t("toc.team") },
+                { href: "#email", label: t("toc.email") },
+                { href: "#language", label: t("toc.language") },
               ],
             },
             {
-              label: "Brand",
-              items: [{ href: "#brand", label: "Brand identity" }],
+              label: t("toc.brand"),
+              items: [{ href: "#brand", label: t("toc.brandIdentity") }],
             },
             {
-              label: "Power",
+              label: t("toc.power"),
               items: [
-                { href: "#notify", label: "Notifications" },
-                { href: "#api", label: "API access" },
-                { href: "#data", label: "Data" },
+                { href: "#notify", label: t("toc.notify") },
+                { href: "#api", label: t("toc.api") },
+                { href: "#data", label: t("toc.data") },
               ],
             },
             {
-              label: "Advanced",
+              label: t("toc.advanced"),
               items: [
-                { href: "#browser", label: "Browser pool" },
-                { href: "#ai-learning", label: "AI learning" },
+                { href: "#browser", label: t("toc.browser") },
+                { href: "#ai-learning", label: t("toc.aiLearning") },
               ],
             },
             {
-              label: "About",
+              label: t("toc.about"),
               items: [
-                { href: "#install", label: "Install" },
-                { href: "#privacy", label: "Privacy" },
-                { href: "#about", label: "Maintainer" },
+                { href: "#install", label: t("toc.install") },
+                { href: "#privacy", label: t("toc.privacy") },
+                { href: "#about", label: t("toc.maintainer") },
               ],
             },
           ] as const
@@ -216,25 +223,32 @@ export default async function SettingsPage() {
             <span className="w-16 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               {group.label}
             </span>
-            {group.items.map((t) => {
-              const primary = "primary" in t && t.primary;
+            {group.items.map((item) => {
+              const primary = "primary" in item && item.primary;
               return (
                 <a
-                  key={t.href}
-                  href={t.href}
+                  key={item.href}
+                  href={item.href}
                   className={`rounded-md px-2 py-1 ring-1 ring-inset transition-colors ${
                     primary
                       ? "bg-violet-500/15 text-violet-300 ring-violet-500/30 hover:bg-violet-500/25"
                       : "bg-white/[0.02] text-muted-foreground ring-white/10 hover:bg-white/[0.05] hover:text-foreground"
                   }`}
                 >
-                  {t.label}
+                  {item.label}
                 </a>
               );
             })}
           </div>
         ))}
       </nav>
+
+      <LocaleForm
+        current={locale}
+        title={t("languageTitle")}
+        description={t("languageDescription")}
+        saveLabel={t("languageSaved")}
+      />
 
       {/* Updates — keep at top but visually quieter */}
       <div id="install" className="scroll-mt-24">
@@ -246,21 +260,21 @@ export default async function SettingsPage() {
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Database className="size-4 text-cyan-300" />
-            Data
+            {t("dataTitle")}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Your database is one file you can copy, back up, or move.
+            {t("dataDescription")}
           </p>
         </header>
         <div className="relative space-y-4 p-5">
           <div className="grid gap-3 sm:grid-cols-4">
-            <Counter label="Clients" value={clientCount} accent="violet" />
-            <Counter label="Audits" value={auditCount} accent="cyan" />
-            <Counter label="Tasks" value={taskCount} accent="amber" />
-            <Counter label="Keywords" value={keywordCount} accent="emerald" />
+            <Counter label={t("counterClients")} value={clientCount} accent="violet" />
+            <Counter label={t("counterAudits")} value={auditCount} accent="cyan" />
+            <Counter label={t("counterTasks")} value={taskCount} accent="amber" />
+            <Counter label={t("counterKeywords")} value={keywordCount} accent="emerald" />
           </div>
           <div className="rounded-xl border border-white/5 bg-black/20 p-4 font-mono text-xs">
-            <div className="text-muted-foreground">Database file</div>
+            <div className="text-muted-foreground">{t("databaseFile")}</div>
             <div className="mt-1 break-all text-foreground/90">{dbPath}</div>
           </div>
         </div>

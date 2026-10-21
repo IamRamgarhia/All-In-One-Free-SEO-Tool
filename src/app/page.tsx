@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Suspense } from "react";
+import { getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
@@ -46,14 +47,16 @@ const priorityVariant: Record<
   low: "secondary",
 };
 
-function greetingForHour(hour: number) {
-  if (hour < 5) return "Working late";
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
 export default async function DashboardPage() {
+  const t = await getTranslations("dashboard");
+
+  function greetingForHour(hour: number) {
+    if (hour < 5) return t("greetingLate");
+    if (hour < 12) return t("greetingMorning");
+    if (hour < 18) return t("greetingAfternoon");
+    return t("greetingEvening");
+  }
+
   // The background runners live in the scheduler now (src/lib/scheduler.ts),
   // on a real interval, so they keep running whether or not anyone opens
   // this page. Previously all six hung off exactly this spot, which meant
@@ -174,17 +177,15 @@ export default async function DashboardPage() {
         <div className="space-y-3">
           <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="size-1.5 rounded-full bg-emerald-400" />
-            Local · single-user · everything on this machine
+            {t("badge")}
           </div>
           <h1 className="text-3xl font-bold leading-tight tracking-tight text-foreground">
             {isFresh
-              ? "Welcome. Let's set up your first 5 minutes."
-              : `${greeting}, here's what needs attention today.`}
+              ? t("welcomeTitle")
+              : t("returningTitle", { greeting })}
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            {isFresh
-              ? "Paste a URL and get a full technical audit in about a minute — no API keys, no signup, nothing to configure. Rank tracking, content tools and AI features are all here too, and you can turn them on once you've seen the audit."
-              : "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills."}
+            {isFresh ? t("welcomeBody") : t("returningBody")}
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             {isFresh ? (
@@ -194,26 +195,26 @@ export default async function DashboardPage() {
                     key, so a first-time user can see real output before
                     deciding whether to configure anything. */}
                 <Link href="/clients/new" className={buttonVariants()}>
-                  Add your first site
+                  {t("addFirstSite")}
                 </Link>
                 <Link
                   href="/settings#ai"
                   className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  Or connect an AI provider
+                  {t("orConnectAi")}
                   <ArrowUpRight className="size-3.5" />
                 </Link>
               </>
             ) : (
               <>
                 <Link href="/clients/new" className={buttonVariants()}>
-                  Add a client
+                  {t("addClient")}
                 </Link>
                 <Link
                   href="/clients"
                   className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  View clients
+                  {t("viewClients")}
                   <ArrowUpRight className="size-3.5" />
                 </Link>
               </>
@@ -226,7 +227,7 @@ export default async function DashboardPage() {
             <ScoreGauge score={latestScore} />
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <span>Latest audit</span>
+                <span>{t("latestAudit")}</span>
                 <FreshnessBadge
                   capturedAt={
                     recentAudits[0]?.completedAt ??
@@ -250,11 +251,11 @@ export default async function DashboardPage() {
                     }`}
                   >
                     {scoreDelta > 0 ? "+" : ""}
-                    {scoreDelta} vs previous
+                    {scoreDelta} {t("vsPrevious")}
                   </div>
                 ) : (
                   <div className="text-[11px] text-muted-foreground">
-                    First measurement
+                    {t("firstMeasurement")}
                   </div>
                 )}
               </div>
@@ -268,41 +269,44 @@ export default async function DashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             className="animate-page-enter stagger-1"
-            label="Open tasks"
+            label={t("openTasks")}
             value={openTaskCount}
             accent="violet"
             icon={ListChecks}
             hint={
-              openTaskCount > 0 ? "Sorted by priority below" : "All caught up"
+              openTaskCount > 0 ? t("openTasksHint") : t("allCaughtUp")
             }
             spark={issueTimeline.length > 1 ? issueTimeline : undefined}
           />
           <StatCard
             className="animate-page-enter stagger-2"
-            label="Clients"
+            label={t("clients")}
             value={clientCount}
             accent="cyan"
             icon={Users}
-            hint="Active"
+            hint={t("clientsHint")}
           />
           <StatCard
             className="animate-page-enter stagger-3"
-            label="Audits run"
+            label={t("auditsRun")}
             value={auditCount}
             accent="amber"
             icon={ClipboardList}
             hint={
               scoreDelta !== null
-                ? `Score ${latestScore} (${scoreDelta > 0 ? "+" : ""}${scoreDelta})`
+                ? t("scoreHint", {
+                    score: latestScore ?? "—",
+                    delta: `${scoreDelta > 0 ? "+" : ""}${scoreDelta}`,
+                  })
                 : completedAudits.length > 0
-                  ? `Latest ${latestScore}`
-                  : "Run your first"
+                  ? t("latestScoreHint", { score: latestScore ?? "—" })
+                  : t("runFirst")
             }
             spark={scoreTimeline.length > 1 ? scoreTimeline : undefined}
           />
           <StatCard
             className="animate-page-enter stagger-4"
-            label="Latest score"
+            label={t("latestScore")}
             value={latestScore ?? "—"}
             accent="emerald"
             icon={Sparkles}
@@ -313,12 +317,12 @@ export default async function DashboardPage() {
             source="crawl"
             hint={
               completedAudits.length > 0
-                ? `${completedAudits.length} completed`
-                : "Run an audit first"
+                ? t("completedCount", { count: completedAudits.length })
+                : t("runAuditFirst")
             }
             delta={
               scoreDelta !== null
-                ? { value: scoreDelta, label: "vs previous" }
+                ? { value: scoreDelta, label: t("vsPrevious") }
                 : undefined
             }
           />
@@ -342,7 +346,7 @@ export default async function DashboardPage() {
               <OnboardingChecklistPanel />
             </Suspense>
           </div>
-          <FeatureHighlights />
+          <FeatureHighlights t={t} />
         </div>
       ) : (
         <Suspense fallback={null}>
@@ -382,17 +386,17 @@ export default async function DashboardPage() {
                 <div>
                   <h2 className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
                     <Sparkles className="size-3.5 text-violet-300" />
-                    Priority tasks
+                    {t("priorityTasks")}
                   </h2>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Auto-generated from audits and niche templates
+                    {t("priorityTasksHint")}
                   </p>
                 </div>
                 <Link
                   href="/tasks"
                   className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  View all
+                  {t("viewAll")}
                   <ArrowUpRight className="size-3" />
                 </Link>
               </header>
@@ -433,17 +437,17 @@ export default async function DashboardPage() {
                 <div>
                   <h2 className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
                     <ClipboardList className="size-3.5 text-violet-300" />
-                    Recent audits
+                    {t("recentAudits")}
                   </h2>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Last 5 across all clients
+                    {t("recentAuditsHint")}
                   </p>
                 </div>
                 <Link
                   href="/clients"
                   className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                  Clients
+                  {t("clients")}
                   <ArrowUpRight className="size-3" />
                 </Link>
               </header>
@@ -462,7 +466,7 @@ export default async function DashboardPage() {
                       </Link>
                       <div className="text-[11px] text-muted-foreground">
                         {(a.completedAt ?? a.createdAt).toLocaleDateString()} ·{" "}
-                        {a.issuesCount} issues
+                        {t("issues", { count: a.issuesCount })}
                       </div>
                     </div>
                     <ScoreBadge score={a.score} />
@@ -480,10 +484,10 @@ export default async function DashboardPage() {
           <header className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                Audit score trend
+                {t("scoreTrend")}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Last {trendAudits.length} completed audits across all clients.
+                {t("scoreTrendHint", { count: trendAudits.length })}
               </p>
             </div>
           </header>
@@ -506,7 +510,7 @@ export default async function DashboardPage() {
       )}
 
       {/* Bento quick-actions — one tile per workflow */}
-      <BentoQuickActions />
+      <BentoQuickActions t={t} />
     </div>
   );
 }
@@ -527,10 +531,12 @@ function ScoreBadge({ score }: { score: number | null }) {
   );
 }
 
+type DashboardT = Awaited<ReturnType<typeof getTranslations>>;
+
 type BentoTile = {
   href: string;
-  title: string;
-  desc: string;
+  titleKey: "bento.auditsTitle" | "bento.keywordsTitle" | "bento.reportsTitle" | "bento.agentTitle" | "bento.backlinksTitle" | "bento.toolsTitle";
+  descKey: "bento.auditsDesc" | "bento.keywordsDesc" | "bento.reportsDesc" | "bento.agentDesc" | "bento.backlinksDesc" | "bento.toolsDesc";
   icon: LucideIcon;
   iconColor: string;
   /** Optional col / row span for the asymmetric Bento layout */
@@ -540,55 +546,55 @@ type BentoTile = {
 const BENTO_TILES: BentoTile[] = [
   {
     href: "/audits",
-    title: "Run an audit",
-    desc: "30 SEO checks, severity-classified, AI-summarized.",
+    titleKey: "bento.auditsTitle",
+    descKey: "bento.auditsDesc",
     icon: ClipboardList,
     iconColor: "text-violet-300",
     className: "md:col-span-2 md:row-span-2",
   },
   {
     href: "/keywords",
-    title: "Track keywords",
-    desc: "Daily ranks, free browser mode.",
+    titleKey: "bento.keywordsTitle",
+    descKey: "bento.keywordsDesc",
     icon: Search,
     iconColor: "text-cyan-300",
   },
   {
     href: "/reports",
-    title: "Generate report",
-    desc: "PDF, white-label, AI summary.",
+    titleKey: "bento.reportsTitle",
+    descKey: "bento.reportsDesc",
     icon: FileDown,
     iconColor: "text-amber-300",
   },
   {
     href: "/agent",
-    title: "AI agent",
-    desc: "Auto-detects issues + applies fixes via WP bridge.",
+    titleKey: "bento.agentTitle",
+    descKey: "bento.agentDesc",
     icon: Bot,
     iconColor: "text-fuchsia-300",
     className: "md:col-span-2",
   },
   {
     href: "/backlinks",
-    title: "Backlinks",
-    desc: "GSC + Common Crawl, lost-link recovery.",
+    titleKey: "bento.backlinksTitle",
+    descKey: "bento.backlinksDesc",
     icon: Link2,
     iconColor: "text-emerald-300",
   },
   {
     href: "/tools",
-    title: "All tools",
-    desc: "100+ tools in one searchable grid.",
+    titleKey: "bento.toolsTitle",
+    descKey: "bento.toolsDesc",
     icon: Wrench,
     iconColor: "text-rose-300",
   },
 ];
 
-function BentoQuickActions() {
+function BentoQuickActions({ t }: { t: DashboardT }) {
   return (
     <section>
       <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Quick actions
+        {t("quickActions")}
       </h2>
       <div className="grid auto-rows-[110px] grid-cols-2 gap-3 md:grid-cols-4">
         {BENTO_TILES.map((tile) => {
@@ -602,10 +608,10 @@ function BentoQuickActions() {
               <Icon className={`size-4 ${tile.iconColor}`} />
               <div>
                 <div className="text-[13px] font-semibold text-foreground">
-                  {tile.title}
+                  {t(tile.titleKey)}
                 </div>
                 <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                  {tile.desc}
+                  {t(tile.descKey)}
                 </div>
               </div>
               <ArrowUpRight className="absolute right-3 top-3 size-3 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -622,26 +628,26 @@ function BentoQuickActions() {
  * the old wordy WelcomeTour with a tighter visual: feature pills + the
  * "100+ tools" stat, anchoring the page right-hand column.
  */
-function FeatureHighlights() {
+function FeatureHighlights({ t }: { t: DashboardT }) {
   const highlights = [
-    { icon: ClipboardList, label: "30+ audit checks", tone: "text-violet-400" },
-    { icon: Search, label: "Daily rank tracker", tone: "text-cyan-400" },
-    { icon: FileDown, label: "White-label reports", tone: "text-amber-400" },
-    { icon: Bot, label: "AI agent + chat", tone: "text-fuchsia-400" },
-    { icon: Link2, label: "Backlink monitor", tone: "text-emerald-400" },
-    { icon: Wrench, label: "100+ free tools", tone: "text-rose-400" },
+    { icon: ClipboardList, label: t("highlights.audits"), tone: "text-violet-400" },
+    { icon: Search, label: t("highlights.ranks"), tone: "text-cyan-400" },
+    { icon: FileDown, label: t("highlights.reports"), tone: "text-amber-400" },
+    { icon: Bot, label: t("highlights.agent"), tone: "text-fuchsia-400" },
+    { icon: Link2, label: t("highlights.backlinks"), tone: "text-emerald-400" },
+    { icon: Wrench, label: t("highlights.tools"), tone: "text-rose-400" },
   ];
   return (
     <aside className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow">
       <div>
         <div className="text-xs font-medium uppercase tracking-wider text-violet-400">
-          What you&apos;ll unlock
+          {t("unlockEyebrow")}
         </div>
         <h3 className="mt-1 text-base font-semibold text-foreground">
-          The full SEO stack, free
+          {t("unlockTitle")}
         </h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Replaces $140+/mo SaaS. Everything runs on this machine.
+          {t("unlockBody")}
         </p>
       </div>
       <ul className="space-y-1.5">
@@ -657,10 +663,9 @@ function FeatureHighlights() {
       </ul>
       <div className="mt-auto space-y-3">
         <div className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3">
-          <div className="text-xs font-medium text-violet-300">No paid APIs</div>
+          <div className="text-xs font-medium text-violet-300">{t("noPaidApis")}</div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Browser mode + free Google APIs cover everything. BYO key only if
-            you want premium SERP data.
+            {t("noPaidApisBody")}
           </p>
         </div>
         {/* Maintainer credit — subtle, links to source + support */}
