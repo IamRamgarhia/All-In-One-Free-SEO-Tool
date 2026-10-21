@@ -1,5 +1,6 @@
 /**
- * Map a SEOmator AuditResult into cabinet issue rows + rule history.
+ * Map a SEOmator AuditResult into issue rows + per-rule history.
+ * Used by the main /audits flow (not a parallel product).
  */
 
 import type { AuditResult as SeomatorAuditResult } from "@seomator/seo-audit";
@@ -18,6 +19,7 @@ export type NormalizedIssue = {
 
 export type NormalizedHistory = {
   ruleId: string;
+  category: string;
   status: string;
   score: number;
 };
@@ -87,6 +89,7 @@ export function normalizeSeomatorReport(
 
       history.push({
         ruleId: rule.ruleId,
+        category: cat.categoryId,
         status: rule.status,
         score: rule.score,
       });

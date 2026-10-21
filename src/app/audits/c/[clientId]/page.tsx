@@ -94,17 +94,17 @@ export default async function PerClientAuditsPage({
 
       <PageHeader
         title={`Audits · ${client.name}`}
-        description="Deep technical audits (SEOmator, 373 rules) plus the classic crawl the agent can auto-fix. Open any run for issues, severity, and tasks."
+        description="Technical audits run on SEOmator (373 rules). Agent crawl remains available for autopilot auto-fixes. Same history, same issue board."
         icon={ClipboardList}
         accent="cyan"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <form action={runDeepAction}>
-              <Button type="submit">Deep technical audit</Button>
+              <Button type="submit">Run audit</Button>
             </form>
             <form action={runCrawlAction}>
               <Button type="submit" variant="outline">
-                Quick crawl
+                Agent crawl
               </Button>
             </form>
           </div>
@@ -114,9 +114,8 @@ export default async function PerClientAuditsPage({
       {rows.length === 0 ? (
         <div className="glass-apple relative overflow-hidden rounded-2xl px-6 py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            No audits yet for this client. Start with a deep technical audit
-            (SEOmator) for a full report, or a quick crawl for agent-ready
-            findings.
+            No audits yet for this client. Run an audit to score the site
+            against 373 technical rules.
           </p>
         </div>
       ) : (

@@ -142,6 +142,20 @@ export const audits = sqliteTable("audits", {
   targetUrl: text("target_url"),
   /** AI-written executive summary, or SEOmator category breakdown markdown. */
   summary: text("summary"),
+  /**
+   * SEOmator per-category scores: { core: { score, pass, warn, fail }, … }.
+   * Null for crawler / AI audits.
+   */
+  categoryScores: text("category_scores", { mode: "json" }).$type<
+    Record<string, { score: number; pass: number; warn: number; fail: number }>
+  >(),
+  /**
+   * Full SEOmator AuditResult JSON. Kept so we can re-diff / re-import
+   * without re-crawling. Null for non-seomator kinds.
+   */
+  rawReport: text("raw_report", { mode: "json" }).$type<
+    Record<string, unknown>
+  >(),
   ...timestamps,
 });
 
@@ -178,6 +192,25 @@ export const auditIssues = sqliteTable("audit_issues", {
    * Nullable so legacy rows remain untouched; new inserts must populate.
    */
   confidence: text("confidence", { enum: ["definitely", "probably", "test"] }),
+  ...timestamps,
+});
+
+/**
+ * Per-rule status snapshot for each SEOmator audit.
+ * Powers /audits/diff rule-level fixed/regressed without re-parsing raw_report.
+ */
+export const auditRuleHistory = sqliteTable("audit_rule_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  auditId: integer("audit_id")
+    .notNull()
+    .references(() => audits.id, { onDelete: "cascade" }),
+  ruleId: text("rule_id").notNull(),
+  category: text("category").notNull(),
+  status: text("status").notNull(),
+  score: integer("score"),
   ...timestamps,
 });
 

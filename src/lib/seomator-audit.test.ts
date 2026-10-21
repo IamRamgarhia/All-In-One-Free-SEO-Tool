@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { mapSeomatorResult } from "./seomator-audit";
+import {
+  mapSeomatorResult,
+  seomatorFindingsToTasks,
+} from "./seomator-audit";
 import type { AuditResult } from "@seomator/seo-audit";
 
 function stubResult(
@@ -146,5 +149,84 @@ describe("mapSeomatorResult", () => {
       }),
     );
     expect(mapped.findings).toHaveLength(1);
+  });
+
+  it("exposes categoryScores for the audit UI", () => {
+    const mapped = mapSeomatorResult(
+      stubResult({
+        categoryResults: [
+          {
+            categoryId: "core",
+            score: 50,
+            passCount: 1,
+            warnCount: 0,
+            failCount: 1,
+            results: [
+              {
+                ruleId: "core-title-present",
+                status: "fail",
+                message: "Missing title",
+                score: 0,
+                details: { pageUrl: "https://example.com/" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(mapped.categoryScores.core).toEqual({
+      score: 50,
+      pass: 1,
+      warn: 0,
+      fail: 1,
+    });
+  });
+});
+
+describe("seomatorFindingsToTasks", () => {
+  it("prefixes titles with P0–P3 plan priorities", () => {
+    const mapped = mapSeomatorResult(
+      stubResult({
+        categoryResults: [
+          {
+            categoryId: "core",
+            score: 0,
+            passCount: 0,
+            warnCount: 0,
+            failCount: 1,
+            results: [
+              {
+                ruleId: "technical-robots-txt",
+                status: "fail",
+                message: "robots.txt blocks crawl",
+                score: 0,
+                details: { pageUrl: "https://example.com/" },
+              },
+            ],
+          },
+          {
+            categoryId: "social",
+            score: 0,
+            passCount: 0,
+            warnCount: 0,
+            failCount: 1,
+            results: [
+              {
+                ruleId: "social-og-title",
+                status: "fail",
+                message: "Missing og:title",
+                score: 0,
+                details: { pageUrl: "https://example.com/" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const tasks = seomatorFindingsToTasks(mapped.findings);
+    expect(tasks.length).toBeGreaterThanOrEqual(2);
+    expect(tasks[0]?.title).toMatch(/^\[P0\]/);
+    expect(tasks.some((t) => t.title.startsWith("[P3]"))).toBe(true);
+    expect(tasks.every((t) => t.toolPath === "/audits")).toBe(true);
   });
 });

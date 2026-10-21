@@ -50,7 +50,8 @@ services:
       # encryption key, port memory, screenshots. One backup target.
       SEO_DATA_DIR: /data
       SEO_DB_PATH: /data/data.db
-      # Audit cabinet (SEOmator) — PostgreSQL
+      # Reserved for the full-app SQLite → Postgres cutover (see docs/POSTGRES-MIGRATION.md).
+      # App still uses SEO_DB_PATH until that lands — not a parallel database.
       DATABASE_URL: ${DATABASE_URL:-postgresql://seotool:seotool@postgres:5432/seotool}
       RUNNING_IN_DOCKER: "1"
       # Optional: bake in Google OAuth so users get one-click sign-in.
@@ -68,9 +69,11 @@ services:
       # OLLAMA_URL: http://ollama:11434
     volumes:
       - seo-data:/data
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Postgres is optional until the app cutover (docs/POSTGRES-MIGRATION.md).
+    # Uncomment depends_on when DATABASE_URL becomes the primary store.
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
 
   postgres:
     image: postgres:16-alpine

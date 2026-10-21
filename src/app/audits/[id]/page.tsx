@@ -119,6 +119,7 @@ export default async function AuditDetailPage({
       pagesCrawled: audits.pagesCrawled,
       kind: audits.kind,
       summary: audits.summary,
+      categoryScores: audits.categoryScores,
       startedAt: audits.startedAt,
       completedAt: audits.completedAt,
       createdAt: audits.createdAt,
@@ -325,7 +326,48 @@ export default async function AuditDetailPage({
         </div>
       </section>
 
-      {audit.kind === "seomator" && audit.summary ? (
+      {audit.kind === "seomator" && audit.categoryScores ? (
+        <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Category scores
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            SEOmator 373-rule breakdown across technical categories.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(audit.categoryScores)
+              .sort(([, a], [, b]) => a.score - b.score)
+              .map(([cat, vals]) => {
+                const tone =
+                  vals.fail > 0
+                    ? "text-rose-300"
+                    : vals.warn > 0
+                      ? "text-amber-300"
+                      : "text-emerald-300";
+                return (
+                  <div
+                    key={cat}
+                    className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {cat}
+                      </span>
+                      <span className={`text-lg font-semibold tabular-nums ${tone}`}>
+                        {vals.score}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex gap-2 text-[10px] text-muted-foreground">
+                      <span>{vals.pass} pass</span>
+                      <span>{vals.warn} warn</span>
+                      <span>{vals.fail} fail</span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      ) : audit.kind === "seomator" && audit.summary ? (
         <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
           <h2 className="text-sm font-semibold tracking-tight">
             Category breakdown

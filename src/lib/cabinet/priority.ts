@@ -1,5 +1,5 @@
 /**
- * Map a SEOmator finding to an action priority (P0–P3).
+ * Map a SEOmator finding to an action priority (P0–P3) for /tasks titles.
  *
  * P0 = indexing / availability blockers
  * P1 = on-page fundamentals + link equity
@@ -59,6 +59,8 @@ export function priorityForIssue(input: {
     return "P0";
   }
   if (P1_RULES.some((p) => rule.includes(p))) return "P1";
+  // Social / hygiene stays P3 even on "high" mapped severity — polish, not blockers.
+  if (P3_CATEGORIES.has(cat) && input.severity !== "critical") return "P3";
   if (input.severity === "critical" || input.severity === "high") {
     if (P2_CATEGORIES.has(cat)) return "P2";
     return "P1";

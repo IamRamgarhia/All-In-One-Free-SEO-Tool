@@ -19,6 +19,11 @@ import {
   type RuleResult,
 } from "@seomator/seo-audit";
 import type { AuditFinding, Severity } from "./audit";
+import {
+  effortForPriority,
+  priorityForIssue,
+  type ActionPriority,
+} from "@/lib/cabinet/priority";
 
 export type SeomatorFinding = AuditFinding & {
   category: string;
@@ -27,6 +32,11 @@ export type SeomatorFinding = AuditFinding & {
   ruleName: string;
 };
 
+export type CategoryScoreMap = Record<
+  string,
+  { score: number; pass: number; warn: number; fail: number }
+>;
+
 export type SeomatorBridgeResult = {
   url: string;
   score: number;
@@ -34,6 +44,7 @@ export type SeomatorBridgeResult = {
   findings: SeomatorFinding[];
   /** Short markdown: score + per-category breakdown for the audit row. */
   summary: string;
+  categoryScores: CategoryScoreMap;
   /** Raw SEOmator payload for debugging / future compare UI. */
   raw: SeomatorAuditResult;
 };
@@ -145,12 +156,23 @@ export function mapSeomatorResult(
     );
   }
 
+  const categoryScores: CategoryScoreMap = {};
+  for (const c of result.categoryResults) {
+    categoryScores[c.categoryId] = {
+      score: c.score,
+      pass: c.passCount,
+      warn: c.warnCount,
+      fail: c.failCount,
+    };
+  }
+
   return {
     url: result.url,
     score: result.overallScore,
     pagesCrawled: result.crawledPages,
     findings,
     summary: lines.join("\n"),
+    categoryScores,
   };
 }
 
@@ -159,14 +181,32 @@ export type SeomatorGeneratedTask = {
   title: string;
   description: string;
   whyItMatters: string;
+  /** Existing tasks.priority enum. */
   priority: "high" | "medium" | "low";
+  /** Cabinet-style plan priority, prefixed on the title. */
+  planPriority: ActionPriority;
   toolPath: string | null;
 };
 
+function taskPriorityFromPlan(p: ActionPriority): "high" | "medium" | "low" {
+  switch (p) {
+    case "P0":
+    case "P1":
+      return "high";
+    case "P2":
+      return "medium";
+    case "P3":
+      return "low";
+    default: {
+      const _exhaustive: never = p;
+      return _exhaustive;
+    }
+  }
+}
+
 /**
- * Turn the worst SEOmator findings into tasks. Capped and one-per-rule so a
- * 373-rule fail storm does not flood the board. The agent does not auto-fix
- * these (types are `seomator:*`); they are for the human review queue.
+ * Turn the worst SEOmator findings into tasks on the existing /tasks board.
+ * Capped and one-per-rule. Agent does not auto-fix `seomator:*` types.
  */
 export function seomatorFindingsToTasks(
   findings: SeomatorFinding[],
@@ -182,23 +222,54 @@ export function seomatorFindingsToTasks(
     byType.set(f.type, list);
   }
 
-  const tasks: SeomatorGeneratedTask[] = [];
-  for (const [type, group] of byType) {
-    if (tasks.length >= limit) break;
+  const ranked = Array.from(byType.entries()).map(([type, group]) => {
     const sample = group[0]!;
+    const ruleId = type.startsWith("seomator:")
+      ? type.slice("seomator:".length)
+      : type;
+    const planPriority = priorityForIssue({
+      ruleId,
+      category: sample.category,
+      severity: sample.severity,
+      status: sample.severity === "critical" || sample.severity === "high"
+        ? "fail"
+        : "warn",
+    });
+    return { type, group, sample, planPriority };
+  });
+
+  const order: Record<ActionPriority, number> = {
+    P0: 0,
+    P1: 1,
+    P2: 2,
+    P3: 3,
+  };
+  ranked.sort(
+    (a, b) => order[a.planPriority] - order[b.planPriority],
+  );
+
+  const tasks: SeomatorGeneratedTask[] = [];
+  for (const { type, group, sample, planPriority } of ranked) {
+    if (tasks.length >= limit) break;
     const where =
       group.length === 1
         ? sample.url
         : `${group.length} pages (e.g. ${sample.url})`;
+    const effort = effortForPriority(planPriority);
     tasks.push({
       type,
-      title: `${sample.ruleName}: fix on ${where}`,
-      description: [sample.message, sample.fixSteps]
+      title: `[${planPriority}] ${sample.ruleName}: fix on ${where}`,
+      description: [
+        sample.message,
+        sample.fixSteps,
+        `Effort estimate: ${effort}. Source: SEOmator rule.`,
+      ]
         .filter(Boolean)
         .join("\n\n"),
       whyItMatters:
-        "Flagged by the SEOmator deep technical audit (373 rules). Fixing high-severity technical issues protects crawlability, indexability and trust signals.",
-      priority: sample.severity === "critical" ? "high" : "medium",
+        "SEOmator technical audit (373 rules). High-severity issues block crawlability, indexability or trust — fix before content work.",
+      priority: taskPriorityFromPlan(planPriority),
+      planPriority,
       toolPath: "/audits",
     });
   }

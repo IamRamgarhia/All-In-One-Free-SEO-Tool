@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { and, desc, eq, inArray, like, ne } from "drizzle-orm";
 import { db } from "@/db/client";
-import { audits, auditIssues, clients, tasks } from "@/db/schema";
+import { audits, auditIssues, auditRuleHistory, clients, tasks } from "@/db/schema";
 import { runAudit } from "@/lib/audit";
 import { findingsToTasks } from "@/lib/audit-to-task";
 import { withoutInfrastructure } from "@/lib/infrastructure-urls";
@@ -16,6 +16,7 @@ import {
   runSeomatorAudit,
   seomatorFindingsToTasks,
 } from "@/lib/seomator-audit";
+import { normalizeSeomatorReport } from "@/lib/cabinet/normalize";
 
 const SCORE_DROP_THRESHOLD = 5;
 const STALLED_AFTER_MS = 10 * 60 * 1000;
@@ -536,10 +537,26 @@ export async function runSeomatorAuditForClient(clientId: number) {
       issuesCount: realFindings.length,
       pagesCrawled: result.pagesCrawled,
       summary: result.summary,
+      categoryScores: result.categoryScores,
+      rawReport: result.raw as unknown as Record<string, unknown>,
       completedAt: new Date(),
       updatedAt: new Date(),
     })
     .where(eq(audits.id, auditRow.id));
+
+  const normalized = normalizeSeomatorReport(result.raw);
+  if (normalized.history.length > 0) {
+    await db.insert(auditRuleHistory).values(
+      normalized.history.map((h) => ({
+        clientId,
+        auditId: auditRow.id,
+        ruleId: h.ruleId,
+        category: h.category,
+        status: h.status,
+        score: h.score,
+      })),
+    );
+  }
 
   const score = result.score;
   const delta = previousScore !== null ? score - previousScore : null;
@@ -550,8 +567,8 @@ export async function runSeomatorAuditForClient(clientId: number) {
   const isScoreDrop = delta !== null && delta <= -SCORE_DROP_THRESHOLD;
 
   notify({
-    title: `${isScoreDrop ? "Deep audit score dropped" : "Deep audit completed"} — ${client.name}`,
-    body: `SEOmator audit on ${client.url}: ${score}/100, ${realFindings.length} issues.`,
+    title: `${isScoreDrop ? "Audit score dropped" : "Audit completed"} — ${client.name}`,
+    body: `Technical audit (SEOmator, 373 rules) on ${client.url}: ${score}/100, ${realFindings.length} issues.`,
     level: isScoreDrop ? "warning" : "success",
     fields: [
       { label: "Score", value: `${score}/100` },
@@ -562,7 +579,7 @@ export async function runSeomatorAuditForClient(clientId: number) {
 
   await logActivity({
     kind: "audit.completed",
-    message: `SEOmator audit #${auditRow.id} for ${client.name} — score ${score}/100, ${realFindings.length} issues.`,
+    message: `Audit #${auditRow.id} for ${client.name} — SEOmator ${score}/100, ${realFindings.length} issues.`,
     level: isScoreDrop ? "warning" : "success",
     clientId,
     entityType: "audit",

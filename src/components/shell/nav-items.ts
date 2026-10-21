@@ -97,12 +97,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/", label: "Dashboard", icon: LayoutDashboard, guided: true },
       { href: "/welcome", label: "Get started", icon: Sparkles, guided: true },
       { href: "/clients", label: "Clients", icon: Users, guided: true },
-      {
-        href: "/cabinet",
-        label: "Audit cabinet",
-        icon: Building,
-        guided: true,
-      },
       { href: "/seo-chat", label: "SEO chat", icon: Bot, guided: true },
       { href: "/audits", label: "Audits", icon: ClipboardList, guided: true },
       { href: "/tasks", label: "Tasks", icon: ListChecks, guided: true },

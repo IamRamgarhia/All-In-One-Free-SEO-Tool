@@ -34,6 +34,17 @@ describe("priorityForIssue", () => {
       }),
     ).toBe("P3");
   });
+
+  it("keeps social fails at P3 (not escalated by high severity)", () => {
+    expect(
+      priorityForIssue({
+        ruleId: "social-og-title",
+        category: "social",
+        severity: "high",
+        status: "fail",
+      }),
+    ).toBe("P3");
+  });
 });
 
 describe("effortForPriority", () => {

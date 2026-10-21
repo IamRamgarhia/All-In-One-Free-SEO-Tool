@@ -181,18 +181,21 @@ export default async function ClientDetailPage({
     .orderBy(desc(audits.createdAt))
     .limit(5);
 
-  // The crawl, specifically.
-  //
-  // The AI site audit writes into this same table with its own checks and
-  // its own scale, so "most recent completed audit" picked whichever ran
-  // last. On a client audited today that meant the hero showed the AI
-  // audit's 77/100 and 6 issues while the onboarding screen showed the
-  // crawl's 93/100 and 50 issues — two numbers for the same site, both
-  // labelled health score, seventeen seconds apart.
-  //
-  // next-actions.ts already filters on kind for the same reason and says
-  // so in its own comment. This is the second place that needed it.
-  const [latestCompleted] = await db
+  // Health score prefers the SEOmator technical audit (373 rules). Fall
+  // back to the built-in crawl. Never mix in ai_full — different scale.
+  const [latestSeomator] = await db
+    .select()
+    .from(audits)
+    .where(
+      and(
+        eq(audits.clientId, clientId),
+        eq(audits.status, "completed"),
+        eq(audits.kind, "seomator"),
+      ),
+    )
+    .orderBy(desc(audits.completedAt))
+    .limit(1);
+  const [latestCrawl] = await db
     .select()
     .from(audits)
     .where(
@@ -204,6 +207,7 @@ export default async function ClientDetailPage({
     )
     .orderBy(desc(audits.completedAt))
     .limit(1);
+  const latestCompleted = latestSeomator ?? latestCrawl ?? null;
 
   const [{ value: openTaskCount }] = await db
     .select({ value: count() })
@@ -638,26 +642,26 @@ export default async function ClientDetailPage({
               {/* Hairline + action row */}
               <div className="mt-7 border-t border-border pt-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* HERO action — Deep SEOmator audit (373 rules) */}
+                  {/* Primary audit = SEOmator (373 rules). Same /audits pipeline. */}
                   <form action={runDeepAction}>
                     <SubmitButton
                       icon={<Play className="size-3.5" />}
-                      pendingChildren="Running deep audit…"
-                      pendingToast="Starting SEOmator audit"
-                      pendingToastDescription="373 technical rules across 20 categories, with Core Web Vitals. Often 1–3 minutes."
+                      pendingChildren="Running audit…"
+                      pendingToast="Starting technical audit"
+                      pendingToastDescription="SEOmator — 373 rules, 20 categories, Core Web Vitals. Usually 1–3 minutes."
                     >
-                      Deep technical audit
+                      Run audit
                     </SubmitButton>
                   </form>
                   <form action={runAction}>
                     <SubmitButton
                       variant="outline"
                       icon={<Play className="size-3.5" />}
-                      pendingChildren="Running crawl…"
-                      pendingToast="Starting crawl audit"
-                      pendingToastDescription="Fast built-in crawl (~72 checks). Best for agent auto-fixes."
+                      pendingChildren="Running agent crawl…"
+                      pendingToast="Starting agent crawl"
+                      pendingToastDescription="Built-in crawl (~72 checks) the autopilot agent can auto-fix."
                     >
-                      Quick crawl
+                      Agent crawl
                     </SubmitButton>
                   </form>
 
@@ -919,9 +923,9 @@ export default async function ClientDetailPage({
                   <Play className="size-4" />
                 </span>
                 <div>
-                  <div className="text-sm font-semibold">Deep technical audit</div>
+                  <div className="text-sm font-semibold">Run an audit</div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    SEOmator — 373 rules, CWV, security, GEO. ~1–3 minutes.
+                    373 technical rules (SEOmator) · CWV · security · GEO.
                   </div>
                 </div>
                 <span className="mt-1 text-[11px] font-medium text-cyan-300 transition-transform group-hover:translate-x-0.5">                  Run now →
