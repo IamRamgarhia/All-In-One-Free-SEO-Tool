@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { toolCatalogSlug } from "@/lib/i18n/tool-slug";
 import {
   Activity,
   Bot,
@@ -51,7 +53,6 @@ import {
 import { PageHeader } from "@/components/shell/page-header";
 import { useStoredState } from "@/components/use-stored-state";
 import {
-  CATEGORY_LABELS,
   CATEGORY_ORDER,
   COLLAPSED_BY_DEFAULT,
   categoryOf,
@@ -904,7 +905,25 @@ const serializePinned = (set: ReadonlySet<string>) =>
   JSON.stringify(Array.from(set));
 
 export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
+  const tHub = useTranslations("tools.hub");
+  const tCat = useTranslations("tools.categories");
+  const tCatalog = useTranslations("tools.catalog");
   const [query, setQuery] = useState("");
+
+  const localizedTools = useMemo(() => {
+    return tools.map((tool) => {
+      const slug = toolCatalogSlug(tool.href);
+      const titleKey = `${slug}.title`;
+      const descKey = `${slug}.description`;
+      return {
+        ...tool,
+        title: tCatalog.has(titleKey) ? tCatalog(titleKey) : tool.title,
+        description: tCatalog.has(descKey)
+          ? tCatalog(descKey)
+          : tool.description,
+      };
+    });
+  }, [tCatalog]);
   // On by default, so someone who has connected nothing sees a grid where
   // everything they click actually works. Persisted, because whichever way
   // they set it is a standing preference, not a per-visit one.
@@ -940,13 +959,13 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
 
   const q = query.trim().toLowerCase();
   const searchMatches = useMemo(() => {
-    if (!q) return tools;
-    return tools.filter(
+    if (!q) return localizedTools;
+    return localizedTools.filter(
       (t) =>
         t.title.toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q),
     );
-  }, [q]);
+  }, [q, localizedTools]);
 
   // Only ever hides tools that genuinely cannot run, which — given how
   // worksIn() is defined — means the AI tools, and only while nothing at
@@ -955,10 +974,10 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
   // instead of letting the grid quietly look smaller than the product is.
   const unusableCount = useMemo(
     () =>
-      tools.filter(
+      localizedTools.filter(
         (t) => !isRetired(t.href) && !worksIn(capabilityOf(t.href), mode),
       ).length,
-    [mode],
+    [mode, localizedTools],
   );
 
   const filteredTools = useMemo(
@@ -970,8 +989,8 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
   );
 
   const pinnedTools = useMemo(
-    () => tools.filter((t) => pinned.has(t.href)),
-    [pinned],
+    () => localizedTools.filter((t) => pinned.has(t.href)),
+    [pinned, localizedTools],
   );
 
   // Bucket every (filtered) tool into its category, skipping retired
@@ -993,21 +1012,21 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Tools"
-        description="100+ SEO utilities. Pin the ones you use daily and they'll stick to the top."
+        title={tHub("titleShort")}
+        description={tHub("descriptionShort")}
         icon={Wrench}
         accent="violet"
       />
 
       {/* Filter row */}
-      <div className="sticky top-2 z-20 -mx-2 rounded-2xl border border-white/[0.06] bg-card/70 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/50">
+      <div className="sticky top-2 z-20 max-w-full rounded-2xl border border-white/[0.06] bg-card/70 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-card/50">
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter tools… (Cmd / Ctrl + K opens global search)"
+            placeholder={tHub("filterPlaceholder")}
             className="h-10 w-full rounded-md border border-white/10 bg-background/60 pl-10 pr-10 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
           />
           {query && (
@@ -1015,7 +1034,7 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
               type="button"
               onClick={() => setQuery("")}
               className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded text-muted-foreground hover:bg-white/10 hover:text-foreground"
-              aria-label="Clear filter"
+              aria-label={tHub("clearSearch")}
             >
               <X className="size-3.5" />
             </button>
@@ -1023,7 +1042,9 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
         </div>
         {q && (
           <p className="mt-1.5 px-1 text-[11px] text-muted-foreground">
-            {totalMatches} {totalMatches === 1 ? "match" : "matches"}
+            {totalMatches === 1
+              ? tHub("matchOne", { count: totalMatches })
+              : tHub("matchMany", { count: totalMatches })}
           </p>
         )}
         {/*
@@ -1116,7 +1137,7 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
           <header>
             <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
               <Pin className="size-4 text-amber-300" />
-              Pinned
+              {tHub("pinned")}
               <span className="text-xs font-normal text-muted-foreground">
                 ({pinnedTools.length})
               </span>
@@ -1150,7 +1171,7 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
                 href={`#cat-${cat}`}
                 className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted-foreground ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/10 hover:text-foreground"
               >
-                {CATEGORY_LABELS[cat].label}
+                {tCat(`${cat}.label`)}
                 <span className="rounded-full bg-white/10 px-1.5 text-[10px]">
                   {list.length}
                 </span>
@@ -1162,14 +1183,17 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
 
       {totalMatches === 0 && q && (
         <div className="rounded-2xl border border-white/5 bg-card/40 p-10 text-center text-sm text-muted-foreground">
-          No tools match &ldquo;{query}&rdquo;. Try a different keyword.
+          {tHub("noResults")}
         </div>
       )}
 
       {CATEGORY_ORDER.map((cat) => {
         const list = byCategory.get(cat);
         if (!list || list.length === 0) return null;
-        const meta = CATEGORY_LABELS[cat];
+        const meta = {
+          label: tCat(`${cat}.label`),
+          description: tCat(`${cat}.description`),
+        };
 
         // "Occasional" is collapsed until asked for. It holds the tools
         // that are genuinely useful a few times a year — migrations,

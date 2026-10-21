@@ -162,6 +162,12 @@ export const audits = sqliteTable("audits", {
   progressJson: text("progress_json", { mode: "json" }).$type<
     Record<string, unknown>
   >(),
+  /** Native GEO audit composite (0–100) from geo-audit-skill scoring. */
+  geoScore: integer("geo_score"),
+  /** Full GEO audit envelope JSON (categories, signals, findings). */
+  geoEnvelopeJson: text("geo_envelope_json", { mode: "json" }).$type<
+    Record<string, unknown>
+  >(),
   ...timestamps,
 });
 

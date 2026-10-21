@@ -4,6 +4,7 @@ import { Suspense, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Loader2, Lock } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ export function LoginForm({ mode }: { mode: "accounts" | "password" }) {
 function LoginInner({ mode }: { mode: "accounts" | "password" }) {
   const router = useRouter();
   const search = useSearchParams();
+  const t = useTranslations("auth");
   const next = search.get("next") ?? "/";
   const accounts = mode === "accounts";
 
@@ -38,7 +40,7 @@ function LoginInner({ mode }: { mode: "accounts" | "password" }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data?.error ?? "Login failed");
+        setError(data?.error ?? t("loginFailed"));
         return;
       }
       router.push(next);
@@ -54,11 +56,9 @@ function LoginInner({ mode }: { mode: "accounts" | "password" }) {
             <Lock className="size-5 text-violet-300" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">SEO Tool</h1>
+            <h1 className="text-lg font-semibold">{t("appName")}</h1>
             <p className="text-xs text-muted-foreground">
-              {accounts
-                ? "Sign in to your account."
-                : "Self-hosted instance — sign in with the password your admin set."}
+              {accounts ? t("signInAccount") : t("signInPassword")}
             </p>
           </div>
         </div>
@@ -66,7 +66,7 @@ function LoginInner({ mode }: { mode: "accounts" | "password" }) {
         <form onSubmit={submit} className="space-y-4">
           {accounts && (
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("email")}</Label>
               <Input
                 id="email"
                 type="email"
@@ -79,7 +79,7 @@ function LoginInner({ mode }: { mode: "accounts" | "password" }) {
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="pwd">Password</Label>
+            <Label htmlFor="pwd">{t("password")}</Label>
             <Input
               id="pwd"
               type="password"
@@ -104,10 +104,10 @@ function LoginInner({ mode }: { mode: "accounts" | "password" }) {
             {pending ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Signing in…
+                {t("signingIn")}
               </>
             ) : (
-              "Sign in"
+              t("signIn")
             )}
           </Button>
           {accounts ? (

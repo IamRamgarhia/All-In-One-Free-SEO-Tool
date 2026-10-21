@@ -33,9 +33,11 @@ import {
   ruleDisplayName,
   verdictForScore,
 } from "@/lib/seomator-meta";
+import { getTranslations } from "next-intl/server";
 import { setStatusForType } from "../issue-actions";
 import { SeomatorAuditProgressLive } from "@/components/audits/seomator-audit-progress";
 import { SeomatorGeoPanel } from "@/components/audits/seomator-geo-panel";
+import { GeoAuditPanel } from "@/components/audits/geo-audit-panel";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -115,6 +117,8 @@ export default async function AuditDetailPage({
   const auditId = Number(id);
   if (!Number.isFinite(auditId)) notFound();
 
+  const t = await getTranslations("audits.detail");
+
   // `stalledSeconds` is computed by SQLite rather than with Date.now()
   // in the component. Two reasons: React 19's purity rule correctly
   // refuses an impure call during render, and the database is already
@@ -132,6 +136,8 @@ export default async function AuditDetailPage({
       targetUrl: audits.targetUrl,
       summary: audits.summary,
       categoryScores: audits.categoryScores,
+      geoScore: audits.geoScore,
+      geoEnvelopeJson: audits.geoEnvelopeJson,
       rawReport: audits.rawReport,
       previewScreenshotPath: audits.previewScreenshotPath,
       startedAt: audits.startedAt,
@@ -258,7 +264,8 @@ export default async function AuditDetailPage({
     .filter(
       (i) =>
         i.category === "geo" ||
-        (typeof i.type === "string" && i.type.startsWith("seomator:geo-")),
+        (typeof i.type === "string" &&
+          (i.type.startsWith("geo:") || i.type.startsWith("seomator:geo-"))),
     )
     .map((i) => ({
       type: i.type,
@@ -273,7 +280,7 @@ export default async function AuditDetailPage({
     Boolean(audit.previewScreenshotPath);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       {/* HERO */}
       <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 px-6 py-7 backdrop-blur-md">
         <div className="pointer-events-none absolute -left-20 -top-20 size-72 rounded-full bg-gradient-to-br from-cyan-500/30 to-violet-500/15 blur-[100px]" />
@@ -284,7 +291,7 @@ export default async function AuditDetailPage({
             href="/clients"
             className="rounded px-1 py-0.5 transition-colors hover:bg-white/5 hover:text-foreground"
           >
-            Clients
+            {t("breadcrumbClients")}
           </Link>
           <span>/</span>
           <Link
@@ -294,10 +301,10 @@ export default async function AuditDetailPage({
             {client.name}
           </Link>
           <span>/</span>
-          <span className="text-foreground">Audit #{audit.id}</span>
+          <span className="text-foreground">{t("auditNumber", { id: audit.id })}</span>
         </nav>
 
-        <div className="relative z-10 mt-4 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="relative z-10 mt-4 grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="flex size-12 items-center justify-center rounded-xl bg-cyan-500/15 ring-1 ring-cyan-400/30">
@@ -305,19 +312,23 @@ export default async function AuditDetailPage({
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">
-                  <span className="text-gradient-brand">Audit results</span>
+                  <span className="text-gradient-brand">{t("resultsTitle")}</span>
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {audit.completedAt
-                    ? `Completed ${audit.completedAt.toLocaleString()}`
-                    : `Started ${(audit.startedAt ?? audit.createdAt).toLocaleString()}`}{" "}
+                    ? t("completedAt", {
+                        date: audit.completedAt.toLocaleString(),
+                      })
+                    : t("startedAt", {
+                        date: (audit.startedAt ?? audit.createdAt).toLocaleString(),
+                      })}{" "}
                   · {client.name}
                   {" · "}
                   {audit.kind === "seomator"
-                    ? "SEOmator deep audit (373 rules)"
+                    ? t("seomatorKind")
                     : audit.kind === "ai_full"
-                      ? "AI site audit"
-                      : "Built-in crawl"}
+                      ? t("aiKind")
+                      : t("crawlerKind")}
                 </p>
               </div>
             </div>
@@ -354,8 +365,10 @@ export default async function AuditDetailPage({
             </div>
           </div>
 
-          <div className="relative flex items-center gap-5 rounded-2xl border border-white/10 bg-black/20 p-5 backdrop-blur">
-            <ScoreGauge score={audit.score ?? null} size={140} />
+          <div className="relative flex w-full flex-col items-center gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur sm:flex-row sm:gap-5 sm:p-5 md:w-auto">
+            <div className="origin-center scale-90 sm:scale-100">
+              <ScoreGauge score={audit.score ?? null} size={140} label={t("healthScore")} />
+            </div>
             <div className="space-y-1.5">
               <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Health score
@@ -475,6 +488,15 @@ export default async function AuditDetailPage({
         <SeomatorGeoPanel
           categoryScores={audit.categoryScores}
           geoIssues={geoIssues}
+        />
+      ) : null}
+
+      {audit.kind === "seomator" &&
+      audit.status === "completed" &&
+      (audit.geoScore != null || audit.geoEnvelopeJson) ? (
+        <GeoAuditPanel
+          geoScore={audit.geoScore}
+          envelope={audit.geoEnvelopeJson}
         />
       ) : null}
 

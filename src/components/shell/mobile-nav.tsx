@@ -36,6 +36,7 @@ export function MobileNav({
   const t = useTranslations("nav");
   const tItems = useTranslations("nav.items");
   const tGroups = useTranslations("nav.groups");
+  const tCommon = useTranslations("common");
   function itemLabel(href: string) {
     return tItems(navItemMessageKey(href));
   }
@@ -134,7 +135,7 @@ export function MobileNav({
             <nav className="flex-1 overflow-y-auto py-2">
               {groups.length === 0 && (
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-                  Nothing matches &ldquo;{query}&rdquo;.
+                  {tCommon("nothingMatches", { query })}
                 </p>
               )}
               {groups.map((group) => (
@@ -169,7 +170,7 @@ export function MobileNav({
                             {badge === 0 &&
                               capabilityOf(href)?.needsAI === false && (
                                 <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-emerald-400/70">
-                                  free
+                                  {tCommon("free")}
                                 </span>
                               )}
                             {badge > 0 && (
@@ -191,7 +192,7 @@ export function MobileNav({
                 visible without scrolling. A second link to the same
                 place is just another thing to read. */}
             <footer className="border-t border-border px-4 py-3 text-[10px] text-muted-foreground">
-              Tap outside to close
+              {tCommon("tapOutsideClose")}
             </footer>
           </aside>
         </div>

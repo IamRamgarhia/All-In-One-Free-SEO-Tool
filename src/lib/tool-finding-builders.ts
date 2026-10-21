@@ -692,6 +692,28 @@ export function aiOverviewFindings(result: {
  * Same provenance caveat as above: these are weighted judgements this
  * tool makes, not measurements of the site.
  */
+export function geoNativeScoreFindings(
+  categories: Record<string, { score: number; weightPct: number; note: string }>,
+): FindingDraft[] {
+  const LABEL: Record<string, string> = {
+    citability: "citability",
+    technical: "technical access",
+    schema: "structured data",
+    content: "content signals",
+    platform: "platform plumbing",
+  };
+
+  return Object.entries(categories)
+    .filter(([, d]) => d && typeof d.score === "number" && d.score < 55)
+    .map(([key, d]) => ({
+      signature: `geo-score.weak.${slug(key)}`,
+      title: `Weak ${LABEL[key] ?? key} for AI search (${d.score}/100)`,
+      severity: d.score < 40 ? "medium" : "low",
+      category: "ai-visibility",
+      details: d.note,
+    }));
+}
+
 export function geoScoreFindings(dimensions: Record<
   string,
   { score: number; weight: number; note: string }

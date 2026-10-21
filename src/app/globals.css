@@ -1,4 +1,11 @@
 @import "tailwindcss";
+
+/* Prevent horizontal scroll from negative margins / wide tables on phones. */
+@layer base {
+  main {
+    max-width: 100%;
+  }
+}
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 

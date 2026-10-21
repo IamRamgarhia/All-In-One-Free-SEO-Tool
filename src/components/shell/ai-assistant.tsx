@@ -85,7 +85,10 @@ export function AIAssistant() {
         Now it's one bubble; "I'm stuck" lives inside the chat as a
         quick-action button shown when the conversation is empty.
       */}
-      <div className="fixed bottom-5 right-5 z-40">
+      <div
+        className="fixed bottom-3 right-3 z-40 sm:bottom-5 sm:right-5"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
         <button
           type="button"
           onClick={() => setOpen(true)}

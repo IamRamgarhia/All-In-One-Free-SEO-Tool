@@ -144,7 +144,7 @@ export default async function RootLayout({
                     />
                     <div className="flex h-full min-w-0 flex-1 flex-col">
                       <TopBar unreadByHref={unreadByHref} theme={theme} />
-                      <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-24 sm:p-4 sm:pb-20 md:p-6 md:pb-6">
                         {/* One place, so all 38 AI pages say the same thing
                             — and /agent, /blog and the assistant too, not
                             only /tools/*. */}
