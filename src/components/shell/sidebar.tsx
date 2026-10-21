@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
+import { useTranslations } from "next-intl";
 import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
+import { navItemMessageKey } from "@/i18n/nav";
 import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
 import { useStoredState } from "@/components/use-stored-state";
 
@@ -162,6 +164,15 @@ export function Sidebar({
   uiMode?: "guided" | "pro";
 } = {}) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
+  const tItems = useTranslations("nav.items");
+  const tGroups = useTranslations("nav.groups");
+  function itemLabel(href: string) {
+    return tItems(navItemMessageKey(href));
+  }
+  function groupTitle(id: string) {
+    return tGroups(id);
+  }
   // Both read from localStorage via useSyncExternalStore rather than
   // useState + a hydrate effect. The old version rendered the server
   // default, committed it to the DOM, then corrected itself — so a user
@@ -261,17 +272,17 @@ export function Sidebar({
           <>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold leading-none text-sidebar-foreground">
-                SEO Tool
+                {t("appName")}
               </div>
               <div className="mt-1 truncate text-xs text-sidebar-foreground/60">
-                v0.2 · local
+                {t("appTagline")}
               </div>
             </div>
             <button
               type="button"
               onClick={toggle}
-              aria-label="Collapse sidebar"
-              title="Collapse sidebar"
+              aria-label={t("collapse")}
+              title={t("collapse")}
               className="grid size-7 place-items-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
             >
               <PanelLeftClose className="size-4" />
@@ -285,8 +296,8 @@ export function Sidebar({
           <button
             type="button"
             onClick={toggle}
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
+            aria-label={t("expand")}
+            title={t("expand")}
             className="grid size-7 place-items-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <PanelLeftOpen className="size-3.5" />
@@ -303,8 +314,8 @@ export function Sidebar({
           <button
             type="button"
             onClick={openSearch}
-            title="Search (⌘K)"
-            aria-label="Search"
+            title={t("searchShortcut")}
+            aria-label={t("search")}
             className="grid size-9 place-items-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <Search className="size-4" />
@@ -362,7 +373,7 @@ export function Sidebar({
                         className={`size-1.5 shrink-0 rounded-full ${accent.dot}`}
                       />
                     )}
-                    {group.title}
+                    {groupTitle(group.id)}
                   </span>
                   {isOpen ? (
                     <ChevronDown className="size-3.5 opacity-60" />
@@ -373,7 +384,7 @@ export function Sidebar({
               )}
               {!collapsed && group.pinned && (
                 <div className="px-2 py-1.5 text-[13px] font-semibold tracking-tight text-sidebar-foreground/75">
-                  {group.title}
+                  {groupTitle(group.id)}
                 </div>
               )}
               {collapsed && (
@@ -384,11 +395,12 @@ export function Sidebar({
               )}
               {(isOpen || collapsed) && (
                 <ul className="mt-0.5">
-                  {group.items.map(({ href, label, icon: Icon, external }: NavItem) => {
+                  {group.items.map(({ href, icon: Icon, external }: NavItem) => {
                     // An external entry is never "the current page", and
                     // opening it in this tab would navigate away from the
                     // app entirely.
                     const active = external ? false : isActive(pathname, href);
+                    const translated = itemLabel(href);
                     return (
                       <li key={href}>
                         <Link
@@ -396,8 +408,8 @@ export function Sidebar({
                           {...(external
                             ? { target: "_blank", rel: "noreferrer noopener" }
                             : {})}
-                          title={collapsed ? label : undefined}
-                          aria-label={collapsed ? label : undefined}
+                          title={collapsed ? translated : undefined}
+                          aria-label={collapsed ? translated : undefined}
                           className={
                             collapsed
                               ? `relative flex h-9 items-center justify-center rounded-md ${
@@ -436,7 +448,7 @@ export function Sidebar({
                           />
                           {!collapsed && (
                             <span className="relative z-10 flex-1 truncate">
-                              {label}
+                              {translated}
                             </span>
                           )}
                           {/* One dot, one rule — lib/tool-readiness.ts,

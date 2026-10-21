@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Clock, Loader2, Minus, Plus } from "lucide-react";
 import { logTaskTime } from "./actions";
 
@@ -11,6 +12,7 @@ export function TimeTracker({
   taskId: number;
   initialMinutes: number | null;
 }) {
+  const t = useTranslations("tasks.time");
   const [minutes, setMinutes] = useState(initialMinutes ?? 0);
   const [pending, startTransition] = useTransition();
 
@@ -34,7 +36,7 @@ export function TimeTracker({
         type="button"
         onClick={() => add(-15)}
         disabled={pending || minutes < 15}
-        title="Subtract 15 min"
+        title={t("subtract15")}
         className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-white/5 hover:text-foreground disabled:opacity-30"
       >
         <Minus className="size-2.5" />
@@ -51,7 +53,7 @@ export function TimeTracker({
         type="button"
         onClick={() => add(15)}
         disabled={pending}
-        title="Add 15 min"
+        title={t("add15")}
         className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-white/5 hover:text-foreground"
       >
         <Plus className="size-2.5" />

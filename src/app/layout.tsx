@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { headers } from "next/headers";
+import { getLocale, getMessages } from "next-intl/server";
 import { Sidebar } from "@/components/shell/sidebar";
 import { NeedsKeyBanner } from "@/components/shell/needs-key-banner";
+import { IntlProvider } from "@/components/shell/intl-provider";
 import { getAiAvailability } from "@/lib/ai-availability";
 import { TopBar } from "@/components/shell/top-bar";
 import { AIAssistant } from "@/components/shell/ai-assistant";
@@ -89,6 +91,8 @@ export default async function RootLayout({
   // light/dark is resolved here on the server, which avoids the flash
   // entirely for users who have chosen one.
   const theme = await getThemePreference();
+  const locale = await getLocale();
+  const messages = await getMessages();
 
   // Read once here rather than in each page that needs a model. Failure
   // is non-fatal: no banner is better than a broken shell.
@@ -101,7 +105,7 @@ export default async function RootLayout({
 
   return (
     <html
-      lang="en"
+      lang={locale}
       suppressHydrationWarning
       data-ui-mode={uiMode}
       data-theme={theme}
@@ -121,48 +125,50 @@ export default async function RootLayout({
         />
       </head>
       <body className="h-screen overflow-hidden bg-background text-foreground">
-        <ConfirmDialogProvider>
-          <QuickAddClientProvider>
-            {isEmbed ? (
-              // Minimal embedded shell — just the page content. The
-              // host (drawer) owns the chrome.
-              <main className="h-full overflow-y-auto p-4 md:p-6">
-                {children}
-              </main>
-            ) : (
-              <>
-                <div className="flex h-full">
-                  <Sidebar
-                    unreadByHref={unreadByHref}
-                    uiMode={uiMode}
-                    hasAiKey={aiAvailability.hasKey}
-                  />
-                  <div className="flex h-full min-w-0 flex-1 flex-col">
-                    <TopBar unreadByHref={unreadByHref} theme={theme} />
-                    <main className="flex-1 overflow-y-auto p-4 md:p-6">
-                      {/* One place, so all 38 AI pages say the same thing
-                          — and /agent, /blog and the assistant too, not
-                          only /tools/*. */}
-                      <NeedsKeyBanner
-                        hasKey={aiAvailability.hasKey}
-                        hasSubscription={aiAvailability.hasSubscription}
-                        client={aiAvailability.client}
-                      />
-                      {children}
-                    </main>
+        <IntlProvider locale={locale} messages={messages}>
+          <ConfirmDialogProvider>
+            <QuickAddClientProvider>
+              {isEmbed ? (
+                // Minimal embedded shell — just the page content. The
+                // host (drawer) owns the chrome.
+                <main className="h-full overflow-y-auto p-4 md:p-6">
+                  {children}
+                </main>
+              ) : (
+                <>
+                  <div className="flex h-full">
+                    <Sidebar
+                      unreadByHref={unreadByHref}
+                      uiMode={uiMode}
+                      hasAiKey={aiAvailability.hasKey}
+                    />
+                    <div className="flex h-full min-w-0 flex-1 flex-col">
+                      <TopBar unreadByHref={unreadByHref} theme={theme} />
+                      <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                        {/* One place, so all 38 AI pages say the same thing
+                            — and /agent, /blog and the assistant too, not
+                            only /tools/*. */}
+                        <NeedsKeyBanner
+                          hasKey={aiAvailability.hasKey}
+                          hasSubscription={aiAvailability.hasSubscription}
+                          client={aiAvailability.client}
+                        />
+                        {children}
+                      </main>
+                    </div>
                   </div>
-                </div>
-                <AIAssistant />
-                <PowerWidget />
-                <FirstRunPrompt />
-              </>
-            )}
-            <Toaster />
-            <ServiceWorkerRegister />
-            <ClientErrorCapture />
-            <ShortcutsHelpHotkey />
-          </QuickAddClientProvider>
-        </ConfirmDialogProvider>
+                  <AIAssistant />
+                  <PowerWidget />
+                  <FirstRunPrompt />
+                </>
+              )}
+              <Toaster />
+              <ServiceWorkerRegister />
+              <ClientErrorCapture />
+              <ShortcutsHelpHotkey />
+            </QuickAddClientProvider>
+          </ConfirmDialogProvider>
+        </IntlProvider>
       </body>
     </html>
   );

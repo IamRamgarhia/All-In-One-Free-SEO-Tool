@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { FileText } from "lucide-react";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import {
   clients,
@@ -21,6 +22,8 @@ export default async function ReportsIndexPage({
 }: {
   searchParams: Promise<{ clientId?: string; embed?: string }>;
 }) {
+  const t = await getTranslations("reports");
+
   // Opened from a client, so the client is already chosen.
   //
   // The "Tools for this client" rail links here with ?clientId=, and
@@ -64,8 +67,8 @@ export default async function ReportsIndexPage({
         logoUrl: c.logoUrl,
         niche: c.niche,
         primary: latest
-          ? `Score ${latest.score ?? "—"}/100`
-          : "No data yet",
+          ? t("scoreOutOf", { score: latest.score ?? "—" })
+          : t("noDataYet"),
         primaryTone: latest
           ? latest.score === null
             ? "neutral"
@@ -76,13 +79,15 @@ export default async function ReportsIndexPage({
                 : "rose"
           : "neutral",
         secondary: latest
-          ? `Last audit ${(latest.completedAt ?? latest.createdAt).toLocaleDateString()}`
-          : "Run an audit to populate the report",
+          ? t("lastAudit", {
+              date: (latest.completedAt ?? latest.createdAt).toLocaleDateString(),
+            })
+          : t("runAuditToPopulate"),
         badges:
           scheduled > 0
             ? [
                 {
-                  label: `${scheduled} schedule${scheduled === 1 ? "" : "s"}`,
+                  label: t("schedules", { count: scheduled }),
                   tone: "emerald" as const,
                 },
               ]
@@ -94,8 +99,8 @@ export default async function ReportsIndexPage({
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
-        title="Reports"
-        description="Pick a client to download their branded SEO report as PDF, view a live preview, or grab the raw data as CSV."
+        title={t("title")}
+        description={t("description")}
         icon={FileText}
         accent="cyan"
         actions={
@@ -103,7 +108,7 @@ export default async function ReportsIndexPage({
             href="/reports/export.csv"
             className="inline-flex h-9 items-center rounded-md border border-white/10 bg-white/5 px-3 text-xs font-medium text-muted-foreground hover:bg-white/10 hover:text-foreground"
           >
-            Export all CSV
+            {t("exportAllCsv")}
           </a>
         }
       />

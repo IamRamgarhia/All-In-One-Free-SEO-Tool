@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Upload, FileDown, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ export function CsvImportExport({
 }: {
   clients: { id: number; name: string }[];
 }) {
+  const t = useTranslations("keywords");
   const [open, setOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [csv, setCsv] = useState("");
@@ -35,7 +37,7 @@ export function CsvImportExport({
         className="inline-flex h-8 items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs hover:bg-white/10"
       >
         <FileDown className="size-3" />
-        Export CSV
+        {t("exportCsv")}
       </a>
       <button
         type="button"
@@ -43,7 +45,7 @@ export function CsvImportExport({
         className="inline-flex h-8 items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs hover:bg-white/10"
       >
         <Upload className="size-3" />
-        {open ? "Close import" : "Import CSV"}
+        {open ? t("closeImport") : t("importCsv")}
       </button>
 
       {open && (
@@ -55,22 +57,22 @@ export function CsvImportExport({
             className="mt-[10vh] w-full max-w-lg rounded-2xl border border-white/10 bg-card/95 p-5 shadow-2xl backdrop-blur-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold">Import keywords</h3>
+            <h3 className="text-base font-semibold">{t("importTitle")}</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Pick a client and paste/upload a CSV. We accept{" "}
+              {t("importDescriptionBefore")}{" "}
               <code className="rounded bg-white/5 px-1 py-0.5 text-[10px]">
                 query
               </code>{" "}
-              alone, or{" "}
+              {t("importDescriptionMid")}{" "}
               <code className="rounded bg-white/5 px-1 py-0.5 text-[10px]">
                 query,country,device
               </code>
-              . Duplicates per client are skipped.
+              {t("importDescriptionAfter")}
             </p>
 
             <form action={formAction} className="mt-4 space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="clientId">For client</Label>
+                <Label htmlFor="clientId">{t("forClient")}</Label>
                 <select
                   id="clientId"
                   name="clientId"
@@ -87,7 +89,7 @@ export function CsvImportExport({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="csv">CSV content</Label>
+                <Label htmlFor="csv">{t("csvContent")}</Label>
                 <textarea
                   id="csv"
                   name="csv"
@@ -104,11 +106,11 @@ export function CsvImportExport({
                     onClick={() => fileRef.current?.click()}
                     className="text-muted-foreground hover:text-foreground hover:underline"
                   >
-                    or upload a file…
+                    {t("orUploadFile")}
                   </button>
                   {filename && (
                     <span className="text-muted-foreground">
-                      Loaded: {filename}
+                      {t("loadedFile", { name: filename })}
                     </span>
                   )}
                 </div>
@@ -139,7 +141,11 @@ export function CsvImportExport({
                     <AlertCircle className="size-3.5" />
                   )}
                   {state.ok
-                    ? `Imported ${state.added} of ${state.total} (${state.skipped} duplicates / blanks skipped).`
+                    ? t("importedResult", {
+                        added: state.added,
+                        total: state.total,
+                        skipped: state.skipped,
+                      })
                     : state.error}
                 </div>
               )}
@@ -149,14 +155,14 @@ export function CsvImportExport({
                   type="submit"
                   disabled={pending || csv.trim().length === 0}
                 >
-                  {pending ? "Importing…" : "Import"}
+                  {pending ? t("importing") : t("import")}
                 </Button>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   className="text-xs text-muted-foreground hover:text-foreground"
                 >
-                  Close
+                  {t("close")}
                 </button>
               </div>
             </form>
