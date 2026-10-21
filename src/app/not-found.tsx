@@ -6,6 +6,7 @@
  */
 
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import {
   ArrowRight,
   Bot,
@@ -16,34 +17,32 @@ import {
   Search,
   Wrench,
 } from "lucide-react";
+import { NotFoundPath } from "@/components/not-found-path";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const t = await getTranslations("errors.notFound");
+
   const popular = [
-    { href: "/", label: "Dashboard", icon: Home },
-    { href: "/welcome", label: "Get started", icon: Compass },
-    { href: "/tools", label: "All tools", icon: Wrench },
-    { href: "/audits", label: "Audits", icon: ClipboardList },
-    { href: "/reports", label: "Reports", icon: FileDown },
-    { href: "/agent", label: "AI agent", icon: Bot },
+    { href: "/", label: t("links.dashboard"), icon: Home },
+    { href: "/welcome", label: t("links.getStarted"), icon: Compass },
+    { href: "/tools", label: t("links.tools"), icon: Wrench },
+    { href: "/audits", label: t("links.audits"), icon: ClipboardList },
+    { href: "/reports", label: t("links.reports"), icon: FileDown },
+    { href: "/agent", label: t("links.agent"), icon: Bot },
   ];
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-2xl flex-col justify-center space-y-6 py-12">
       <div className="space-y-2">
         <div className="inline-flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-300">
-          404 · Page not found
+          {t("badge")}
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          That page doesn&apos;t exist — but here&apos;s what does.
+          {t("title")}
         </h1>
-        <p className="text-[14px] text-muted-foreground">
-          The link might be stale (a feature was renamed) or the URL was typed
-          by hand. Pick a destination below, or use{" "}
-          <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-            ⌘ K
-          </kbd>{" "}
-          to search every page and tool.
-        </p>
+        <p className="text-[14px] text-muted-foreground">{t("body")}</p>
+        <NotFoundPath />
+        <p className="text-[13px] text-muted-foreground">{t("hints")}</p>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -65,20 +64,9 @@ export default function NotFound() {
       <div className="rounded-md border border-border bg-muted/30 p-3 text-[12px] text-muted-foreground">
         <div className="flex items-center gap-2 font-medium text-foreground">
           <Search className="size-3.5 text-violet-300" />
-          Can&apos;t find what you need?
+          {t("searchTitle")}
         </div>
-        <p className="mt-1">
-          Press{" "}
-          <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
-            ⌘ K
-          </kbd>{" "}
-          (or{" "}
-          <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
-            Ctrl K
-          </kbd>{" "}
-          on Windows) for the global command palette — searches every client,
-          tool, audit, keyword, and page in one box.
-        </p>
+        <p className="mt-1">{t("searchBody")}</p>
       </div>
     </div>
   );

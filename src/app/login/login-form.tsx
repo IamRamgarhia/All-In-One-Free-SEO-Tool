@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { safeInternalPath } from "@/lib/safe-internal-path";
 
 export function LoginForm({ mode }: { mode: "accounts" | "password" }) {
   return (
@@ -21,7 +22,7 @@ function LoginInner({ mode }: { mode: "accounts" | "password" }) {
   const router = useRouter();
   const search = useSearchParams();
   const t = useTranslations("auth");
-  const next = search.get("next") ?? "/";
+  const next = safeInternalPath(search.get("next"));
   const accounts = mode === "accounts";
 
   const [email, setEmail] = useState("");

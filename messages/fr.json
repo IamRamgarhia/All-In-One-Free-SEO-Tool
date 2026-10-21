@@ -529,6 +529,25 @@
       "services": "Services"
     }
   },
+  "errors": {
+    "notFound": {
+      "badge": "404 · Page introuvable",
+      "title": "Cette page n’existe pas — voici où aller.",
+      "body": "Lien obsolète (fonction renommée), URL mal saisie, ou navigateur encore sur une ancienne version après une mise à jour.",
+      "pathLabel": "Chemin demandé :",
+      "hints": "Après un déploiement sur le serveur, forcez l’actualisation sur mobile (Safari : tirer la barre d’onglets, ou fermer l’onglet et rouvrir). Si l’URL concerne un client ou un audit, vous n’y avez peut‑être pas accès — essayez Tableau de bord ou Clients.",
+      "links": {
+        "dashboard": "Tableau de bord",
+        "getStarted": "Premiers pas",
+        "tools": "Tous les outils",
+        "audits": "Audits",
+        "reports": "Rapports",
+        "agent": "Agent IA"
+      },
+      "searchTitle": "Toujours perdu ?",
+      "searchBody": "⌘ K (ou Ctrl K) ouvre la palette globale — clients, outils, audits, mots-clés et pages."
+    }
+  },
   "auth": {
     "appName": "SEO Tool",
     "signInAccount": "Connectez-vous à votre compte.",
