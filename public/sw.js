@@ -1,7 +1,7 @@
 // Minimal service worker for offline shell + cache-first static assets.
 // Intentionally simple — we never cache HTML pages (always fresh) but do
 // cache /_next/static, fonts, and the icons.
-const CACHE = "seo-tool-shell-v1";
+const CACHE = "seo-tool-shell-v2";
 const STATIC = ["/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

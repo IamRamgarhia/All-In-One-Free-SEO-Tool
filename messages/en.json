@@ -529,6 +529,25 @@
       "services": "Services"
     }
   },
+  "errors": {
+    "notFound": {
+      "badge": "404 · Page not found",
+      "title": "That page doesn't exist — but here's what does.",
+      "body": "The link might be stale (a feature was renamed), the URL was typed by hand, or your browser is still on an old version after an update.",
+      "pathLabel": "Requested path:",
+      "hints": "After a deploy on the server, force-refresh on mobile (Safari: pull down on the tab bar, or close the tab and reopen). If the path is a client or audit URL, you may not have access to that record — try Dashboard or Clients.",
+      "links": {
+        "dashboard": "Dashboard",
+        "getStarted": "Get started",
+        "tools": "All tools",
+        "audits": "Audits",
+        "reports": "Reports",
+        "agent": "AI agent"
+      },
+      "searchTitle": "Can't find what you need?",
+      "searchBody": "Press ⌘ K (or Ctrl K on Windows) for the global command palette — searches every client, tool, audit, keyword, and page in one box."
+    }
+  },
   "auth": {
     "appName": "SEO Tool",
     "signInAccount": "Sign in to your account.",
