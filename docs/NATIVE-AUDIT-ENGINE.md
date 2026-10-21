@@ -11,27 +11,35 @@ src/audit/
   types/          AuditRule, RuleResult, AuditContext, CrawlResult…
   crawler/        fetch, robots, sitemap, BFS crawl, link graph
   rendering/      Playwright stub (Wave 3)
-  rules/          Wave folders (core, technical, crawlability, …)
+  rules/          Wave folders (core, technical, crawlability, links, …)
   engine/         registry, runner, scoring + caps, diff
   storage/        persist into main SQLite via Drizzle
 ```
 
 ## Wave 1 (shipped)
 
-| Category | Rules (approx.) |
+| Category | Focus |
 |---|---|
-| core | titles, meta, H1, canonicals, robots, viewport, OG basics |
-| technical | HTTP, soft-404, HTTPS, mixed content, robots/sitemap, empty HTML |
-| crawlability | orphans, click depth, sitemap coverage, robots block, canonical chain |
+| core | titles, meta, H1, canonicals, robots, viewport, OG |
+| technical | HTTP, soft-404, HTTPS, mixed content, robots/sitemap |
+| crawlability | orphans, depth, sitemap cross-checks, hreflang basics, pagination |
 
-- **Audit rapide** — HTML only, 1 page (Playwright off)
-- **Audit complet** — multi-page crawl, still no Playwright in Wave 1
-- Persistence: `native_audit_runs` / `native_audit_issues` / `native_audit_rule_history` / `native_audit_diffs`
-- UI: `/clients/[id]` buttons + `/audits/native/[id]`
+## Wave 2 (shipped)
+
+| Category | Focus |
+|---|---|
+| links | anchors, broken internal (capped HEAD), nofollow, localhost, fragments, inbound equity |
+| redirect | loops, meta/JS refresh, chain length, broken targets |
+| url | length, case, underscores, tracking/session params, double slash |
+
+- **Audit rapide** — HTML only, 1 page (Playwright off); Wave 1–2 rules
+- **Audit complet** — multi-page crawl; Wave 1–2 rules; Playwright still off
+- Persistence: `native_audit_*` tables on the existing client schema
+- UI: `/clients/[id]` + `/audits/native/[id]`
 - API: `GET|POST /api/v1/native-audits`
 
-Legacy crawler (`src/lib/audit.ts`) and the temporary SEOmator npm bridge stay
-until later waves are stable.
+Legacy crawler and the temporary SEOmator npm bridge stay until later waves
+are stable.
 
 ## Scoring
 
@@ -41,4 +49,6 @@ until later waves are stable.
 
 ## Next waves
 
-2 links/redirects/url · 3 JS/perf/images (+ Playwright) · 4 content/schema/security/html · 5 a11y/mobile/i18n/eeat/social/geo/legal
+3 javascript / performance / images (+ optional Playwright + CWV)  
+4 content / schema / security / html  
+5 a11y / mobile / i18n / eeat / social / geo / legal

@@ -31,6 +31,7 @@ export async function runNativeAuditForClient(
       maxPages: mode === "quick" ? 1 : 25,
       render: false,
       measureCwv: false,
+      // Wave 1+2 categories (core/technical/crawlability/links/redirect/url)
     },
   });
 

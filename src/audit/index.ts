@@ -6,7 +6,10 @@
  */
 
 export { runNativeAudit, defaultAuditConfig, diffRuleStatuses } from "@/audit/engine/audit-runner";
-export { ensureWave1RulesRegistered } from "@/audit/rules/register-wave1";
+export {
+  ensureNativeRulesRegistered,
+  ensureWave1RulesRegistered,
+} from "@/audit/rules/register-native";
 export { getRuleCount, getAllRules, getRuleById } from "@/audit/engine/rule-registry";
 export {
   saveNativeAuditRun,

@@ -65,8 +65,8 @@ export default async function NativeAuditPage({
                 Native technical audit
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Wave 1 engine · mode {run.mode} · {run.pagesCrawled ?? 0}{" "}
-                page(s) · {run.issueCount} issue(s)
+                Native engine (Wave 1–2) · mode {run.mode} ·{" "}
+                {run.pagesCrawled ?? 0} page(s) · {run.issueCount} issue(s)
                 {run.finishedAt
                   ? ` · ${run.finishedAt.toLocaleString()}`
                   : null}

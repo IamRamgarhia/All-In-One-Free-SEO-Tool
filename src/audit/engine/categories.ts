@@ -28,3 +28,11 @@ export const AUDIT_CATEGORIES: CategoryDefinition[] = [
 ];
 
 export const WAVE1_CATEGORIES = ["core", "technical", "crawlability"] as const;
+
+export const WAVE2_CATEGORIES = ["links", "redirect", "url"] as const;
+
+/** Active categories through Wave 2. */
+export const ACTIVE_AUDIT_CATEGORIES = [
+  ...WAVE1_CATEGORIES,
+  ...WAVE2_CATEGORIES,
+] as const;

@@ -1,6 +1,6 @@
 import { crawlSite } from "@/audit/crawler/crawler";
 import { loadCheerio } from "@/audit/crawler/page-parse";
-import { WAVE1_CATEGORIES } from "@/audit/engine/categories";
+import { ACTIVE_AUDIT_CATEGORIES } from "@/audit/engine/categories";
 import { diffRuleStatuses } from "@/audit/engine/diff-engine";
 import {
   buildCategoryScores,
@@ -9,7 +9,7 @@ import {
 } from "@/audit/engine/score-calculator";
 import { resetCrossPageState, getAllRules } from "@/audit/engine/rule-registry";
 import { runRules } from "@/audit/engine/rule-runner";
-import { ensureWave1RulesRegistered } from "@/audit/rules/register-wave1";
+import { ensureNativeRulesRegistered } from "@/audit/rules/register-native";
 import type {
   AuditConfig,
   AuditIssue,
@@ -42,12 +42,12 @@ export function defaultAuditConfig(
     measureCwv: partial.measureCwv ?? false,
     respectRobots: partial.respectRobots ?? true,
     timeoutMs: partial.timeoutMs ?? 20_000,
-    categories: partial.categories ?? [...WAVE1_CATEGORIES],
+    categories: partial.categories ?? [...ACTIVE_AUDIT_CATEGORIES],
   };
 }
 
 /**
- * Run the native audit engine (Wave 1 categories).
+ * Run the native audit engine (Wave 1 + Wave 2 categories).
  * Quick = HTML-only, usually 1 page. Full = multi-page crawl, still no Playwright by default.
  */
 export async function runNativeAudit(
@@ -55,7 +55,7 @@ export async function runNativeAudit(
 ): Promise<AuditRunResult> {
   const startedAt = new Date();
   const config = defaultAuditConfig(input.config);
-  ensureWave1RulesRegistered();
+  ensureNativeRulesRegistered();
   resetCrossPageState();
 
   const crawl = await crawlSite({
@@ -67,7 +67,7 @@ export async function runNativeAudit(
   });
 
   const activeCats = new Set(
-    config.categories ?? [...WAVE1_CATEGORIES],
+    config.categories ?? [...ACTIVE_AUDIT_CATEGORIES],
   );
   const rules = getAllRules().filter((r) => activeCats.has(r.category));
 

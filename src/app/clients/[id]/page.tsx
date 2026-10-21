@@ -653,7 +653,7 @@ export default async function ClientDetailPage({
                       icon={<Play className="size-3.5" />}
                       pendingChildren="Running quick audit…"
                       pendingToast="Starting native quick audit"
-                      pendingToastDescription="Wave 1 engine — HTML only, core + technical + crawlability."
+                      pendingToastDescription="Native Wave 1–2 — HTML only: core, technical, crawl, links, redirects, URLs."
                     >
                       Audit rapide
                     </SubmitButton>
@@ -664,7 +664,7 @@ export default async function ClientDetailPage({
                       icon={<Play className="size-3.5" />}
                       pendingChildren="Running full audit…"
                       pendingToast="Starting native full audit"
-                      pendingToastDescription="Wave 1 multi-page crawl (no Playwright yet)."
+                      pendingToastDescription="Multi-page crawl, Wave 1–2 rules (Playwright still off)."
                     >
                       Audit complet
                     </SubmitButton>
@@ -1270,7 +1270,7 @@ export default async function ClientDetailPage({
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <ClipboardList className="size-4 text-cyan-300" />
-            Native audits (Wave 1)
+            Native audits (Wave 1–2)
           </h2>
         </header>
         <div className="relative">
