@@ -214,6 +214,88 @@ export const auditRuleHistory = sqliteTable("audit_rule_history", {
   ...timestamps,
 });
 
+/**
+ * Native audit engine runs (Wave 1+ port). Parallel to legacy `audits`
+ * until the new engine is stable — then we migrate UI over.
+ * Integer PKs / client_id to match the existing app schema.
+ */
+export const nativeAuditRuns = sqliteTable("native_audit_runs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  source: text("source").notNull().default("native-wave1"),
+  status: text("status").notNull().default("pending"),
+  mode: text("mode").notNull().default("quick"),
+  globalScore: integer("global_score"),
+  uncappedScore: integer("uncapped_score"),
+  pagesCrawled: integer("pages_crawled"),
+  issueCount: integer("issue_count").notNull().default(0),
+  categoryScores: text("category_scores", { mode: "json" }).$type<
+    Record<string, { score: number; pass: number; warn: number; fail: number }>
+  >(),
+  scoreCaps: text("score_caps", { mode: "json" }).$type<
+    Array<{ id: string; ceiling: number; reason: string }>
+  >(),
+  rawReport: text("raw_report", { mode: "json" }).$type<Record<string, unknown>>(),
+  startedAt: integer("started_at", { mode: "timestamp" }),
+  finishedAt: integer("finished_at", { mode: "timestamp" }),
+  ...timestamps,
+});
+
+export const nativeAuditIssues = sqliteTable("native_audit_issues", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  runId: integer("run_id")
+    .notNull()
+    .references(() => nativeAuditRuns.id, { onDelete: "cascade" }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  ruleId: text("rule_id").notNull(),
+  category: text("category").notNull(),
+  severity: text("severity").notNull(),
+  status: text("status").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  recommendation: text("recommendation"),
+  affectedUrls: text("affected_urls", { mode: "json" }).$type<string[]>(),
+  ...timestamps,
+});
+
+export const nativeAuditRuleHistory = sqliteTable("native_audit_rule_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  runId: integer("run_id")
+    .notNull()
+    .references(() => nativeAuditRuns.id, { onDelete: "cascade" }),
+  ruleId: text("rule_id").notNull(),
+  status: text("status").notNull(),
+  score: integer("score"),
+  checkedAt: integer("checked_at", { mode: "timestamp" }),
+  ...timestamps,
+});
+
+export const nativeAuditDiffs = sqliteTable("native_audit_diffs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  previousRunId: integer("previous_run_id")
+    .notNull()
+    .references(() => nativeAuditRuns.id, { onDelete: "cascade" }),
+  currentRunId: integer("current_run_id")
+    .notNull()
+    .references(() => nativeAuditRuns.id, { onDelete: "cascade" }),
+  fixedRules: text("fixed_rules", { mode: "json" }).$type<string[]>(),
+  regressedRules: text("regressed_rules", { mode: "json" }).$type<string[]>(),
+  worsenedRules: text("worsened_rules", { mode: "json" }).$type<string[]>(),
+  newIssues: text("new_issues", { mode: "json" }).$type<string[]>(),
+  scoreDelta: integer("score_delta"),
+  ...timestamps,
+});
+
 export const tasks = sqliteTable("tasks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   clientId: integer("client_id")
