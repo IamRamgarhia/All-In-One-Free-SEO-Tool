@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 32" fill="none" aria-hidden="true">
+  <text y="24" font-family="ui-monospace,Consolas,monospace" font-size="22" font-weight="600">
+    <tspan fill="#3d6a9e">&lt;</tspan>
+    <tspan fill="#5a7088" font-weight="400">global</tspan>
+    <tspan fill="#1a2744" font-weight="700">_rank</tspan>
+    <tspan fill="#3d6a9e" font-weight="400">/&gt;</tspan>
+    <tspan fill="#3d6a9e" font-weight="700">.io</tspan>
+  </text>
+</svg>

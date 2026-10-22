@@ -1,22 +1,34 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { accountsEnabled } from "@/lib/auth";
+import {
+  getAuthBrandCopy,
+  getRegisterFormCopy,
+} from "@/lib/auth-page-copy.server";
+import { getThemePreference } from "@/app/settings/theme-actions";
+import { AuthBrandedLayout } from "@/components/auth/auth-branded-layout";
 import { AccountForm } from "./account-form";
 
-/**
- * First-run account setup. Closes itself permanently the moment an owner
- * exists — after that, people arrive by invitation, and this page would
- * otherwise be an open registration form on a deployed instance.
- */
 export const dynamic = "force-dynamic";
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
   if (accountsEnabled()) redirect("/login");
 
+  const [brand, copy, t, theme] = await Promise.all([
+    getAuthBrandCopy(),
+    getRegisterFormCopy(),
+    getTranslations("auth"),
+    getThemePreference(),
+  ]);
+
   return (
-    <AccountForm
-      heading="Set up your team"
-      subheading="You'll be the owner. Everyone else joins by invitation."
-      cta="Create owner account"
-    />
+    <AuthBrandedLayout brand={brand} theme={theme}>
+      <AccountForm
+        copy={copy}
+        heading={t("registerOwnerTitle")}
+        subheading={t("registerOwnerSubtitle")}
+        cta={t("registerOwnerCta")}
+      />
+    </AuthBrandedLayout>
   );
 }

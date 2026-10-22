@@ -11,7 +11,9 @@ import {
   type NavGroup,
   type NavItem,
 } from "./nav-items";
+import { GlobalRankLogo } from "@/components/brand/global-rank-wordmark";
 import { navItemMessageKey } from "@/i18n/nav";
+import { cn } from "@/lib/utils";
 import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
 import { useStoredState } from "@/components/use-stored-state";
 
@@ -269,19 +271,15 @@ export function Sidebar({
           collapsed ? "justify-center px-2" : "px-3"
         }`}
       >
-        <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
-          S
-        </div>
+        <GlobalRankLogo
+          size="sm"
+          className={cn(
+            "min-w-0",
+            collapsed ? "max-w-full overflow-hidden" : "flex-1 overflow-hidden",
+          )}
+        />
         {!collapsed && (
           <>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold leading-none text-sidebar-foreground">
-                {t("appName")}
-              </div>
-              <div className="mt-1 truncate text-xs text-sidebar-foreground/60">
-                {t("appTagline")}
-              </div>
-            </div>
             <button
               type="button"
               onClick={toggle}

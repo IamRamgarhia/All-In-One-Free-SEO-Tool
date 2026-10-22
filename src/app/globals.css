@@ -80,12 +80,18 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.014 245);
 
-  /* Cyan needs to go considerably darker than the dark-mode value to
-     stay AA against white, both as a fill behind white text and as
-     link/active colour. */
-  --primary: oklch(0.55 0.14 220);
+  /* Bleu nuit — navy profond (pas cyan / pas bleu clair). */
+  --primary: oklch(0.30 0.09 264);
   --primary-foreground: oklch(0.99 0 0);
-  --ring: oklch(0.55 0.14 220 / 0.45);
+  --ring: oklch(0.30 0.09 264 / 0.45);
+
+  --auth-canvas: oklch(0.965 0.018 264);
+  --auth-panel: oklch(0.17 0.07 265);
+  --auth-panel-foreground: oklch(0.96 0.01 264);
+  --auth-panel-muted: oklch(0.82 0.03 264);
+  --auth-panel-border: oklch(0.55 0.06 264 / 0.22);
+  --auth-panel-glow: oklch(0.28 0.08 264 / 0.55);
+  --auth-accent: oklch(0.72 0.06 255);
 
   --secondary: oklch(0.965 0.004 245);
   --secondary-foreground: oklch(0.26 0.014 245);
@@ -102,22 +108,22 @@
   --input: oklch(0.20 0.02 245 / 0.16);
 
   /* Same five hues as dark, shifted darker for contrast on white. */
-  --chart-1: oklch(0.55 0.14 220);
+  --chart-1: oklch(0.30 0.09 264);
   --chart-2: oklch(0.55 0.13 155);
   --chart-3: oklch(0.62 0.14 75);
-  --chart-4: oklch(0.52 0.17 295);
+  --chart-4: oklch(0.52 0.14 200);
   --chart-5: oklch(0.55 0.19 25);
 
   --radius: 0.625rem;
 
   --sidebar: oklch(0.975 0.004 245);
   --sidebar-foreground: oklch(0.21 0.014 245);
-  --sidebar-primary: oklch(0.55 0.14 220);
+  --sidebar-primary: oklch(0.30 0.09 264);
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.93 0.008 245);
   --sidebar-accent-foreground: oklch(0.21 0.014 245);
   --sidebar-border: oklch(0.20 0.02 245 / 0.10);
-  --sidebar-ring: oklch(0.55 0.14 220 / 0.45);
+  --sidebar-ring: oklch(0.30 0.09 264 / 0.45);
 }
 
 .dark {
@@ -128,51 +134,56 @@
      feel; brand is electric cyan, reserved for primary CTAs + active
      states + brand mark. Status colors used SPARINGLY. */
 
-  /* Surfaces — three weights for hierarchy */
-  --background: oklch(0.13 0.012 245);     /* page canvas */
-  --foreground: oklch(0.97 0.005 245);
-  --card: oklch(0.165 0.012 245);          /* standard cards */
-  --card-foreground: oklch(0.97 0.005 245);
-  --popover: oklch(0.20 0.014 245);        /* floating chrome */
-  --popover-foreground: oklch(0.97 0.005 245);
+  /* Surfaces — fond bleu nuit (pas gris neutre). */
+  --background: oklch(0.11 0.048 265);
+  --foreground: oklch(0.96 0.01 264);
+  --card: oklch(0.14 0.055 264);
+  --card-foreground: oklch(0.96 0.01 264);
+  --popover: oklch(0.16 0.052 264);
+  --popover-foreground: oklch(0.96 0.01 264);
 
-  /* Borders — barely visible by default, slightly stronger on cards */
-  --border: oklch(1 0 0 / 0.06);
-  --input: oklch(1 0 0 / 0.10);
+  --border: oklch(0.55 0.06 264 / 0.14);
+  --input: oklch(0.55 0.06 264 / 0.18);
 
-  /* THE signature accent — electric cyan, used for primary CTA + active
-     pill + brand mark. Nothing else. */
-  --primary: oklch(0.74 0.18 215);
-  --primary-foreground: oklch(0.13 0.012 245);
-  --ring: oklch(0.74 0.18 215 / 0.55);
+  --primary: oklch(0.42 0.08 262);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.42 0.08 262 / 0.55);
+
+  --auth-canvas: oklch(0.11 0.048 265);
+  --auth-panel: oklch(0.08 0.06 266);
+  --auth-panel-foreground: oklch(0.96 0.01 264);
+  --auth-panel-muted: oklch(0.72 0.04 264);
+  --auth-panel-border: oklch(0.55 0.06 264 / 0.18);
+  --auth-panel-glow: oklch(0.22 0.07 264 / 0.5);
+  --auth-accent: oklch(0.78 0.05 255);
 
   /* Neutral interactive surfaces (hover, active rows) */
-  --secondary: oklch(0.22 0.014 245);
-  --secondary-foreground: oklch(0.97 0.005 245);
-  --muted: oklch(0.20 0.012 245);
-  --muted-foreground: oklch(0.70 0.012 245);
-  --accent: oklch(0.235 0.014 245);
-  --accent-foreground: oklch(0.97 0.005 245);
+  --secondary: oklch(0.18 0.05 264);
+  --secondary-foreground: oklch(0.96 0.01 264);
+  --muted: oklch(0.16 0.048 264);
+  --muted-foreground: oklch(0.72 0.03 264);
+  --accent: oklch(0.20 0.052 264);
+  --accent-foreground: oklch(0.96 0.01 264);
 
   --destructive: oklch(0.70 0.20 25);
 
   /* Chart palette — distinct hues, equal luminance for color-blind
      readability when stacked / overlaid. */
-  --chart-1: oklch(0.74 0.18 215);   /* brand cyan */
+  --chart-1: oklch(0.42 0.08 262);
   --chart-2: oklch(0.74 0.16 155);   /* emerald */
   --chart-3: oklch(0.82 0.16 75);    /* gold */
-  --chart-4: oklch(0.68 0.16 295);   /* violet — AI features */
+  --chart-4: oklch(0.72 0.15 200);   /* teal — secondary brand */
   --chart-5: oklch(0.70 0.20 25);    /* coral */
 
   /* Sidebar — marginally darker than canvas so the active pill pops */
-  --sidebar: oklch(0.115 0.010 245);
-  --sidebar-foreground: oklch(0.97 0.005 245);
-  --sidebar-primary: oklch(0.74 0.18 215);
-  --sidebar-primary-foreground: oklch(0.13 0.012 245);
-  --sidebar-accent: oklch(0.22 0.014 245);
-  --sidebar-accent-foreground: oklch(0.97 0.005 245);
-  --sidebar-border: oklch(1 0 0 / 0.06);
-  --sidebar-ring: oklch(0.74 0.18 215 / 0.55);
+  --sidebar: oklch(0.09 0.052 266);
+  --sidebar-foreground: oklch(0.96 0.01 264);
+  --sidebar-primary: oklch(0.42 0.08 262);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.16 0.05 264);
+  --sidebar-accent-foreground: oklch(0.96 0.01 264);
+  --sidebar-border: oklch(0.55 0.06 264 / 0.12);
+  --sidebar-ring: oklch(0.42 0.08 262 / 0.55);
 }
 
 @layer base {
@@ -201,13 +212,13 @@
     -moz-osx-font-smoothing: grayscale;
   }
   ::selection {
-    background-color: oklch(0.62 0.155 275 / 0.4);
+    background-color: oklch(0.45 0.09 258 / 0.35);
     color: oklch(0.99 0 0);
   }
 
 
   *:focus-visible {
-    outline: 2px solid oklch(0.62 0.155 275 / 0.6);
+    outline: 2px solid oklch(0.45 0.09 258 / 0.55);
     outline-offset: 1px;
     border-radius: 3px;
   }
@@ -263,9 +274,8 @@
   .text-gradient-brand {
     background: linear-gradient(
       135deg,
-      oklch(0.48 0.14 280),
-      oklch(0.45 0.2 290),
-      oklch(0.48 0.15 200)
+      oklch(0.32 0.09 264),
+      oklch(0.26 0.08 268)
     );
     -webkit-background-clip: text;
     background-clip: text;
@@ -274,12 +284,14 @@
   .dark .text-gradient-brand {
     background: linear-gradient(
       135deg,
-      oklch(0.92 0.06 280),
-      oklch(0.75 0.2 290),
-      oklch(0.78 0.18 200)
+      oklch(0.88 0.04 255),
+      oklch(0.72 0.06 262)
     );
     -webkit-background-clip: text;
     background-clip: text;
+  }
+  .text-auth-accent {
+    color: var(--auth-accent);
   }
   .text-gradient-violet {
     background: linear-gradient(
@@ -303,12 +315,21 @@
   .text-gradient-cyan {
     background: linear-gradient(
       135deg,
-      oklch(0.85 0.16 200),
-      oklch(0.7 0.18 220)
+      oklch(0.45 0.10 258),
+      oklch(0.38 0.08 265)
     );
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+  .dark .text-gradient-cyan {
+    background: linear-gradient(
+      135deg,
+      oklch(0.85 0.06 250),
+      oklch(0.70 0.08 258)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
   }
   .text-gradient-amber {
     background: linear-gradient(
@@ -390,14 +411,14 @@
     box-shadow:
       inset 0 1px 0 oklch(1 0 0 / 0.07),
       0 2px 4px oklch(0 0 0 / 0.55),
-      0 12px 32px -12px oklch(0.7 0.22 275 / 0.35);
+      0 12px 32px -12px oklch(0.35 0.08 258 / 0.22);
   }
 
-  /* Accent glow shadows */
+  /* Accent glow shadows — legacy name kept; night blue */
   .glow-violet {
     box-shadow:
-      0 0 0 1px oklch(0.7 0.22 275 / 0.25),
-      0 8px 32px -8px oklch(0.7 0.22 275 / 0.6);
+      0 0 0 1px oklch(0.40 0.09 258 / 0.22),
+      0 8px 32px -8px oklch(0.35 0.08 258 / 0.35);
   }
   .glow-cyan {
     box-shadow:
@@ -418,26 +439,32 @@
   /* Premium primary button — used on the main CTAs */
   .btn-premium {
     background: linear-gradient(
-      135deg,
-      oklch(0.7 0.22 275),
-      oklch(0.62 0.25 285)
+      180deg,
+      oklch(0.34 0.09 264),
+      oklch(0.26 0.09 266)
     );
-    border: 1px solid oklch(1 0 0 / 0.18);
+    border: 1px solid oklch(0.45 0.07 264 / 0.35);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.18),
-      0 4px 12px -4px oklch(0.7 0.22 275 / 0.55),
-      0 1px 2px oklch(0 0 0 / 0.5);
+      inset 0 1px 0 oklch(1 0 0 / 0.12),
+      0 4px 14px -4px oklch(0.18 0.08 266 / 0.55);
     color: oklch(0.99 0 0);
     transition:
       transform 0.15s ease-out,
       box-shadow 0.15s ease-out;
   }
+  .dark .btn-premium {
+    background: linear-gradient(
+      180deg,
+      oklch(0.38 0.08 262),
+      oklch(0.28 0.09 266)
+    );
+  }
   .btn-premium:hover {
     transform: translateY(-1px);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.22),
-      0 6px 20px -4px oklch(0.7 0.22 275 / 0.65),
-      0 2px 4px oklch(0 0 0 / 0.5);
+      inset 0 1px 0 oklch(1 0 0 / 0.18),
+      0 6px 20px -4px oklch(0.30 0.08 258 / 0.5),
+      0 2px 4px oklch(0 0 0 / 0.4);
   }
 
   .ring-gradient {

@@ -183,6 +183,16 @@ function applyEmbedHeader(req: NextRequest): Headers {
   if (req.nextUrl.pathname.startsWith("/embed/")) {
     requestHeaders.set("x-embed", "1");
   }
+  // Login / register / invite: no sidebar, top bar, or onboarding chrome.
+  // Same mechanism as embed — layout reads this before painting the shell.
+  const { pathname } = req.nextUrl;
+  if (
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname.startsWith("/invite/")
+  ) {
+    requestHeaders.set("x-auth-page", "1");
+  }
   return requestHeaders;
 }
 
@@ -213,7 +223,7 @@ export async function middleware(req: NextRequest) {
       ? await verifySession(req.cookies.get(SESSION_COOKIE)?.value, secret)
       : null;
     if (claims) return passthrough();
-    return challenge(req, pathname, "/login");
+    return unauthenticated(req, pathname, requestHeaders);
   }
 
   const cookie = req.cookies.get(COOKIE_NAME);
@@ -224,6 +234,19 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  return unauthenticated(req, pathname, requestHeaders);
+}
+
+/** Public marketing home for `/`; everything else still goes to login. */
+async function unauthenticated(
+  req: NextRequest,
+  pathname: string,
+  requestHeaders: Headers,
+) {
+  if (pathname === "/") {
+    requestHeaders.set("x-auth-page", "1");
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
   return challenge(req, pathname, "/login");
 }
 

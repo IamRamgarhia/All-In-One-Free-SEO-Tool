@@ -37,6 +37,8 @@ import { startScheduler, tickScheduler } from "@/lib/scheduler";
 import { redirect } from "next/navigation";
 import { getSetting } from "@/lib/settings-store";
 import { FreshnessBadge } from "@/components/ui/freshness-badge";
+import { hasWorkspaceSession } from "@/lib/workspace-session";
+import { PublicLandingPage } from "./public-landing-page";
 
 const priorityVariant: Record<
   string,
@@ -48,6 +50,10 @@ const priorityVariant: Record<
 };
 
 export default async function DashboardPage() {
+  if (!(await hasWorkspaceSession())) {
+    return <PublicLandingPage />;
+  }
+
   const t = await getTranslations("dashboard");
 
   function greetingForHour(hour: number) {
