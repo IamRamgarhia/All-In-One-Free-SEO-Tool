@@ -155,3 +155,6 @@ docs/audits/
 # already local-only; publishing a generated stub while hiding the real
 # thing was the inconsistency.
 docs/AGENTS.md
+
+# Local research clones (not part of the product)
+research/

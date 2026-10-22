@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { Search } from "lucide-react";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import { clients, keywords, keywordRankings } from "@/db/schema";
 import { desc, eq, count, inArray } from "drizzle-orm";
@@ -17,6 +18,8 @@ export default async function KeywordsIndexPage({
 }: {
   searchParams: Promise<{ clientId?: string; embed?: string }>;
 }) {
+  const t = await getTranslations("keywords");
+
   // Opened from a client, so the client is already chosen.
   //
   // The "Tools for this client" rail links here with ?clientId=, and
@@ -73,16 +76,17 @@ export default async function KeywordsIndexPage({
         url: c.url,
         logoUrl: c.logoUrl,
         niche: c.niche,
-        primary: total === 0 ? "None tracked" : `${total} keyword${total === 1 ? "" : "s"}`,
+        primary:
+          total === 0 ? t("noneTracked") : t("keywordCount", { count: total }),
         primaryTone: total > 0 ? "cyan" : "neutral",
         secondary:
           quickWinCount > 0
-            ? `${quickWinCount} quick win${quickWinCount === 1 ? "" : "s"} ready`
+            ? t("quickWinsReady", { count: quickWinCount })
             : total > 0
-              ? "Click to manage"
-              : "Click to track the first",
+              ? t("clickToManage")
+              : t("clickToTrackFirst"),
         badges: quickWinCount > 0
-          ? [{ label: `${quickWinCount} QW`, tone: "amber" as const }]
+          ? [{ label: t("quickWinBadge", { count: quickWinCount }), tone: "amber" as const }]
           : undefined,
       };
     }),
@@ -91,8 +95,8 @@ export default async function KeywordsIndexPage({
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
-        title="Keywords"
-        description="Pick a client to research keywords, track ranks, and find quick wins."
+        title={t("title")}
+        description={t("description")}
         icon={Search}
         accent="cyan"
       />

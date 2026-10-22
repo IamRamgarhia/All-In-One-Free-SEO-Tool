@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   // Produce a self-contained server build under .next/standalone — the
@@ -20,6 +23,8 @@ const nextConfig: NextConfig = {
     "@resvg/resvg-js",
     "satori",
     "qrcode",
+    // SEOmator pulls Playwright + better-sqlite3; keep it out of the bundle.
+    "@seomator/seo-audit",
   ],
 
   // Hide the dev-mode "Compiling…" bottom-left indicator. For self-hosters
@@ -73,4 +78,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

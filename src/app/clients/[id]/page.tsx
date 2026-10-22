@@ -37,7 +37,10 @@ import {
   refreshClientMetadataForm,
 } from "../actions";
 import { pickStackTemplates, STACK_LABELS } from "@/lib/tech-stack-templates";
-import { runAuditForClient } from "@/app/audits/actions";
+import {
+  runAuditForClient,
+  runSeomatorAuditForClient,
+} from "@/app/audits/actions";
 import { ShareCard } from "./share-card";
 import { ClientGooglePanel } from "./google-panel";
 import { PerClientGoogleConnect } from "./per-client-google";
@@ -178,18 +181,21 @@ export default async function ClientDetailPage({
     .orderBy(desc(audits.createdAt))
     .limit(5);
 
-  // The crawl, specifically.
-  //
-  // The AI site audit writes into this same table with its own checks and
-  // its own scale, so "most recent completed audit" picked whichever ran
-  // last. On a client audited today that meant the hero showed the AI
-  // audit's 77/100 and 6 issues while the onboarding screen showed the
-  // crawl's 93/100 and 50 issues — two numbers for the same site, both
-  // labelled health score, seventeen seconds apart.
-  //
-  // next-actions.ts already filters on kind for the same reason and says
-  // so in its own comment. This is the second place that needed it.
-  const [latestCompleted] = await db
+  // Health score prefers the SEOmator technical audit (373 rules). Fall
+  // back to the built-in crawl. Never mix in ai_full — different scale.
+  const [latestSeomator] = await db
+    .select()
+    .from(audits)
+    .where(
+      and(
+        eq(audits.clientId, clientId),
+        eq(audits.status, "completed"),
+        eq(audits.kind, "seomator"),
+      ),
+    )
+    .orderBy(desc(audits.completedAt))
+    .limit(1);
+  const [latestCrawl] = await db
     .select()
     .from(audits)
     .where(
@@ -201,6 +207,7 @@ export default async function ClientDetailPage({
     )
     .orderBy(desc(audits.completedAt))
     .limit(1);
+  const latestCompleted = latestSeomator ?? latestCrawl ?? null;
 
   const [{ value: openTaskCount }] = await db
     .select({ value: count() })
@@ -299,6 +306,8 @@ export default async function ClientDetailPage({
   const redetectAction = redetectTechStack.bind(null, client.id);
   const refreshMetadataAction = refreshClientMetadataForm.bind(null, client.id);
   const runAction = runAuditForClient.bind(null, client.id);
+  const runQuickAction = runSeomatorAuditForClient.bind(null, client.id, "quick");
+  const runDeepAction = runSeomatorAuditForClient.bind(null, client.id, "full");
   const applyTemplatesAction = applyNicheTemplates.bind(null, client.id);
   const applyStackAction = applyStackTemplates.bind(null, client.id);
   const { matched: matchedStacks } = pickStackTemplates(client.techStack);
@@ -634,15 +643,37 @@ export default async function ClientDetailPage({
               {/* Hairline + action row */}
               <div className="mt-7 border-t border-border pt-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* HERO action — Run audit */}
-                  <form action={runAction}>
+                  {/* Primary audit = SEOmator 373 rules → same /audits tables. */}
+                  <form action={runQuickAction}>
                     <SubmitButton
                       icon={<Play className="size-3.5" />}
-                      pendingChildren="Running audit…"
-                      pendingToast="Starting audit"
-                      pendingToastDescription="Crawling the site and running 30+ checks. Takes ~30-60 s."
+                      pendingChildren="Running quick audit…"
+                      pendingToast="Starting SEO + GEO quick audit"
+                      pendingToastDescription="SEOmator core/tech/security/crawl/perf + CWV, then native GEO scoring on the start URL."
                     >
-                      Run audit
+                      Audit rapide
+                    </SubmitButton>
+                  </form>
+                  <form action={runDeepAction}>
+                    <SubmitButton
+                      variant="outline"
+                      icon={<Play className="size-3.5" />}
+                      pendingChildren="Running full audit…"
+                      pendingToast="Starting SEO + GEO full audit"
+                      pendingToastDescription="Full 373-rule SEOmator crawl + Playwright CWV, then GEO site crawl (up to 20 pages)."
+                    >
+                      Audit complet
+                    </SubmitButton>
+                  </form>
+                  <form action={runAction}>
+                    <SubmitButton
+                      variant="outline"
+                      icon={<Play className="size-3.5" />}
+                      pendingChildren="Running agent crawl…"
+                      pendingToast="Starting agent crawl"
+                      pendingToastDescription="Built-in crawl (~72 checks) the autopilot agent can auto-fix."
+                    >
+                      Agent crawl
                     </SubmitButton>
                   </form>
 
@@ -895,7 +926,7 @@ export default async function ClientDetailPage({
             </p>
           </header>
           <div className="relative mt-5 grid gap-3 sm:grid-cols-3">
-            <form action={runAction} className="contents">
+            <form action={runQuickAction} className="contents">
               <button
                 type="submit"
                 className="group flex flex-col items-start gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/[0.06] p-4 text-left transition-colors hover:bg-cyan-500/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -904,10 +935,9 @@ export default async function ClientDetailPage({
                   <Play className="size-4" />
                 </span>
                 <div>
-                  <div className="text-sm font-semibold">Run an audit</div>
+                  <div className="text-sm font-semibold">Audit rapide</div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    30+ SEO checks. ~60 seconds. Sets the baseline health
-                    score.
+                    373-rule technical audit (quick categories + CWV).
                   </div>
                 </div>
                 <span className="mt-1 text-[11px] font-medium text-cyan-300 transition-transform group-hover:translate-x-0.5">
@@ -1232,7 +1262,7 @@ export default async function ClientDetailPage({
         <div className="relative">
           {recentAudits.length === 0 ? (
             <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-              No audits yet. Click Run audit above to do your first one.
+              No audits yet. Run a deep technical audit above to set the baseline.
             </p>
           ) : (
             <ul className="divide-y divide-white/5">
@@ -1246,6 +1276,13 @@ export default async function ClientDetailPage({
                     className="font-medium hover:underline"
                   >
                     Audit #{a.id}
+                    <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                      {a.kind === "seomator"
+                        ? "SEOmator"
+                        : a.kind === "ai_full"
+                          ? "AI"
+                          : "Crawl"}
+                    </span>
                   </Link>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground">

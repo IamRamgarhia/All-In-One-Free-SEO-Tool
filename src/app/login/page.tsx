@@ -1,14 +1,27 @@
 import { accountsEnabled } from "@/lib/auth";
+import {
+  getAuthBrandCopy,
+  getLoginPageCopy,
+} from "@/lib/auth-page-copy.server";
+import { getThemePreference } from "@/app/settings/theme-actions";
+import { AuthBrandedLayout } from "@/components/auth/auth-branded-layout";
 import { LoginForm } from "./login-form";
 
-/**
- * Server shell, so the form knows which credentials to ask for before it
- * renders. Deciding this on the client would mean a fetch, a spinner,
- * and a form that changes shape underneath someone who has already
- * started typing — on the one screen where that is least forgivable.
- */
 export const dynamic = "force-dynamic";
 
-export default function LoginPage() {
-  return <LoginForm mode={accountsEnabled() ? "accounts" : "password"} />;
+export default async function LoginPage() {
+  const [brand, copy, theme] = await Promise.all([
+    getAuthBrandCopy(),
+    getLoginPageCopy(),
+    getThemePreference(),
+  ]);
+
+  return (
+    <AuthBrandedLayout brand={brand} theme={theme}>
+      <LoginForm
+        mode={accountsEnabled() ? "accounts" : "password"}
+        copy={copy}
+      />
+    </AuthBrandedLayout>
+  );
 }

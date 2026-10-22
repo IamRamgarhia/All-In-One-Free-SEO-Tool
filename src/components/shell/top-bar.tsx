@@ -13,17 +13,23 @@ import type { ThemePreference } from "@/app/settings/theme-actions";
 export async function TopBar({
   unreadByHref,
   theme = "system",
+  userRole = null,
 }: {
   unreadByHref?: Record<string, number>;
   theme?: ThemePreference;
+  userRole?: string | null;
 }) {
   const mode = await getUiMode();
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4">
-      <MobileNav unreadByHref={unreadByHref} />
-      <SearchPalette />
-      <NextStep />
-      <div className="ml-auto flex items-center gap-1">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-3 sm:gap-3 sm:px-4">
+      <MobileNav unreadByHref={unreadByHref} userRole={userRole} />
+      <div className="min-w-0 flex-1">
+        <SearchPalette />
+      </div>
+      <div className="hidden min-w-0 lg:block">
+        <NextStep />
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
         <AiUsagePill />
         <AddClientButton />
         <ThemeToggle theme={theme} />

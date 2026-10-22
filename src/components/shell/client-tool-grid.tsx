@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Dropdown } from "@/components/ui/dropdown";
 import { ArrowUpRight, Globe } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -47,14 +50,18 @@ const badgeCls: Record<
 export function ClientToolGrid({
   cards,
   basePath,
-  emptyTitle = "No clients yet",
-  emptyHint = "Add a client first — every tool here is scoped to one client.",
+  emptyTitle,
+  emptyHint,
 }: {
   cards: ClientToolCard[];
   basePath: string;
   emptyTitle?: string;
   emptyHint?: string;
 }) {
+  const t = useTranslations("common");
+  const resolvedEmptyTitle = emptyTitle ?? t("noClientsYet");
+  const resolvedEmptyHint = emptyHint ?? t("addClientFirstHint");
+
   if (cards.length === 0) {
     return (
       <div className="glass-apple relative overflow-hidden rounded-2xl px-6 py-14 text-center">
@@ -63,10 +70,10 @@ export function ClientToolGrid({
           <div className="flex size-14 items-center justify-center rounded-2xl bg-violet-500/15 ring-1 ring-violet-400/30">
             <Globe className="size-6 text-violet-300" />
           </div>
-          <h2 className="text-xl font-semibold">{emptyTitle}</h2>
-          <p className="text-sm text-muted-foreground">{emptyHint}</p>
+          <h2 className="text-xl font-semibold">{resolvedEmptyTitle}</h2>
+          <p className="text-sm text-muted-foreground">{resolvedEmptyHint}</p>
           <QuickAddClientButton className="mt-2 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg shadow-violet-500/30 ring-1 ring-inset ring-white/15 transition-colors hover:bg-primary/90">
-            ✨ Add your first client
+            ✨ {t("addFirstClient")}
           </QuickAddClientButton>
         </div>
       </div>
@@ -134,7 +141,7 @@ export function ClientToolGrid({
             )}
 
             <div className="flex items-center text-sm font-medium text-violet-300">
-              Open
+              {t("open")}
               <ArrowUpRight className="ml-auto size-4 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
             </div>
           </div>
@@ -161,14 +168,15 @@ export function ClientToolHeader({
   toolLabel: string;
   icon?: LucideIcon;
 }) {
+  const t = useTranslations("common");
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
-      <div className="flex items-center gap-3 min-w-0">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 sm:px-4">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Link
           href={basePath}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
         >
-          ← All clients
+          {t("allClients")}
         </Link>
         <span className="hidden text-muted-foreground/40 sm:inline">·</span>
         {Icon && <Icon className="size-4 shrink-0 text-violet-300" />}
@@ -204,13 +212,14 @@ function ClientJumpDropdown({
   clients: { id: number; name: string }[];
   basePath: string;
 }) {
+  const t = useTranslations("common");
   if (clients.length <= 1) return null;
   return (
     <Dropdown
       align="right"
       width={224}
       className="cursor-pointer rounded-md bg-white/5 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-      trigger={<>Jump to client ▾</>}
+      trigger={<>{t("jumpToClient")}</>}
     >
       {clients.map((c) => (
         <Link

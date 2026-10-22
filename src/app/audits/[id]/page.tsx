@@ -22,9 +22,22 @@ import { Term } from "@/components/ui/term";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { FixWizard } from "@/components/fix-wizard";
 import { IssueExplainer } from "@/components/issue-explainer";
+import { getExplainer } from "@/lib/issue-explainers.server";
 import { isFixable } from "@/lib/fix-suggestions";
 import { confidenceReason } from "@/lib/audit-confidence";
+import {
+  categoryLabel,
+  extractCwv,
+  extractScoreCap,
+  extractWaivedCaps,
+  ruleDisplayName,
+  verdictForScore,
+} from "@/lib/seomator-meta";
+import { getTranslations } from "next-intl/server";
 import { setStatusForType } from "../issue-actions";
+import { SeomatorAuditProgressLive } from "@/components/audits/seomator-audit-progress";
+import { SeomatorGeoPanel } from "@/components/audits/seomator-geo-panel";
+import { GeoAuditPanel } from "@/components/audits/geo-audit-panel";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -104,6 +117,8 @@ export default async function AuditDetailPage({
   const auditId = Number(id);
   if (!Number.isFinite(auditId)) notFound();
 
+  const t = await getTranslations("audits.detail");
+
   // `stalledSeconds` is computed by SQLite rather than with Date.now()
   // in the component. Two reasons: React 19's purity rule correctly
   // refuses an impure call during render, and the database is already
@@ -117,6 +132,14 @@ export default async function AuditDetailPage({
       score: audits.score,
       issuesCount: audits.issuesCount,
       pagesCrawled: audits.pagesCrawled,
+      kind: audits.kind,
+      targetUrl: audits.targetUrl,
+      summary: audits.summary,
+      categoryScores: audits.categoryScores,
+      geoScore: audits.geoScore,
+      geoEnvelopeJson: audits.geoEnvelopeJson,
+      rawReport: audits.rawReport,
+      previewScreenshotPath: audits.previewScreenshotPath,
       startedAt: audits.startedAt,
       completedAt: audits.completedAt,
       createdAt: audits.createdAt,
@@ -170,6 +193,8 @@ export default async function AuditDetailPage({
     issueIds: number[];
     confidence: "definitely" | "probably" | "test" | null;
     aiGenerated: boolean;
+    category: string | null;
+    fixSteps: string | null;
   };
   const CONF_RANK: Record<string, number> = { definitely: 3, probably: 2, test: 1 };
   function groupByType(issues: typeof sorted): Group[] {
@@ -189,6 +214,9 @@ export default async function AuditDetailPage({
         ) {
           existing.confidence = iConf;
         }
+        if (!existing.fixSteps && i.fixSteps) {
+          existing.fixSteps = i.fixSteps;
+        }
       } else {
         map.set(key, {
           severity: i.severity as Group["severity"],
@@ -198,6 +226,8 @@ export default async function AuditDetailPage({
           issueIds: [i.id],
           confidence: iConf,
           aiGenerated: iAi,
+          category: i.category ?? null,
+          fixSteps: i.fixSteps ?? null,
         });
       }
     }
@@ -219,9 +249,38 @@ export default async function AuditDetailPage({
   // the column; the UI shows the affected-page count instead and says so.
   const pagesCrawled = audit.pagesCrawled;
   const pagesWithIssues = new Set(issues.map((i) => i.url)).size;
+  const cwv =
+    audit.kind === "seomator" ? extractCwv(audit.rawReport) : null;
+  const scoreCap =
+    audit.kind === "seomator" ? extractScoreCap(audit.rawReport) : null;
+  const waivedCaps =
+    audit.kind === "seomator" ? extractWaivedCaps(audit.rawReport) : [];
+  const verdict =
+    audit.kind === "seomator" && audit.score != null
+      ? verdictForScore(audit.score)
+      : null;
+
+  const geoIssues = issues
+    .filter(
+      (i) =>
+        i.category === "geo" ||
+        (typeof i.type === "string" &&
+          (i.type.startsWith("geo:") || i.type.startsWith("seomator:geo-"))),
+    )
+    .map((i) => ({
+      type: i.type,
+      severity: i.severity,
+      message: i.message,
+      url: i.url,
+    }));
+
+  const showLandingPreview =
+    audit.kind === "seomator" &&
+    audit.status === "completed" &&
+    Boolean(audit.previewScreenshotPath);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       {/* HERO */}
       <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 px-6 py-7 backdrop-blur-md">
         <div className="pointer-events-none absolute -left-20 -top-20 size-72 rounded-full bg-gradient-to-br from-cyan-500/30 to-violet-500/15 blur-[100px]" />
@@ -232,7 +291,7 @@ export default async function AuditDetailPage({
             href="/clients"
             className="rounded px-1 py-0.5 transition-colors hover:bg-white/5 hover:text-foreground"
           >
-            Clients
+            {t("breadcrumbClients")}
           </Link>
           <span>/</span>
           <Link
@@ -242,10 +301,10 @@ export default async function AuditDetailPage({
             {client.name}
           </Link>
           <span>/</span>
-          <span className="text-foreground">Audit #{audit.id}</span>
+          <span className="text-foreground">{t("auditNumber", { id: audit.id })}</span>
         </nav>
 
-        <div className="relative z-10 mt-4 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="relative z-10 mt-4 grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="flex size-12 items-center justify-center rounded-xl bg-cyan-500/15 ring-1 ring-cyan-400/30">
@@ -253,27 +312,63 @@ export default async function AuditDetailPage({
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">
-                  <span className="text-gradient-brand">Audit results</span>
+                  <span className="text-gradient-brand">{t("resultsTitle")}</span>
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {audit.completedAt
-                    ? `Completed ${audit.completedAt.toLocaleString()}`
-                    : `Started ${(audit.startedAt ?? audit.createdAt).toLocaleString()}`}{" "}
+                    ? t("completedAt", {
+                        date: audit.completedAt.toLocaleString(),
+                      })
+                    : t("startedAt", {
+                        date: (audit.startedAt ?? audit.createdAt).toLocaleString(),
+                      })}{" "}
                   · {client.name}
+                  {" · "}
+                  {audit.kind === "seomator"
+                    ? t("seomatorKind")
+                    : audit.kind === "ai_full"
+                      ? t("aiKind")
+                      : t("crawlerKind")}
                 </p>
               </div>
             </div>
-            <Link
-              href={`/clients/${client.id}`}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-            >
-              <ExternalLink className="size-3" />
-              View client
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/clients/${client.id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+              >
+                <ExternalLink className="size-3" />
+                View client
+              </Link>
+              {audit.kind === "seomator" && audit.status === "completed" ? (
+                <>
+                  <Link
+                    href={`/audits/${auditId}/export?format=markdown`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    Export Markdown
+                  </Link>
+                  <Link
+                    href={`/audits/${auditId}/export?format=llm`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    Export LLM
+                  </Link>
+                  <Link
+                    href={`/audits/c/${client.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  >
+                    All audits
+                  </Link>
+                </>
+              ) : null}
+            </div>
           </div>
 
-          <div className="relative flex items-center gap-5 rounded-2xl border border-white/10 bg-black/20 p-5 backdrop-blur">
-            <ScoreGauge score={audit.score ?? null} size={140} />
+          <div className="relative flex w-full flex-col items-center gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur sm:flex-row sm:gap-5 sm:p-5 md:w-auto">
+            <div className="origin-center scale-90 sm:scale-100">
+              <ScoreGauge score={audit.score ?? null} size={140} label={t("healthScore")} />
+            </div>
             <div className="space-y-1.5">
               <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Health score
@@ -285,7 +380,11 @@ export default async function AuditDetailPage({
                   : ` on ${pagesWithIssues} page${pagesWithIssues === 1 ? "" : "s"}`}
               </div>
               <div className="text-xs text-muted-foreground">
-                {audit.status === "completed" ? "Out of 100" : audit.status}
+                {audit.status === "completed"
+                  ? verdict
+                    ? `${verdict.grade} · ${verdict.label}`
+                    : "Out of 100"
+                  : audit.status}
               </div>
               {/* The number most likely to end up in front of a client,
                   and the one whose basis is least obvious. It describes
@@ -296,15 +395,162 @@ export default async function AuditDetailPage({
                 source="crawl"
                 asOf={audit.completedAt}
                 note={
-                  pagesCrawled !== null
-                    ? `Based on the ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} we crawled.`
-                    : "This audit predates page-count tracking, so we can only show the pages that had findings — the crawl covered at least that many."
+                  audit.kind === "seomator"
+                    ? pagesCrawled !== null
+                      ? `SEOmator crawl of ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} against 373 technical rules.`
+                      : "SEOmator deep technical audit."
+                    : pagesCrawled !== null
+                      ? `Based on the ${pagesCrawled} page${pagesCrawled === 1 ? "" : "s"} we crawled.`
+                      : "This audit predates page-count tracking, so we can only show the pages that had findings — the crawl covered at least that many."
                 }
               />
             </div>
           </div>
         </div>
       </section>
+
+      {showLandingPreview ? (
+        <section className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/audits/${auditId}/preview`}
+            alt={`Rendered preview of ${client.url}`}
+            className="aspect-[16/10] w-full object-cover object-top"
+          />
+          <p className="border-t border-white/5 px-4 py-2 text-xs text-muted-foreground">
+            Landing page as rendered during the SEOmator audit (Playwright).
+          </p>
+        </section>
+      ) : null}
+
+      {scoreCap ? (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs text-amber-100">
+          Score capped at {audit.score}/100 (uncapped {scoreCap.uncappedScore}
+          ): {scoreCap.reasons.join("; ")}
+        </div>
+      ) : null}
+      {waivedCaps.length > 0 ? (
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-xs text-cyan-100">
+          Staging caps waived: {waivedCaps.join("; ")}
+        </div>
+      ) : null}
+
+      {cwv ? (
+        <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Core Web Vitals
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Measured via Playwright during the SEOmator run (lab data, not
+            CrUX field data).
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-5">
+            {(
+              [
+                ["LCP", cwv.lcp, "cwv-lcp", (v: number) => `${(v / 1000).toFixed(2)}s`],
+                ["CLS", cwv.cls, "cwv-cls", (v: number) => v.toFixed(3)],
+                ["INP", cwv.inp, "cwv-inp", (v: number) => `${Math.round(v)}ms`],
+                ["TTFB", cwv.ttfb, "cwv-ttfb", (v: number) => `${Math.round(v)}ms`],
+                ["FCP", cwv.fcp, "cwv-fcp", (v: number) => `${(v / 1000).toFixed(2)}s`],
+              ] as const
+            ).map(([label, value, ruleId, fmt]) => {
+              const status = cwv.statuses[ruleId] ?? "not-measured";
+              const tone =
+                status === "pass"
+                  ? "text-emerald-300"
+                  : status === "fail"
+                    ? "text-rose-300"
+                    : status === "warn"
+                      ? "text-amber-300"
+                      : "text-muted-foreground";
+              return (
+                <div
+                  key={label}
+                  className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    {label}
+                  </div>
+                  <div className={`mt-1 text-lg font-semibold tabular-nums ${tone}`}>
+                    {value == null ? "—" : fmt(value)}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    {status}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {audit.kind === "seomator" && audit.status === "completed" ? (
+        <SeomatorGeoPanel
+          categoryScores={audit.categoryScores}
+          geoIssues={geoIssues}
+        />
+      ) : null}
+
+      {audit.kind === "seomator" &&
+      audit.status === "completed" &&
+      (audit.geoScore != null || audit.geoEnvelopeJson) ? (
+        <GeoAuditPanel
+          geoScore={audit.geoScore}
+          envelope={audit.geoEnvelopeJson}
+        />
+      ) : null}
+
+      {audit.kind === "seomator" && audit.categoryScores ? (
+        <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Category scores
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Weighted SEOmator categories (373 rules). Lower scores first.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(audit.categoryScores)
+              .sort(([, a], [, b]) => a.score - b.score)
+              .map(([cat, vals]) => {
+                const tone =
+                  vals.fail > 0
+                    ? "text-rose-300"
+                    : vals.warn > 0
+                      ? "text-amber-300"
+                      : "text-emerald-300";
+                return (
+                  <div
+                    key={cat}
+                    className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-[11px] font-medium tracking-wide text-muted-foreground">
+                        {categoryLabel(cat)}
+                      </span>
+                      <span className={`text-lg font-semibold tabular-nums ${tone}`}>
+                        {vals.score}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex gap-2 text-[10px] text-muted-foreground">
+                      <span>{vals.pass} pass</span>
+                      <span>{vals.warn} warn</span>
+                      <span>{vals.fail} fail</span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      ) : audit.kind === "seomator" && audit.summary ? (
+        <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Category breakdown
+          </h2>
+          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-muted-foreground">
+            {audit.summary}
+          </pre>
+        </section>
+      ) : null}
 
       {closedCount > 0 && (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2 text-xs text-emerald-200">
@@ -420,7 +666,7 @@ export default async function AuditDetailPage({
                 <li key={g.type} className="px-5 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {issueTypeToTerm[g.type] ? (
                           <Term term={issueTypeToTerm[g.type]}>
                             <span className="font-medium capitalize">
@@ -429,7 +675,16 @@ export default async function AuditDetailPage({
                           </Term>
                         ) : (
                           <span className="font-medium capitalize">
-                            {g.type.replace(/_/g, " ")}
+                            {g.type.startsWith("seomator:")
+                              ? ruleDisplayName(
+                                  g.type.slice("seomator:".length),
+                                )
+                              : g.type.replace(/_/g, " ")}
+                          </span>
+                        )}
+                        {g.category && (
+                          <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30">
+                            {categoryLabel(g.category)}
                           </span>
                         )}
                         {g.affectedUrls.length > 1 && (
@@ -451,6 +706,14 @@ export default async function AuditDetailPage({
                       <p className="text-sm leading-relaxed text-muted-foreground">
                         {g.sample}
                       </p>
+                      {g.fixSteps ? (
+                        <p className="mt-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs leading-relaxed text-cyan-100/90">
+                          <span className="font-semibold text-cyan-200">
+                            Fix:{" "}
+                          </span>
+                          {g.fixSteps}
+                        </p>
+                      ) : null}
                       <details className="mt-1.5">
                         <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
                           {g.affectedUrls.length === 1
@@ -475,6 +738,7 @@ export default async function AuditDetailPage({
                         <IssueExplainer
                           issueType={g.type}
                           url={g.affectedUrls[0]}
+                          explainer={getExplainer(g.type)}
                         />
                       </div>
 
@@ -575,7 +839,36 @@ export default async function AuditDetailPage({
         Auto-refreshes, because an audit finishing is not something the
         user can trigger and a page that never updates looks broken.
       */}
-      {audit.status === "running" && (
+      {audit.status === "running" && audit.kind === "seomator" ? (
+        <div className="space-y-4">
+          <SeomatorAuditProgressLive
+            auditId={auditId}
+            targetUrl={audit.targetUrl ?? client.url}
+            initialPagesCrawled={pagesCrawled}
+          />
+          {isStalled ? (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
+              <p className="text-sm font-medium text-amber-200">
+                This one has been running for a while
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Audits that take more than ten minutes have usually been
+                interrupted. Start a new audit from the client page to take
+                over.
+              </p>
+              <Link
+                href={`/clients/${audit.clientId}`}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-200 hover:underline"
+              >
+                Go to the client page
+                <ArrowUpRight className="size-3" />
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {audit.status === "running" && audit.kind !== "seomator" ? (
         <div className="relative overflow-hidden rounded-2xl border border-sky-500/20 bg-sky-500/5 px-6 py-12 text-center backdrop-blur-md">
           <meta httpEquiv="refresh" content="10" />
           <div className="pointer-events-none absolute left-1/2 top-1/2 size-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/10 blur-3xl" />
@@ -585,37 +878,12 @@ export default async function AuditDetailPage({
             </div>
             <h2 className="text-lg font-semibold">Audit in progress</h2>
             <p className="text-sm text-muted-foreground">
-              Crawling {client?.url ?? "the site"} and running its checks. Most
-              sites take 30–60 seconds; a large one with JavaScript rendering
-              can take a few minutes.
+              Crawling {client?.url ?? "the site"}. This page refreshes every
+              10 seconds.
             </p>
-            <p className="text-xs text-muted-foreground">
-              This page refreshes itself — you can leave it open, or come back
-              later. The audit keeps running either way.
-            </p>
-            {isStalled && (
-              <div className="mt-2 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-left">
-                <p className="text-sm font-medium text-amber-200">
-                  This one has been running for a while
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Audits that take more than ten minutes have usually been
-                  interrupted — a restart, or the tab being closed mid-crawl.
-                  Running a new audit from the client page will take over from
-                  it rather than waiting.
-                </p>
-                <Link
-                  href={`/clients/${audit.clientId}`}
-                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-200 hover:underline"
-                >
-                  Go to the client page
-                  <ArrowUpRight className="size-3" />
-                </Link>
-              </div>
-            )}
           </div>
         </div>
-      )}
+      ) : null}
 
       {audit.status === "failed" && (
         <div className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-rose-500/5 px-6 py-12 text-center backdrop-blur-md">

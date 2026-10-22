@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>seo_rank — domaine &amp; logos</title>
+    <style>
+      :root {
+        --bg: #0a0e14;
+        --card: #121a26;
+        --border: rgba(255, 255, 255, 0.09);
+        --text: #e8eef6;
+        --muted: #8496b0;
+        --accent: #5b8fd4;
+        --term: #7ee787;
+        --warn: #e3b341;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Inter, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 3rem;
+      }
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.45rem;
+      }
+      .sub {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      table.domains {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+        margin-bottom: 2rem;
+      }
+      table.domains th,
+      table.domains td {
+        border: 1px solid var(--border);
+        padding: 0.65rem 0.75rem;
+        text-align: left;
+      }
+      table.domains th {
+        background: #0f1622;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .free {
+        color: var(--term);
+      }
+      .taken {
+        color: var(--warn);
+      }
+      .invalid {
+        color: #f85149;
+      }
+      .grid {
+        display: grid;
+        gap: 1.25rem;
+      }
+      .option {
+        position: relative;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--card);
+        padding: 1.25rem;
+      }
+      .rec {
+        border-color: rgba(94, 234, 135, 0.35);
+      }
+      .rec::after {
+        content: "Recommandé";
+        position: absolute;
+        top: 12px;
+        left: 14px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--term);
+      }
+      .num {
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.1);
+      }
+      .preview {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 96px;
+        margin-bottom: 1rem;
+        border-radius: 12px;
+        background: #070a10;
+        border: 1px solid var(--border);
+      }
+      .name {
+        margin: 0 0 0.25rem;
+        font-weight: 600;
+      }
+      .tag {
+        margin: 0 0 0.5rem;
+        font-size: 0.8rem;
+        color: var(--accent);
+      }
+      .note {
+        margin: 0;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      code {
+        font-size: 0.85em;
+        background: #0f1622;
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>seo_rank · domaine &amp; logos</h1>
+      <p class="sub">
+        Le <strong>underscore</strong> convient au wordmark / CLI, pas au nom de domaine DNS.
+      </p>
+
+      <table class="domains" aria-label="Disponibilité domaines">
+        <thead>
+          <tr>
+            <th>Domaine</th>
+            <th>Statut (check DNS oct. 2026)</th>
+            <th>Usage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>seo_rank.io</code></td>
+            <td class="invalid"><strong>Invalide</strong> — le « _ » n’est pas autorisé dans un nom .io</td>
+            <td>Logo, CLI, code seulement</td>
+          </tr>
+          <tr>
+            <td><code>seo-rank.io</code></td>
+            <td class="free"><strong>Semble libre</strong> (NXDOMAIN)</td>
+            <td>URL officielle recommandée si vous gardez l’underscore à l’écran</td>
+          </tr>
+          <tr>
+            <td><code>searank.io</code></td>
+            <td class="free"><strong>Semble libre</strong> (NXDOMAIN)</td>
+            <td>Alternative sans tiret ni underscore</td>
+          </tr>
+          <tr>
+            <td><code>seorank.io</code></td>
+            <td class="taken">Enregistré — vente GoDaddy / Afternic</td>
+            <td>Achat premium possible</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div
+        class="domain-box"
+        style="margin-bottom: 1.5rem; border-color: rgba(248, 81, 73, 0.35); background: #1a1214"
+      >
+        <h2 style="color: #f85149; font-size: 0.95rem">Pourquoi le registrar refuse</h2>
+        <p>
+          Dans le champ « domaine », on ne met <strong>que</strong> des lettres, chiffres et
+          tirets — <strong>pas</strong> <code>&lt;</code> <code>&gt;</code> <code>/</code>
+          <code>_</code>. <code>&lt;seo_rank/&gt;</code> = <strong>logo / UI</strong>, pas un nom
+          DNS.
+        </p>
+        <p>
+          <strong>seorank.io</strong> : déjà pris (revente GoDaddy).<br />
+          <strong class="free">À enregistrer aujourd’hui (NXDOMAIN)</strong> :
+          <code>seo-rank.io</code> ou <code>searank.io</code> — colle à la marque
+          <code>&lt;seo_rank/&gt;.io</code> affichée à l’écran.
+        </p>
+        <p style="margin-bottom: 0">
+          Dans GoDaddy / Hostinger, tapez exactement :
+          <code>seo-rank.io</code> (avec un tiret, sans balises).
+        </p>
+      </div>
+
+      <div class="grid">
+        <article class="option rec">
+          <span class="num">★</span>
+          <div class="preview">
+            <svg width="360" height="52" viewBox="0 0 380 52" fill="none" aria-hidden="true">
+              <text x="0" y="38" fill="#5b8fd4" font-family="Consolas,monospace" font-size="28" font-weight="600" opacity="0.9">&lt;</text>
+              <text x="18" y="38" fill="#e8eef6" font-family="Consolas,monospace" font-size="28" font-weight="700">seo_rank</text>
+              <text x="212" y="38" fill="#5b8fd4" font-family="Consolas,monospace" font-size="28" font-weight="600" opacity="0.9">/&gt;</text>
+              <text x="252" y="38" fill="#5b8fd4" font-family="Consolas,monospace" font-size="28" font-weight="700">.io</text>
+            </svg>
+          </div>
+          <p class="name">&lt;seo_rank/&gt;.io</p>
+          <p class="tag">Accroche : « Balise auto — domaine clair »</p>
+          <p class="note">Formulation retenue. Fichier : <code>public/brand-seo-rank-lockup.svg</code></p>
+        </article>
+
+        <article class="option">
+          <span class="num">1</span>
+          <div class="preview">
+            <svg width="320" height="52" viewBox="0 0 320 52" fill="none" aria-hidden="true">
+              <text x="0" y="36" fill="#8496b0" font-family="Consolas,monospace" font-size="26" font-weight="500">seo</text>
+              <text x="58" y="36" fill="#e8eef6" font-family="Consolas,monospace" font-size="26" font-weight="700">_rank</text>
+              <text x="168" y="36" fill="#5b8fd4" font-family="Consolas,monospace" font-size="26" font-weight="700">.io</text>
+            </svg>
+          </div>
+          <p class="name">Tri-tone snake_case</p>
+          <p class="tag">Accroche : « seo_rank — la stack qui rank »</p>
+          <p class="note">Underscore blanc = cœur produit. .io en accent. Sidebar + login.</p>
+        </article>
+
+        <article class="option">
+          <span class="num">2</span>
+          <div class="preview">
+            <svg width="340" height="56" viewBox="0 0 340 56" fill="none" aria-hidden="true">
+              <text x="0" y="22" fill="#8496b0" font-family="Consolas,monospace" font-size="11"># global-it-ss</text>
+              <text x="0" y="44" fill="#7ee787" font-family="Consolas,monospace" font-size="14">$</text>
+              <text x="16" y="44" fill="#e8eef6" font-family="Consolas,monospace" font-size="20" font-weight="600"> ./seo_rank </text>
+              <text x="200" y="44" fill="#8496b0" font-family="Consolas,monospace" font-size="14">--audit</text>
+            </svg>
+          </div>
+          <p class="name">Binaire CLI</p>
+          <p class="tag">Accroche : « ./seo_rank --audit »</p>
+          <p class="note">Très parleur pour agence tech. Favicon : <code>sr</code> ou <code>_r</code>.</p>
+        </article>
+
+        <article class="option">
+          <span class="num">3</span>
+          <div class="preview">
+            <svg width="300" height="52" viewBox="0 0 300 52" fill="none" aria-hidden="true">
+              <text x="0" y="34" fill="#5b8fd4" font-family="Consolas,monospace" font-size="22" opacity="0.7">&lt;</text>
+              <text x="18" y="36" fill="#e8eef6" font-family="Consolas,monospace" font-size="22" font-weight="700">seo_rank.io</text>
+              <text x="228" y="34" fill="#5b8fd4" font-family="Consolas,monospace" font-size="22" opacity="0.7">/&gt;</text>
+            </svg>
+          </div>
+          <p class="name">Balises (comme n°15)</p>
+          <p class="tag">Accroche : « &lt;seo_rank.io/&gt; »</p>
+          <p class="note">Underscore visible dans la balise ; domaine réel en seo-rank.io.</p>
+        </article>
+
+        <article class="option">
+          <span class="num">4</span>
+          <div class="preview">
+            <svg width="320" height="64" viewBox="0 0 320 64" fill="none" aria-hidden="true">
+              <rect x="0" y="8" width="52" height="48" rx="10" fill="#1a2744"/>
+              <text x="8" y="40" fill="#fff" font-family="Consolas,monospace" font-size="13" font-weight="700">s_r</text>
+              <text x="64" y="36" fill="#e8eef6" font-family="Consolas,monospace" font-size="20" font-weight="700">seo_rank</text>
+              <text x="64" y="52" fill="#5b8fd4" font-family="Segoe UI,sans-serif" font-size="9" letter-spacing="0.16em">SEO-RANK.IO</text>
+            </svg>
+          </div>
+          <p class="name">Badge + URL réelle</p>
+          <p class="tag">Accroche : « Console Global-IT-SS »</p>
+          <p class="note">Marque snake_case, sous-texte avec tiret (domaine enregistrable).</p>
+        </article>
+      </div>
+    </div>
+  </body>
+</html>

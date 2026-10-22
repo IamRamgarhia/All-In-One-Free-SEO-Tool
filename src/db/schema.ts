@@ -131,12 +131,43 @@ export const audits = sqliteTable("audits", {
   pagesCrawled: integer("pages_crawled"),
   startedAt: integer("started_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
-  /** "crawler" (existing site-wide audit) | "ai_full" (AI single-page audit). */
+  /**
+   * Audit engine:
+   * - "crawler" — built-in site crawl (~72 finding types; agent can auto-fix)
+   * - "ai_full" — AI single-page audit
+   * - "seomator" — SEOmator deep technical audit (373 rules / 20 categories)
+   */
   kind: text("kind").notNull().default("crawler"),
-  /** For ai_full: which URL was analyzed. */
+  /** For ai_full / seomator: which URL was analyzed (start URL for crawls). */
   targetUrl: text("target_url"),
-  /** AI-written executive summary of the audit. */
+  /** AI-written executive summary, or SEOmator category breakdown markdown. */
   summary: text("summary"),
+  /**
+   * SEOmator per-category scores: { core: { score, pass, warn, fail }, … }.
+   * Null for crawler / AI audits.
+   */
+  categoryScores: text("category_scores", { mode: "json" }).$type<
+    Record<string, { score: number; pass: number; warn: number; fail: number }>
+  >(),
+  /**
+   * Full SEOmator AuditResult JSON. Kept so we can re-diff / re-import
+   * without re-crawling. Null for non-seomator kinds.
+   */
+  rawReport: text("raw_report", { mode: "json" }).$type<
+    Record<string, unknown>
+  >(),
+  /** Relative path under SEO_DATA_DIR, e.g. audit-previews/12.png */
+  previewScreenshotPath: text("preview_screenshot_path"),
+  /** Live SEOmator category progress while status = running */
+  progressJson: text("progress_json", { mode: "json" }).$type<
+    Record<string, unknown>
+  >(),
+  /** Native GEO audit composite (0–100) from geo-audit-skill scoring. */
+  geoScore: integer("geo_score"),
+  /** Full GEO audit envelope JSON (categories, signals, findings). */
+  geoEnvelopeJson: text("geo_envelope_json", { mode: "json" }).$type<
+    Record<string, unknown>
+  >(),
   ...timestamps,
 });
 
@@ -173,6 +204,25 @@ export const auditIssues = sqliteTable("audit_issues", {
    * Nullable so legacy rows remain untouched; new inserts must populate.
    */
   confidence: text("confidence", { enum: ["definitely", "probably", "test"] }),
+  ...timestamps,
+});
+
+/**
+ * Per-rule status snapshot for each SEOmator audit.
+ * Powers /audits/diff rule-level fixed/regressed without re-parsing raw_report.
+ */
+export const auditRuleHistory = sqliteTable("audit_rule_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  clientId: integer("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "cascade" }),
+  auditId: integer("audit_id")
+    .notNull()
+    .references(() => audits.id, { onDelete: "cascade" }),
+  ruleId: text("rule_id").notNull(),
+  category: text("category").notNull(),
+  status: text("status").notNull(),
+  score: integer("score"),
   ...timestamps,
 });
 

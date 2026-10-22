@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Menu, Search, X } from "lucide-react";
-import { NAV_GROUPS, type NavItem } from "./nav-items";
+import { navGroupsForRole, type NavItem } from "./nav-items";
+import { navItemMessageKey } from "@/i18n/nav";
 import { capabilityOf } from "@/lib/tool-capabilities";
+import { GlobalRankLogo } from "@/components/brand/global-rank-wordmark";
 
 /**
  * Mobile-only navigation drawer. Hidden ≥md where the regular sidebar
@@ -24,13 +27,22 @@ import { capabilityOf } from "@/lib/tool-capabilities";
  */
 export function MobileNav({
   unreadByHref,
+  userRole = null,
 }: {
   unreadByHref?: Record<string, number>;
+  userRole?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const pathname = usePathname();
   const unread = unreadByHref ?? {};
+  const t = useTranslations("nav");
+  const tItems = useTranslations("nav.items");
+  const tGroups = useTranslations("nav.groups");
+  const tCommon = useTranslations("common");
+  function itemLabel(href: string) {
+    return tItems(navItemMessageKey(href));
+  }
 
   // Close the drawer whenever the route changes.
   //
@@ -54,13 +66,22 @@ export function MobileNav({
   }, [open]);
 
   const q = query.trim().toLowerCase();
+  const baseGroups = useMemo(() => navGroupsForRole(userRole), [userRole]);
+
   const groups = useMemo(() => {
-    if (!q) return NAV_GROUPS;
-    return NAV_GROUPS.map((g) => ({
+    if (!q) return baseGroups;
+    return baseGroups.map((g) => ({
       ...g,
-      items: g.items.filter((it: NavItem) => it.label.toLowerCase().includes(q)),
+      items: g.items.filter((it: NavItem) => {
+        const translated = itemLabel(it.href).toLowerCase();
+        return (
+          it.label.toLowerCase().includes(q) || translated.includes(q)
+        );
+      }),
     })).filter((g) => g.items.length > 0);
-  }, [q]);
+    // itemLabel closes over tItems for the active locale
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, tItems, baseGroups]);
 
   return (
     <>
@@ -73,7 +94,7 @@ export function MobileNav({
           setQuery("");
           setOpen(true);
         }}
-        aria-label="Open menu"
+        aria-label={t("openMenu")}
         className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent/40 hover:text-foreground md:hidden"
       >
         <Menu className="size-5" />
@@ -91,11 +112,11 @@ export function MobileNav({
           />
           <aside className="relative ml-auto flex h-full w-72 max-w-[85vw] flex-col overflow-hidden bg-card shadow-2xl ring-1 ring-border">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <span className="text-sm font-semibold">Navigate</span>
+              <GlobalRankLogo size="sm" />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="Close menu"
+                aria-label={t("closeMenu")}
                 className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 <X className="size-4" />
@@ -109,8 +130,8 @@ export function MobileNav({
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Filter…"
-                  aria-label="Filter navigation"
+                  placeholder={t("filterPlaceholder")}
+                  aria-label={t("filterPlaceholder")}
                   className="h-9 w-full rounded-md border border-input bg-background/60 pl-8 pr-2 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
                 />
               </div>
@@ -119,21 +140,22 @@ export function MobileNav({
             <nav className="flex-1 overflow-y-auto py-2">
               {groups.length === 0 && (
                 <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-                  Nothing matches &ldquo;{query}&rdquo;.
+                  {tCommon("nothingMatches", { query })}
                 </p>
               )}
               {groups.map((group) => (
                 <div key={group.id} className="mb-1">
                   <div className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                    {group.title}
+                    {tGroups(group.id)}
                   </div>
                   <ul>
-                    {group.items.map(({ href, label, icon: Icon }: NavItem) => {
+                    {group.items.map(({ href, icon: Icon }: NavItem) => {
                       const isActive =
                         href === "/"
                           ? pathname === "/"
                           : pathname === href || pathname.startsWith(href + "/");
                       const badge = unread[href] ?? 0;
+                      const translated = itemLabel(href);
                       return (
                         <li key={href}>
                           <Link
@@ -147,13 +169,13 @@ export function MobileNav({
                             <Icon
                               className={`size-4 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
                             />
-                            <span className="flex-1 truncate">{label}</span>
+                            <span className="flex-1 truncate">{translated}</span>
                             {/* Same rule as the desktop sidebar: tag only
                                 what is certainly free. */}
                             {badge === 0 &&
                               capabilityOf(href)?.needsAI === false && (
                                 <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-emerald-400/70">
-                                  free
+                                  {tCommon("free")}
                                 </span>
                               )}
                             {badge > 0 && (
@@ -175,7 +197,7 @@ export function MobileNav({
                 visible without scrolling. A second link to the same
                 place is just another thing to read. */}
             <footer className="border-t border-border px-4 py-3 text-[10px] text-muted-foreground">
-              Tap outside to close
+              {tCommon("tapOutsideClose")}
             </footer>
           </aside>
         </div>

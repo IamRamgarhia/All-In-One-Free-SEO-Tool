@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -68,15 +69,18 @@ function QuickAddClientDialog({
   const [url, setUrl] = useState("");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [existingId, setExistingId] = useState<number | null>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!url.trim()) return;
     setError(null);
+    setExistingId(null);
     startTransition(async () => {
       const r = await quickAddClient(url);
       if (!r.ok) {
         setError(r.error);
+        setExistingId(r.existingClientId ?? null);
         return;
       }
       // Reset form, close dialog, start the onboarding.
@@ -124,9 +128,20 @@ function QuickAddClientDialog({
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-md bg-rose-500/10 px-3 py-2 text-xs text-rose-300 ring-1 ring-rose-500/30">
-            <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-            <span>{error}</span>
+          <div className="space-y-2 rounded-md bg-rose-500/10 px-3 py-2 text-xs text-rose-300 ring-1 ring-rose-500/30">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+            {existingId != null ? (
+              <Link
+                href={`/clients/${existingId}`}
+                className="inline-block font-medium text-violet-200 underline underline-offset-2"
+                onClick={onClose}
+              >
+                Open existing client →
+              </Link>
+            ) : null}
           </div>
         )}
 

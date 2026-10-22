@@ -11,9 +11,11 @@ import {
   Minus,
 } from "lucide-react";
 import { db } from "@/db/client";
-import { audits, auditIssues, clients } from "@/db/schema";
+import { audits, auditIssues, auditRuleHistory, clients } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
 import { assertClientAccess } from "@/lib/client-scope";
+import { diffRuleStatuses } from "@/lib/cabinet/diff";
+import { categoryLabel } from "@/lib/seomator-meta";
 
 type IssueRow = typeof auditIssues.$inferSelect;
 
@@ -54,7 +56,7 @@ export default async function AuditDiffPage({
   // audit in the agency by id.
   await assertClientAccess(auditA.clientId);
 
-  const [issuesA, issuesB] = await Promise.all([
+  const [issuesA, issuesB, rulesA, rulesB] = await Promise.all([
     db
       .select()
       .from(auditIssues)
@@ -65,6 +67,14 @@ export default async function AuditDiffPage({
       .from(auditIssues)
       .where(eq(auditIssues.auditId, bId))
       .orderBy(asc(auditIssues.severity)),
+    db
+      .select()
+      .from(auditRuleHistory)
+      .where(eq(auditRuleHistory.auditId, aId)),
+    db
+      .select()
+      .from(auditRuleHistory)
+      .where(eq(auditRuleHistory.auditId, bId)),
   ]);
 
   // Always treat A as "older", B as "newer" by completedAt
@@ -75,6 +85,33 @@ export default async function AuditDiffPage({
   const newerAudit = aOlder ? auditB : auditA;
   const olderIssues = aOlder ? issuesA : issuesB;
   const newerIssues = aOlder ? issuesB : issuesA;
+  const olderRules = aOlder ? rulesA : rulesB;
+  const newerRules = aOlder ? rulesB : rulesA;
+
+  const toStatusMap = (rows: typeof olderRules) => {
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.ruleId] = r.status;
+    return map;
+  };
+  const ruleDiff =
+    olderRules.length > 0 && newerRules.length > 0
+      ? diffRuleStatuses(toStatusMap(olderRules), toStatusMap(newerRules))
+      : null;
+
+  const olderCats = olderAudit.categoryScores ?? null;
+  const newerCats = newerAudit.categoryScores ?? null;
+  const categoryDeltas =
+    olderCats && newerCats
+      ? Object.keys({ ...olderCats, ...newerCats })
+          .map((cat) => {
+            const before = olderCats[cat]?.score ?? null;
+            const after = newerCats[cat]?.score ?? null;
+            if (before === null || after === null) return null;
+            return { cat, before, after, delta: after - before };
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+          .sort((a, b) => a.delta - b.delta)
+      : [];
 
   const olderKeys = new Set(olderIssues.map(keyOf));
   const newerKeys = new Set(newerIssues.map(keyOf));
@@ -188,6 +225,77 @@ export default async function AuditDiffPage({
         </div>
       </section>
 
+      {categoryDeltas.length > 0 && (
+        <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+          <h2 className="text-sm font-semibold tracking-tight">
+            Category score deltas
+          </h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {categoryDeltas.map(({ cat, before, after, delta }) => (
+              <div
+                key={cat}
+                className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5"
+              >
+                <div className="text-[11px] font-medium tracking-wide text-muted-foreground">
+                  {categoryLabel(cat)}
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-sm tabular-nums text-muted-foreground">
+                    {before} → {after}
+                  </span>
+                  <span
+                    className={`text-sm font-semibold tabular-nums ${
+                      delta > 0
+                        ? "text-emerald-300"
+                        : delta < 0
+                          ? "text-rose-300"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {delta > 0 ? "+" : ""}
+                    {delta}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {ruleDiff &&
+        (ruleDiff.fixedRules.length > 0 ||
+          ruleDiff.regressedRules.length > 0 ||
+          ruleDiff.newIssues.length > 0 ||
+          ruleDiff.worsenedRules.length > 0) && (
+          <section className="rounded-2xl border border-white/5 bg-card/40 px-5 py-4 backdrop-blur-md">
+            <h2 className="text-sm font-semibold tracking-tight">
+              SEOmator rule changes
+            </h2>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+              <RuleChipList
+                label="Fixed"
+                tone="emerald"
+                rules={ruleDiff.fixedRules}
+              />
+              <RuleChipList
+                label="Regressed"
+                tone="rose"
+                rules={ruleDiff.regressedRules}
+              />
+              <RuleChipList
+                label="New fails"
+                tone="rose"
+                rules={ruleDiff.newIssues}
+              />
+              <RuleChipList
+                label="Worsened"
+                tone="amber"
+                rules={ruleDiff.worsenedRules}
+              />
+            </div>
+          </section>
+        )}
+
       {/* Fixed (positives) */}
       {fixedIssues.length > 0 && (
         <DiffSection
@@ -282,6 +390,53 @@ function DiffCard({
           {audit.completedAt?.toLocaleString() ?? "—"} · {count} issues
         </div>
       </div>
+    </div>
+  );
+}
+
+function RuleChipList({
+  label,
+  tone,
+  rules,
+}: {
+  label: string;
+  tone: "emerald" | "rose" | "amber";
+  rules: string[];
+}) {
+  if (rules.length === 0) {
+    return (
+      <div className="rounded-xl border border-white/5 bg-black/10 px-3 py-2.5 text-muted-foreground">
+        <div className="text-[11px] font-medium uppercase tracking-wider">
+          {label}
+        </div>
+        <div className="mt-1">None</div>
+      </div>
+    );
+  }
+  const toneClass =
+    tone === "emerald"
+      ? "text-emerald-300"
+      : tone === "rose"
+        ? "text-rose-300"
+        : "text-amber-300";
+  return (
+    <div className="rounded-xl border border-white/5 bg-black/20 px-3 py-2.5">
+      <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}{" "}
+        <span className={toneClass}>({rules.length})</span>
+      </div>
+      <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+        {rules.slice(0, 20).map((r) => (
+          <li key={r} className={`truncate font-mono text-[10px] ${toneClass}`}>
+            {r}
+          </li>
+        ))}
+        {rules.length > 20 && (
+          <li className="text-[10px] text-muted-foreground">
+            +{rules.length - 20} more
+          </li>
+        )}
+      </ul>
     </div>
   );
 }

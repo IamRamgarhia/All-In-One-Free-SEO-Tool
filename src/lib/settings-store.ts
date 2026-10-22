@@ -35,6 +35,8 @@ export type SettingKey =
   | "ui.mode"
   /** "light" | "dark" | "system" — defaults to "system". */
   | "ui.theme"
+  /** "fr" | "en" — UI locale; defaults to "fr". */
+  | "ui.locale"
   /** Autonomy level and guardrails for the agent. See lib/agent/autonomy.ts. */
   | "agent.settings"
   // Whether anyone has ever been ASKED what autonomy level they want, as

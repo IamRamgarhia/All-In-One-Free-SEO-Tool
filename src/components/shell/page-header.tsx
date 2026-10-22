@@ -39,8 +39,8 @@ export function PageHeader({
   noHelp,
 }: PageHeaderProps) {
   return (
-    <section className="flex flex-wrap items-center justify-between gap-3 space-y-2">
-      <div className="min-w-0 space-y-1">
+    <section className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+      <div className="min-w-0 flex-1 space-y-1">
         {crumbs && crumbs.length > 0 && (
           <nav className="flex items-center gap-1 text-xs text-muted-foreground">
             {crumbs.map((c, i) => (
@@ -67,7 +67,7 @@ export function PageHeader({
           {Icon && (
             <Icon className={cn("h-5 w-5 shrink-0", accentText[accent])} />
           )}
-          <h1 className="pro-mode-marker text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="pro-mode-marker text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             {title}
           </h1>
         </div>
@@ -89,7 +89,7 @@ export function PageHeader({
           `noHelp` is for the handful of screens that are already an
           explanation: the docs index, the welcome flow, the learn
           section. */}
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
         {actions}
         {!noHelp && <HelpLink />}
       </div>

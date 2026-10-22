@@ -50,6 +50,9 @@ services:
       # encryption key, port memory, screenshots. One backup target.
       SEO_DATA_DIR: /data
       SEO_DB_PATH: /data/data.db
+      # Reserved for the full-app SQLite → Postgres cutover (see docs/POSTGRES-MIGRATION.md).
+      # App still uses SEO_DB_PATH until that lands — not a parallel database.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://seotool:seotool@postgres:5432/seotool}
       RUNNING_IN_DOCKER: "1"
       # Optional: bake in Google OAuth so users get one-click sign-in.
       # GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
@@ -66,6 +69,28 @@ services:
       # OLLAMA_URL: http://ollama:11434
     volumes:
       - seo-data:/data
+    # Postgres is optional until the app cutover (docs/POSTGRES-MIGRATION.md).
+    # Uncomment depends_on when DATABASE_URL becomes the primary store.
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: seotool
+      POSTGRES_PASSWORD: seotool
+      POSTGRES_DB: seotool
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - seo-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seotool -d seotool"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # Optional sidecar — local LLM for fully offline AI features.
   # Uncomment + run `docker compose up ollama` to use.
@@ -79,4 +104,5 @@ services:
 
 volumes:
   seo-data:
+  seo-postgres:
   # ollama-data:

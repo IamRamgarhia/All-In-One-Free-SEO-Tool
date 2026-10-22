@@ -1,0 +1,65 @@
+CREATE TABLE `native_audit_runs` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`client_id` integer NOT NULL,
+	`source` text DEFAULT 'native-wave1' NOT NULL,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`mode` text DEFAULT 'quick' NOT NULL,
+	`global_score` integer,
+	`uncapped_score` integer,
+	`pages_crawled` integer,
+	`issue_count` integer DEFAULT 0 NOT NULL,
+	`category_scores` text,
+	`score_caps` text,
+	`raw_report` text,
+	`started_at` integer,
+	`finished_at` integer,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade
+);--> statement-breakpoint
+CREATE TABLE `native_audit_issues` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`run_id` integer NOT NULL,
+	`client_id` integer NOT NULL,
+	`rule_id` text NOT NULL,
+	`category` text NOT NULL,
+	`severity` text NOT NULL,
+	`status` text NOT NULL,
+	`title` text NOT NULL,
+	`description` text NOT NULL,
+	`recommendation` text,
+	`affected_urls` text,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`run_id`) REFERENCES `native_audit_runs`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade
+);--> statement-breakpoint
+CREATE TABLE `native_audit_rule_history` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`client_id` integer NOT NULL,
+	`run_id` integer NOT NULL,
+	`rule_id` text NOT NULL,
+	`status` text NOT NULL,
+	`score` integer,
+	`checked_at` integer,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`run_id`) REFERENCES `native_audit_runs`(`id`) ON UPDATE no action ON DELETE cascade
+);--> statement-breakpoint
+CREATE TABLE `native_audit_diffs` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`client_id` integer NOT NULL,
+	`previous_run_id` integer NOT NULL,
+	`current_run_id` integer NOT NULL,
+	`fixed_rules` text,
+	`regressed_rules` text,
+	`worsened_rules` text,
+	`new_issues` text,
+	`score_delta` integer,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`client_id`) REFERENCES `clients`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`previous_run_id`) REFERENCES `native_audit_runs`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`current_run_id`) REFERENCES `native_audit_runs`(`id`) ON UPDATE no action ON DELETE cascade
+);

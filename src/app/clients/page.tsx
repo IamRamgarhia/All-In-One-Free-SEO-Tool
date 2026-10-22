@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { ImportClientsButton } from "./import-form";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
@@ -30,18 +31,20 @@ const nicheTone: Record<string, string> = {
 };
 
 export default async function ClientsPage() {
+  const t = await getTranslations("clients");
+  const tCommon = await getTranslations("common");
   const rows = await db.select().from(clients).where(await clientScope()).orderBy(desc(clients.createdAt));
   const googleStatus = await getGoogleConnectionStatus();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeader
-        title="Clients"
-        description="Sites you're managing in this workspace. Each one gets its own dashboard, audits, tasks, and reports."
+        title={t("title")}
+        description={t("description")}
         icon={Users}
         accent="violet"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             {googleStatus.configured && (
               <Link
                 href="/clients/import"
@@ -51,7 +54,7 @@ export default async function ClientsPage() {
                 })}
               >
                 <Sparkles className="size-4" />
-                Import from Google
+                {t("importGoogle")}
               </Link>
             )}
             <ImportClientsButton />
@@ -62,7 +65,7 @@ export default async function ClientsPage() {
                 className: "border-white/10 bg-white/5",
               })}
             >
-              Export CSV
+              {tCommon("exportCsv")}
             </a>
             <Link
               href="/clients/new"
@@ -72,7 +75,7 @@ export default async function ClientsPage() {
               })}
             >
               <Plus className="size-4" />
-              Add client
+              {t("addClient")}
             </Link>
           </div>
         }

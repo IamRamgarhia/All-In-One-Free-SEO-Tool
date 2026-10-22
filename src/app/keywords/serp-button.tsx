@@ -2,10 +2,12 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Loader2, Radar, Sparkles } from "lucide-react";
 import { runSerpScan } from "./serp-actions";
 
 export function ScanSerpButton({ keywordId }: { keywordId: number }) {
+  const t = useTranslations("keywords.serp");
   const [pending, startTransition] = useTransition();
   const [hint, setHint] = useState<string | null>(null);
 
@@ -20,8 +22,8 @@ export function ScanSerpButton({ keywordId }: { keywordId: number }) {
       }
       setHint(
         r.aiOverviewPresent
-          ? "AI Overview present"
-          : `${r.topResults} results captured`,
+          ? t("aiOverviewPresent")
+          : t("resultsCaptured", { count: r.topResults }),
       );
       setTimeout(() => setHint(null), 4000);
     });
@@ -34,7 +36,7 @@ export function ScanSerpButton({ keywordId }: { keywordId: number }) {
         onClick={run}
         disabled={pending}
         className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-violet-500/15 hover:text-violet-300 disabled:opacity-50"
-        title="Scan the SERP for AI Overview, PAA, related searches, top 10"
+        title={t("scanTitle")}
       >
         {pending ? (
           <Loader2 className="size-3.5 animate-spin" />
@@ -45,7 +47,7 @@ export function ScanSerpButton({ keywordId }: { keywordId: number }) {
       <Link
         href={`/keywords/${keywordId}/serp`}
         className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-        title="View latest SERP scan"
+        title={t("viewLatest")}
       >
         <Sparkles className="size-3.5" />
       </Link>

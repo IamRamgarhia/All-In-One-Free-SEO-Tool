@@ -52,10 +52,11 @@ describe("reading the latest audit", () => {
     });
   }
 
-  it("the two kinds are the ones the schema declares", () => {
+  it("the kinds are the ones the schema declares", () => {
     // If these names change, the filters above go quietly false.
     const schema = src("db/schema.ts");
     expect(schema).toMatch(/"crawler"/);
     expect(schema).toMatch(/"ai_full"/);
+    expect(schema).toMatch(/"seomator"/);
   });
 });

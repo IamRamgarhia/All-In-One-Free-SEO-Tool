@@ -13,6 +13,7 @@ import {
   List,
   SkipForward,
 } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
 import { tasks, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
@@ -23,11 +24,12 @@ import { TasksBulkList, type BulkTask } from "./bulk-list";
 import { KanbanBoard } from "./kanban-board";
 import { isOpenTask } from "@/lib/task-status";
 
+/** Filter query values stay English technical ids. */
 const filterMap = {
-  all: { label: "All", days: null },
-  today: { label: "Today", days: 0 },
-  week: { label: "This week", days: 7 },
-  month: { label: "This month", days: 30 },
+  all: { days: null },
+  today: { days: 0 },
+  week: { days: 7 },
+  month: { days: 30 },
 } as const;
 
 type Filter = keyof typeof filterMap;
@@ -48,6 +50,7 @@ export default async function TasksPage({
 }: {
   searchParams: Promise<{ filter?: Filter; view?: ViewMode }>;
 }) {
+  const t = await getTranslations("tasks");
   const sp = await searchParams;
   const filter: Filter = sp.filter && sp.filter in filterMap ? sp.filter : "all";
   const view: ViewMode = sp.view === "kanban" ? "kanban" : "list";
@@ -77,20 +80,20 @@ export default async function TasksPage({
     .where(await clientScope())
     .orderBy(clients.name);
 
-  const filtered = all.filter((t) => inFilter(t, filter));
+  const filtered = all.filter((task) => inFilter(task, filter));
   // Skipped is a decision, not outstanding work — counting it as open
   // means a list someone has finished with never reads as finished.
-  const open = filtered.filter((t) => isOpenTask(t.status));
-  const done = filtered.filter((t) => t.status === "done");
-  const skipped = filtered.filter((t) => t.status === "skipped");
+  const open = filtered.filter((task) => isOpenTask(task.status));
+  const done = filtered.filter((task) => task.status === "done");
+  const skipped = filtered.filter((task) => task.status === "skipped");
   // eslint-disable-next-line react-hooks/purity
   const nowMs = Date.now();
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
-        title="Tasks"
-        description="Auto-generated from audits and niche templates, plus anything you add manually."
+        title={t("title")}
+        description={t("description")}
         icon={ListChecks}
         accent="amber"
         actions={
@@ -100,7 +103,7 @@ export default async function TasksPage({
               className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-2 text-xs font-medium text-muted-foreground ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/10 hover:text-foreground"
             >
               <LayoutTemplate className="size-3.5" />
-              Playbooks
+              {t("playbooks")}
             </Link>
             <NewTaskTrigger clients={allClients} />
             <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-card/60 p-1 backdrop-blur">
@@ -112,7 +115,7 @@ export default async function TasksPage({
                   : "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground"
               }
             >
-              <List className="size-3" /> List
+              <List className="size-3" /> {t("list")}
             </Link>
             <Link
               href={`/tasks?filter=${filter}&view=kanban`}
@@ -122,7 +125,7 @@ export default async function TasksPage({
                   : "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-white/5 hover:text-foreground"
               }
             >
-              <LayoutGrid className="size-3" /> Kanban
+              <LayoutGrid className="size-3" /> {t("kanban")}
             </Link>
           </div>
           </div>
@@ -132,16 +135,16 @@ export default async function TasksPage({
             <FilterTabs current={filter} view={view} />
             <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-muted-foreground ring-1 ring-inset ring-white/10">
               <Clock className="size-3" />
-              {open.length} open
+              {t("openCount", { count: open.length })}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-emerald-300 ring-1 ring-inset ring-emerald-500/20">
               <Check className="size-3" />
-              {done.length} done
+              {t("doneCount", { count: done.length })}
             </span>
             {skipped.length > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-muted-foreground ring-1 ring-inset ring-white/10">
                 <SkipForward className="size-3" />
-                {skipped.length} skipped
+                {t("skippedCount", { count: skipped.length })}
               </span>
             )}
           </div>
@@ -156,11 +159,9 @@ export default async function TasksPage({
               <Sparkles className="size-6 text-amber-300" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">No tasks in this view</h2>
+              <h2 className="text-lg font-semibold">{t("emptyTitle")}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {filter === "all"
-                  ? "Run an audit on a client and we'll generate prioritised tasks automatically."
-                  : "Switch to All to see every task, or pick a different time window."}
+                {filter === "all" ? t("emptyAll") : t("emptyFiltered")}
               </p>
             </div>
           </div>
@@ -174,7 +175,14 @@ export default async function TasksPage({
   );
 }
 
-function FilterTabs({ current, view }: { current: Filter; view: ViewMode }) {
+async function FilterTabs({
+  current,
+  view,
+}: {
+  current: Filter;
+  view: ViewMode;
+}) {
+  const t = await getTranslations("tasks");
   return (
     <div className="flex items-center gap-1 rounded-full bg-white/5 p-0.5 ring-1 ring-inset ring-white/10">
       {(Object.keys(filterMap) as Filter[]).map((f) => (
@@ -187,10 +195,9 @@ function FilterTabs({ current, view }: { current: Filter; view: ViewMode }) {
               : "rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
           }
         >
-          {filterMap[f].label}
+          {t(`filters.${f}`)}
         </Link>
       ))}
     </div>
   );
 }
-

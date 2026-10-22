@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     // Small jitter on top of the constant-time compare — defense in depth
     // against any timing inference at the network layer.
     await new Promise((r) => setTimeout(r, 250));
-    return NextResponse.json({ error: "Wrong password" }, { status: 401 });
+    return NextResponse.json({ error: "wrong_password" }, { status: 401 });
   }
 
   // Cookie value is the hashed token, NEVER the raw password. If the

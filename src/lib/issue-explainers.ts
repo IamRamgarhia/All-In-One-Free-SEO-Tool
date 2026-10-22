@@ -13,6 +13,10 @@
  *
  * Used by the "Why does this matter?" expandable on every issue card and
  * by the "Fix it for me" wizard.
+ *
+ * SEOmator `seomator:*` types resolve on the server via
+ * `@/lib/issue-explainers.server` (rule registry). Client components must
+ * receive a pre-resolved `IssueExplainer` prop — never import SEOmator here.
  */
 
 /**
@@ -831,8 +835,9 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
 };
 
 /**
- * Look up explainer with graceful fallback for unknown types.
+ * Hand-written explainers only (safe for client bundles).
+ * For SEOmator types use `getExplainer` from `@/lib/issue-explainers.server`.
  */
-export function getExplainer(type: string): IssueExplainer | null {
+export function getStaticExplainer(type: string): IssueExplainer | null {
   return ISSUE_EXPLAINERS[type] ?? null;
 }

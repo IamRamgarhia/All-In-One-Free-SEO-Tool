@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { desc, eq, asc, and } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 import {
   ArrowUpRight,
   CalendarClock,
@@ -35,106 +36,38 @@ type Template =
   | "cto"
   | "junior";
 
-const TEMPLATES: {
+type Accent = "violet" | "cyan" | "amber" | "emerald" | "rose";
+
+type TemplateMeta = {
   id: Template;
-  name: string;
-  description: string;
-  bullets: string[];
-  accent: "violet" | "cyan" | "amber" | "emerald" | "rose";
-}[] = [
+  accent: Accent;
+  bulletKeys: string[];
+};
+
+/** Template ids stay English (download filenames / query params). */
+const TEMPLATES: TemplateMeta[] = [
   {
     id: "executive",
-    name: "Executive",
-    description: "1-page summary for stakeholders.",
-    bullets: [
-      "AI-written executive summary",
-      "Health score + delta vs prior",
-      "Top 5 organic keywords",
-      "Top issues by severity",
-    ],
     accent: "violet",
+    bulletKeys: ["0", "1", "2", "3"],
   },
   {
     id: "detailed",
-    name: "Detailed (recommended)",
-    description: "Full monthly report — what most clients want.",
-    bullets: [
-      "Everything in Executive +",
-      "Real organic traffic chart (GA4)",
-      "Top 10 keywords with CTR + position",
-      "Quick-win opportunities",
-      "Tasks completed + recommendations",
-    ],
     accent: "cyan",
+    bulletKeys: ["0", "1", "2", "3", "4"],
   },
   {
     id: "technical",
-    name: "Technical",
-    description: "Engineering hand-off — every issue with affected URLs.",
-    bullets: [
-      "Every audit issue across all crawled pages",
-      "Affected URLs per issue",
-      "Tech stack detail",
-      "Use for pre / post-deploy verification",
-    ],
     accent: "amber",
+    bulletKeys: ["0", "1", "2", "3"],
   },
 ];
 
-const STAKEHOLDER_VARIANTS: {
-  id: Template;
-  name: string;
-  description: string;
-  bullets: string[];
-  accent: "violet" | "cyan" | "amber" | "emerald" | "rose";
-}[] = [
-  {
-    id: "ceo",
-    name: "CEO — revenue + ROI",
-    description: "Lean, traffic-value focused. For leadership.",
-    bullets: [
-      "Lead with traffic + conversions",
-      "Score + delta",
-      "Work completed",
-      "Skips technical noise",
-    ],
-    accent: "emerald",
-  },
-  {
-    id: "cmo",
-    name: "CMO — traffic + pipeline",
-    description: "Marketing leadership: what's converting + content priorities.",
-    bullets: [
-      "Traffic + GA4",
-      "Top keywords + CTR",
-      "Tasks completed",
-      "Recommendations",
-    ],
-    accent: "violet",
-  },
-  {
-    id: "cto",
-    name: "CTO — technical health",
-    description: "Engineering view. Issues, fixes, what shipped.",
-    bullets: [
-      "Audit issues by severity",
-      "Health score",
-      "Tasks completed",
-      "Skips marketing-speak",
-    ],
-    accent: "amber",
-  },
-  {
-    id: "junior",
-    name: "Junior marketer / standup",
-    description: "Work log + accomplishments — for hand-off or weekly check-ins.",
-    bullets: [
-      "Tasks completed list",
-      "Score snapshot",
-      "Compact and skim-friendly",
-    ],
-    accent: "rose",
-  },
+const STAKEHOLDER_VARIANTS: TemplateMeta[] = [
+  { id: "ceo", accent: "emerald", bulletKeys: ["0", "1", "2", "3"] },
+  { id: "cmo", accent: "violet", bulletKeys: ["0", "1", "2", "3"] },
+  { id: "cto", accent: "amber", bulletKeys: ["0", "1", "2", "3"] },
+  { id: "junior", accent: "rose", bulletKeys: ["0", "1", "2"] },
 ];
 
 export default async function PerClientReportsPage({
@@ -179,6 +112,19 @@ export default async function PerClientReportsPage({
     .orderBy(desc(reportSchedules.updatedAt));
 
   const smtpConfigured = Boolean(await getSmtpConfig());
+  const t = await getTranslations("reports");
+
+  function resolveTemplate(meta: TemplateMeta) {
+    return {
+      id: meta.id,
+      accent: meta.accent,
+      name: t(`templates.${meta.id}.name`),
+      description: t(`templates.${meta.id}.description`),
+      bullets: meta.bulletKeys.map((k) =>
+        t(`templates.${meta.id}.bullets.${k}`),
+      ),
+    };
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -191,13 +137,13 @@ export default async function PerClientReportsPage({
         }}
         allClients={allClients}
         basePath="/reports/c"
-        toolLabel="Reports"
+        toolLabel={t("toolLabel")}
         icon={FileText}
       />
 
       <PageHeader
-        title={`Reports · ${client.name}`}
-        description="Pick a template and download. Reports include real Search Console + GA4 numbers when Google is connected, and your agency branding when configured."
+        title={t("clientTitle", { name: client.name })}
+        description={t("clientDescription")}
         icon={FileText}
         accent="cyan"
       />
@@ -205,7 +151,7 @@ export default async function PerClientReportsPage({
       {/* Quick stats strip */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat
-          label="Latest health score"
+          label={t("latestHealthScore")}
           value={latest?.score !== undefined && latest?.score !== null ? `${latest.score}/100` : "—"}
           tone={
             latest?.score == null
@@ -218,18 +164,20 @@ export default async function PerClientReportsPage({
           }
           hint={
             latest
-              ? `Audited ${(latest.completedAt ?? latest.createdAt).toLocaleDateString()}`
-              : "Run an audit first"
+              ? t("auditedOn", {
+                  date: (latest.completedAt ?? latest.createdAt).toLocaleDateString(),
+                })
+              : t("runAuditFirst")
           }
         />
         <Stat
-          label="Tasks completed"
+          label={t("tasksCompleted")}
           value={`${doneTasks}/${allTasks.length}`}
           tone="violet"
-          hint="All time on this client"
+          hint={t("tasksCompletedHint")}
         />
         <Stat
-          label="Issues in latest audit"
+          label={t("issuesInLatest")}
           value={latest ? String(latest.issuesCount) : "—"}
           tone={
             latest && latest.issuesCount === 0
@@ -238,7 +186,7 @@ export default async function PerClientReportsPage({
                 ? "rose"
                 : "amber"
           }
-          hint={latest ? "From the report" : "—"}
+          hint={latest ? t("fromTheReport") : "—"}
         />
       </div>
 
@@ -246,12 +194,14 @@ export default async function PerClientReportsPage({
 
       {/* Template download cards */}
       <section className="grid gap-4 lg:grid-cols-3">
-        {TEMPLATES.map((t) => (
+        {TEMPLATES.map((meta) => (
           <TemplateCard
-            key={t.id}
-            template={t}
+            key={meta.id}
+            template={resolveTemplate(meta)}
             clientId={client.id}
             ready={Boolean(latest)}
+            downloadLabel={t("downloadPdf")}
+            auditFirstHint={t("auditFirstHint")}
           />
         ))}
       </section>
@@ -259,19 +209,20 @@ export default async function PerClientReportsPage({
       {/* Stakeholder variants — same data, framed for a specific reader */}
       <section className="space-y-3">
         <header>
-          <h2 className="text-base font-semibold">Stakeholder variants</h2>
+          <h2 className="text-base font-semibold">{t("stakeholderTitle")}</h2>
           <p className="text-xs text-muted-foreground">
-            Same numbers, different framing. Use these when one report has
-            to go to multiple audiences.
+            {t("stakeholderDescription")}
           </p>
         </header>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {STAKEHOLDER_VARIANTS.map((t) => (
+          {STAKEHOLDER_VARIANTS.map((meta) => (
             <TemplateCard
-              key={t.id}
-              template={t}
+              key={meta.id}
+              template={resolveTemplate(meta)}
               clientId={client.id}
               ready={Boolean(latest)}
+              downloadLabel={t("downloadPdf")}
+              auditFirstHint={t("auditFirstHint")}
             />
           ))}
         </div>
@@ -281,12 +232,10 @@ export default async function PerClientReportsPage({
       <section className="glass-apple relative overflow-hidden rounded-2xl p-5">
         <h2 className="text-base font-semibold flex items-center gap-2">
           <FileText className="size-4 text-violet-300" />
-          Quarterly strategy doc
+          {t("quarterlyTitle")}
         </h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Different shape from the monthly report — 90-day rank trend,
-          velocity vs prior quarter, top wins, what didn&apos;t work, where to
-          invest next quarter. Anchored in your snapshot history + AI synthesis.
+          {t("quarterlyDescription")}
         </p>
         <div className="mt-4">
           <a
@@ -294,7 +243,7 @@ export default async function PerClientReportsPage({
             className="inline-flex h-9 items-center gap-1.5 rounded-md bg-violet-500/15 px-4 text-xs font-medium text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25"
           >
             <Download className="size-3.5" />
-            Download quarterly PDF
+            {t("downloadQuarterly")}
           </a>
         </div>
       </section>
@@ -304,18 +253,16 @@ export default async function PerClientReportsPage({
         <header className="border-b border-white/[0.06] px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <CalendarClock className="size-4 text-cyan-300" />
-            Email delivery
+            {t("emailDelivery")}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {smtpConfigured
-              ? "SMTP configured. You can schedule auto-delivery on the client detail page."
-              : "Set up SMTP in Settings → Email delivery to schedule reports or send on demand."}
+            {smtpConfigured ? t("smtpConfigured") : t("smtpMissing")}
           </p>
         </header>
         <div className="space-y-3 p-5">
           {schedules.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No scheduled reports yet for this client.
+              {t("noSchedules")}
             </p>
           ) : (
             <ul className="divide-y divide-white/[0.04]">
@@ -329,19 +276,20 @@ export default async function PerClientReportsPage({
                       {s.template} ·{" "}
                       <span className="font-normal text-muted-foreground">
                         {s.frequency === "monthly"
-                          ? `monthly on day ${s.dayOfMonth}`
-                          : "weekly"}{" "}
-                        at {s.hourOfDay}:00
+                          ? t("monthlyOnDay", { day: s.dayOfMonth ?? "—" })
+                          : t("weekly")}{" "}
+                        {t("atHour", { hour: s.hourOfDay ?? "—" })}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {s.recipients.length} recipient
-                      {s.recipients.length === 1 ? "" : "s"}:{" "}
-                      {s.recipients.join(", ")}
+                      {t("recipients", {
+                        count: s.recipients.length,
+                        list: s.recipients.join(", "),
+                      })}
                     </div>
                     {s.nextSendAt && (
                       <div className="text-[11px] text-muted-foreground/80">
-                        Next send: {s.nextSendAt.toLocaleString()}
+                        {t("nextSend", { when: s.nextSendAt.toLocaleString() })}
                       </div>
                     )}
                   </div>
@@ -349,7 +297,7 @@ export default async function PerClientReportsPage({
                     href={`/clients/${client.id}#schedule`}
                     className="inline-flex items-center gap-1 text-xs text-violet-300 hover:underline"
                   >
-                    Manage
+                    {t("manage")}
                     <ArrowUpRight className="size-3" />
                   </Link>
                 </li>
@@ -362,7 +310,7 @@ export default async function PerClientReportsPage({
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
             >
               <Mail className="size-3.5" />
-              {schedules.length > 0 ? "Edit schedule" : "Set up schedule"}
+              {schedules.length > 0 ? t("editSchedule") : t("setUpSchedule")}
               <ExternalLink className="size-3" />
             </Link>
             {!smtpConfigured && (
@@ -371,7 +319,7 @@ export default async function PerClientReportsPage({
                 className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 hover:bg-amber-500/20"
               >
                 <Sparkles className="size-3.5" />
-                Configure SMTP
+                {t("configureSmtp")}
               </Link>
             )}
           </div>
@@ -383,16 +331,16 @@ export default async function PerClientReportsPage({
         <header className="border-b border-white/[0.06] px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <ClipboardList className="size-4 text-emerald-300" />
-            Raw data exports
+            {t("rawExports")}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Skip the PDF — pull the underlying data as CSV instead.
+            {t("rawExportsHint")}
           </p>
         </header>
         <ul className="divide-y divide-white/[0.04]">
           <ExportRow
-            label="Tracked keywords + ranks"
-            description="Every keyword tracked for this client with its full rank history."
+            label={t("keywordsExport")}
+            description={t("keywordsExportHint")}
             href={`/keywords/export.csv?clientId=${client.id}`}
           />
         </ul>
@@ -405,10 +353,20 @@ function TemplateCard({
   template,
   clientId,
   ready,
+  downloadLabel,
+  auditFirstHint,
 }: {
-  template: (typeof TEMPLATES)[number] | (typeof STAKEHOLDER_VARIANTS)[number];
+  template: {
+    id: Template;
+    accent: Accent;
+    name: string;
+    description: string;
+    bullets: string[];
+  };
   clientId: number;
   ready: boolean;
+  downloadLabel: string;
+  auditFirstHint: string;
 }) {
   const accentText = (
     {
@@ -443,11 +401,11 @@ function TemplateCard({
           download={`${template.id}-report.pdf`}
         >
           <Download className="size-3.5" />
-          Download PDF
+          {downloadLabel}
         </a>
         {!ready && (
           <p className="text-[11px] text-amber-300">
-            Run an audit first for the most useful report.
+            {auditFirstHint}
           </p>
         )}
       </div>

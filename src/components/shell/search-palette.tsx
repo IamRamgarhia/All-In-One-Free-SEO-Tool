@@ -24,6 +24,7 @@ import {
   Link2,
   Wrench,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { search, type SearchHit } from "@/app/search/actions";
 
 const typeIcon: Record<SearchHit["type"], typeof Users> = {
@@ -52,21 +53,10 @@ const typeTone: Record<SearchHit["type"], string> = {
   tool: "text-cyan-300 bg-cyan-500/15 ring-cyan-500/30",
 };
 
-const typeLabel: Record<SearchHit["type"], string> = {
-  client: "Client",
-  task: "Task",
-  keyword: "Keyword",
-  audit: "Audit",
-  competitor: "Competitor",
-  brief: "Brief",
-  outreach: "Outreach",
-  invoice: "Invoice",
-  resource: "Resource",
-  tool: "Tool",
-};
-
 export function SearchPalette() {
   const router = useRouter();
+  const t = useTranslations("searchPalette");
+  const tType = useTranslations("searchPalette.type");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -164,12 +154,12 @@ export function SearchPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group flex h-9 max-w-md flex-1 items-center gap-2 rounded-lg border border-white/10 bg-card/60 px-3 text-sm text-muted-foreground transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/[0.04]"
-        title="Quick search — Cmd / Ctrl + K"
+        className="group flex h-9 min-w-0 max-w-md flex-1 items-center gap-2 rounded-lg border border-white/10 bg-card/60 px-2 text-sm text-muted-foreground transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/[0.04] sm:px-3"
+        title={t("placeholder")}
       >
-        <Search className="size-4 transition-colors group-hover:text-cyan-300" />
-        <span className="flex-1 text-left transition-colors group-hover:text-foreground">
-          Search clients, keywords, tasks…
+        <Search className="size-4 shrink-0 transition-colors group-hover:text-cyan-300" />
+        <span className="hidden flex-1 truncate text-left transition-colors group-hover:text-foreground sm:block">
+          {t("button")}
         </span>
         {/* Visually prominent so users notice the shortcut. The cyan
             ring + foreground text contrast makes it scan as an
@@ -197,7 +187,7 @@ export function SearchPalette() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search clients, keywords, tasks, audits, competitors, briefs…"
+                placeholder={t("modalPlaceholder")}
                 className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
               <button
@@ -212,23 +202,22 @@ export function SearchPalette() {
             <div className="max-h-[60vh] overflow-y-auto">
               {query.trim().length === 0 ? (
                 <div className="px-4 py-10 text-center text-xs text-muted-foreground">
-                  Start typing to search across everything you&apos;ve added.
+                  {t("startTyping")}
                 </div>
               ) : pending && hits.length === 0 ? (
                 <div className="px-4 py-10 text-center text-xs text-muted-foreground">
-                  Searching…
+                  {t("searching")}
                 </div>
               ) : hits.length === 0 ? (
                 <div className="px-4 py-10 text-center text-xs text-muted-foreground">
-                  No matches for{" "}
-                  <span className="font-mono text-foreground">{query}</span>.
+                  {t("noMatches", { query })}
                 </div>
               ) : (
                 <div className="py-2">
                   {grouped.map(([type, items]) => (
                     <div key={type} className="px-2 pb-1">
                       <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {typeLabel[type]}s
+                        {tType(type)}
                       </div>
                       <ul>
                         {items.map((hit) => {

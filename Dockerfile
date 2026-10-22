@@ -108,6 +108,8 @@ COPY --from=build --chown=pwuser:pwuser /app/.next/standalone ./
 COPY --from=build --chown=pwuser:pwuser /app/.next/static ./.next/static
 COPY --from=build --chown=pwuser:pwuser /app/public ./public
 COPY --from=build --chown=pwuser:pwuser /app/src/db/migrations ./src/db/migrations
+# Runtime JSON for native GEO audit (readFileSync beside compiled modules).
+COPY --from=build --chown=pwuser:pwuser /app/src/lib/geo-audit/data ./src/lib/geo-audit/data
 COPY --from=build --chown=pwuser:pwuser /app/scripts ./scripts
 COPY --from=build --chown=pwuser:pwuser /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=build --chown=pwuser:pwuser /app/package.json ./package.json

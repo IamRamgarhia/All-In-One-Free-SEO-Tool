@@ -6,10 +6,15 @@ import { ClipboardList } from "lucide-react";
 import { desc, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, clients } from "@/db/schema";
+import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { ClientToolHeader } from "@/components/shell/client-tool-grid";
-import { Button } from "@/components/ui/button";
-import { runAuditForClient } from "@/app/audits/actions";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Play } from "lucide-react";
+import {
+  runAuditForClient,
+  runSeomatorAuditForClient,
+} from "@/app/audits/actions";
 import { clientScope } from "@/lib/client-scope";
 
 const statusTone: Record<string, string> = {
@@ -71,10 +76,19 @@ export default async function PerClientAuditsPage({
     .where(eq(audits.clientId, clientId))
     .orderBy(desc(audits.createdAt));
 
-  const runAction = runAuditForClient.bind(null, clientId);
+  const runCrawlAction = runAuditForClient.bind(null, clientId);
+  const runDeepAction = runSeomatorAuditForClient.bind(null, clientId, "full");
+  const runQuickAction = runSeomatorAuditForClient.bind(
+    null,
+    clientId,
+    "quick",
+  );
+
+  const t = await getTranslations("audits");
+  const tStatus = await getTranslations("audits.status");
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <ClientToolHeader
         current={{
           id: client.id,
@@ -84,39 +98,65 @@ export default async function PerClientAuditsPage({
         }}
         allClients={allClients}
         basePath="/audits/c"
-        toolLabel="Audits"
+        toolLabel={t("toolLabel")}
         icon={ClipboardList}
       />
 
       <PageHeader
-        title={`Audits · ${client.name}`}
-        description="Every audit run for this client. Click an audit to see issues, severity grouping, and the tasks generated from it."
+        title={t("clientTitle", { name: client.name })}
+        description={t("clientDescription")}
         icon={ClipboardList}
         accent="cyan"
         actions={
-          <form action={runAction}>
-            <Button type="submit">Run new audit</Button>
-          </form>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <form action={runDeepAction}>
+              <SubmitButton
+                icon={<Play className="size-3.5" />}
+                pendingToast={t("pendingFullTitle")}
+                pendingToastDescription={t("pendingFullDescription")}
+              >
+                {t("runFull")}
+              </SubmitButton>
+            </form>
+            <form action={runQuickAction}>
+              <SubmitButton
+                variant="outline"
+                icon={<Play className="size-3.5" />}
+                pendingToast={t("pendingQuickTitle")}
+                pendingToastDescription={t("pendingQuickDescription")}
+              >
+                {t("runQuick")}
+              </SubmitButton>
+            </form>
+            <form action={runCrawlAction}>
+              <SubmitButton
+                variant="outline"
+                pendingToast={t("pendingCrawlTitle")}
+                pendingToastDescription={t("pendingCrawlDescription")}
+              >
+                {t("runCrawl")}
+              </SubmitButton>
+            </form>
+          </div>
         }
       />
 
       {rows.length === 0 ? (
         <div className="glass-apple relative overflow-hidden rounded-2xl px-6 py-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            No audits yet for this client. Click &ldquo;Run new audit&rdquo; to
-            do the first one.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("clientEmpty")}</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-white/5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-3 text-left font-medium">Audit</th>
-                <th className="px-5 py-3 text-left font-medium">Status</th>
-                <th className="px-5 py-3 text-left font-medium">Issues</th>
-                <th className="px-5 py-3 text-left font-medium">When</th>
-                <th className="px-5 py-3 text-right font-medium">Score</th>
+                <th className="px-5 py-3 text-left font-medium">{t("table.audit")}</th>
+                <th className="px-5 py-3 text-left font-medium">{t("table.engine")}</th>
+                <th className="px-5 py-3 text-left font-medium">{t("table.status")}</th>
+                <th className="px-5 py-3 text-left font-medium">{t("table.issues")}</th>
+                <th className="px-5 py-3 text-left font-medium">{t("table.when")}</th>
+                <th className="px-5 py-3 text-right font-medium">{t("table.score")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -143,10 +183,19 @@ export default async function PerClientAuditsPage({
                       )}
                     </td>
                     <td className="px-5 py-4">
+                      <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-medium text-muted-foreground ring-1 ring-inset ring-white/10">
+                        {a.kind === "seomator"
+                          ? "SEOmator"
+                          : a.kind === "ai_full"
+                            ? "AI"
+                            : "Crawl"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${statusTone[a.status] ?? statusTone.queued}`}
                       >
-                        {a.status}
+                        {tStatus(a.status as "queued" | "running" | "completed" | "failed")}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-muted-foreground">
@@ -163,6 +212,7 @@ export default async function PerClientAuditsPage({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

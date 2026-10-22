@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Activity, Loader2, Monitor, RefreshCw, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { checkRankAction, checkAllRanksAction } from "./rank-actions";
 
 export function CheckRankButton({ keywordId }: { keywordId: number }) {
+  const t = useTranslations("keywords");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
@@ -25,21 +27,21 @@ export function CheckRankButton({ keywordId }: { keywordId: number }) {
             if (!r.ok) setError(r.error);
           });
         }}
-        title={`Check ${device} rank`}
+        title={t("checkRankTitle", { device: t(`device.${device}`) })}
       >
         {pending ? (
           <Loader2 className="size-3 animate-spin" />
         ) : (
           <Activity className="size-3" />
         )}
-        {pending ? "…" : "Check"}
+        {pending ? "…" : t("check")}
       </Button>
       <button
         type="button"
         onClick={() =>
           setDevice((d) => (d === "desktop" ? "mobile" : "desktop"))
         }
-        title={`Switch device — currently: ${device}`}
+        title={t("switchDeviceTitle", { device: t(`device.${device}`) })}
         className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10"
       >
         {device === "mobile" ? (
@@ -58,6 +60,7 @@ export function CheckRankButton({ keywordId }: { keywordId: number }) {
 }
 
 export function CheckAllRanksButton() {
+  const t = useTranslations("keywords");
   const [pending, startTransition] = useTransition();
   return (
     <Button
@@ -75,7 +78,7 @@ export function CheckAllRanksButton() {
       ) : (
         <RefreshCw className="size-4" />
       )}
-      {pending ? "Checking ranks…" : "Check all ranks"}
+      {pending ? t("checkingAll") : t("checkAll")}
     </Button>
   );
 }
