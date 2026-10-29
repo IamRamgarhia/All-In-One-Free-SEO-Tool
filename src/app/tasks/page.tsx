@@ -21,6 +21,10 @@ import { type TaskRowData } from "./task-row";
 import { NewTaskTrigger } from "./new-task-form";
 import { TasksBulkList, type BulkTask } from "./bulk-list";
 import { KanbanBoard } from "./kanban-board";
+import { LiveRefresh } from "./live-refresh";
+import { PrBar } from "./pr-bar";
+import { QueueBar } from "./queue-bar";
+import { queueFor } from "@/lib/task-chat/queue";
 import { isOpenTask } from "@/lib/task-status";
 
 const filterMap = {
@@ -46,7 +50,7 @@ function inFilter(task: { dueDate: Date | null }, filter: Filter): boolean {
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: Filter; view?: ViewMode }>;
+  searchParams: Promise<{ filter?: Filter; view?: ViewMode; client?: string }>;
 }) {
   const sp = await searchParams;
   const filter: Filter = sp.filter && sp.filter in filterMap ? sp.filter : "all";
@@ -72,12 +76,35 @@ export default async function TasksPage({
     .orderBy(desc(tasks.createdAt));
 
   const allClients = await db
-    .select({ id: clients.id, name: clients.name })
+    .select({ id: clients.id, name: clients.name, localPath: clients.localPath, githubRepo: clients.githubRepo })
     .from(clients)
     .where(await clientScope())
     .orderBy(clients.name);
 
-  const filtered = all.filter((t) => inFilter(t, filter));
+  // Only a client this person may see counts; anything else falls back to all.
+  const requested = Number(sp.client);
+  const clientId = allClients.some((c) => c.id === requested) ? requested : null;
+  const pickerClients = allClients.map((c) => ({
+    id: c.id,
+    name: c.name,
+    open: all.filter((t) => t.clientId === c.id && isOpenTask(t.status)).length,
+  }));
+
+  const selected = clientId === null ? null : allClients.find((c) => c.id === clientId) ?? null;
+  const q = clientId === null ? null : queueFor(clientId);
+  const queueView = q && {
+    active: q.active,
+    total: q.total,
+    attempted: q.attempted.length,
+    failed: q.failed.length,
+    current: q.current,
+    currentTitle: all.find((t) => t.id === q.current)?.title ?? null,
+    note: q.note,
+  };
+
+  const filtered = all.filter(
+    (t) => (clientId === null || t.clientId === clientId) && inFilter(t, filter),
+  );
   // Skipped is a decision, not outstanding work — counting it as open
   // means a list someone has finished with never reads as finished.
   const open = filtered.filter((t) => isOpenTask(t.status));
@@ -88,6 +115,7 @@ export default async function TasksPage({
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      <LiveRefresh />
       <PageHeader
         title="Tasks"
         description="Auto-generated from audits and niche templates, plus anything you add manually."
@@ -105,7 +133,7 @@ export default async function TasksPage({
             <NewTaskTrigger clients={allClients} />
             <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-card/60 p-1 backdrop-blur">
             <Link
-              href={`/tasks?filter=${filter}&view=list`}
+              href={tasksHref(filter, "list", clientId)}
               className={
                 view === "list"
                   ? "inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1 text-xs font-medium ring-1 ring-inset ring-white/10"
@@ -115,7 +143,7 @@ export default async function TasksPage({
               <List className="size-3" /> List
             </Link>
             <Link
-              href={`/tasks?filter=${filter}&view=kanban`}
+              href={tasksHref(filter, "kanban", clientId)}
               className={
                 view === "kanban"
                   ? "inline-flex items-center gap-1 rounded-md bg-white/10 px-2.5 py-1 text-xs font-medium ring-1 ring-inset ring-white/10"
@@ -129,7 +157,7 @@ export default async function TasksPage({
         }
         meta={
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <FilterTabs current={filter} view={view} />
+            <FilterTabs current={filter} view={view} clientId={clientId} />
             <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-muted-foreground ring-1 ring-inset ring-white/10">
               <Clock className="size-3" />
               {open.length} open
@@ -147,6 +175,37 @@ export default async function TasksPage({
           </div>
         }
       />
+
+      {pickerClients.length > 1 && (
+        <section className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-white/5 bg-card/40 p-3 backdrop-blur-md">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Client
+          </span>
+          <Link href={tasksHref(filter, view, null)} className={pill(clientId === null)}>
+            Any
+          </Link>
+          {pickerClients.map((c) => (
+            <Link
+              key={c.id}
+              href={tasksHref(filter, view, c.id)}
+              className={pill(clientId === c.id)}
+            >
+              {c.name} ({c.open})
+            </Link>
+          ))}
+        </section>
+      )}
+
+      {selected?.localPath && (
+        <QueueBar
+          clientId={selected.id}
+          clientName={selected.name}
+          openCount={all.filter((t) => t.clientId === selected.id && isOpenTask(t.status)).length}
+          queue={queueView}
+        />
+      )}
+
+      {selected?.githubRepo && <PrBar clientId={selected.id} clientName={selected.name} />}
 
       {filtered.length === 0 ? (
         <div className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 px-6 py-16 text-center backdrop-blur-md">
@@ -174,13 +233,34 @@ export default async function TasksPage({
   );
 }
 
-function FilterTabs({ current, view }: { current: Filter; view: ViewMode }) {
+const pill = (active: boolean) =>
+  `rounded-full px-2.5 py-1 text-[11px] ring-1 ring-inset transition-colors ${
+    active
+      ? "bg-violet-500/15 text-violet-300 ring-violet-500/30"
+      : "bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10"
+  }`;
+
+function tasksHref(filter: Filter, view: ViewMode, clientId: number | null): string {
+  const qs = new URLSearchParams({ filter, view });
+  if (clientId !== null) qs.set("client", String(clientId));
+  return `/tasks?${qs.toString()}`;
+}
+
+function FilterTabs({
+  current,
+  view,
+  clientId,
+}: {
+  current: Filter;
+  view: ViewMode;
+  clientId: number | null;
+}) {
   return (
     <div className="flex items-center gap-1 rounded-full bg-white/5 p-0.5 ring-1 ring-inset ring-white/10">
       {(Object.keys(filterMap) as Filter[]).map((f) => (
         <Link
           key={f}
-          href={`/tasks?filter=${f}&view=${view}`}
+          href={tasksHref(f, view, clientId)}
           className={
             current === f
               ? "rounded-full bg-foreground/10 px-2.5 py-1 text-xs font-medium text-foreground"

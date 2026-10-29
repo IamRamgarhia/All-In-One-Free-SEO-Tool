@@ -9,13 +9,25 @@ import { getAgentSettings } from "@/lib/agent/autonomy";
 import { clientScope } from "@/lib/client-scope";
 import { AutopilotPanel } from "./panel";
 import { BulkPanel } from "./bulk-panel";
+import { ClientAutopilot } from "./client-autopilot";
+import { pickEngine } from "@/lib/agent/claude-autopilot";
 import { groupForBulk } from "@/lib/agent/bulk";
 
 export default async function AutopilotPage() {
   const settings = await getAgentSettings();
 
   const visibleClients = await db
-    .select({ id: clients.id, name: clients.name })
+    .select({
+      id: clients.id,
+      name: clients.name,
+      autopilotLevel: clients.autopilotLevel,
+      autopilotEngine: clients.autopilotEngine,
+      wpEndpoint: clients.wpEndpoint,
+      wpKey: clients.wpKey,
+      localPath: clients.localPath,
+      githubRepo: clients.githubRepo,
+      prMode: clients.prMode,
+    })
     .from(clients)
     .where(await clientScope())
     .orderBy(clients.name);
@@ -103,9 +115,23 @@ export default async function AutopilotPage() {
         </div>
       ))}
 
+      <ClientAutopilot
+        workspaceLevel={settings.level}
+        clients={visibleClients.map((c) => ({
+          id: c.id,
+          name: c.name,
+          level: c.autopilotLevel,
+          engineSetting: c.autopilotEngine,
+          engine: pickEngine(c),
+          folder: c.localPath,
+          repo: c.githubRepo,
+          prMode: c.prMode,
+        }))}
+      />
+
       <AutopilotPanel
         settings={settings}
-        clients={visibleClients}
+        clients={visibleClients.map((c) => ({ id: c.id, name: c.name }))}
         pending={pending.map(serialise).map((a) => ({
           ...a,
           clientName: nameOf.get(a.clientId) ?? "",

@@ -15,6 +15,7 @@ import {
   siteFactsFor,
 } from "@/lib/apply-task-templates";
 import { guardAction } from "@/lib/action-guard";
+import { isSafeBranch, normalizeGithubRepo } from "@/lib/github-repo";
 
 const niches = ["local", "ecommerce", "saas", "blog", "services"] as const;
 
@@ -41,6 +42,16 @@ const clientInput = z.object({
   phone: optionalString,
   email: optionalString,
   gbpUrl: optionalString,
+  localPath: optionalString,
+  githubRepo: optionalString.refine((v) => v === undefined || normalizeGithubRepo(v) !== null, {
+    message: "Use owner/name or a github.com link.",
+  }),
+  baseBranch: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || isSafeBranch(v), { message: "That is not a valid branch name." })
+    .optional(),
+  prMode: z.enum(["off", "pr", "pr_merge", "pr_batch"]).optional(),
   facebook: optionalString,
   twitter: optionalString,
   instagram: optionalString,
@@ -294,6 +305,10 @@ export async function updateClient(
     phone: formData.get("phone") ?? undefined,
     email: formData.get("email") ?? undefined,
     gbpUrl: formData.get("gbpUrl") ?? undefined,
+    localPath: formData.get("localPath") ?? undefined,
+    githubRepo: formData.get("githubRepo") ?? undefined,
+    baseBranch: formData.get("baseBranch") ?? undefined,
+    prMode: formData.get("prMode") ?? undefined,
     facebook: formData.get("facebook") ?? undefined,
     twitter: formData.get("twitter") ?? undefined,
     instagram: formData.get("instagram") ?? undefined,
@@ -332,6 +347,11 @@ export async function updateClient(
       phone: parsed.data.phone ?? null,
       email: parsed.data.email ?? null,
       gbpUrl: parsed.data.gbpUrl ?? null,
+      localPath: parsed.data.localPath ?? null,
+      githubRepo: parsed.data.githubRepo ? normalizeGithubRepo(parsed.data.githubRepo) : null,
+      baseBranch: parsed.data.baseBranch || "main",
+      // A pull-request mode with no repo to open them on would only fail.
+      prMode: parsed.data.githubRepo ? (parsed.data.prMode ?? "off") : "off",
       socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : null,
       updatedAt: new Date(),
     })

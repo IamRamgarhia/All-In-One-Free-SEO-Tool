@@ -1,6 +1,6 @@
 # seo-tool skills
 
-Four skills that drive this tool's MCP server from Claude Code, Claude
+Five skills that drive this tool's MCP server from Claude Code, Claude
 Desktop or Cursor.
 
 ## Connect the server first
@@ -22,6 +22,7 @@ connected.
 | `seo-fix-pass` | You want problems actually fixed on the live site, not listed |
 | `seo-audit-report` | Somebody needs a readable account of where a site stands |
 | `seo-keyword-plan` | Deciding what to target, grounded in what the site sells |
+| `seo-task-runner` | Doing a task from the to-do list inside the client's own project folder |
 
 Start with `seo-client-setup` on any client you have not used before.
 The other three read what it writes, and all of them get worse without

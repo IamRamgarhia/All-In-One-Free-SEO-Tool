@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
+import { GithubField } from "./github-field";
 import {
   Globe,
   Loader2,
@@ -9,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Plug,
+  FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +42,10 @@ type FormState = {
   phone: string;
   email: string;
   gbpUrl: string;
+  localPath: string;
+  githubRepo: string;
+  baseBranch: string;
+  prMode: "off" | "pr" | "pr_merge" | "pr_batch";
   facebook: string;
   twitter: string;
   instagram: string;
@@ -57,6 +63,10 @@ const emptyState: FormState = {
   phone: "",
   email: "",
   gbpUrl: "",
+  localPath: "",
+  githubRepo: "",
+  baseBranch: "main",
+  prMode: "off",
   facebook: "",
   twitter: "",
   instagram: "",
@@ -344,6 +354,34 @@ export function NewClientForm({
             placeholder="maps.google.com/… or business name"
             hint="Paste the share link from Google Maps."
           />
+          {mode === "update" && (
+            <FolderField
+              label="Local project folder"
+              name="localPath"
+              value={fields.localPath}
+              onChange={(v) => update("localPath", v)}
+              placeholder="C:\Users\you\work\acme-site"
+              hint="Optional. Where this site's source lives on this machine. Claude opens this folder when you start a task from the Tasks page."
+            />
+          )}
+          {mode === "update" && (
+            <GithubField
+              repo={fields.githubRepo}
+              branch={fields.baseBranch}
+              folder={fields.localPath}
+              onPick={(repo, branch) => {
+                update("githubRepo", repo);
+                update("baseBranch", branch);
+              }}
+            />
+          )}
+          {mode === "update" && (
+            <PrModeField
+              value={fields.prMode}
+              onChange={(v) => update("prMode", v)}
+              disabled={!fields.githubRepo.trim()}
+            />
+          )}
         </div>
       </Section>
 
@@ -529,6 +567,125 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
       />
+      {hint && <p className="text-[11px] text-muted-foreground/80">{hint}</p>}
+    </div>
+  );
+}
+
+/** A text field plus a button that opens the OS folder dialog (see /api/pick-folder). */
+const PR_MODES: { value: FormState["prMode"]; label: string; hint: string }[] = [
+  { value: "off", label: "Edit files only", hint: "Claude changes files in the folder and leaves git alone." },
+  { value: "pr", label: "Open a pull request", hint: "A branch and pull request per task. You review and merge." },
+  {
+    value: "pr_merge",
+    label: "Open and merge",
+    hint: "Opens the pull request, waits for tests and checks, and merges only if they pass.",
+  },
+  {
+    value: "pr_batch",
+    label: "One pull request per run",
+    hint: "Claude commits every task of a queue run on one branch; one pull request is opened at the end. One preview and one deploy for the whole run.",
+  },
+];
+
+function PrModeField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: FormState["prMode"];
+  onChange: (v: FormState["prMode"]) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-1.5 md:col-span-2">
+      <div className="text-xs font-medium">How Claude hands work back</div>
+      <input type="hidden" name="prMode" value={disabled ? "off" : value} />
+      <div className="flex flex-wrap gap-1.5">
+        {PR_MODES.map((m) => {
+          const active = (disabled ? "off" : value) === m.value;
+          return (
+            <button
+              key={m.value}
+              type="button"
+              disabled={disabled && m.value !== "off"}
+              onClick={() => onChange(m.value)}
+              className={`rounded-full px-2.5 py-1 text-[11px] ring-1 ring-inset transition-colors disabled:opacity-40 ${
+                active
+                  ? "bg-violet-500/15 text-violet-300 ring-violet-500/30"
+                  : "bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10"
+              }`}
+            >
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        {disabled
+          ? "Add the GitHub repository above to use pull requests."
+          : PR_MODES.find((m) => m.value === value)?.hint}
+      </p>
+    </div>
+  );
+}
+
+function FolderField({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  hint,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  hint?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function browse() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pick-folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ start: value }),
+      });
+      const data = (await res.json()) as { ok: boolean; path?: string | null; error?: string };
+      if (!data.ok) setError(data.error ?? "Could not open the folder dialog.");
+      else if (data.path) onChange(data.path);
+    } catch {
+      setError("Could not open the folder dialog. Type the path instead.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1 md:col-span-2">
+      <Label htmlFor={name} className="text-xs">
+        {label}
+      </Label>
+      <div className="flex gap-2">
+        <Input
+          id={name}
+          name={name}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+        />
+        <Button type="button" variant="outline" onClick={browse} disabled={busy}>
+          {busy ? <Loader2 className="animate-spin" /> : <FolderOpen />}
+          Browse…
+        </Button>
+      </div>
+      {error && <p className="text-[11px] text-destructive">{error}</p>}
       {hint && <p className="text-[11px] text-muted-foreground/80">{hint}</p>}
     </div>
   );

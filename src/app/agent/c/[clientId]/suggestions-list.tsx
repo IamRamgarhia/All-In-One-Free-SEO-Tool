@@ -14,7 +14,9 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { openChat } from "@/components/claude/dock-store";
 import { AiFeedback } from "@/components/ai-feedback";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
 import {
@@ -285,6 +287,28 @@ function SuggestionCard({
     });
   }
 
+  // Make (or reuse) the task for this suggestion, start Claude on it and
+  // show the chat in the corner dock.
+  function doWithClaude() {
+    startTransition(async () => {
+      const made = await suggestionToTask(s.id);
+      if (!made) return;
+      try {
+        const res = await fetch(`/api/task-chat/${made.taskId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "" }),
+        });
+        const out = (await res.json()) as { ok: boolean; error?: string };
+        // Already running or already finished is fine: the chat shows where it is.
+        if (!out.ok && res.status !== 409) toast.error(out.error ?? "Could not start Claude.");
+      } catch {
+        toast.error("Could not reach the app.");
+      }
+      openChat(made.taskId);
+    });
+  }
+
   const isResolved = s.status !== "new";
 
   return (
@@ -377,8 +401,13 @@ function SuggestionCard({
           </Button>
           {s.status === "new" && (
             <>
+              <Button type="button" size="sm" onClick={doWithClaude} disabled={pending}>
+                <Bot className="size-3.5" />
+                Do it with Claude
+              </Button>
               <Button
                 type="button"
+                variant="outline"
                 size="sm"
                 onClick={() =>
                   startTransition(async () => {

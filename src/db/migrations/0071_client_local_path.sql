@@ -1,0 +1,1 @@
+ALTER TABLE `clients` ADD `local_path` text;

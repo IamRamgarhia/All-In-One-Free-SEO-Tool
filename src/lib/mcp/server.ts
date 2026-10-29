@@ -42,6 +42,11 @@ import {
   compareSearchPeriods,
   inspectUrl,
   listSitemaps,
+  listTasks,
+  getTask,
+  updateTask,
+  listPublishQueue,
+  getQueueItem,
   type McpToolResult,
 } from "./tools";
 const clientIdArg = {
@@ -421,6 +426,84 @@ const TOOLS = [
     inputSchema: clientIdArg,
     annotations: { readOnlyHint: true, openWorldHint: true },
     handler: (a: { clientId: number }) => listSitemaps(a),
+  },
+  {
+    name: "list_tasks",
+    description:
+      "Tasks on a client's to-do list, high priority first. Filter by status (todo, in_progress, done, skipped). The result includes the client's local project folder when one is set, so you know where the work happens.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        status: { type: "string", enum: ["todo", "in_progress", "done", "skipped"] },
+        limit: { type: "number", description: "Default 30, max 100." },
+      },
+      required: ["clientId"],
+    },
+    handler: (a: { clientId: number; status?: string; limit?: number }) => listTasks(a),
+  },
+  {
+    name: "get_task",
+    description:
+      "One task in full, plus the client's site, tech stack and local project folder, and a ready-made brief for doing it. Read the brief, work in the client's folder, then call update_task. Where the brief lists file locations for a stack, they are typical places to look, not facts about this project.",
+    inputSchema: {
+      type: "object" as const,
+      properties: { taskId: { type: "number", description: "From list_tasks." } },
+      required: ["taskId"],
+    },
+    handler: (a: { taskId: number }) => getTask(a.taskId),
+  },
+  {
+    name: "update_task",
+    description:
+      "Set a task's status (todo, in_progress, done, skipped). Marking it done is recorded in the activity log, and a recurring task gets its next instance, exactly as on the Tasks page. Does not change the live website.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "number", description: "From list_tasks." },
+        status: { type: "string", enum: ["todo", "in_progress", "done", "skipped"] },
+      },
+      required: ["taskId", "status"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    handler: (a: { taskId: number; status: string }) => updateTask(a),
+  },
+  {
+    name: "list_publish_queue",
+    description:
+      "AI-generated items waiting in the review queue for a client (blog drafts, Google Business posts, social posts), newest first. Filter by status (pending_review, approved, published, skipped, failed) or kind (blog_draft, gbp_post, social_post, internal_checklist).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number" },
+        status: {
+          type: "string",
+          enum: ["pending_review", "approved", "published", "skipped", "failed"],
+        },
+        kind: {
+          type: "string",
+          enum: ["blog_draft", "gbp_post", "social_post", "internal_checklist"],
+        },
+        limit: { type: "number", description: "Default 20, max 100." },
+      },
+      required: ["clientId"],
+    },
+    handler: (a: { clientId: number; status?: string; kind?: string; limit?: number }) =>
+      listPublishQueue(a),
+  },
+  {
+    name: "get_queue_item",
+    description:
+      "One queue item. A blog draft comes back as a Markdown file with frontmatter (title, description, slug, date, keywords), ready to drop into an Astro or Next.js content folder. With forAi, a brief is embedded as an HTML comment telling you how to enrich the article; follow it and keep the keywords.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        itemId: { type: "number", description: "From list_publish_queue." },
+        forAi: { type: "boolean", description: "Blog drafts only: include the enrichment brief." },
+      },
+      required: ["itemId"],
+    },
+    handler: (a: { itemId: number; forAi?: boolean }) => getQueueItem(a),
   },
 ];
 

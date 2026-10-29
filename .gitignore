@@ -155,3 +155,9 @@ docs/audits/
 # already local-only; publishing a generated stub while hiding the real
 # thing was the inconsistency.
 docs/AGENTS.md
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Blog drafts written for "Open in Claude" (regenerable from the review queue).
+/.seo-drafts/

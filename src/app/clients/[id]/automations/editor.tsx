@@ -200,6 +200,8 @@ type ScheduleConfig = {
   topic_seed?: string;
   tone?: string;
   ai_brief?: string;
+  claude_prompt?: string;
+  claude_auto_send?: boolean;
   destination?: string;
   gbp_location_name?: string;
   post_type?: string;
@@ -472,6 +474,39 @@ function ScheduleForm({
             knows how to enrich the draft (Astro, Next.js, any static site).
           </span>
         </label>
+      )}
+
+      {selectedKind === "blog_draft" && (
+        <div className="space-y-2 rounded-md border border-white/10 p-3 text-xs">
+          <label className="block space-y-1">
+            <span className="text-muted-foreground">
+              Text for Claude when you press &quot;Open in Claude&quot; (optional)
+            </span>
+            <textarea
+              name="claudePrompt"
+              rows={3}
+              maxLength={2000}
+              defaultValue={cfg.claude_prompt ?? ""}
+              placeholder="e.g. Add this article to the blog as a new page, with internal links and a hero image placeholder, then open a pull request."
+              className="w-full rounded-md border border-white/10 bg-card/60 px-3 py-2 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+            />
+          </label>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              name="claudeAutoSend"
+              defaultChecked={cfg.claude_auto_send === true}
+              className="mt-0.5"
+            />
+            <span>
+              Send this text to Claude automatically, together with the .md file.
+              <span className="block text-[10px] text-muted-foreground">
+                Off: the chat opens with the .md attached and waits for you to say
+                what to do. Needs the text above and a Local project folder on the client.
+              </span>
+            </span>
+          </label>
+        </div>
       )}
 
       {selectedKind === "blog_draft" && (

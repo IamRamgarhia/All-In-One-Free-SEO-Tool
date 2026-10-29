@@ -28,6 +28,7 @@ const WRITERS = new Set([
   "save_review_draft",
   "reply_to_review",
   "log_client_research",
+  "update_task",
 ]);
 
 describe("tool annotations", () => {
@@ -142,6 +143,14 @@ describe("what a read-only connection can reach", () => {
     expect(Number(claimed[1]), "README tool count is stale").toBe(
       MCP_TOOL_LIST.length,
     );
+  });
+
+  it("can read tasks and the queue, but not change a task", () => {
+    const names = READ_ONLY_TOOLS.map((t) => t.name);
+    for (const n of ["list_tasks", "get_task", "list_publish_queue", "get_queue_item"]) {
+      expect(names, n).toContain(n);
+    }
+    expect(names).not.toContain("update_task");
   });
 
   it("is smaller than the full list, and not empty", () => {

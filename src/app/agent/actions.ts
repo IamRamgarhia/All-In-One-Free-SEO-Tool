@@ -3,7 +3,8 @@
 import { eq } from "drizzle-orm";
 import { safeRevalidatePath } from "@/lib/safe-revalidate";
 import { db } from "@/db/client";
-import { aiSuggestions, tasks } from "@/db/schema";
+import { aiSuggestions } from "@/db/schema";
+import { taskForSuggestion } from "@/lib/agent/suggestion-task";
 import { runSeoAgent, type AgentRunResult } from "@/lib/seo-agent";
 import {
   runAgentActions,
@@ -84,36 +85,18 @@ export async function reopenSuggestion(suggestionId: number) {
  * Promote a suggestion into a real task on the client's task list — useful
  * when the user wants to track applying it as work-in-progress.
  */
-export async function suggestionToTask(suggestionId: number) {
+export async function suggestionToTask(suggestionId: number): Promise<{ taskId: number } | null> {
   await guardAction("edit");
   const [s] = await db
     .select()
     .from(aiSuggestions)
     .where(eq(aiSuggestions.id, suggestionId))
     .limit(1);
-  if (!s) return;
+  if (!s) return null;
 
-  const titleByType: Record<string, string> = {
-    title_rewrite: "Update page title",
-    meta_description_rewrite: "Update meta description",
-    h1_rewrite: "Update H1",
-    quick_win_action: "Quick win optimization",
-    content_idea: "Write new content",
-    internal_link: "Add internal link",
-    schema_markup: "Add structured data",
-    general: "AI suggestion",
-  };
-
-  await db.insert(tasks).values({
-    clientId: s.clientId,
-    title: `${titleByType[s.type] ?? "AI suggestion"}${s.targetUrl ? ` — ${new URL(s.targetUrl).pathname}` : ""}`,
-    description: s.suggestedValue,
-    whyItMatters: s.rationale ?? undefined,
-    priority: s.priority,
-    status: "todo" as const,
-    source: "agent_suggestion",
-    sourceRef: `suggestion-${s.id}`,
-  });
+  // Pressing it twice (or "Do it with Claude" after "Add to tasks") must
+  // not make a second task for the same suggestion.
+  const { taskId } = await taskForSuggestion(s);
 
   await db
     .update(aiSuggestions)
@@ -123,4 +106,5 @@ export async function suggestionToTask(suggestionId: number) {
   safeRevalidatePath(`/agent/c/${s.clientId}`);
   safeRevalidatePath(`/clients/${s.clientId}`);
   safeRevalidatePath("/tasks");
+  return { taskId };
 }

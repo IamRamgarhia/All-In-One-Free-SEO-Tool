@@ -62,7 +62,12 @@ import {
   clients,
   keywordRankings,
   keywords,
+  publishQueue,
+  tasks,
 } from "@/db/schema";
+import { buildBlogMarkdown } from "@/lib/blog-export";
+import { buildTaskBrief } from "@/lib/task-brief";
+import { applyTaskStatus } from "@/lib/task-status-change";
 
 export type McpToolResult = { ok: true; data: unknown } | { ok: false; error: string };
 
@@ -106,6 +111,7 @@ export async function listClients(): Promise<McpToolResult> {
       name: clients.name,
       url: clients.url,
       niche: clients.niche,
+      localPath: clients.localPath,
     })
     .from(clients)
     .orderBy(clients.name);
@@ -1239,4 +1245,213 @@ export async function getKeywordIdeas(opts: {
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
+}
+
+// =====================================================================
+// Tasks and the review queue
+//
+// These exist so a coding assistant opened in a client's project folder
+// can pick up a task, do the work there, and tick it off. Reading is open
+// to a read-only token; changing a status is not.
+// =====================================================================
+
+const TASK_STATUSES = ["todo", "in_progress", "done", "skipped"] as const;
+type TaskStatus = (typeof TASK_STATUSES)[number];
+
+const isTaskStatus = (s: string): s is TaskStatus =>
+  (TASK_STATUSES as readonly string[]).includes(s);
+
+export async function listTasks(opts: {
+  clientId: number;
+  status?: string;
+  limit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+  const limit = Math.max(1, Math.min(100, Math.floor(opts.limit ?? 30)));
+  // An unknown status is refused rather than ignored: silently listing
+  // everything would answer a question nobody asked.
+  if (opts.status && !isTaskStatus(opts.status)) {
+    return { ok: false, error: `status must be one of: ${TASK_STATUSES.join(", ")}.` };
+  }
+  const where = opts.status
+    ? and(eq(tasks.clientId, client.id), eq(tasks.status, opts.status as TaskStatus))
+    : eq(tasks.clientId, client.id);
+  const rows = await db
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      priority: tasks.priority,
+      status: tasks.status,
+      toolPath: tasks.toolPath,
+      dueDate: tasks.dueDate,
+    })
+    .from(tasks)
+    .where(where)
+    // high before medium before low, then oldest first
+    .orderBy(
+      sql`case ${tasks.priority} when 'high' then 0 when 'medium' then 1 else 2 end`,
+      tasks.id,
+    )
+    .limit(limit);
+  return {
+    ok: true,
+    data: {
+      client: { id: client.id, name: client.name, localPath: client.localPath },
+      tasks: rows,
+      ...(rows.length === limit
+        ? { note: `Showing the first ${limit}; pass a status or a higher limit to see others.` }
+        : {}),
+    },
+  };
+}
+
+export async function getTask(taskId: number): Promise<McpToolResult> {
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  if (!task) return { ok: false, error: `No task with id ${taskId}.` };
+  const client = await resolveClient(task.clientId);
+  if (!client) {
+    return { ok: false, error: `Task ${taskId} belongs to a client that no longer exists.` };
+  }
+  return {
+    ok: true,
+    data: {
+      task: {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        whyItMatters: task.whyItMatters,
+        priority: task.priority,
+        status: task.status,
+        toolPath: task.toolPath,
+        dueDate: task.dueDate,
+      },
+      client: {
+        id: client.id,
+        name: client.name,
+        url: client.url,
+        techStack: client.techStack,
+        localPath: client.localPath,
+      },
+      brief: buildTaskBrief({
+        task,
+        client: {
+          name: client.name,
+          url: client.url,
+          techStack: client.techStack,
+          localPath: client.localPath,
+        },
+      }),
+    },
+  };
+}
+
+export async function updateTask(opts: {
+  taskId: number;
+  status: string;
+}): Promise<McpToolResult> {
+  if (!isTaskStatus(opts.status)) {
+    return { ok: false, error: `status must be one of: ${TASK_STATUSES.join(", ")}.` };
+  }
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, opts.taskId)).limit(1);
+  if (!task) return { ok: false, error: `No task with id ${opts.taskId}.` };
+  // Same path as the Tasks page: activity log, and the next instance of
+  // a recurring task. completedBy stays empty — an MCP call has no
+  // signed-in user to credit.
+  await applyTaskStatus(task, opts.status, null);
+  return {
+    ok: true,
+    data: { id: task.id, title: task.title, from: task.status, to: opts.status },
+  };
+}
+
+type QueueStatus = typeof publishQueue.$inferSelect.status;
+type QueueKind = typeof publishQueue.$inferSelect.kind;
+const QUEUE_STATUSES: QueueStatus[] = [
+  "pending_review",
+  "approved",
+  "published",
+  "skipped",
+  "failed",
+];
+const QUEUE_KINDS: QueueKind[] = [
+  "blog_draft",
+  "gbp_post",
+  "social_post",
+  "internal_checklist",
+];
+
+export async function listPublishQueue(opts: {
+  clientId: number;
+  status?: string;
+  kind?: string;
+  limit?: number;
+}): Promise<McpToolResult> {
+  const client = await resolveClient(opts.clientId);
+  if (!client) return { ok: false, error: `No client with id ${opts.clientId}.` };
+  if (opts.status && !QUEUE_STATUSES.includes(opts.status as QueueStatus)) {
+    return { ok: false, error: `status must be one of: ${QUEUE_STATUSES.join(", ")}.` };
+  }
+  if (opts.kind && !QUEUE_KINDS.includes(opts.kind as QueueKind)) {
+    return { ok: false, error: `kind must be one of: ${QUEUE_KINDS.join(", ")}.` };
+  }
+  const limit = Math.max(1, Math.min(100, Math.floor(opts.limit ?? 20)));
+  const conditions = [eq(publishQueue.clientId, client.id)];
+  if (opts.status) conditions.push(eq(publishQueue.status, opts.status as QueueStatus));
+  if (opts.kind) conditions.push(eq(publishQueue.kind, opts.kind as QueueKind));
+  const rows = await db
+    .select({
+      id: publishQueue.id,
+      kind: publishQueue.kind,
+      status: publishQueue.status,
+      title: publishQueue.title,
+      generatedAt: publishQueue.generatedAt,
+    })
+    .from(publishQueue)
+    .where(and(...conditions))
+    .orderBy(desc(publishQueue.generatedAt))
+    .limit(limit);
+  return { ok: true, data: { client: { id: client.id, name: client.name }, items: rows } };
+}
+
+export async function getQueueItem(opts: {
+  itemId: number;
+  forAi?: boolean;
+}): Promise<McpToolResult> {
+  const [item] = await db
+    .select()
+    .from(publishQueue)
+    .where(eq(publishQueue.id, opts.itemId))
+    .limit(1);
+  if (!item) return { ok: false, error: `No queue item with id ${opts.itemId}.` };
+  const client = await resolveClient(item.clientId);
+  const base = {
+    id: item.id,
+    kind: item.kind,
+    status: item.status,
+    title: item.title,
+    client: client
+      ? { id: client.id, name: client.name, localPath: client.localPath }
+      : null,
+  };
+  if (item.kind === "blog_draft") {
+    // The same file the queue's ".md" buttons download, so a draft can go
+    // straight into an Astro / Next.js content folder.
+    return {
+      ok: true,
+      data: {
+        ...base,
+        markdown: buildBlogMarkdown(
+          {
+            title: item.title,
+            body: item.body,
+            payload: item.payloadJson,
+            date: item.generatedAt,
+          },
+          { forAi: opts.forAi === true },
+        ),
+      },
+    };
+  }
+  return { ok: true, data: { ...base, body: item.body } };
 }

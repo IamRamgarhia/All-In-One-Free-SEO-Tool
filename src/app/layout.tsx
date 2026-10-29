@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { isHostAgentEnabled } from "@/lib/host-agent";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { Sidebar } from "@/components/shell/sidebar";
@@ -7,6 +8,7 @@ import { getAiAvailability } from "@/lib/ai-availability";
 import { TopBar } from "@/components/shell/top-bar";
 import { AIAssistant } from "@/components/shell/ai-assistant";
 import { PowerWidget } from "@/components/shell/power-widget";
+import { ClaudeDock } from "@/components/claude/claude-dock";
 import { FirstRunPrompt } from "@/components/shell/first-run-prompt";
 import { Toaster } from "@/components/shell/toaster";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
@@ -154,6 +156,7 @@ export default async function RootLayout({
                 </div>
                 <AIAssistant />
                 <PowerWidget />
+                {isHostAgentEnabled() && <ClaudeDock />}
                 <FirstRunPrompt />
               </>
             )}

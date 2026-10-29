@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { openChat } from "@/components/claude/dock-store";
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,6 +18,7 @@ import {
   Inbox,
   Loader2,
   Megaphone,
+  Sparkles,
   Save,
   Send,
   Share2,
@@ -185,6 +187,7 @@ function QueueRow({
   const [draftTitle, setDraftTitle] = useState(item.title ?? "");
   const [draftBody, setDraftBody] = useState(item.body ?? "");
   const [pending, startTransition] = useTransition();
+  const [opening, setOpening] = useState(false);
 
   const Icon = KIND_ICON[item.kind];
   const style = STATUS_STYLE[item.status];
@@ -238,6 +241,27 @@ function QueueRow({
     navigator.clipboard.writeText(item.body ?? "").then(() => {
       toast.success("Copied body to clipboard.");
     });
+  }
+
+  async function openInClaude() {
+    setOpening(true);
+    try {
+      const res = await fetch("/api/blog-in-claude", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ itemId: item.id }),
+      });
+      const out = (await res.json()) as { ok: boolean; taskId?: number; error?: string };
+      if (!out.ok || !out.taskId) {
+        toast.error(out.error ?? "Could not open Claude.");
+        return;
+      }
+      openChat(out.taskId);
+    } catch {
+      toast.error("Could not open Claude.");
+    } finally {
+      setOpening(false);
+    }
   }
 
   function copyAsMarkdown() {
@@ -482,6 +506,20 @@ ${item.title ? `<h1>${item.title}</h1>
                 >
                   <Download className="mr-1.5 size-3" />
                   .md for AI
+                </button>
+                <button
+                  type="button"
+                  disabled={opening}
+                  onClick={openInClaude}
+                  className="inline-flex h-9 items-center rounded-md bg-violet-500/15 px-3 text-xs text-violet-200 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-60"
+                  title="Open a Claude chat in the client's project folder with this draft attached"
+                >
+                  {opening ? (
+                    <Loader2 className="mr-1.5 size-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-1.5 size-3" />
+                  )}
+                  Open in Claude
                 </button>
                 <button
                   type="button"

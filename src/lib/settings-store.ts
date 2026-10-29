@@ -47,6 +47,9 @@ export type SettingKey =
   | "ui.theme"
   /** Autonomy level and guardrails for the agent. See lib/agent/autonomy.ts. */
   | "agent.settings"
+  /** Model and effort for the Claude Code chats: see lib/task-chat/model.ts. */
+  | "task_chat.model"
+  | "task_chat.effort"
   // Whether anyone has ever been ASKED what autonomy level they want, as
   // opposed to silently receiving the cautious default. See
   // hasChosenAutonomy in agent/autonomy.ts.

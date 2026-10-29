@@ -37,6 +37,42 @@ export const clients = sqliteTable("clients", {
    * two — replies would go wherever Google happened to list first.
    */
   gbpLocationName: text("gbp_location_name"),
+  /**
+   * Where this client's site source lives on the machine running the tool
+   * (a repo or folder, e.g. an Astro or Next.js project). Informational:
+   * the app never reads or writes there. It is put into the prompts and
+   * MCP answers handed to a coding assistant so the work lands in the
+   * right folder.
+   */
+  localPath: text("local_path"),
+  /** GitHub repo as "owner/name". Lets the task chat work through pull requests. */
+  githubRepo: text("github_repo"),
+  /** Branch pull requests target and merge into. Usually main. */
+  baseBranch: text("base_branch").notNull().default("main"),
+  /**
+   * How Claude hands work back: "off" edits files only, "pr" opens a pull
+   * request and stops, "pr_merge" also merges it once tests and checks pass,
+   * "pr_batch" puts a whole queue run on one branch and one pull request.
+   */
+  prMode: text("pr_mode", { enum: ["off", "pr", "pr_merge", "pr_batch"] })
+    .notNull()
+    .default("off"),
+  /**
+   * How far the autopilot may go on this client. Null follows the
+   * workspace-wide level; otherwise it overrides it for this client only.
+   */
+  autopilotLevel: text("autopilot_level", {
+    enum: ["off", "suggest", "apply_safe", "apply_all"],
+  }),
+  /**
+   * Who does the work: "wordpress" writes through the site's plugin,
+   * "claude" hands tasks to Claude Code in the local project folder, and
+   * "auto" picks WordPress when the site is connected, else Claude when a
+   * folder is set.
+   */
+  autopilotEngine: text("autopilot_engine", { enum: ["auto", "wordpress", "claude"] })
+    .notNull()
+    .default("auto"),
   // Targeting — every recommendation, rank check, SERP scan, autocomplete
   // fan-out, and citation suggestion uses these. country defaults to "US"
   // for back-compat with rows created before this column existed.
@@ -225,6 +261,38 @@ export const tasks = sqliteTable("tasks", {
   }),
   ...timestamps,
 });
+
+/**
+ * One Claude Code conversation per task, run headless on this machine in
+ * the client's project folder. `sessionId` is Claude's own id, which is
+ * what `--resume` needs to pick the thread up again after a restart.
+ */
+export const taskChats = sqliteTable("task_chats", {
+  taskId: integer("task_id")
+    .primaryKey()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  sessionId: text("session_id"),
+  status: text("status", { enum: ["idle", "running", "error"] })
+    .notNull()
+    .default("idle"),
+  ...timestamps,
+});
+
+/** What the chat panel shows, in order. `data` is JSON, shape set by `kind`. */
+export const taskChatEvents = sqliteTable("task_chat_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  taskId: integer("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  kind: text("kind", {
+    enum: ["user", "text", "tool", "tool_result", "result", "error", "attachment", "suggestion"],
+  }).notNull(),
+  data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 
 export const keywords = sqliteTable("keywords", {
   id: integer("id").primaryKey({ autoIncrement: true }),

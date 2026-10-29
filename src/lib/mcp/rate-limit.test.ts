@@ -47,7 +47,7 @@ describe("keys", () => {
 });
 
 describe("the shipped limit", () => {
-  it("is a sustained couple of requests a second, not a trickle", () => {
+  it("is a sustained several requests a second, not a trickle", () => {
     // Low enough to bound abuse, high enough that a person working
     // through a chat never meets it.
     expect(MCP_RATE_LIMIT.requests).toBeGreaterThanOrEqual(60);

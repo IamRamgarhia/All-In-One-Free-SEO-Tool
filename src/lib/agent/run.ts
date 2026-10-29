@@ -27,6 +27,8 @@ import {
 } from "@/db/schema";
 import { logActivity } from "../activity";
 import { getAgentSettings, willAutoApply, type AgentSettings } from "./autonomy";
+import { HOST_AGENT_OFF_MESSAGE, isHostAgentEnabled } from "@/lib/host-agent";
+import { levelFor, pickEngine, runClaudeAutopilot } from "./claude-autopilot";
 import { detectCapabilities, has } from "./capabilities";
 import {
   planForClient,
@@ -112,6 +114,8 @@ export type AgentRunResult = {
   failed: number;
   summary: string;
   tasksCreated: number;
+  /** Set when Claude was started: the task its chat opens on. */
+  openTaskId?: number | null;
 };
 
 export async function runAgentForClient(opts: {
@@ -120,7 +124,7 @@ export async function runAgentForClient(opts: {
   /** Override the stored setting — used by the "dry run" button. */
   settings?: AgentSettings;
 }): Promise<AgentRunResult> {
-  const settings = opts.settings ?? (await getAgentSettings());
+  const workspace = opts.settings ?? (await getAgentSettings());
   const trigger = opts.trigger ?? "scheduled";
   const startedAt = new Date();
 
@@ -132,6 +136,30 @@ export async function runAgentForClient(opts: {
 
   if (!client) {
     return empty(opts.clientId, "That client no longer exists.");
+  }
+
+  // A client can have its own level; otherwise the workspace's applies.
+  const settings: AgentSettings = { ...workspace, level: levelFor(client, workspace.level) };
+
+  // Clients worked on through a local folder go to Claude Code instead of
+  // the site's plugin; the rest of this function is the plugin path.
+  if (
+    (settings.level === "apply_safe" || settings.level === "apply_all") &&
+    pickEngine(client) === "claude"
+  ) {
+    // This client is worked on by Claude Code on this machine, and that is
+    // off unless somebody switched it on: say so instead of falling through
+    // to the site's plugin, which this client may not have.
+    if (!isHostAgentEnabled()) return empty(opts.clientId, HOST_AGENT_OFF_MESSAGE);
+    const r = await runClaudeAutopilot({ client, level: settings.level, settings, trigger });
+    return {
+      ...empty(opts.clientId, r.summary),
+      runId: r.runId,
+      planned: r.planned,
+      queued: r.planned,
+      failed: r.ok ? 0 : 1,
+      openTaskId: r.openTaskId,
+    };
   }
 
   // What the business is, read once for the whole run rather than per
@@ -560,9 +588,12 @@ export async function runAgentForAllClients(
   trigger: "scheduled" | "manual" = "scheduled",
 ): Promise<AgentRunResult[]> {
   const settings = await getAgentSettings();
-  if (settings.level === "off") return [];
 
-  const all = await db.select({ id: clients.id }).from(clients);
+  // A client can switch itself on while the workspace is off, or off while
+  // the workspace is on, so the level is read per client.
+  const all = (await db.select().from(clients)).filter(
+    (c) => levelFor(c, settings.level) !== "off",
+  );
   const results: AgentRunResult[] = [];
   // Sequential: each client's run may launch a browser or call an API,
   // and this is specified to run on a $5 VPS.

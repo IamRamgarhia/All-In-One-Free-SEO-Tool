@@ -6,9 +6,9 @@
 // into a crash after the first item had already been written to the
 // live site.
 import { safeRevalidatePath } from "@/lib/safe-revalidate";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { agentActions } from "@/db/schema";
+import { agentActions, clients } from "@/db/schema";
 import {
   canManageSettings,
   canSeeClient,
@@ -21,6 +21,7 @@ import {
   type AgentSettings,
   type AutonomyLevel,
 } from "@/lib/agent/autonomy";
+import { levelFor } from "@/lib/agent/claude-autopilot";
 import { revertAction } from "@/lib/agent/executor";
 import { runAgentForAllClients, runAgentForClient } from "@/lib/agent/run";
 import { guardAction } from "@/lib/action-guard";
@@ -79,31 +80,41 @@ export type RunNowResult = {
   queued: number;
   failed: number;
   tasksCreated: number;
+  /** Claude was started: the task its chat opens on. */
+  openTaskId?: number | null;
 };
 
 export async function runNow(clientId?: number): Promise<RunNowResult> {
   await guardAction("edit", clientId);
   const settings = await getAgentSettings();
-  if (settings.level === "off") {
-    return {
-      ok: false,
-      summary: "The agent is turned off. Pick a level above to enable it.",
-      applied: 0,
-      queued: 0,
-      failed: 0,
-      tasksCreated: 0,
-    };
-  }
+  const none = (summary: string): RunNowResult => ({
+    ok: false,
+    summary,
+    applied: 0,
+    queued: 0,
+    failed: 0,
+    tasksCreated: 0,
+  });
 
-  if (clientId && !(await canSeeClient(await currentUser(), clientId))) {
-    return {
-      ok: false,
-      summary: "No such client.",
-      applied: 0,
-      queued: 0,
-      failed: 0,
-      tasksCreated: 0,
-    };
+  if (clientId) {
+    if (!(await canSeeClient(await currentUser(), clientId))) return none("No such client.");
+    const [c] = await db
+      .select({ autopilotLevel: clients.autopilotLevel })
+      .from(clients)
+      .where(eq(clients.id, clientId))
+      .limit(1);
+    if (!c) return none("No such client.");
+    if (levelFor(c, settings.level) === "off") {
+      return none("Autopilot is off for this client. Pick a level for it first.");
+    }
+  } else if (settings.level === "off") {
+    const anyOwn = await db
+      .select({ id: clients.id })
+      .from(clients)
+      .where(isNotNull(clients.autopilotLevel));
+    if (anyOwn.length === 0) {
+      return none("The agent is turned off. Pick a level above to enable it.");
+    }
   }
 
   // "Run now" with no client means every client the caller can see, not
@@ -138,6 +149,7 @@ export async function runNow(clientId?: number): Promise<RunNowResult> {
 
   return {
     ok: true,
+    openTaskId: results.find((r) => r.openTaskId)?.openTaskId ?? null,
     summary:
       results.length === 1
         ? results[0].summary
@@ -315,4 +327,43 @@ export async function waitingByKind(
     .where(eq(agentActions.clientId, clientId))
     .limit(1000);
   return groupForBulk(rows);
+}
+
+/**
+ * Set how far the autopilot may go on one client, and who does the work.
+ * `level: null` goes back to following the workspace-wide level.
+ */
+export async function setClientAutopilot(
+  clientId: number,
+  patch: {
+    level?: AutonomyLevel | null;
+    engine?: "auto" | "wordpress" | "claude";
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  await guardAction("edit", clientId);
+  const me = await currentUser();
+  if (me && !canManageSettings(me.role)) {
+    return { ok: false, error: "Only the owner can change what the agent may do." };
+  }
+  if (!(await canSeeClient(me, clientId))) return { ok: false, error: "No such client." };
+
+  const set: Partial<typeof clients.$inferInsert> = {};
+  if (patch.level !== undefined) {
+    if (patch.level !== null && !["off", "suggest", "apply_safe", "apply_all"].includes(patch.level)) {
+      return { ok: false, error: "Unknown level." };
+    }
+    set.autopilotLevel = patch.level;
+  }
+  if (patch.engine !== undefined) {
+    if (!["auto", "wordpress", "claude"].includes(patch.engine)) {
+      return { ok: false, error: "Unknown engine." };
+    }
+    set.autopilotEngine = patch.engine;
+  }
+  if (Object.keys(set).length === 0) return { ok: true };
+
+  await db.update(clients).set(set).where(eq(clients.id, clientId));
+  safeRevalidatePath("/agent/autopilot");
+  safeRevalidatePath(`/clients/${clientId}`);
+  return { ok: true };
 }

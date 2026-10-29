@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat, ArrowUpRight } from "lucide-react";
 import { setTaskStatus, deleteTask } from "./actions";
 import { TimeTracker } from "./time-tracker";
+import { OpenInClaude } from "./open-in-claude";
 
 const statusConfig: Record<
   string,
@@ -115,6 +116,9 @@ export function TaskRow({
                 Open the tool
                 <ArrowUpRight className="size-3" />
               </Link>
+            )}
+            {task.clientId && task.status !== "done" && task.status !== "skipped" && (
+              <OpenInClaude taskId={task.id} />
             )}
             {task.clientName && task.clientId && (
               <Link

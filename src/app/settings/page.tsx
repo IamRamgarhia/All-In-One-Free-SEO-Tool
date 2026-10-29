@@ -18,6 +18,7 @@ import {
   Plug,
   Settings as SettingsIcon,
   Shield,
+  Terminal,
   Sparkles,
   Users2,
 } from "lucide-react";
@@ -34,6 +35,8 @@ import {
 } from "@/lib/api-keys";
 import { WebhookForm } from "./webhook-form";
 import { TimeZoneForm } from "./timezone-form";
+import { HostAgentForm } from "./host-agent-form";
+import { hostAgentState } from "@/lib/host-agent";
 import { BrandForm } from "./brand-form";
 import { ApiKeysSection } from "./api-keys-section";
 import { ActiveProviderCard } from "./active-provider-card";
@@ -200,6 +203,7 @@ export default async function SettingsPage() {
             {
               label: "Advanced",
               items: [
+                { href: "#claude-code", label: "Claude Code" },
                 { href: "#browser", label: "Browser pool" },
                 { href: "#ai-learning", label: "AI learning" },
               ],
@@ -266,6 +270,29 @@ export default async function SettingsPage() {
                 ? Intl.supportedValuesOf("timeZone")
                 : []
             }
+          />
+        </div>
+      </section>
+
+      <section id="claude-code" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
+        <header className="relative border-b border-white/5 px-5 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Terminal className="size-4 text-violet-300" />
+            Claude Code on this computer
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Off by default. When it is on, the app starts <code>claude</code>, <code>gh</code> and{" "}
+            <code>git</code> on the machine that runs it, in the project folder you pick for a client,
+            under the operating-system account running the app and the GitHub login that account is
+            signed in with. Anyone who can sign in to this dashboard can then start them, so leave it
+            off on a server other people can reach. See docs/claude-code-tasks.md.
+          </p>
+        </header>
+        <div className="relative p-5">
+          <HostAgentForm
+            enabled={hostAgentState().enabled}
+            forcedOff={hostAgentState().source === "env-off"}
+            fromEnv={hostAgentState().source === "env-on"}
           />
         </div>
       </section>

@@ -104,6 +104,17 @@ submit or delete a sitemap.
 | `compare_search_periods` | Two back-to-back periods with the queries or pages that gained and lost the most clicks. Both end on the newest day Google has finished counting, so a part-counted day cannot read as a drop. |
 | `list_sitemaps` | Sitemaps submitted, when Google last read each one, errors, warnings and URLs submitted. |
 
+**Tasks and the review queue**
+
+For work done in a client's own project folder (Astro, Next.js, any local repo). Set the folder under Clients → Edit → "Local project folder"; the tool never reads or writes there, it only tells the assistant where to go.
+
+| Tool | Answers |
+|---|---|
+| `list_tasks` | A client's to-do list, high priority first, filterable by status. |
+| `get_task` | One task plus the site, tech stack, local folder and a ready-made brief for doing it. |
+| `list_publish_queue` | Generated blog drafts, Google Business posts and social posts waiting for review. |
+| `get_queue_item` | One item. A blog draft comes back as Markdown with frontmatter; `forAi` adds an enrichment brief. |
+
 **Acting**
 
 | Tool | Does |
@@ -111,6 +122,7 @@ submit or delete a sitemap.
 | `run_agent` | Asks the agent to work on a site now. |
 | `apply_fix` | Supplies the text for one queued fix. Validated against the same rules, written, then verified by reading the page back. |
 | `revert_agent_action` | Undoes one change, restoring the previous value. |
+| `update_task` | Sets a task's status. Done is logged and re-creates a recurring task, exactly like the Tasks page. Does not touch the live site. |
 | `update_client_knowledge` | Records what you established about the business, attributed to whoever established it. |
 | `log_client_research` | Notes what has already been looked into, so the next session does not repeat it. |
 | `save_review_draft` | Stores a reply for a person to approve. Sends nothing. |
@@ -213,7 +225,7 @@ at startup.
 
 ## Skills for Claude Code
 
-`plugins/seo-tool/` is a Claude Code plugin holding four skills. They are
+`plugins/seo-tool/` is a Claude Code plugin holding five skills. They are
 the difference between having tools and knowing what to do with them — each
 one is a multi-step workflow over the tools above, not a single call:
 
@@ -223,6 +235,7 @@ one is a multi-step workflow over the tools above, not a single call:
 | `seo-client-setup` | Establish what a client's business actually is and record it, so every later keyword, title and report is grounded in it instead of guessed at. |
 | `seo-fix-pass` | Fix what the crawler found on a live site: draft the copy, apply it through the CMS, confirm it took effect, and undo anything that came out wrong. |
 | `seo-keyword-plan` | Decide what a site should target, grounded in the words it uses for what it sells rather than in what its name sounds like. |
+| `seo-task-runner` | Pick up a task from the to-do list, do it inside the client's own project folder, and mark it done. |
 
 The skills are plain markdown under
 `plugins/seo-tool/skills/<name>/SKILL.md`, so the quickest way to use one

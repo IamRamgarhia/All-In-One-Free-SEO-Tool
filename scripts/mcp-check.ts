@@ -487,6 +487,9 @@ async function main() {
     "update_client_knowledge",
     // Stores a reply for a person to read. Sends nothing.
     "save_review_draft",
+    // Ticks a task off in this install's own task list. The work itself
+    // happens in the client's project folder, outside this server.
+    "update_task",
   ]);
 
   // Publishes to a public surface that is NOT the customer's website,

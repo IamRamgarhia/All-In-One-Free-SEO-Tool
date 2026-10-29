@@ -30,6 +30,8 @@ const FORM_CONFIG_KEYS = [
   "cta_type",
   "offer_coupon",
   "ai_brief",
+  "claude_prompt",
+  "claude_auto_send",
 ] as const;
 
 type ParsedSchedule = {
@@ -53,6 +55,8 @@ async function parseScheduleForm(
   const topicSeed = String(formData.get("topicSeed") ?? "").slice(0, 200);
   const tone = String(formData.get("tone") ?? "").slice(0, 200);
   const aiBrief = String(formData.get("aiBrief") ?? "").trim().slice(0, 2000);
+  const claudePrompt = String(formData.get("claudePrompt") ?? "").trim().slice(0, 2000);
+  const claudeAutoSend = formData.get("claudeAutoSend") === "on";
   const gbpLocationName = String(formData.get("gbpLocationName") ?? "")
     .trim()
     .slice(0, 200);
@@ -213,6 +217,10 @@ async function parseScheduleForm(
   if (topicSeed) config.topic_seed = topicSeed;
   if (tone) config.tone = tone;
   if (aiBrief && kind === "blog_draft") config.ai_brief = aiBrief;
+  if (claudePrompt && kind === "blog_draft") {
+    config.claude_prompt = claudePrompt;
+    if (claudeAutoSend) config.claude_auto_send = true;
+  }
   if (kind === "gbp_post") {
     if (gbpLocationName) config.gbp_location_name = gbpLocationName;
     config.post_type = postType;

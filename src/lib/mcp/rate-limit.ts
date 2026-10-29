@@ -31,9 +31,17 @@ export type RateLimitOptions = {
   now?: number;
 };
 
-/** What the remote endpoint uses. Two requests a second, sustained. */
+/**
+ * What the remote endpoint uses. Ten requests a second, sustained.
+ *
+ * Several Claude chats can work at once (the task queue, the dock, the
+ * autopilot), each starting with a handshake and then calling tools in
+ * a tight loop, and all of them present the same token. 120 a minute was
+ * reached by that alone and the chats were refused mid-task. A leaked
+ * token is still bounded; only the headroom changed.
+ */
 export const MCP_RATE_LIMIT: Pick<RateLimitOptions, "requests" | "windowMs"> = {
-  requests: 120,
+  requests: 600,
   windowMs: 60_000,
 };
 

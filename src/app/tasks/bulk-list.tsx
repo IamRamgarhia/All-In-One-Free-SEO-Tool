@@ -23,6 +23,7 @@ import {
 } from "./actions";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { isOpenTask, isClosedTask } from "@/lib/task-status";
+import { OpenInClaude } from "./open-in-claude";
 
 const priorityConfig: Record<
   string,
@@ -439,6 +440,9 @@ function Row({
                 Open the tool
                 <ArrowUpRight className="size-3" />
               </Link>
+            )}
+            {task.clientId && task.status !== "done" && task.status !== "skipped" && (
+              <OpenInClaude taskId={task.id} />
             )}
             {task.clientName && task.clientId && (
               <Link
