@@ -1,5 +1,5 @@
 {
-  "_how": "Edit this file on GitHub when support payments come in. Every install reads it over the network, so a change here updates the Support & about page and the dashboard card everywhere with no release. totalReceived: the combined total in rupees - convert PayPal/USD yourself and add it in, because the page shows one number. supporters: how many people. goal: optional target and what it pays for. thanks: names to thank, ONLY with their permission. updated: YYYY-MM-DD. Anything unexpected in here is ignored rather than shown (see parseSupporters in src/lib/supporters.ts), so a typo cannot break the app.",
+  "_how": "Record a payment with: pnpm exec tsx scripts/add-supporter.ts \"Name\" <amount>  (or edit this file on GitHub). Every install reads it over the network, so a change here updates the Support & about page and the dashboard card everywhere with no release. totalReceived: the combined total in rupees - convert PayPal/USD yourself and add it in, because the page shows one number. supporters: how many people. people: each named supporter, their combined amount and the date they last gave, newest last. thanks: the same names, kept for installs older than this field. goal: optional target and what it pays for. updated: YYYY-MM-DD. Names go in ONLY with the supporter's permission - use --anonymous otherwise and they are counted without being listed. Anything unexpected in here is ignored rather than shown (see parseSupporters in src/lib/supporters.ts), so a typo cannot break the app.",
   "currency": "INR",
   "totalReceived": 0,
   "supporters": 0,
@@ -8,5 +8,6 @@
     "label": "A paid SERP API, so rank checks stop depending on scraping"
   },
   "thanks": [],
+  "people": [],
   "updated": "2026-10-29"
 }

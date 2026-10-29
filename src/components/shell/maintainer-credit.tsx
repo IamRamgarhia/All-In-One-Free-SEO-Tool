@@ -129,6 +129,11 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
   const [amount, setAmount] = useState<number | null>(250);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  // Optional, and the note works without it. A UPI payment arrives with a
+  // reference number and whatever the payer's bank calls them, which is
+  // often neither the name they use nor one worth putting on a thank-you
+  // list. Typing it here is the only way the maintainer learns it.
+  const [payerName, setPayerName] = useState<string>("");
 
   const upi = MAINTAINER.upi;
   // Rebuild deep link whenever the amount changes — same string the
@@ -143,7 +148,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
   // the string actually sent to UPI apps had already diverged.
   const deepLink = upiDeepLink({
     amount: amount ?? undefined,
-    note: upiNote(),
+    note: upiNote(payerName),
   });
 
   // Generate QR locally (no external service). Dark background → use
@@ -298,7 +303,19 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
 
-              {/* QR code — regenerates locally as the amount changes */}
+              <label className="mt-1.5 block">
+                <span className="sr-only">Your name, for the thank-you list</span>
+                <input
+                  type="text"
+                  value={payerName}
+                  onChange={(e) => setPayerName(e.target.value)}
+                  maxLength={40}
+                  placeholder="Your name (optional) — so I know who to thank"
+                  className="h-9 w-full rounded-md bg-white/[0.04] px-2.5 text-xs text-foreground ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground focus:outline-none focus:ring-emerald-400/60"
+                />
+              </label>
+
+              {/* QR code — regenerates locally as the amount or note changes */}
               {qrDataUrl && (
                 <div className="mt-3 flex items-center justify-center rounded-lg bg-white p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -318,7 +335,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 </span>{" "}
                 to {MAINTAINER.name}. The note will read{" "}
                 <span className="font-semibold text-foreground/85">
-                  {upiNote()}
+                  {upiNote(payerName)}
                 </span>
                 .
               </p>

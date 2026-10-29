@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search, Users } from "lucide-react";
 import {
   type SupportTracker,
+  type Supporter,
   formatRupees,
   goalPercent,
 } from "@/lib/supporters";
@@ -25,7 +26,7 @@ export function SupportersTracker({
   source: "network" | "cache" | "none";
 }) {
   if (!tracker) return null;
-  const { totalReceived, supporters, goal, thanks, updated } = tracker;
+  const { totalReceived, supporters, goal, thanks, people, updated } = tracker;
 
   const headline =
     totalReceived > 0
@@ -79,7 +80,7 @@ export function SupportersTracker({
             </div>
           )}
 
-          <ThanksList names={thanks} />
+          <ThanksList people={people} names={thanks} />
         </div>
       </div>
     </section>
@@ -100,33 +101,52 @@ function formatDay(iso: string): string {
  * so anyone who chipped in can find their own name rather than scrolling
  * for it.
  */
-function ThanksList({ names }: { names: string[] }) {
+function ThanksList({
+  people,
+  names,
+}: {
+  people: Supporter[];
+  names: string[];
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
+  // `people` carries amounts; `names` is what a supporters.json written
+  // before that field existed has. Prefer the richer one, fall back to
+  // the names rather than showing an empty panel.
+  const rows = useMemo(
+    () =>
+      people.length
+        ? people
+        : names.map((name) => ({ name, amount: null, date: "" }) as const),
+    [people, names],
+  );
+
   // supporters.json appends, so the end of the array is the newest.
-  const newestFirst = useMemo(() => [...names].reverse(), [names]);
+  const newestFirst = useMemo(() => [...rows].reverse(), [rows]);
   const q = query.trim().toLowerCase();
   const found = useMemo(
-    () => (q ? newestFirst.filter((n) => n.toLowerCase().includes(q)) : newestFirst),
+    () => (q ? newestFirst.filter((r) => r.name.toLowerCase().includes(q)) : newestFirst),
     [newestFirst, q],
   );
 
-  if (!names.length) return null;
-  const more = names.length - LATEST;
+  if (!rows.length) return null;
+  const more = rows.length - LATEST;
 
   return (
     <div className="mt-4 space-y-2">
       <p className="text-xs font-semibold">
         {open
           ? "Thank you, everyone"
-          : `Thank you${names.length > LATEST ? ` — the latest ${LATEST}` : ""}`}
+          : `Thank you${rows.length > LATEST ? ` — the latest ${LATEST}` : ""}`}
       </p>
 
       {!open ? (
         <div className="flex flex-wrap gap-1.5">
-          {newestFirst.slice(0, LATEST).map((n, i) => (
-            <Chip key={`${n}-${i}`}>{n}</Chip>
+          {newestFirst.slice(0, LATEST).map((r, i) => (
+            <Chip key={`${r.name}-${i}`} amount={r.amount}>
+              {r.name}
+            </Chip>
           ))}
         </div>
       ) : (
@@ -147,9 +167,9 @@ function ThanksList({ names }: { names: string[] }) {
             aria-label="All supporters, newest first"
             className="flex max-h-64 flex-wrap gap-1.5 overflow-y-auto pr-1"
           >
-            {found.map((n, i) => (
-              <Chip key={`${n}-${i}`} asListItem>
-                {n}
+            {found.map((r, i) => (
+              <Chip key={`${r.name}-${i}`} amount={r.amount} asListItem>
+                {r.name}
               </Chip>
             ))}
           </div>
@@ -158,7 +178,7 @@ function ThanksList({ names }: { names: string[] }) {
               ? found.length
                 ? `${found.length} found`
                 : `No supporter named “${query.trim()}” yet.`
-              : `${names.length} supporters, newest first.`}
+              : `${rows.length} supporters, newest first.`}
           </p>
         </>
       )}
@@ -173,7 +193,7 @@ function ThanksList({ names }: { names: string[] }) {
           }}
           className="inline-flex h-7 items-center rounded-md bg-white/[0.04] px-2.5 text-[11px] text-foreground/85 ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/[0.08]"
         >
-          {open ? "Show the latest only" : `Show all ${names.length} supporters`}
+          {open ? "Show the latest only" : `Show all ${rows.length} supporters`}
         </button>
       )}
     </div>
@@ -182,17 +202,25 @@ function ThanksList({ names }: { names: string[] }) {
 
 function Chip({
   children,
+  amount,
   asListItem,
 }: {
   children: React.ReactNode;
+  /** Rupees, when the file records them. `null` shows the name alone. */
+  amount?: number | null;
   asListItem?: boolean;
 }) {
   return (
     <span
       role={asListItem ? "listitem" : undefined}
-      className="inline-block rounded-full bg-rose-500/[0.08] px-2.5 py-1 text-[11px] text-foreground/90 ring-1 ring-inset ring-rose-500/20"
+      className="inline-flex items-baseline gap-1.5 rounded-full bg-rose-500/[0.08] px-2.5 py-1 text-[11px] text-foreground/90 ring-1 ring-inset ring-rose-500/20"
     >
       {children}
+      {amount !== null && amount !== undefined && (
+        <span className="font-semibold text-rose-300">
+          {formatRupees(amount)}
+        </span>
+      )}
     </span>
   );
 }

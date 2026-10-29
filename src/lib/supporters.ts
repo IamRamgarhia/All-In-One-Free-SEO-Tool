@@ -49,6 +49,19 @@ export function upiNote(payerName = ""): string {
 
 export type SupportGoal = { amount: number; label: string };
 
+/**
+ * One named supporter and what they gave in total. Separate from `thanks`,
+ * which is names alone: a file written before `people` existed has only
+ * names, and the page falls back to those rather than showing nothing.
+ */
+export type Supporter = {
+  name: string;
+  /** Rupees, combined across repeat payments. */
+  amount: number;
+  /** ISO date of their most recent payment, or "" when the file omits it. */
+  date: string;
+};
+
 export type SupportTracker = {
   /** Combined total in rupees. */
   totalReceived: number;
@@ -57,9 +70,17 @@ export type SupportTracker = {
   goal: SupportGoal | null;
   /** Names to thank, oldest first — the file appends, so the end is newest. */
   thanks: string[];
+  /** Named supporters with amounts, oldest first. Empty on older files. */
+  people: Supporter[];
   /** ISO date (YYYY-MM-DD), or "" when the file does not say. */
   updated: string;
 };
+
+/** A date the file is allowed to state: YYYY-MM-DD, or "" for anything else. */
+function isoDate(value: unknown): string {
+  const s = String(value ?? "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+}
 
 /**
  * A number in range, or null.
@@ -114,7 +135,22 @@ export function parseSupporters(raw: unknown): SupportTracker | null {
       .map((n) => cleanText(n, 60))
       .filter(Boolean)
       .slice(-2000),
-    updated: /^\d{4}-\d{2}-\d{2}$/.test(String(obj.updated ?? "")) ? String(obj.updated) : "",
+    // A row needs both a name and a usable amount to be shown. An entry
+    // with one of the two is dropped rather than rendered as "Someone —
+    // ₹0", which would read as a real payment of nothing.
+    people: (Array.isArray(obj.people) ? obj.people : [])
+      .filter((p): p is Record<string, unknown> =>
+        Boolean(p) && typeof p === "object" && !Array.isArray(p),
+      )
+      .map((p) => ({
+        name: cleanText(p.name, 60),
+        amount: finiteInRange(p.amount, 1e9),
+        date: isoDate(p.date),
+      }))
+      .filter((p): p is Supporter => p.name !== "" && p.amount !== null)
+      .map((p) => ({ ...p, amount: Math.round(p.amount) }))
+      .slice(-2000),
+    updated: isoDate(obj.updated),
   };
 }
 

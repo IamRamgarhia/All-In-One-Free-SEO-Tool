@@ -65,6 +65,32 @@ describe("the committed supporters.json", () => {
   it("carries a date in the form the parser accepts", () => {
     expect(parseSupporters(raw)?.updated).not.toBe("");
   });
+
+  /**
+   * Four fields have to agree — totalReceived, supporters, thanks and
+   * people — and nothing about editing JSON by hand keeps them in step.
+   * A page reading "2 supporters" above one name is wrong in the way
+   * that costs trust, and it would never throw. scripts/add-supporter.ts
+   * exists to keep these true; this is what catches it when someone
+   * edits the file on GitHub instead.
+   */
+  it("never claims more supporters than it can account for, or fewer than it lists", () => {
+    const t = parseSupporters(raw)!;
+    const count = t.supporters ?? 0;
+    expect(count).toBeGreaterThanOrEqual(t.people.length);
+    expect(count).toBeGreaterThanOrEqual(t.thanks.length);
+  });
+
+  it("does not list payments adding up to more than the total received", () => {
+    const t = parseSupporters(raw)!;
+    const listed = t.people.reduce((sum, p) => sum + p.amount, 0);
+    expect(listed).toBeLessThanOrEqual(t.totalReceived);
+  });
+
+  it("lists every named person in thanks too, so older installs still see them", () => {
+    const t = parseSupporters(raw)!;
+    for (const p of t.people) expect(t.thanks).toContain(p.name);
+  });
 });
 
 describe("parseSupporters", () => {
@@ -74,6 +100,7 @@ describe("parseSupporters", () => {
       supporters: 7,
       goal: { amount: 30000, label: "A paid SERP API" },
       thanks: ["Asha Rao", "Kuldeep Suthar"],
+      people: [],
       updated: "2026-10-29",
     });
   });
@@ -298,7 +325,7 @@ describe("the payment dialog uses the shared note", () => {
   const src = readFileSync(join(process.cwd(), DIALOG), "utf8");
 
   it("calls upiNote() instead of composing its own", () => {
-    expect(src).toMatch(/note:\s*upiNote\(\)/);
+    expect(src).toMatch(/note:\s*upiNote\(/);
     expect(src).toMatch(/import\s*\{\s*upiNote\s*\}\s*from\s*"@\/lib\/supporters"/);
   });
 
@@ -322,6 +349,70 @@ describe("the payment dialog uses the shared note", () => {
   });
 
   it("renders the note on screen, so the payer can recognise the payment", () => {
-    expect(src).toMatch(/\{upiNote\(\)\}/);
+    expect(src).toMatch(/\{upiNote\(/);
+  });
+
+  it("offers a field for the payer's name, which is how it reaches the note", () => {
+    expect(src).toMatch(/upiNote\(payerName\)/);
+    expect(src).toMatch(/setPayerName/);
+  });
+});
+
+/**
+ * `people` carries what each supporter gave. It arrives from the same
+ * untrusted file as everything else here, and a row that renders as
+ * "Someone — ₹0" is a payment nobody made, so a row missing either half
+ * is dropped rather than shown with a hole in it.
+ */
+describe("parseSupporters: people", () => {
+  const withPeople = (people: unknown) =>
+    parseSupporters({ ...GOOD, people });
+
+  it("keeps rows that have a name and an amount", () => {
+    const t = withPeople([
+      { name: "Kaveri Digital", amount: 501, date: "2026-10-29" },
+      { name: "Asha Traders", amount: 101.4, date: "2026-10-28" },
+    ]);
+    expect(t!.people).toEqual([
+      { name: "Kaveri Digital", amount: 501, date: "2026-10-29" },
+      { name: "Asha Traders", amount: 101, date: "2026-10-28" },
+    ]);
+  });
+
+  it("drops a row with no name, or no usable amount", () => {
+    const t = withPeople([
+      { name: "", amount: 500 },
+      { name: "No amount" },
+      { name: "Null amount", amount: null },
+      { name: "Not a number", amount: "lots" },
+      { name: "Negative", amount: -5 },
+      { name: "Real", amount: 100 },
+    ]);
+    expect(t!.people.map((p) => p.name)).toEqual(["Real"]);
+  });
+
+  it("keeps a zero-rupee row out, but an absent amount too — they differ from a real ₹0", () => {
+    // Number(null) is 0 and Number("") is 0. A row that reached the page
+    // as ₹0 would read as a payment of nothing that someone made.
+    expect(withPeople([{ name: "A", amount: null }])!.people).toEqual([]);
+    expect(withPeople([{ name: "B", amount: "" }])!.people).toEqual([]);
+    expect(withPeople([{ name: "C", amount: 0 }])!.people).toEqual([
+      { name: "C", amount: 0, date: "" },
+    ]);
+  });
+
+  it("drops a date that is not YYYY-MM-DD rather than showing it", () => {
+    const t = withPeople([{ name: "A", amount: 1, date: "29/10/2026" }]);
+    expect(t!.people[0]?.date).toBe("");
+  });
+
+  it("survives rubbish in place of the array", () => {
+    for (const junk of [null, "nope", 7, {}, [1, "x", null, []]]) {
+      expect(withPeople(junk)!.people).toEqual([]);
+    }
+  });
+
+  it("is empty for a file written before the field existed", () => {
+    expect(parseSupporters(GOOD)!.people).toEqual([]);
   });
 });
