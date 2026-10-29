@@ -32,6 +32,7 @@ import { MorningBriefing } from "./morning-briefing";
 import { AgencyWeekInReview } from "./agency-week";
 import { OnboardingChecklistPanel } from "./onboarding-checklist-panel";
 import { AutonomyPrompt } from "./autonomy-prompt";
+import { SupportNudgeSlot } from "./support-nudge-slot";
 import { startScheduler, tickScheduler } from "@/lib/scheduler";
 import { redirect } from "next/navigation";
 import { getSetting } from "@/lib/settings-store";
@@ -331,6 +332,14 @@ export default async function DashboardPage() {
           client exists. */}
       <Suspense fallback={null}>
         <AutonomyPrompt />
+      </Suspense>
+
+      {/* The maintainer's support card. Below the autonomy prompt because
+          that one is about the user's own site and this one is not, and
+          above the fold only once the tool has run real work for them.
+          Dashboard only — never the client portal, a report or an invoice. */}
+      <Suspense fallback={null}>
+        <SupportNudgeSlot auditsRun={auditCount} />
       </Suspense>
 
       {/* GET STARTED — two-column on fresh state (checklist + features),

@@ -1,0 +1,12 @@
+{
+  "_how": "Edit this file on GitHub when support payments come in. Every install reads it over the network, so a change here updates the Support & about page and the dashboard card everywhere with no release. totalReceived: the combined total in rupees - convert PayPal/USD yourself and add it in, because the page shows one number. supporters: how many people. goal: optional target and what it pays for. thanks: names to thank, ONLY with their permission. updated: YYYY-MM-DD. Anything unexpected in here is ignored rather than shown (see parseSupporters in src/lib/supporters.ts), so a typo cannot break the app.",
+  "currency": "INR",
+  "totalReceived": 0,
+  "supporters": 0,
+  "goal": {
+    "amount": 30000,
+    "label": "A paid SERP API, so rank checks stop depending on scraping"
+  },
+  "thanks": [],
+  "updated": "2026-10-29"
+}
