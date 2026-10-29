@@ -271,6 +271,13 @@ export async function callAIResult(opts: AiCallOptions): Promise<AiResult> {
         onFailure: (status, body) => {
           providerError = { status, body };
         },
+        // The model that ANSWERED, which is not always the one asked
+        // for: Gemini falls back down a chain when a model is retired or
+        // out of quota. Without this, ai_calls recorded the request and
+        // Settings → AI usage agreed with a model that never ran.
+        onModelUsed: (used) => {
+          model = used;
+        },
       });
     } catch (err) {
       errorMsg = (err as Error).message;
@@ -316,7 +323,10 @@ export async function callAIResult(opts: AiCallOptions): Promise<AiResult> {
     errorMsg: failure?.message ?? errorMsg,
   });
 
-  if (text) return { ok: true, text };
+  // `model` is the one that ANSWERED — onModelUsed overwrote the
+  // requested id when a provider fell back. Handing it back lets a
+  // caller say which model produced what it is showing.
+  if (text) return { ok: true, text, model: model ?? undefined };
   return { ok: false, failure: failure ?? emptyResponseFailure(active, pickedModel) };
 }
 

@@ -125,6 +125,15 @@ export type DispatchArgs = {
    * See ai-error.ts for how these become user-facing sentences.
    */
   onFailure?: (status: number, body: string) => void;
+  /**
+   * Which model actually produced the answer.
+   *
+   * Only Gemini currently answers from a model other than the one asked
+   * for — it keeps a fallback chain so a model Google retires does not
+   * take every call down with it. Providers that cannot substitute never
+   * call this, and the caller keeps the model it requested.
+   */
+  onModelUsed?: (model: string) => void;
 };
 
 /**
@@ -167,6 +176,7 @@ export async function dispatchProviderCall(
         timeoutMs: args.timeoutMs,
         caller,
         onFailure: args.onFailure,
+        onModelUsed: args.onModelUsed,
       });
     }
     case "anthropic": {

@@ -42,7 +42,20 @@ export type AiFailure = {
 };
 
 export type AiResult =
-  | { ok: true; text: string }
+  | {
+      ok: true;
+      text: string;
+      /**
+       * The model that actually answered, which is not always the one
+       * asked for — Gemini keeps a fallback chain so a model Google
+       * retires does not take every call down with it. Optional because
+       * a provider that cannot substitute never reports one.
+       *
+       * Compare it against what you requested before telling a user
+       * which model they are on.
+       */
+      model?: string;
+    }
   | { ok: false; failure: AiFailure };
 
 /**

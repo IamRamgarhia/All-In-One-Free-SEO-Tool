@@ -140,3 +140,92 @@ describe("a truncated answer is not returned as an answer", () => {
     expect(r).toBe("complete");
   });
 });
+
+/**
+ * Which model actually answered.
+ *
+ * The fallback chain is deliberate: Google retires model names, and
+ * without it every call dies the day that happens. But it used to be
+ * silent — callGemini returned the text alone, so a caller that asked
+ * for one model and was answered by another could not tell, and
+ * ai_calls recorded the model REQUESTED. Typo a model id in Settings
+ * and the usage log agreed with the typo.
+ *
+ * `live-check.ts` caught this as "a nonsense model id somehow
+ * succeeded". It had, by falling down the chain.
+ */
+describe("onModelUsed reports the model that answered", () => {
+  /** 404 the first `failures` models, then answer. */
+  function captureWithFailures(failures: number) {
+    const tried: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      const model = String(url).split("/models/")[1]?.split(":")[0] ?? "";
+      tried.push(model);
+      if (tried.length <= failures) {
+        return {
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          text: async () => "model not found",
+        } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            { content: { parts: [{ text: "hello" }] }, finishReason: "STOP" },
+          ],
+        }),
+      } as unknown as Response;
+    });
+    return { tried };
+  }
+
+  it("names the requested model when that model answers", async () => {
+    capture();
+    const seen: string[] = [];
+    const r = await callGemini({
+      ...base,
+      model: "gemini-2.5-flash",
+      onModelUsed: (m) => seen.push(m),
+    });
+    expect(r).toBe("hello");
+    expect(seen).toEqual(["gemini-2.5-flash"]);
+  });
+
+  it("names the FALLBACK model when the requested one 404s", async () => {
+    const { tried } = captureWithFailures(1);
+    const seen: string[] = [];
+    const r = await callGemini({
+      ...base,
+      model: "definitely-not-a-real-model-9z8x",
+      onModelUsed: (m) => seen.push(m),
+    });
+    expect(r).toBe("hello");
+    // The whole point: what answered is NOT what was asked for.
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).not.toBe("definitely-not-a-real-model-9z8x");
+    expect(seen[0]).toBe(tried[tried.length - 1]);
+  });
+
+  it("is not called when nothing answers", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      text: async () => "nope",
+    }) as unknown as Response);
+    const seen: string[] = [];
+    const r = await callGemini({ ...base, model: "x", onModelUsed: (m) => seen.push(m) });
+    expect(r).toBeNull();
+    expect(seen).toEqual([]);
+  });
+
+  it("is optional — omitting it still works", async () => {
+    capture();
+    await expect(
+      callGemini({ ...base, model: "gemini-2.5-flash" }),
+    ).resolves.toBe("hello");
+  });
+});

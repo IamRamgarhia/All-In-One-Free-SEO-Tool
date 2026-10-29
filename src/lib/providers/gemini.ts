@@ -48,6 +48,20 @@ export type GeminiCallOpts = {
    * status + body of the last attempt.
    */
   onFailure?: (status: number, body: string) => void;
+  /**
+   * Which model actually answered.
+   *
+   * The fallback chain below is deliberate — Google retires model names
+   * and without it every call dies the day that happens. But it was
+   * silent: `callGemini` returned the text alone, so a caller that asked
+   * for gemini-2.5-pro and got an answer from gemini-flash-latest had no
+   * way to know, and ai_calls recorded the model REQUESTED. Typo a model
+   * id in Settings and the usage log agreed with the typo.
+   *
+   * Called once, with the model that produced the reply, before it is
+   * returned. Not called on failure — nothing answered.
+   */
+  onModelUsed?: (model: string) => void;
 };
 
 /**
@@ -180,7 +194,10 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
           continue;
         }
 
-        if (reply) return reply;
+        if (reply) {
+          opts.onModelUsed?.(model);
+          return reply;
+        }
         // 200 OK with empty body — usually a safety filter or maxTokens=0.
         // Falling through to the next model lets users escape Gemini's
         // occasional aggressive safety blocks.

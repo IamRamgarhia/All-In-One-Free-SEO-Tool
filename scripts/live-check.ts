@@ -29,6 +29,9 @@ const RANK = process.argv.includes("--rank");
 let pass = 0;
 let fail = 0;
 
+/** A model id no provider can have. Used to exercise the fallback path. */
+const BOGUS_MODEL = "definitely-not-a-real-model-9z8x";
+
 function ok(label: string, detail = "") {
   pass++;
   console.log(`  PASS  ${label}${detail ? "  — " + detail : ""}`);
@@ -205,13 +208,28 @@ async function ai() {
     system: "x",
     user: "x",
     maxTokens: 10,
-    modelOverride: "definitely-not-a-real-model-9z8x",
+    modelOverride: BOGUS_MODEL,
   });
+  // This used to assert that a nonsense model id must FAIL, and called
+  // it a bug when it didn't. It wasn't: Gemini keeps a deliberate
+  // fallback chain, because a model Google retires would otherwise take
+  // every call down with it. The real defect was that the fallback was
+  // SILENT — the result named no model, so a caller that asked for one
+  // model and got another had no way to tell, and ai_calls logged the
+  // request rather than what ran.
+  //
+  // So the check is now: either refuse the bad id, or answer and say
+  // which model actually did. Answering while still claiming to be the
+  // model that was asked for is the thing that must never happen.
   if (!bogus.ok && bogus.failure.reason === "unknown_model")
     ok("bad model id classified correctly", bogus.failure.message.slice(0, 60));
   else if (!bogus.ok)
     ok(`bad model id -> ${bogus.failure.reason}`, bogus.failure.message.slice(0, 60));
-  else bad("a nonsense model id somehow succeeded");
+  else if (!bogus.model)
+    bad("a nonsense model id answered, and the result does not say which model did");
+  else if (bogus.model === BOGUS_MODEL)
+    bad(`the result claims ${BOGUS_MODEL} answered, which does not exist`);
+  else ok("bad model id fell back, and says so", `answered by ${bogus.model}`);
 }
 
 async function main() {
