@@ -4,16 +4,19 @@ import {
   Bug,
   Code2,
   Globe,
+  IndianRupee,
   Info,
   Rocket,
   Share2,
   Sparkles,
   Star,
+  Wallet,
   Wrench,
 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
 import { SupportersTracker } from "@/components/support/supporters-tracker";
+import { UpiPanel } from "@/components/support/upi-panel";
 import { MAINTAINER } from "@/lib/maintainer";
 import { REPO_NEW_ISSUE_URL, REPO_URL } from "@/lib/repo";
 import { getSupportTracker } from "@/lib/supporters-data";
@@ -51,6 +54,58 @@ export default async function AboutPage() {
         <MaintainerCredit variant="block" />
 
         <SupportersTracker tracker={tracker} source={source} />
+
+        {/* The QR, on the page rather than behind a button.
+            It used to live only inside the support dialog, so someone who
+            came here to pay found a page about paying with nothing to
+            scan — they had to guess that a button two cards up opened it.
+            Same component the dialog renders, so the two cannot drift. */}
+        <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.04] p-5 lg:col-span-2">
+          <div className="flex items-center gap-2">
+            <span className="grid size-7 place-items-center rounded-md bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
+              <IndianRupee className="size-3.5" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold">Pay by UPI</h2>
+              <p className="text-[11px] text-muted-foreground">
+                Zero fees · instant · scan or tap. Any amount, any time —
+                there is no subscription and nothing is withheld without one.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-5 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] md:items-start">
+            <UpiPanel embedded />
+
+            {MAINTAINER.paypal && (
+              <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.04] p-4">
+                <div className="flex items-center gap-2">
+                  <span className="grid size-7 place-items-center rounded-md bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-500/30">
+                    <Wallet className="size-3.5" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold">Outside India?</h3>
+                    <p className="text-[10px] text-muted-foreground">
+                      Cards, PayPal balance or bank.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={MAINTAINER.paypal}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-sky-500/15 px-3 text-xs font-medium text-sky-300 ring-1 ring-inset ring-sky-500/30 hover:bg-sky-500/25"
+                >
+                  Donate via PayPal →
+                </a>
+                <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                  Whatever comes in goes on the goal above. Nothing here is
+                  a licence fee — the software is yours either way.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Free ways first, deliberately. Most people reading this cannot
             spare money and can spare thirty seconds, and a page that leads

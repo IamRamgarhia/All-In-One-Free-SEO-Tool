@@ -10,7 +10,7 @@
  * hand-edits fails the build instead of blanking the panel in production.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_SLUG } from "./repo";
@@ -27,6 +27,17 @@ import {
   snoozeUntil,
   upiNote,
 } from "./supporters";
+
+/** Every file under a directory, recursively. */
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walk(full));
+    else out.push(full);
+  }
+  return out;
+}
 
 const GOOD = {
   currency: "INR",
@@ -320,9 +331,13 @@ describe("nudgeLine", () => {
  * from a unit test. If the note ever moves, point this at its new home
  * rather than deleting it.
  */
-describe("the payment dialog uses the shared note", () => {
-  const DIALOG = "src/components/shell/maintainer-credit.tsx";
-  const src = readFileSync(join(process.cwd(), DIALOG), "utf8");
+describe("the payment panel uses the shared note", () => {
+  // Moved out of maintainer-credit.tsx when the QR had to appear on the
+  // Support & about page as well as in the dialog. Two copies of an
+  // amount ladder and a note builder is the pair this project keeps
+  // finding already drifted, so there is one component and both render it.
+  const PANEL = "src/components/support/upi-panel.tsx";
+  const src = readFileSync(join(process.cwd(), PANEL), "utf8");
 
   it("calls upiNote() instead of composing its own", () => {
     expect(src).toMatch(/note:\s*upiNote\(/);
@@ -355,6 +370,38 @@ describe("the payment dialog uses the shared note", () => {
   it("offers a field for the payer's name, which is how it reaches the note", () => {
     expect(src).toMatch(/upiNote\(payerName\)/);
     expect(src).toMatch(/setPayerName/);
+  });
+
+  it("is the only place that builds a UPI link or an amount ladder", () => {
+    // The whole point of extracting it. A second copy anywhere is the
+    // failure this replaced, and it would show as a QR on one surface
+    // disagreeing with the buttons on another.
+    const offenders: string[] = [];
+    for (const dir of ["src/app", "src/components", "src/lib"]) {
+      for (const file of walk(join(process.cwd(), dir))) {
+        if (!/\.tsx?$/.test(file)) continue;
+        const rel = file.slice(process.cwd().length + 1).replace(/\\/g, "/");
+        if (rel === PANEL || rel.endsWith(".test.ts") || rel.endsWith(".test.tsx")) continue;
+        const text = readFileSync(file, "utf8");
+        // maintainer.ts DEFINES upiDeepLink; defining it is not a second
+        // copy of it. Only calls count.
+        const calls = text.replace(/export function upiDeepLink\(/g, "");
+        if (/PRESET_AMOUNTS\s*=/.test(text) || /upiDeepLink\(/.test(calls)) {
+          offenders.push(rel);
+        }
+      }
+    }
+    expect(offenders, "these build their own UPI link or ladder").toEqual([]);
+  });
+
+  it("is rendered by both the dialog and the Support & about page", () => {
+    for (const caller of [
+      "src/components/shell/maintainer-credit.tsx",
+      "src/app/about/page.tsx",
+    ]) {
+      const text = readFileSync(join(process.cwd(), caller), "utf8");
+      expect(text, `${caller} should render <UpiPanel`).toMatch(/<UpiPanel/);
+    }
   });
 });
 
