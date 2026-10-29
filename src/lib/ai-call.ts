@@ -1,4 +1,12 @@
 import { cache } from "react";
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { clients } from "@/db/schema";
+import {
+  isOwnBrand,
+  mentionsExampleBrand,
+  scrubExampleBrand,
+} from "./example-brand-guard";
 import { getActiveProvider, getApiKey, getOllamaUrl } from "./api-keys";
 import { getSetting } from "./settings-store";
 import { checkMonthlyCap, logAiCall } from "./ai-usage";
@@ -326,8 +334,83 @@ export async function callAIResult(opts: AiCallOptions): Promise<AiResult> {
   // `model` is the one that ANSWERED — onModelUsed overwrote the
   // requested id when a provider fell back. Handing it back lets a
   // caller say which model produced what it is showing.
-  if (text) return { ok: true, text, model: model ?? undefined };
-  return { ok: false, failure: failure ?? emptyResponseFailure(active, pickedModel) };
+  if (text) {
+    const scrubbed = await scrubLeakedExampleBrand(
+      text,
+      opts.clientId ?? null,
+      {
+        prompt: `${system}\n\n${safeUser}`,
+      },
+    );
+    return { ok: true, text: scrubbed, model: model ?? undefined };
+  }
+  return {
+    ok: false,
+    failure: failure ?? emptyResponseFailure(active, pickedModel),
+  };
+}
+
+/**
+ * Take the example brand out of model output before any caller sees it.
+ *
+ * Two prompts carry a worked example with a brand name in it, and a
+ * model shown "Home - Dice Codes" as the shape of a good title will
+ * sometimes hand the name back for a client it was never told the brand
+ * of. The field's whole purpose is to be copied, so a leak that gets
+ * past review gets published on somebody else's site.
+ *
+ * Sitting here rather than at the 68 call sites: one place cannot be
+ * forgotten by the next feature, and a second copy of this rule would be
+ * free to drift from the first.
+ *
+ * Costs one substring scan on the common path. The client lookup only
+ * happens when the brand is actually present, which should be never.
+ */
+async function scrubLeakedExampleBrand(
+  text: string,
+  clientId: number | null,
+  opts: { prompt: string },
+): Promise<string> {
+  if (!mentionsExampleBrand(text)) return text;
+
+  // The user asked about this brand, so naming it back is the right
+  // answer, not a leak.
+  //
+  // This was found by running the guard against a real model rather than
+  // reading it: meta-tag-generator takes a `brand` field, the live check
+  // fills it in with this very brand, and the first version of this
+  // function deleted it from all five suggestions it had been asked to
+  // write. A guard that quietly removes what somebody typed is worse
+  // than the leak it was added for.
+  if (mentionsExampleBrand(opts.prompt)) return text;
+
+  let ownBrand = false;
+  if (clientId != null) {
+    try {
+      const row = await db
+        .select({ url: clients.url, name: clients.name })
+        .from(clients)
+        .where(eq(clients.id, clientId))
+        .get();
+      if (row) ownBrand = isOwnBrand(row);
+    } catch {
+      // A failed lookup must not let the mention through. Scrubbing a
+      // genuine Dice Codes title costs that one client a word; shipping
+      // the wrong company's name into someone else's page is worse.
+      ownBrand = false;
+    }
+  }
+
+  const { text: cleaned, removed } = scrubExampleBrand(text, { ownBrand });
+  if (removed > 0) {
+    // Loudly, on purpose. Quietly tidying this up would hide a prompt
+    // that has started leaking, which is the thing worth knowing.
+    console.warn(
+      `[ai] stripped ${removed} mention(s) of the example brand from model output` +
+        (clientId != null ? ` for client ${clientId}` : ""),
+    );
+  }
+  return cleaned;
 }
 
 // Provider-specific callers moved to src/lib/provider-dispatch.ts.
