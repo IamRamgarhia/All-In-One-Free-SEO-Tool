@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   Bot,
+  Bug,
   Code2,
   Globe,
   Heart,
@@ -9,26 +10,95 @@ import {
   Keyboard,
   Rocket,
   Scale,
+  Share2,
   Sparkles,
+  Star,
   Wrench,
 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
+import { SupportersTracker } from "@/components/support/supporters-tracker";
 import { MAINTAINER } from "@/lib/maintainer";
+import { REPO_NEW_ISSUE_URL } from "@/lib/repo";
+import { getSupportTracker } from "@/lib/supporters-data";
 
-export const dynamic = "force-static";
+/**
+ * Rendered per request, not statically. The supporters tracker is fetched
+ * from GitHub and cached in the settings table, and the whole point of
+ * keeping those figures in a file outside the release is that editing it
+ * updates every install — a statically rendered page would freeze whatever
+ * the numbers were on build day and never move again.
+ */
+export const dynamic = "force-dynamic";
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const { tracker, source } = await getSupportTracker();
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
-        title="About this tool"
-        description="Who built it, what it stands for, how to support it."
+        title="Support & about"
+        description="Who built it, what it stands for, and how to help."
         icon={Info}
         accent="violet"
       />
 
-      <MaintainerCredit variant="block" />
+      <div id="support" className="scroll-mt-20 space-y-6">
+        <MaintainerCredit variant="block" />
+
+        <SupportersTracker tracker={tracker} source={source} />
+
+        {/* Free ways first, deliberately. Most people reading this cannot
+            spare money and can spare thirty seconds, and a page that leads
+            with the payment ask reads as a paywall nagging. */}
+        <section className="space-y-1 rounded-2xl border border-white/[0.06] bg-card/40 p-5 text-sm">
+          <h2 className="flex items-center gap-2 font-semibold">
+            <Star className="size-4 text-amber-300" />
+            Help without paying
+          </h2>
+          <p className="pb-1 text-xs text-muted-foreground">
+            These matter just as much, and two of them take a few seconds.
+          </p>
+          {[
+            {
+              icon: Star,
+              title: "Star it on GitHub",
+              text: "The single biggest thing for helping other SEOs find it.",
+              href: MAINTAINER.github,
+            },
+            {
+              icon: Share2,
+              title: "Tell another SEO",
+              text: "A freelancer paying for Semrush out of pocket is who this is for.",
+              href: `https://wa.me/?text=${encodeURIComponent(
+                `I run my SEO work on this — it's free, self-hosted, and replaces most of what I was paying for: ${MAINTAINER.github}`,
+              )}`,
+            },
+            {
+              icon: Bug,
+              title: "Report a bug or ask for a feature",
+              text: "Plenty of what is in here started as somebody's issue.",
+              href: REPO_NEW_ISSUE_URL,
+            },
+          ].map((w) => (
+            <a
+              key={w.title}
+              href={w.href}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="flex items-start gap-3 border-t border-white/[0.06] py-2.5 transition-colors hover:text-foreground"
+            >
+              <w.icon className="mt-0.5 size-4 shrink-0 text-violet-300" />
+              <span>
+                <span className="block text-xs font-semibold">{w.title}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {w.text}
+                </span>
+              </span>
+            </a>
+          ))}
+        </section>
+      </div>
 
       <section className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-3 text-sm">
         <h2 className="flex items-center gap-2 font-semibold">
@@ -37,10 +107,10 @@ export default function AboutPage() {
         </h2>
         <p className="text-muted-foreground">
           A self-hosted SEO platform for freelancers, small agencies, and
-          site owners. 100+ tools across audits, rank tracking, content,
-          backlinks, local SEO, AI visibility, paid ads — all running on
-          your own machine. No monthly fees, no surveillance, no paid
-          APIs required to get started.
+          site owners. Audits, rank tracking, content, backlinks, local
+          SEO, AI visibility and paid ads — all running on your own
+          machine. No monthly fees, no surveillance, no paid APIs
+          required to get started.
         </p>
         <ul className="space-y-1.5 text-xs">
           <li className="flex gap-2">
@@ -142,65 +212,82 @@ export default function AboutPage() {
         </Link>
       </section>
 
-      {/* License — plain-English summary of PolyForm Noncommercial 1.0.0 */}
+      {/* License — plain-English summary of the MIT license.
+          This section described the project's old noncommercial license
+          for months after the move to MIT in June 2026: it told people
+          they could not sell or host the software, which MIT expressly
+          allows. A license is the one piece of text in an app that must
+          never be out of date, so `license-claims.test.ts` reads LICENSE
+          and fails the build if this page disagrees with it. */}
       <section
         id="license"
-        className="scroll-mt-20 rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] p-5 space-y-3 text-sm"
+        className="scroll-mt-20 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 space-y-3 text-sm"
       >
         <h2 className="flex items-center gap-2 font-semibold">
-          <Scale className="size-4 text-amber-300" />
-          License — free to use, not free to sell
+          <Scale className="size-4 text-emerald-300" />
+          License — MIT, so yours to do almost anything with
         </h2>
         <p className="text-muted-foreground text-xs leading-relaxed">
           This tool is published under the{" "}
           <a
-            href="https://polyformproject.org/licenses/noncommercial/1.0.0/"
+            href="https://opensource.org/license/mit"
             target="_blank"
             rel="noreferrer noopener"
-            className="text-amber-300 hover:underline"
+            className="text-emerald-300 hover:underline"
           >
-            PolyForm Noncommercial 1.0.0
-          </a>{" "}
-          license. It&apos;s source-available, not strictly open-source
-          in the OSI sense — DiceCodes chose this to keep the project
-          permanently free for end users while preventing resale and
-          paid SaaS clones.
+            MIT license
+          </a>
+          , which is about as permissive as licenses get. It started life
+          under a noncommercial license and moved to MIT in June 2026,
+          because being easy to find and easy to adopt mattered more than
+          keeping anyone from reselling it.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg bg-emerald-500/[0.05] p-3 ring-1 ring-inset ring-emerald-500/20">
             <p className="mb-1.5 text-xs font-semibold text-emerald-300">
-              You can — freely
+              You can — no permission needed
             </p>
             <ul className="space-y-1 text-[11px] text-muted-foreground">
-              <li>• Self-host for your own SEO work (any volume)</li>
-              <li>• Use it for client work as a freelancer / agency</li>
-              <li>• Modify, fork, and adapt the code</li>
-              <li>• Share copies under these same terms</li>
-              <li>• Contribute back via pull requests</li>
+              <li>• Self-host for your own SEO work, at any volume</li>
+              <li>• Use it for client work as a freelancer or agency</li>
+              <li>• Modify, fork and adapt the code</li>
+              <li>• Sell it, or run it as a paid hosted service</li>
+              <li>• Rebrand it and strip the credit below</li>
             </ul>
           </div>
-          <div className="rounded-lg bg-rose-500/[0.05] p-3 ring-1 ring-inset ring-rose-500/20">
-            <p className="mb-1.5 text-xs font-semibold text-rose-300">
-              You cannot, without written permission
+          <div className="rounded-lg bg-white/[0.03] p-3 ring-1 ring-inset ring-white/10">
+            <p className="mb-1.5 text-xs font-semibold">
+              All MIT asks in return
             </p>
             <ul className="space-y-1 text-[11px] text-muted-foreground">
-              <li>• Sell the software or any derivative</li>
-              <li>• Offer it as a paid hosted service (SaaS)</li>
-              <li>• Re-license it under a different license</li>
-              <li>• Strip the DiceCodes credit and rebrand as your own</li>
+              <li>
+                • Keep the copyright and license text in copies of the
+                source
+              </li>
+              <li>
+                • Accept that it comes with no warranty — if it breaks
+                your client&apos;s site, that is on you
+              </li>
             </ul>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              That is the whole license. There is nothing to buy and
+              nobody to email for a commercial one.
+            </p>
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          For commercial licensing (paid SaaS, white-label resale, OEM
-          embedding), email{" "}
+          The maintainer credit and the support card are asked for, not
+          required: nothing in MIT obliges you to keep either, and the
+          code to remove them is not hidden. Leaving the credit in place
+          helps other SEOs find the project, which is the only reason to.
+          Questions, or want something built?{" "}
           <a
             href={`mailto:${MAINTAINER.contactEmail}`}
-            className="text-amber-300 hover:underline"
+            className="text-emerald-300 hover:underline"
           >
             {MAINTAINER.contactEmail}
           </a>
-          . Pricing is per-deployment, not per-seat.
+          .
         </p>
       </section>
 
@@ -232,8 +319,8 @@ export default function AboutPage() {
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          This SEO platform — 150+ tools, daily AI agent, headless
-          browser pool, white-label reports — was built by one person.
+          This SEO platform — a daily AI agent, a headless browser pool,
+          white-label reports — was built by one person.
           If you have an idea like this for your business or startup,
           we can build it.
         </p>

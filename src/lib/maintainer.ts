@@ -43,11 +43,14 @@ export const MAINTAINER = {
     process.env.MAINTAINER_PAYPAL ??
     "https://www.paypal.com/donate/?business=princeramgarhiaa@gmail.com&currency_code=USD&item_name=Support%20DiceCodes",
   /**
-   * Commercial-license contact + custom-software enquiries. PolyForm
-   * Noncommercial allows free self-hosting and freelance/agency use
-   * but bars resale or paid-SaaS hosting; commercial users email this.
-   * Same address also handles inbound enquiries about hiring DiceCodes
-   * to build custom software (see /about).
+   * General contact, and custom-software enquiries.
+   *
+   * This used to be described as the commercial-license address, back
+   * when the project carried a noncommercial license. It has been MIT
+   * since June 2026 — resale and paid hosting need no permission and
+   * there is no commercial license to buy, so nobody has to write here
+   * to use the software. The address is for questions and for hiring
+   * DiceCodes to build something (see /about).
    */
   contactEmail: process.env.MAINTAINER_EMAIL ?? "Contact@dicecodes.com",
   /**

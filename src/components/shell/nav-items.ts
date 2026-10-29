@@ -24,6 +24,7 @@ import {
   GitCompare,
   GitMerge,
   Globe,
+  Heart,
   BookOpen,
   GraduationCap,
   History,
@@ -243,6 +244,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/docs", label: "Docs", icon: BookOpen, guided: true },
       { href: "/learn", label: "Learn", icon: GraduationCap, guided: true },
       { href: "/knowledge", label: "Knowledge hub", icon: GraduationCap },
+      { href: "/about", label: "Support & about", icon: Heart, guided: true },
     ],
   },
 ];

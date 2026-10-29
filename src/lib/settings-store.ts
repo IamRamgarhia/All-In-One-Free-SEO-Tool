@@ -231,7 +231,17 @@ export type SettingKey =
   | "retention.errors_days"
   | "retention.last_run_at"
   | "retention.last_summary"
-  | "retention.last_error";
+  | "retention.last_error"
+  /**
+   * The maintainer's support tracker: `support.tracker_cache` (the last
+   * usable supporters.json payload, so the figures still show when the
+   * install is offline) and `support.nudge_state` (the dashboard card's
+   * "not today" / "hide for 30 days" / never). Kept in the database
+   * rather than browser storage because this is a single-user install
+   * and a dismissal that comes back on another browser reads as the
+   * card ignoring you.
+   */
+  | `support.${string}`;
 
 /**
  * True when the error is "the schema isn't there yet" rather than a
