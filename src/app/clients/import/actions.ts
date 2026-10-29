@@ -26,7 +26,7 @@ export type ImportablePair = {
   gscProperty: string | null;
   /** GA4 numeric ID, e.g. "123456789" */
   ga4PropertyId: string | null;
-  /** Domain-style display label, e.g. "acmecoffee.com" */
+  /** Domain-style display label, e.g. "dicecodes.com" */
   domain: string;
   /** Best-guess client name from GA4 displayName, falls back to domain */
   name: string;

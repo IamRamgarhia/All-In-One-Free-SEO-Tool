@@ -202,7 +202,7 @@ export function AdsFunnelForm({
             <span className="text-muted-foreground">Product / service</span>
             <input
               name="productName"
-              placeholder="Acme CRM"
+              placeholder="Dice Codes"
               defaultValue=""
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             />

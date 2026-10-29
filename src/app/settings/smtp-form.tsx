@@ -113,7 +113,7 @@ export function SmtpForm({ initial }: { initial: Initial }) {
             label="From name (optional)"
             name="fromName"
             defaultValue={initial.fromName ?? ""}
-            placeholder="Acme SEO"
+            placeholder="Dice Codes"
             error={errors.fromName}
           />
         </div>

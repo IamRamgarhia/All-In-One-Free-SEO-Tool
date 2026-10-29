@@ -1,7 +1,7 @@
 /**
  * Brand-mention sentiment classifier.
  *
- * Given an LLM response that mentions a brand (Acme), figures out
+ * Given an LLM response that mentions a brand (Dice Codes), figures out
  * whether the mention is positive, neutral, negative, or mixed —
  * AND assigns a -100..+100 score for tracking sentiment drift over
  * time. Runs through the user's already-configured AI provider so

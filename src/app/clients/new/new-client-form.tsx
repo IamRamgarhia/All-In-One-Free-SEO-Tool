@@ -211,7 +211,7 @@ export function NewClientForm({
             <Input
               id="url"
               name="url"
-              placeholder="acmecoffee.com"
+              placeholder="dicecodes.com"
               value={fields.url}
               onChange={(e) => update("url", e.target.value)}
               onBlur={onUrlBlur}
@@ -274,7 +274,7 @@ export function NewClientForm({
             <Input
               id="name"
               name="name"
-              placeholder="Acme Coffee Co."
+              placeholder="Dice Codes"
               value={fields.name}
               onChange={(e) => update("name", e.target.value)}
               required
@@ -344,7 +344,7 @@ export function NewClientForm({
             type="email"
             value={fields.email}
             onChange={(v) => update("email", v)}
-            placeholder="hello@acme.com"
+            placeholder="hello@dicecodes.com"
           />
           <Field
             label="Google Business profile"
@@ -360,7 +360,7 @@ export function NewClientForm({
               name="localPath"
               value={fields.localPath}
               onChange={(v) => update("localPath", v)}
-              placeholder="C:\Users\you\work\acme-site"
+              placeholder="C:\Users\you\work\dicecodes-site"
               hint="Optional. Where this site's source lives on this machine. Claude opens this folder when you start a task from the Tasks page."
             />
           )}
@@ -396,42 +396,42 @@ export function NewClientForm({
             name="facebook"
             value={fields.facebook}
             onChange={(v) => update("facebook", v)}
-            placeholder="facebook.com/acmecoffee"
+            placeholder="facebook.com/dicecodes"
           />
           <Field
             label="Instagram"
             name="instagram"
             value={fields.instagram}
             onChange={(v) => update("instagram", v)}
-            placeholder="instagram.com/acmecoffee"
+            placeholder="instagram.com/dicecodes"
           />
           <Field
             label="X / Twitter"
             name="twitter"
             value={fields.twitter}
             onChange={(v) => update("twitter", v)}
-            placeholder="x.com/acmecoffee"
+            placeholder="x.com/dicecodes"
           />
           <Field
             label="LinkedIn"
             name="linkedin"
             value={fields.linkedin}
             onChange={(v) => update("linkedin", v)}
-            placeholder="linkedin.com/company/acme"
+            placeholder="linkedin.com/company/dicecodes"
           />
           <Field
             label="YouTube"
             name="youtube"
             value={fields.youtube}
             onChange={(v) => update("youtube", v)}
-            placeholder="youtube.com/@acme"
+            placeholder="youtube.com/@dicecodes"
           />
           <Field
             label="TikTok"
             name="tiktok"
             value={fields.tiktok}
             onChange={(v) => update("tiktok", v)}
-            placeholder="tiktok.com/@acme"
+            placeholder="tiktok.com/@dicecodes"
           />
         </div>
       </Section>

@@ -561,7 +561,7 @@ function writeSummary(a: {
 }
 
 /**
- * "Acme Coffee Co." followed by our own full stop reads as "Acme Coffee
+ * "Dice Codes" followed by our own full stop reads as "Dice Codes
  * Co..". Abbreviated company names are common enough that this is worth
  * one line — a summary the user reads every day should not look sloppy.
  */

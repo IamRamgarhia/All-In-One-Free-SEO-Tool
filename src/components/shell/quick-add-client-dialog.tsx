@@ -112,7 +112,7 @@ function QuickAddClientDialog({
               id="qa-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="acmecoffee.com"
+              placeholder="dicecodes.com"
               className="pl-9"
               autoFocus
               required

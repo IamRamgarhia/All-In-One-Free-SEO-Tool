@@ -202,25 +202,25 @@ export default function PersonSchemaPage() {
               label="Organization name"
               value={orgName}
               onChange={setOrgName}
-              placeholder="Acme Inc."
+              placeholder="Dice Codes"
             />
             <Field
               label="Organization URL"
               value={orgUrl}
               onChange={setOrgUrl}
-              placeholder="https://acme.com"
+              placeholder="https://dicecodes.com"
             />
             <Field
               label="Author profile URL on your site"
               value={profileUrl}
               onChange={setProfileUrl}
-              placeholder="https://acme.com/team/jane"
+              placeholder="https://dicecodes.com/team/jane"
             />
             <Field
               label="Headshot image URL"
               value={imageUrl}
               onChange={setImageUrl}
-              placeholder="https://acme.com/jane.jpg"
+              placeholder="https://dicecodes.com/jane.jpg"
             />
           </div>
           <div className="space-y-1 text-xs">
@@ -238,7 +238,7 @@ export default function PersonSchemaPage() {
               label="Public email (optional)"
               value={email}
               onChange={setEmail}
-              placeholder="jane@acme.com"
+              placeholder="jane@dicecodes.com"
             />
             <Field
               label="Years of experience"

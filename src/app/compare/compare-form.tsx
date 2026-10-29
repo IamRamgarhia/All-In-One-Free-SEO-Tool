@@ -71,7 +71,7 @@ export function CompareForm({
                 id="urlA"
                 value={a}
                 onChange={(e) => setA(e.target.value)}
-                placeholder="acmecoffee.com"
+                placeholder="dicecodes.com"
               />
             </div>
             <div className="space-y-1.5">

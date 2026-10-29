@@ -37,7 +37,7 @@ export function BrandedForm({ properties }: { properties: string[] }) {
           <input
             name="brandTerms"
             required
-            placeholder="acme, acme corp, acmeapp, acme inc"
+            placeholder="dice codes, dicecodes, dicecodes seo, dice codes india"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
           />
         </label>

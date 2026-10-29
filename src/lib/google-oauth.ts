@@ -686,7 +686,7 @@ export type Ga4Property = {
   /** Numeric ID — what we store on the client record */
   id: string;
   displayName: string;
-  /** Friendly account label, e.g. "Acme Inc" */
+  /** Friendly account label, e.g. "Dice Codes" */
   accountName: string;
 };
 

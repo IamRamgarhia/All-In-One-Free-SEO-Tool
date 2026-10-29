@@ -27,7 +27,7 @@ export function AnchorForm() {
             <span className="text-muted-foreground">Brand terms (comma-separated)</span>
             <input
               name="brandTerms"
-              placeholder="e.g. acme, acme corp, acmeapp"
+              placeholder="e.g. dice codes, dicecodes, dicecodes seo"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             />
           </label>

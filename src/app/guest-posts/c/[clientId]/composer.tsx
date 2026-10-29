@@ -363,7 +363,7 @@ function NewDraft({
             <span className="text-muted-foreground">Author bio (1-2 sentences for footer)</span>
             <input
               name="authorBio"
-              placeholder="Founder of Acme. 12 years building SaaS at $0-$10M ARR."
+              placeholder="Founder of Dice Codes. 12 years building SaaS at $0-$10M ARR."
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"
             />
           </label>

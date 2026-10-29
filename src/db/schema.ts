@@ -1598,7 +1598,7 @@ export const knowledgePanelSnapshots = sqliteTable("knowledge_panel_snapshots", 
   clientId: integer("client_id")
     .notNull()
     .references(() => clients.id, { onDelete: "cascade" }),
-  /** Brand query that surfaced the panel ("Acme Inc"). */
+  /** Brand query that surfaced the panel ("Dice Codes"). */
   query: text("query").notNull(),
   /** Whether a Knowledge Panel was present at this scan. */
   present: integer("present", { mode: "boolean" }).notNull().default(false),
@@ -2267,7 +2267,7 @@ export const reportBatches = sqliteTable("report_batches", {
   failed: integer("failed").notNull().default(0),
   startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
   finishedAt: integer("finished_at", { mode: "timestamp" }),
-  /** Lets the progress bar say "Acme Coffee (7 of 18)" rather than "39%". */
+  /** Lets the progress bar say "Dice Codes (7 of 18)" rather than "39%". */
   currentClientId: integer("current_client_id").references(() => clients.id, {
     onDelete: "set null",
   }),

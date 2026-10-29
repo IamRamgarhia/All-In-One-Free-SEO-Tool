@@ -79,7 +79,7 @@ export function UptimeManager({ initial }: { initial: Row[] }) {
             <span className="text-muted-foreground">Expected text (optional)</span>
             <input
               name="expectedText"
-              placeholder="Cart · Login · Acme — phrase that proves the page rendered"
+              placeholder="Cart · Login · Dice Codes — phrase that proves the page rendered"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             />
           </label>

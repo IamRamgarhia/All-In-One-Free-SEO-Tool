@@ -75,7 +75,7 @@ export function BrandForm({
             name="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Acme SEO Co."
+            placeholder="Dice Codes"
             maxLength={80}
           />
           <p className="text-[11px] text-muted-foreground">
@@ -236,7 +236,7 @@ export function BrandForm({
             id="brand-footer"
             name="footerText"
             defaultValue={initialFooterText ?? ""}
-            placeholder="Acme SEO Co. · Registered in Delaware · EIN 12-3456789"
+            placeholder="Dice Codes · Registered in India · GSTIN 00AAAAA0000A0Z0"
             maxLength={200}
           />
           <p className="text-[11px] text-muted-foreground">

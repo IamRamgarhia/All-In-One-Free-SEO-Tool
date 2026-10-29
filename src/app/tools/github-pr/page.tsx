@@ -39,7 +39,7 @@ export default function GithubPrPage() {
             <input
               name="owner"
               required
-              placeholder="acme-org"
+              placeholder="dicecodes"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"
             />
           </label>
@@ -48,7 +48,7 @@ export default function GithubPrPage() {
             <input
               name="repo"
               required
-              placeholder="acme-website"
+              placeholder="dicecodes-site"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"
             />
           </label>
@@ -59,7 +59,7 @@ export default function GithubPrPage() {
             <input
               name="domain"
               required
-              placeholder="acme.com"
+              placeholder="dicecodes.com"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"
             />
           </label>
@@ -97,8 +97,8 @@ export default function GithubPrPage() {
   {
     "title": "Shorten homepage title",
     "type": "title_rewrite",
-    "targetUrl": "https://acme.com/",
-    "suggestedValue": "Acme — Modern Tooling for Engineering Teams",
+    "targetUrl": "https://dicecodes.com/",
+    "suggestedValue": "Dice Codes — Modern Tooling for Engineering Teams",
     "rationale": "Old title was 92 chars and got truncated in SERPs."
   }
 ]`}

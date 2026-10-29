@@ -63,7 +63,7 @@ export function ImportClientsButton() {
                   onChange={(e) => setCsv(e.target.value)}
                   rows={10}
                   required
-                  placeholder="name,url,niche&#10;Acme Coffee,acmecoffee.com,ecommerce&#10;Foo Lawyers,foolaw.com,services&#10;..."
+                  placeholder="name,url,niche&#10;Dice Codes,dicecodes.com,services&#10;Foo Lawyers,foolaw.com,services&#10;..."
                   className="flex w-full rounded-md border border-white/10 bg-card/60 px-3 py-2 font-mono text-xs"
                 />
                 <div className="flex items-center justify-between text-[11px]">

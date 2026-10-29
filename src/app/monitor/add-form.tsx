@@ -51,7 +51,7 @@ export function AddMonitorForm({
           <Input
             id="url"
             name="url"
-            placeholder="https://acmecoffee.com/products/dark-roast"
+            placeholder="https://dicecodes.com/products/dark-roast"
             required
           />
         </div>

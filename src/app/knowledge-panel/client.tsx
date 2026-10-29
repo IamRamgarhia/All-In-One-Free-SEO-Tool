@@ -65,7 +65,7 @@ export function KnowledgePanelClient({
               name="query"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Acme Inc"
+              placeholder="Dice Codes"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm"
             />
           </label>

@@ -43,7 +43,7 @@ export function OgForm() {
             <input
               name="brand"
               maxLength={40}
-              placeholder="Acme Reviews"
+              placeholder="Dice Codes"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             />
           </label>
