@@ -281,3 +281,47 @@ describe("nudgeLine", () => {
     }
   });
 });
+
+/**
+ * `upiNote` existed, was tested here, and was wired into nothing — the
+ * payment dialog built its own note inline and sent "Tip for DiceCodes",
+ * so the string these tests guarded was not the string any payer ever
+ * saw. A helper with tests and no caller is worse than no helper: it
+ * reads as covered.
+ *
+ * This reads the dialog's source, which is the only way to catch that
+ * from a unit test. If the note ever moves, point this at its new home
+ * rather than deleting it.
+ */
+describe("the payment dialog uses the shared note", () => {
+  const DIALOG = "src/components/shell/maintainer-credit.tsx";
+  const src = readFileSync(join(process.cwd(), DIALOG), "utf8");
+
+  it("calls upiNote() instead of composing its own", () => {
+    expect(src).toMatch(/note:\s*upiNote\(\)/);
+    expect(src).toMatch(/import\s*\{\s*upiNote\s*\}\s*from\s*"@\/lib\/supporters"/);
+  });
+
+  it("carries no second note string", () => {
+    expect(src).not.toMatch(/Tip for/);
+    // A bare `note:` with a template or quoted literal would be a
+    // hand-rolled note slipping back in.
+    expect(src).not.toMatch(/note:\s*[`'"]/);
+  });
+
+  it("offers a preset ladder from 100 to 1000", () => {
+    const m = src.match(/PRESET_AMOUNTS\s*=\s*\[([^\]]+)\]/);
+    expect(m).not.toBeNull();
+    const presets = m![1].split(",").map((s) => Number(s.trim()));
+    expect(presets.every(Number.isFinite)).toBe(true);
+    expect(presets[0]).toBe(100);
+    expect(presets[presets.length - 1]).toBe(1000);
+    // Ascending, so the buttons read as a ladder rather than a jumble.
+    expect([...presets].sort((a, b) => a - b)).toEqual(presets);
+    expect(presets.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("renders the note on screen, so the payer can recognise the payment", () => {
+    expect(src).toMatch(/\{upiNote\(\)\}/);
+  });
+});

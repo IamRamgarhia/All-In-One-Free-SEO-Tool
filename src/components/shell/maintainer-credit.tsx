@@ -14,8 +14,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { MAINTAINER, upiDeepLink } from "@/lib/maintainer";
+import { upiNote } from "@/lib/supporters";
 
-const PRESET_AMOUNTS = [100, 300, 500, 1000] as const;
+/**
+ * A ladder from ₹100 to ₹1000. Rungs rather than a blank field alone:
+ * an empty box asks the payer to decide what the work is worth, which
+ * is a harder question than picking one of five. The custom field and
+ * "Any" are still there for anyone who has a figure in mind.
+ */
+const PRESET_AMOUNTS = [100, 250, 500, 750, 1000] as const;
 
 /**
  * Quiet "Built by" credit shown in app chrome. Two presentations:
@@ -117,18 +124,26 @@ export function MaintainerCredit({
 function SupportDialog({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState<"upi" | null>(null);
   // Amount in INR. null = "any amount" — UPI deep link without `am=`
-  // lets the user type the amount themselves. Default to ₹300 since
-  // a preset is more inviting than a blank slate.
-  const [amount, setAmount] = useState<number | null>(300);
+  // lets the user type the amount themselves. Default to a low rung
+  // since a preset is more inviting than a blank slate.
+  const [amount, setAmount] = useState<number | null>(250);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
 
   const upi = MAINTAINER.upi;
   // Rebuild deep link whenever the amount changes — same string the
   // QR encodes so phone scans and "open in app" both prefill the same.
+  //
+  // The note names the SOFTWARE, not the maintainer. It is the only
+  // thing identifying the payment in a bank statement weeks later, and
+  // this used to send the maintainer's name alone, which does not say
+  // which project it was for. `upiNote` is the one source for that string
+  // (supporters.test.ts covers its sanitising and length cap); it was
+  // written for this and then never wired in, so the tested helper and
+  // the string actually sent to UPI apps had already diverged.
   const deepLink = upiDeepLink({
     amount: amount ?? undefined,
-    note: `Tip for ${MAINTAINER.name}`,
+    note: upiNote(),
   });
 
   // Generate QR locally (no external service). Dark background → use
@@ -232,8 +247,8 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
 
-              {/* Amount picker — 4 presets + custom */}
-              <div className="mt-3 grid grid-cols-4 gap-1.5">
+              {/* Amount picker — 5 presets + custom */}
+              <div className="mt-3 grid grid-cols-5 gap-1.5">
                 {PRESET_AMOUNTS.map((v) => {
                   const active = amount === v && customAmount === "";
                   return (
@@ -301,7 +316,11 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 <span className="font-semibold text-foreground/85">
                   {amount ? `₹${amount}` : "any amount"}
                 </span>{" "}
-                to {MAINTAINER.name}
+                to {MAINTAINER.name}. The note will read{" "}
+                <span className="font-semibold text-foreground/85">
+                  {upiNote()}
+                </span>
+                .
               </p>
 
               {/* UPI id with copy — fallback if scan doesn't work */}
