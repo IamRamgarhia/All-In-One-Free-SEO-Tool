@@ -169,10 +169,18 @@ function cases(): Case[] {
     },
     {
       id: "bulk-alt",
+      // NOT dicecodes.com: that site has no <img> on any page checked —
+      // homepage, portfolio and services all render 0 images, 0 CSS
+      // backgrounds, 0 video, 6 icon SVGs. So this case answered "No
+      // images on this page" and was counted a failure, when the tool
+      // was right and the fixture was wrong. A check that can only
+      // report nothing proves nothing about the tool.
       run: async () =>
         (await import("@/app/tools/bulk-alt/actions")).runBulkAlt(
           null,
-          fd({ url: "https://dicecodes.com/graphic-design-services/" }),
+          fd({
+            url: "https://en.wikipedia.org/wiki/Search_engine_optimization",
+          }),
         ),
     },
     {

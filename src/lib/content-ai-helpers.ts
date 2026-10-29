@@ -106,6 +106,33 @@ Output JSON only — array, one entry per image:
 
 export type AltSuggestion = { src: string; alt: string };
 
+/** Up to this many images per run; the rest are ignored. */
+export const ALT_MAX_IMAGES = 30;
+
+/**
+ * Output budget for a bulk-alt run, in tokens.
+ *
+ * This was a flat 1200 while the tool accepted 30 images, and the model
+ * has to echo each image's `src` back beside its alt text. One row is a
+ * URL (easily 100+ characters on a real site) plus up to 160 characters
+ * of alt plus JSON punctuation — call it ~110 tokens. So the flat budget
+ * ran out somewhere around a dozen images and the run died with "ran out
+ * of output tokens", on a page that was in no way unusual.
+ *
+ * It went unnoticed because the check that exercises this tool pointed at
+ * a page with no images at all, so it never generated a single row.
+ *
+ * Scaled, with a floor for the JSON scaffolding and a ceiling so a
+ * pathological page cannot ask for an enormous completion.
+ */
+export function altTokenBudget(imageCount: number): number {
+  // NaN propagates through Math.min/max, and a NaN maxTokens reaches the
+  // provider as an opaque 400 rather than anything a user could act on.
+  const count = Number.isFinite(imageCount) ? imageCount : 0;
+  const n = Math.max(0, Math.min(count, ALT_MAX_IMAGES));
+  return Math.min(8000, 400 + n * 110);
+}
+
 export async function generateBulkAlt(opts: {
   pageContext: string;
   imageDescriptions: { src: string; nearbyText?: string }[];
@@ -114,8 +141,8 @@ export async function generateBulkAlt(opts: {
   if (opts.imageDescriptions.length === 0)
     return { ok: false, error: "No images." };
 
-  const list = opts.imageDescriptions
-    .slice(0, 30)
+  const used = opts.imageDescriptions.slice(0, ALT_MAX_IMAGES);
+  const list = used
     .map(
       (i, idx) =>
         `${idx + 1}. src: ${i.src}\n   nearby text: ${(i.nearbyText ?? "").slice(0, 200) || "(none)"}`,
@@ -134,7 +161,7 @@ export async function generateBulkAlt(opts: {
   const raw = await callAI({
     system: ALT_SYSTEM,
     user: userPrompt,
-    maxTokens: 1200,
+    maxTokens: altTokenBudget(used.length),
     temperature: 0.4,
     timeoutMs: 30_000,
     feature: "content_idea",
