@@ -6,7 +6,6 @@ import {
   Globe,
   Info,
   Rocket,
-  Scale,
   Share2,
   Sparkles,
   Star,
@@ -16,7 +15,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
 import { SupportersTracker } from "@/components/support/supporters-tracker";
 import { MAINTAINER } from "@/lib/maintainer";
-import { REPO_NEW_ISSUE_URL } from "@/lib/repo";
+import { REPO_NEW_ISSUE_URL, REPO_URL } from "@/lib/repo";
 import { getSupportTracker } from "@/lib/supporters-data";
 
 /**
@@ -160,85 +159,6 @@ export default async function AboutPage() {
         </ul>
       </section>
 
-      {/* License — plain-English summary of the MIT license.
-          This section described the project's old noncommercial license
-          for months after the move to MIT in June 2026: it told people
-          they could not sell or host the software, which MIT expressly
-          allows. A license is the one piece of text in an app that must
-          never be out of date, so `license-claims.test.ts` reads LICENSE
-          and fails the build if this page disagrees with it. */}
-      <section
-        id="license"
-        className="scroll-mt-20 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 space-y-3 text-sm"
-      >
-        <h2 className="flex items-center gap-2 font-semibold">
-          <Scale className="size-4 text-emerald-300" />
-          License — MIT, so yours to do almost anything with
-        </h2>
-        <p className="text-muted-foreground text-xs leading-relaxed">
-          This tool is published under the{" "}
-          <a
-            href="https://opensource.org/license/mit"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="text-emerald-300 hover:underline"
-          >
-            MIT license
-          </a>
-          , which is about as permissive as licenses get. It started life
-          under a noncommercial license and moved to MIT in June 2026,
-          because being easy to find and easy to adopt mattered more than
-          keeping anyone from reselling it.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg bg-emerald-500/[0.05] p-3 ring-1 ring-inset ring-emerald-500/20">
-            <p className="mb-1.5 text-xs font-semibold text-emerald-300">
-              You can — no permission needed
-            </p>
-            <ul className="space-y-1 text-[11px] text-muted-foreground">
-              <li>• Self-host for your own SEO work, at any volume</li>
-              <li>• Use it for client work as a freelancer or agency</li>
-              <li>• Modify, fork and adapt the code</li>
-              <li>• Sell it, or run it as a paid hosted service</li>
-              <li>• Rebrand it and strip the credit below</li>
-            </ul>
-          </div>
-          <div className="rounded-lg bg-white/[0.03] p-3 ring-1 ring-inset ring-white/10">
-            <p className="mb-1.5 text-xs font-semibold">
-              All MIT asks in return
-            </p>
-            <ul className="space-y-1 text-[11px] text-muted-foreground">
-              <li>
-                • Keep the copyright and license text in copies of the
-                source
-              </li>
-              <li>
-                • Accept that it comes with no warranty — if it breaks
-                your client&apos;s site, that is on you
-              </li>
-            </ul>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              That is the whole license. There is nothing to buy and
-              nobody to email for a commercial one.
-            </p>
-          </div>
-        </div>
-        <p className="text-[11px] text-muted-foreground">
-          The maintainer credit and the support card are asked for, not
-          required: nothing in MIT obliges you to keep either, and the
-          code to remove them is not hidden. Leaving the credit in place
-          helps other SEOs find the project, which is the only reason to.
-          Questions, or want something built?{" "}
-          <a
-            href={`mailto:${MAINTAINER.contactEmail}`}
-            className="text-emerald-300 hover:underline"
-          >
-            {MAINTAINER.contactEmail}
-          </a>
-          .
-        </p>
-      </section>
-
       {/* Hire DiceCodes — services pitch. Distinct from the LICENSE
           commercial-license clause (which is for reselling THIS tool).
           This section is for "build NEW software FOR me". */}
@@ -315,11 +235,22 @@ export default async function AboutPage() {
           )}
         </div>
 
+        {/* This pointed at a License section on this page. That section is
+            gone, so it points at the file instead — a dead #license anchor
+            would have been the quiet kind of broken. */}
         <p className="text-[10px] text-muted-foreground">
-          Note: this is separate from the SEO tool&apos;s license. If
-          you want to <strong>resell or paid-host this SEO tool</strong>,
-          that&apos;s a different (also welcome) conversation —{" "}
-          see <a href="#license" className="text-violet-300 hover:underline">License</a> above.
+          Note: this is about building something new for you. The SEO tool
+          itself is{" "}
+          <a
+            href={`${REPO_URL}/blob/main/LICENSE`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-violet-300 hover:underline"
+          >
+            MIT-licensed
+          </a>
+          , so reselling or paid-hosting it needs no permission and costs
+          nothing.
         </p>
       </section>
     </div>

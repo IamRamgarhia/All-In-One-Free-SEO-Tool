@@ -60,13 +60,34 @@ describe("the license this project claims", () => {
     ).toEqual([]);
   });
 
-  it("the about page tells people what MIT actually allows", () => {
+  /**
+   * The about page used to carry a License panel and it has been removed.
+   * The claim itself still has to live somewhere a user can reach, and
+   * that is now the README and the LICENSE file it links to — so this
+   * guards there instead of quietly going away with the panel.
+   */
+  it("the README names MIT and links the license file", () => {
+    const readme = read("README.md");
+    expect(readme).toMatch(/MIT/);
+    expect(readme).toMatch(/\]\(LICENSE\)/);
+  });
+
+  it("the about page left no dead link where the license panel was", () => {
+    // Removing a section and leaving the links to it is the quiet kind of
+    // broken: nothing errors, the click just does nothing.
     const about = read("src/app/about/page.tsx");
-    expect(about).toMatch(/MIT license/i);
-    // The two permissions the old text explicitly denied. If someone
-    // rewrites this section, these are the claims that must survive.
-    expect(about.toLowerCase()).toMatch(/sell it|or sell/);
-    expect(about.toLowerCase()).toMatch(/paid hosted service|paid saas/);
+    const hasPanel = /id="license"/.test(about);
+    const linksToPanel = /href="#license"/.test(about);
+    expect(
+      linksToPanel && !hasPanel,
+      'the page links to #license but has no id="license" to land on',
+    ).toBe(false);
+  });
+
+  it("the about page still points at the real license somewhere", () => {
+    // Not a panel restating the terms — just a way to reach the file.
+    const about = read("src/app/about/page.tsx");
+    expect(about).toMatch(/blob\/main\/LICENSE|MIT-licensed/);
   });
 
   it("the about page does not promise a commercial license to buy", () => {
