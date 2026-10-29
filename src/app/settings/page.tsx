@@ -56,7 +56,7 @@ import { apiKeys, inboundWebhooks } from "@/db/schema";
 import { desc as descSql } from "drizzle-orm";
 import { InboundWebhooksManager } from "./inbound-webhooks/manager";
 import { UpdateCard } from "./update-card";
-import { SettingsTabs } from "./settings-tabs";
+import { PageTabs } from "@/components/shell/page-tabs";
 import { SETTINGS_TABS } from "./settings-tab-map";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
 
@@ -164,7 +164,7 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <SettingsTabs tabs={SETTINGS_TABS}>
+      <PageTabs tabs={SETTINGS_TABS} panelId="settings-panels">
 
 
       {/* Updates — keep at top but visually quieter */}
@@ -646,7 +646,7 @@ export default async function SettingsPage() {
       >
         <MaintainerCredit variant="block" />
       </section>
-      </SettingsTabs>
+      </PageTabs>
     </div>
   );
 }

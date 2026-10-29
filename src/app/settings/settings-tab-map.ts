@@ -1,4 +1,4 @@
-import type { SettingsTab } from "./settings-tabs";
+import type { PageTab } from "@/components/shell/page-tabs";
 
 /**
  * The five settings groups, and which sections each one owns.
@@ -15,7 +15,7 @@ import type { SettingsTab } from "./settings-tabs";
  *   - no section is claimed twice
  *   - every `settings#...` link in the app names a section that exists
  */
-export const SETTINGS_TABS: readonly SettingsTab[] = [
+export const SETTINGS_TABS: readonly PageTab[] = [
   {
     id: "setup",
     label: "Setup",

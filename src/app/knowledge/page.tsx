@@ -15,6 +15,8 @@ import {
   Zap,
 } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
+import { PageTabs } from "@/components/shell/page-tabs";
+import { KNOWLEDGE_TABS } from "./knowledge-tab-map";
 
 export default function KnowledgeHubPage() {
   return (
@@ -28,35 +30,45 @@ export default function KnowledgeHubPage() {
 
       <Toc />
 
-      <section className="glass-apple rounded-2xl p-5 space-y-2">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <span>📖</span> Reverse-engineered playbooks
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          How the top-ranking SEO sites (Backlinko, RankMath, Search Engine Journal) actually win.
-        </p>
-        <div className="flex flex-wrap gap-2 text-sm">
-          <a
-            href="/knowledge/top-sites"
-            className="rounded-md bg-violet-500/15 px-3 py-1.5 text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25"
-          >
-            Why Backlinko / RankMath / SEJ rank #1 — checklist
-          </a>
-        </div>
-      </section>
+      <PageTabs
+        tabs={KNOWLEDGE_TABS}
+        panelId="knowledge-panels"
+        panelClassName="space-y-8"
+      >
+        <section
+          id="playbooks"
+          className="glass-apple scroll-mt-24 rounded-2xl p-5 space-y-2"
+        >
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <span>📖</span> Reverse-engineered playbooks
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            How the top-ranking SEO sites (Backlinko, RankMath, Search Engine
+            Journal) actually win.
+          </p>
+          <div className="flex flex-wrap gap-2 text-sm">
+            <a
+              href="/knowledge/top-sites"
+              className="rounded-md bg-violet-500/15 px-3 py-1.5 text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25"
+            >
+              Why Backlinko / RankMath / SEJ rank #1 — checklist
+            </a>
+          </div>
+        </section>
 
-      <FreeCourses />
-      <RankingSignals />
-      <TopicalAuthority />
-      <WhyBlog />
-      <BloggingRules />
-      <DailyRhythm />
-      <PageSpeedByStack />
-      <Lcp />
-      <GbpDeepDive />
-      <KnowledgeGraph />
-      <RichSnippets />
-      <Eeat />
+        <FreeCourses />
+        <RankingSignals />
+        <TopicalAuthority />
+        <WhyBlog />
+        <BloggingRules />
+        <DailyRhythm />
+        <PageSpeedByStack />
+        <Lcp />
+        <GbpDeepDive />
+        <KnowledgeGraph />
+        <RichSnippets />
+        <Eeat />
+      </PageTabs>
     </div>
   );
 }
@@ -67,8 +79,14 @@ function Toc() {
       id: "free-courses",
       label: "Free courses + certifications (Google, HubSpot, Semrush, +more)",
     },
-    { id: "ranking-signals", label: "Ranking signals that actually move the needle" },
-    { id: "topical-authority", label: "Topical authority — how the top sites win" },
+    {
+      id: "ranking-signals",
+      label: "Ranking signals that actually move the needle",
+    },
+    {
+      id: "topical-authority",
+      label: "Topical authority — how the top sites win",
+    },
     { id: "why-blog", label: "Why a professional site needs a blog" },
     { id: "blogging-rules", label: "Blogging rules for professional sites" },
     { id: "daily-rhythm", label: "Daily content rhythm — site + GBP" },
@@ -85,10 +103,7 @@ function Toc() {
       <ol className="mt-3 grid gap-1.5 text-sm sm:grid-cols-2">
         {items.map((i, idx) => (
           <li key={i.id}>
-            <a
-              href={`#${i.id}`}
-              className="text-violet-300 hover:underline"
-            >
+            <a href={`#${i.id}`} className="text-violet-300 hover:underline">
               {idx + 1}. {i.label}
             </a>
           </li>
@@ -138,7 +153,12 @@ function Section({
 
 function RankingSignals() {
   return (
-    <Section id="ranking-signals" icon={Target} title="Ranking signals that actually move the needle" accent="violet">
+    <Section
+      id="ranking-signals"
+      icon={Target}
+      title="Ranking signals that actually move the needle"
+      accent="violet"
+    >
       <p>
         Google has 200+ ranking signals, but a small subset accounts for almost
         all of the movement. Stop optimizing for the long tail of folklore —
@@ -163,10 +183,9 @@ function RankingSignals() {
           (your-money-your-life: health, finance, legal).
         </li>
         <li>
-          <strong>Search intent match</strong> — does your page answer the
-          query in the format searchers expect (list / how-to /
-          comparison / definition)? Mismatch loses every time, however good
-          the content.
+          <strong>Search intent match</strong> — does your page answer the query
+          in the format searchers expect (list / how-to / comparison /
+          definition)? Mismatch loses every time, however good the content.
         </li>
         <li>
           <strong>Topical authority</strong> — how comprehensively your site
@@ -185,8 +204,8 @@ function RankingSignals() {
           hierarchy, descriptive anchor text, no orphan pages.
         </li>
         <li>
-          <strong>Structured data</strong> — eligibility for rich results
-          (FAQ, How-to, Article, Product, Recipe, etc.).
+          <strong>Structured data</strong> — eligibility for rich results (FAQ,
+          How-to, Article, Product, Recipe, etc.).
         </li>
       </ul>
       <h3>What barely matters (or is folklore)</h3>
@@ -197,7 +216,9 @@ function RankingSignals() {
         <li>Word count by itself (without depth)</li>
         <li>One-H1-only rule</li>
         <li>Domain age</li>
-        <li>Bounce rate (Google has confirmed they don&apos;t use it directly)</li>
+        <li>
+          Bounce rate (Google has confirmed they don&apos;t use it directly)
+        </li>
       </ul>
     </Section>
   );
@@ -205,7 +226,12 @@ function RankingSignals() {
 
 function TopicalAuthority() {
   return (
-    <Section id="topical-authority" icon={Layers} title="Topical authority — how the top sites win" accent="cyan">
+    <Section
+      id="topical-authority"
+      icon={Layers}
+      title="Topical authority — how the top sites win"
+      accent="cyan"
+    >
       <p>
         Topical authority is why Backlinko ranks for nearly every SEO query,
         Yoast for every WordPress-SEO query, Healthline for every symptom.
@@ -216,14 +242,14 @@ function TopicalAuthority() {
       <ul>
         <li>
           <strong>Pillar / hub page</strong> — definitive guide on the broad
-          topic (e.g. &quot;Link building&quot;). 3,000-8,000 words, links to all
-          spoke pages, ranks for the head term.
+          topic (e.g. &quot;Link building&quot;). 3,000-8,000 words, links to
+          all spoke pages, ranks for the head term.
         </li>
         <li>
           <strong>Spoke pages</strong> — each covers one specific subtopic
           (broken link building, HARO, digital PR, guest posting). 800-2,500
-          words each. Each spoke links back to the hub and laterally to
-          related spokes.
+          words each. Each spoke links back to the hub and laterally to related
+          spokes.
         </li>
         <li>
           <strong>Coverage targets</strong> — to claim authority on a topic
@@ -233,7 +259,9 @@ function TopicalAuthority() {
       </ul>
       <h3>How to plan a cluster (the Backlinko / Ahrefs blog way)</h3>
       <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-        <li>Pick the head topic. Find its parent (broader) and sibling topics.</li>
+        <li>
+          Pick the head topic. Find its parent (broader) and sibling topics.
+        </li>
         <li>
           Mine People-Also-Ask, Reddit, Quora, YouTube comments for the actual
           questions people ask. Each becomes a spoke candidate.
@@ -244,17 +272,17 @@ function TopicalAuthority() {
         </li>
         <li>
           Build the cluster as ONE batch over 4-8 weeks. Half-built clusters
-          underperform — the internal linking only kicks in once the cluster
-          is dense.
+          underperform — the internal linking only kicks in once the cluster is
+          dense.
         </li>
         <li>
-          Link the cluster: hub → all spokes, spokes → hub, spokes ↔ peer
-          spokes where relevant. Use descriptive anchor text, not &quot;click
+          Link the cluster: hub → all spokes, spokes → hub, spokes ↔ peer spokes
+          where relevant. Use descriptive anchor text, not &quot;click
           here&quot;.
         </li>
         <li>
-          Update the hub every 60-90 days. Re-pulse internal links if you
-          shift navigation. Google rewards demonstrably maintained clusters.
+          Update the hub every 60-90 days. Re-pulse internal links if you shift
+          navigation. Google rewards demonstrably maintained clusters.
         </li>
       </ol>
       <h3>Why &quot;publish 1 post a week forever&quot; fails</h3>
@@ -269,38 +297,49 @@ function TopicalAuthority() {
 
 function WhyBlog() {
   return (
-    <Section id="why-blog" icon={FileText} title="Why a professional site needs a blog" accent="emerald">
+    <Section
+      id="why-blog"
+      icon={FileText}
+      title="Why a professional site needs a blog"
+      accent="emerald"
+    >
       <p>
-        &quot;We don&apos;t need a blog, we&apos;re a serious business&quot; loses
-        you organic traffic forever. The reason it matters is mechanical, not
-        marketing-fluff:
+        &quot;We don&apos;t need a blog, we&apos;re a serious business&quot;
+        loses you organic traffic forever. The reason it matters is mechanical,
+        not marketing-fluff:
       </p>
       <ul>
         <li>
-          <strong>Most informational queries don&apos;t map to product/service
-          pages.</strong> Without blog content, you can&apos;t rank for the 90%
-          of searches that begin with &quot;how&quot;, &quot;what&quot;,
-          &quot;why&quot;, &quot;best&quot;, &quot;vs&quot;. Your competitors
-          who do blog will own all of those.
+          <strong>
+            Most informational queries don&apos;t map to product/service pages.
+          </strong>{" "}
+          Without blog content, you can&apos;t rank for the 90% of searches that
+          begin with &quot;how&quot;, &quot;what&quot;, &quot;why&quot;,
+          &quot;best&quot;, &quot;vs&quot;. Your competitors who do blog will
+          own all of those.
         </li>
         <li>
-          <strong>Internal links to product pages depend on blog content.</strong>{" "}
-          Without articles to host them, your money pages have weak link
-          equity from inside the site.
+          <strong>
+            Internal links to product pages depend on blog content.
+          </strong>{" "}
+          Without articles to host them, your money pages have weak link equity
+          from inside the site.
         </li>
         <li>
-          <strong>Topical authority requires breadth.</strong> A 6-page
-          service site can&apos;t demonstrate authority. A 60-page site with a
-          tight cluster around your service category can.
+          <strong>Topical authority requires breadth.</strong> A 6-page service
+          site can&apos;t demonstrate authority. A 60-page site with a tight
+          cluster around your service category can.
         </li>
         <li>
-          <strong>Backlink magnets live in blog content, not product pages.</strong>{" "}
+          <strong>
+            Backlink magnets live in blog content, not product pages.
+          </strong>{" "}
           People link to data studies, original research, &quot;ultimate
           guides&quot; — not to your /pricing page.
         </li>
         <li>
-          <strong>Trust signals.</strong> A blog with author bylines, dates,
-          and citations is the cheapest way to demonstrate E-E-A-T.
+          <strong>Trust signals.</strong> A blog with author bylines, dates, and
+          citations is the cheapest way to demonstrate E-E-A-T.
         </li>
         <li>
           <strong>Knowledge graph eligibility.</strong> Your About + a
@@ -314,25 +353,30 @@ function WhyBlog() {
 
 function BloggingRules() {
   return (
-    <Section id="blogging-rules" icon={BookOpen} title="Blogging rules for professional sites" accent="emerald">
+    <Section
+      id="blogging-rules"
+      icon={BookOpen}
+      title="Blogging rules for professional sites"
+      accent="emerald"
+    >
       <h3>The 12 rules — same ones the top SEO blogs follow</h3>
       <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
         <li>
-          <strong>One topic per post.</strong> If a post needs 3 H2 sections
-          on unrelated subjects, split it into 3 posts.
+          <strong>One topic per post.</strong> If a post needs 3 H2 sections on
+          unrelated subjects, split it into 3 posts.
         </li>
         <li>
-          <strong>Match SERP intent before drafting.</strong> Look at top 5.
-          If they&apos;re all listicles, write a listicle. Format mismatch
-          loses 100% of the time.
+          <strong>Match SERP intent before drafting.</strong> Look at top 5. If
+          they&apos;re all listicles, write a listicle. Format mismatch loses
+          100% of the time.
         </li>
         <li>
           <strong>Open with the answer, not the throat-clearing.</strong> The
           first 100 words must give the visitor a reason to stay.
         </li>
         <li>
-          <strong>One author. Real bio. Real bylines.</strong> &quot;Posted
-          by Admin&quot; eliminates E-E-A-T signal entirely.
+          <strong>One author. Real bio. Real bylines.</strong> &quot;Posted by
+          Admin&quot; eliminates E-E-A-T signal entirely.
         </li>
         <li>
           <strong>Published date AND last-updated date.</strong> Visible to
@@ -340,18 +384,18 @@ function BloggingRules() {
           materially changes.
         </li>
         <li>
-          <strong>Outbound citations to authoritative sources.</strong> 3+
-          per post. Don&apos;t worry about &quot;leaking link juice&quot; —
-          Google rewards well-cited content.
+          <strong>Outbound citations to authoritative sources.</strong> 3+ per
+          post. Don&apos;t worry about &quot;leaking link juice&quot; — Google
+          rewards well-cited content.
         </li>
         <li>
-          <strong>3-5 internal links per post.</strong> Descriptive anchor
-          text. Cross-link old + new posts both directions.
+          <strong>3-5 internal links per post.</strong> Descriptive anchor text.
+          Cross-link old + new posts both directions.
         </li>
         <li>
-          <strong>Original images / charts / screenshots.</strong> Stock
-          photos add nothing. A custom diagram or annotated screenshot earns
-          links and image-search traffic.
+          <strong>Original images / charts / screenshots.</strong> Stock photos
+          add nothing. A custom diagram or annotated screenshot earns links and
+          image-search traffic.
         </li>
         <li>
           <strong>Schema markup matched to content.</strong> Article + Author
@@ -359,18 +403,18 @@ function BloggingRules() {
           schema for actual procedural content. Don&apos;t fake it.
         </li>
         <li>
-          <strong>Featured snippet shape on at least one section.</strong>{" "}
-          One H2 phrased as the question, paragraph 40-60 words directly
-          answering it. Picks up the snippet ~30% of the time.
+          <strong>Featured snippet shape on at least one section.</strong> One
+          H2 phrased as the question, paragraph 40-60 words directly answering
+          it. Picks up the snippet ~30% of the time.
         </li>
         <li>
-          <strong>Update before you publish-new.</strong> A
-          12-month-old post brought up to date often outperforms a new post.
-          Refresh decay candidates first.
+          <strong>Update before you publish-new.</strong> A 12-month-old post
+          brought up to date often outperforms a new post. Refresh decay
+          candidates first.
         </li>
         <li>
-          <strong>One CTA per post.</strong> Either capture email, drive to
-          a service page, or push a tool. Three CTAs = zero conversions.
+          <strong>One CTA per post.</strong> Either capture email, drive to a
+          service page, or push a tool. Three CTAs = zero conversions.
         </li>
       </ol>
       <h3>Length guidance — directional, not a target</h3>
@@ -388,19 +432,24 @@ function BloggingRules() {
 
 function DailyRhythm() {
   return (
-    <Section id="daily-rhythm" icon={TrendingUp} title="Daily content rhythm — site + GBP" accent="amber">
+    <Section
+      id="daily-rhythm"
+      icon={TrendingUp}
+      title="Daily content rhythm — site + GBP"
+      accent="amber"
+    >
       <h3>Weekly cadence (sustainable for a 1-2 person team)</h3>
       <ul>
         <li>
           <strong>Mon</strong> — publish 1 new post or refresh 1 old post
         </li>
         <li>
-          <strong>Tue</strong> — internal-link audit on last week&apos;s post
-          + 5 contextual links from older posts
+          <strong>Tue</strong> — internal-link audit on last week&apos;s post +
+          5 contextual links from older posts
         </li>
         <li>
-          <strong>Wed</strong> — 1 GBP post (offer / event / update / product
-          / story — rotate types)
+          <strong>Wed</strong> — 1 GBP post (offer / event / update / product /
+          story — rotate types)
         </li>
         <li>
           <strong>Thu</strong> — outreach / link building (HARO replies, broken
@@ -411,20 +460,17 @@ function DailyRhythm() {
           striking-distance keyword fixes
         </li>
         <li>
-          <strong>Daily</strong> — reply to every GBP review within 24h. 5+
-          star with name + specific detail; 1-3 star with empathy + offline
-          fix.
+          <strong>Daily</strong> — reply to every GBP review within 24h. 5+ star
+          with name + specific detail; 1-3 star with empathy + offline fix.
         </li>
       </ul>
       <h3>GBP posts — what works</h3>
       <ul>
         <li>
-          1 post per week minimum. 2-3 if you can sustain it. Posts decay in
-          the GBP feed but the activity signal helps local pack visibility.
+          1 post per week minimum. 2-3 if you can sustain it. Posts decay in the
+          GBP feed but the activity signal helps local pack visibility.
         </li>
-        <li>
-          Hook in the first 12 words. GBP truncates after that on mobile.
-        </li>
+        <li>Hook in the first 12 words. GBP truncates after that on mobile.</li>
         <li>
           Include 1 image (1200×900 or larger). Posts with images get ~2× the
           clicks of text-only.
@@ -438,7 +484,9 @@ function DailyRhythm() {
           updates/stories/products.
         </li>
       </ul>
-      <h3>Why daily / consistent matters more than &quot;the perfect post&quot;</h3>
+      <h3>
+        Why daily / consistent matters more than &quot;the perfect post&quot;
+      </h3>
       <p>
         Google&apos;s freshness signals + GBP&apos;s activity signals reward
         cadence. A site that publishes a decent post every week for 2 years
@@ -450,24 +498,28 @@ function DailyRhythm() {
 
 function PageSpeedByStack() {
   return (
-    <Section id="page-speed" icon={Gauge} title="Page speed by tech stack" accent="cyan">
+    <Section
+      id="page-speed"
+      icon={Gauge}
+      title="Page speed by tech stack"
+      accent="cyan"
+    >
       <p>
-        Generic page-speed advice is useless because the bottleneck is
-        different on every stack. Here&apos;s the playbook by what you&apos;re
-        actually running:
+        Generic page-speed advice is useless because the bottleneck is different
+        on every stack. Here&apos;s the playbook by what you&apos;re actually
+        running:
       </p>
       <h3>WordPress</h3>
       <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
         <li>
-          <strong>Caching plugin</strong> — WP Rocket (paid, best),
-          LiteSpeed Cache (free, requires LiteSpeed server), W3 Total Cache
-          (free, complex). Without one, every page is regenerated per
-          request.
+          <strong>Caching plugin</strong> — WP Rocket (paid, best), LiteSpeed
+          Cache (free, requires LiteSpeed server), W3 Total Cache (free,
+          complex). Without one, every page is regenerated per request.
         </li>
         <li>
-          <strong>Audit plugins</strong> — every active plugin loads JS/CSS.
-          Aim for &lt;15 active. Use Query Monitor to see which fire on every
-          page. Replace bloat (Elementor → block-themes) where possible.
+          <strong>Audit plugins</strong> — every active plugin loads JS/CSS. Aim
+          for &lt;15 active. Use Query Monitor to see which fire on every page.
+          Replace bloat (Elementor → block-themes) where possible.
         </li>
         <li>
           <strong>Image optimization</strong> — ShortPixel / Smush / EWWW
@@ -478,9 +530,9 @@ function PageSpeedByStack() {
           everywhere. Enable Auto Minify, Brotli, Polish (Lossy).
         </li>
         <li>
-          <strong>Hosting matters</strong> — shared hosting (Bluehost,
-          GoDaddy) caps you at TTFB ~600ms+. Move to Kinsta / Cloudways /
-          Hetzner if speed matters.
+          <strong>Hosting matters</strong> — shared hosting (Bluehost, GoDaddy)
+          caps you at TTFB ~600ms+. Move to Kinsta / Cloudways / Hetzner if
+          speed matters.
         </li>
       </ol>
       <h3>Shopify</h3>
@@ -499,12 +551,12 @@ function PageSpeedByStack() {
           Shopify renders WebP automatically; just keep source files lean.
         </li>
         <li>
-          <strong>Lazy-load with Liquid</strong> — change <code>img_url</code>
-          {" "}to <code>image_tag</code> with <code>loading: &quot;lazy&quot;</code>.
+          <strong>Lazy-load with Liquid</strong> — change <code>img_url</code>{" "}
+          to <code>image_tag</code> with <code>loading: &quot;lazy&quot;</code>.
         </li>
         <li>
-          <strong>Defer 3rd-party scripts</strong> — analytics, chat,
-          reviews. Load them after page render.
+          <strong>Defer 3rd-party scripts</strong> — analytics, chat, reviews.
+          Load them after page render.
         </li>
       </ol>
       <h3>Next.js</h3>
@@ -518,28 +570,30 @@ function PageSpeedByStack() {
           render-blocking external font request.
         </li>
         <li>
-          <strong>next/script with strategy=&quot;afterInteractive&quot;</strong>{" "}
+          <strong>
+            next/script with strategy=&quot;afterInteractive&quot;
+          </strong>{" "}
           for analytics, chat, GTM.
         </li>
         <li>
-          <strong>Dynamic imports</strong> for client-only components below
-          the fold. Cuts initial bundle.
+          <strong>Dynamic imports</strong> for client-only components below the
+          fold. Cuts initial bundle.
         </li>
         <li>
           <strong>ISR or static rendering</strong> for content that doesn&apos;t
           need request-time data. <code>revalidate: 3600</code> on blog posts.
         </li>
         <li>
-          <strong>Edge runtime</strong> for the parts that can use it. Cuts
-          TTFB from ~300ms to ~30ms in many regions.
+          <strong>Edge runtime</strong> for the parts that can use it. Cuts TTFB
+          from ~300ms to ~30ms in many regions.
         </li>
       </ol>
       <h3>Wix / Squarespace</h3>
-      <p>
-        Limited control. The honest list of what you CAN do:
-      </p>
+      <p>Limited control. The honest list of what you CAN do:</p>
       <ul>
-        <li>Compress images before upload (≤200KB per hero, ≤80KB per gallery)</li>
+        <li>
+          Compress images before upload (≤200KB per hero, ≤80KB per gallery)
+        </li>
         <li>
           Disable apps you&apos;re not actively using (each one adds load time)
         </li>
@@ -558,7 +612,12 @@ function PageSpeedByStack() {
 
 function Lcp() {
   return (
-    <Section id="lcp" icon={Zap} title="Improving LCP &amp; PageSpeed score" accent="amber">
+    <Section
+      id="lcp"
+      icon={Zap}
+      title="Improving LCP &amp; PageSpeed score"
+      accent="amber"
+    >
       <p>
         LCP (Largest Contentful Paint) is the single Core Web Vital that moves
         rankings most often, because most sites fail it on mobile. Target:{" "}
@@ -573,12 +632,15 @@ function Lcp() {
         </li>
         <li>
           <strong>Preload it</strong> —{" "}
-          <code>&lt;link rel=&quot;preload&quot; as=&quot;image&quot; href=&quot;hero.webp&quot; fetchpriority=&quot;high&quot;&gt;</code>
+          <code>
+            &lt;link rel=&quot;preload&quot; as=&quot;image&quot;
+            href=&quot;hero.webp&quot; fetchpriority=&quot;high&quot;&gt;
+          </code>
           . On Next.js, add <code>priority</code> prop to the image.
         </li>
         <li>
-          <strong>Compress + serve modern format</strong> — WebP or AVIF.
-          Hero images should be &lt;100KB even on retina.
+          <strong>Compress + serve modern format</strong> — WebP or AVIF. Hero
+          images should be &lt;100KB even on retina.
         </li>
         <li>
           <strong>Eliminate render-blocking resources</strong> — defer
@@ -586,8 +648,8 @@ function Lcp() {
           font-display:optional.
         </li>
         <li>
-          <strong>Reduce TTFB</strong> — caching, CDN, faster hosting.
-          TTFB above 600ms makes &lt;2.5s LCP almost impossible.
+          <strong>Reduce TTFB</strong> — caching, CDN, faster hosting. TTFB
+          above 600ms makes &lt;2.5s LCP almost impossible.
         </li>
       </ol>
       <h3>PageSpeed score quick wins (boosts 60→85+)</h3>
@@ -596,9 +658,13 @@ function Lcp() {
         <li>Lazy-load every image below the fold</li>
         <li>Defer or async every &lt;script&gt; tag</li>
         <li>Inline critical CSS (above-the-fold) in &lt;head&gt;</li>
-        <li>Move analytics to <code>afterInteractive</code></li>
+        <li>
+          Move analytics to <code>afterInteractive</code>
+        </li>
         <li>Self-host Google Fonts (or use system fonts)</li>
-        <li>Eliminate render-blocking 3rd-party widgets (chat, social buttons)</li>
+        <li>
+          Eliminate render-blocking 3rd-party widgets (chat, social buttons)
+        </li>
         <li>
           Add <code>width</code> and <code>height</code> to every image to
           eliminate CLS
@@ -612,18 +678,18 @@ function Lcp() {
           headers.
         </li>
         <li>
-          <strong>Nginx</strong> — fastcgi cache for WordPress (TTFB drops
-          to ~50ms), gzip + brotli, http2_push for critical CSS, proxy_cache
-          for API responses.
+          <strong>Nginx</strong> — fastcgi cache for WordPress (TTFB drops to
+          ~50ms), gzip + brotli, http2_push for critical CSS, proxy_cache for
+          API responses.
         </li>
         <li>
-          <strong>Cloudflare in front of anything</strong> — free, drops
-          TTFB globally, Auto Minify + Brotli + Cache Reserve. Single biggest
-          ROI optimization.
+          <strong>Cloudflare in front of anything</strong> — free, drops TTFB
+          globally, Auto Minify + Brotli + Cache Reserve. Single biggest ROI
+          optimization.
         </li>
         <li>
-          <strong>Vercel / Netlify</strong> — already at the edge. LCP
-          tuning becomes purely about asset weight + render path.
+          <strong>Vercel / Netlify</strong> — already at the edge. LCP tuning
+          becomes purely about asset weight + render path.
         </li>
       </ul>
     </Section>
@@ -632,7 +698,12 @@ function Lcp() {
 
 function GbpDeepDive() {
   return (
-    <Section id="gbp" icon={Building} title="Google Business Profile — full playbook" accent="cyan">
+    <Section
+      id="gbp"
+      icon={Building}
+      title="Google Business Profile — full playbook"
+      accent="cyan"
+    >
       <p>
         Local pack ranking is largely driven by GBP signals — even more than
         on-site SEO for &quot;[service] near me&quot; type queries.
@@ -640,28 +711,35 @@ function GbpDeepDive() {
       <h3>Profile completeness (do once, properly)</h3>
       <ul>
         <li>
-          Business name — <strong>exact</strong> match to signage and
-          legal/DBA. Don&apos;t keyword-stuff (&quot;Smith Plumbing - 24/7
-          Emergency Plumbers&quot;) — Google demotes for it.
+          Business name — <strong>exact</strong> match to signage and legal/DBA.
+          Don&apos;t keyword-stuff (&quot;Smith Plumbing - 24/7 Emergency
+          Plumbers&quot;) — Google demotes for it.
         </li>
         <li>
-          Primary category — pick the most specific that fits. Add 3-5
-          secondary categories.
+          Primary category — pick the most specific that fits. Add 3-5 secondary
+          categories.
         </li>
         <li>
-          NAP — name / address / phone — must match website + every
-          directory citation exactly.
+          NAP — name / address / phone — must match website + every directory
+          citation exactly.
         </li>
-        <li>Hours — including holidays. Update 7 days before holiday closures.</li>
-        <li>Service area — only set if you don&apos;t serve from a public address.</li>
+        <li>
+          Hours — including holidays. Update 7 days before holiday closures.
+        </li>
+        <li>
+          Service area — only set if you don&apos;t serve from a public address.
+        </li>
         <li>
           Website link — to a relevant landing page, not always the homepage.
           For a multi-location business, link to the location page.
         </li>
-        <li>Booking link — if you take appointments. Direct, not via Reserve with Google.</li>
         <li>
-          Products / Services — add every one. Each becomes a sub-listing
-          Google can index.
+          Booking link — if you take appointments. Direct, not via Reserve with
+          Google.
+        </li>
+        <li>
+          Products / Services — add every one. Each becomes a sub-listing Google
+          can index.
         </li>
         <li>
           Attributes — accessibility, payments, identity-owned (women-owned,
@@ -680,12 +758,12 @@ function GbpDeepDive() {
           service, not weeks later.
         </li>
         <li>
-          Use a short link (g.page/r/{"<id>"}) on receipts, in email
-          signatures, on the &quot;thanks&quot; screen after checkout.
+          Use a short link (g.page/r/{"<id>"}) on receipts, in email signatures,
+          on the &quot;thanks&quot; screen after checkout.
         </li>
         <li>
-          Reply to every review within 24h. Yes, even the 5-star ones —
-          Google reads the dialog.
+          Reply to every review within 24h. Yes, even the 5-star ones — Google
+          reads the dialog.
         </li>
         <li>
           Negative reviews: empathy + offer to make it right offline. Never
@@ -702,12 +780,8 @@ function GbpDeepDive() {
           Post 1-3× per week. Mix offers, events, updates, products, stories.
         </li>
         <li>1200×900 image minimum. Google penalizes blurry posts.</li>
-        <li>
-          Hook in the first 12 words. Always end with a CTA button.
-        </li>
-        <li>
-          Local detail: name the city / neighbourhood / a known landmark.
-        </li>
+        <li>Hook in the first 12 words. Always end with a CTA button.</li>
+        <li>Local detail: name the city / neighbourhood / a known landmark.</li>
       </ul>
       <h3>Citations &amp; consistency</h3>
       <ul>
@@ -716,8 +790,8 @@ function GbpDeepDive() {
           Foursquare, BBB.
         </li>
         <li>
-          Niche citations matter more than 100 random directories. A
-          dental practice on Healthgrades + ZocDoc beats 50 generic listings.
+          Niche citations matter more than 100 random directories. A dental
+          practice on Healthgrades + ZocDoc beats 50 generic listings.
         </li>
         <li>
           NAP consistency to the punctuation. &quot;Suite 100&quot; vs
@@ -736,7 +810,12 @@ function GbpDeepDive() {
 
 function KnowledgeGraph() {
   return (
-    <Section id="knowledge-graph" icon={Globe} title="Knowledge graph &amp; entity SEO" accent="violet">
+    <Section
+      id="knowledge-graph"
+      icon={Globe}
+      title="Knowledge graph &amp; entity SEO"
+      accent="violet"
+    >
       <p>
         Google&apos;s knowledge graph is its database of entities (people,
         businesses, places, things). Getting your business / brand / authors
@@ -746,22 +825,22 @@ function KnowledgeGraph() {
       <h3>How to earn knowledge-graph entity status</h3>
       <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
         <li>
-          <strong>Wikidata entry</strong> — the cheapest, most direct
-          signal. Create one with notable references (news mentions, books,
-          academic citations, official site).
+          <strong>Wikidata entry</strong> — the cheapest, most direct signal.
+          Create one with notable references (news mentions, books, academic
+          citations, official site).
         </li>
         <li>
           <strong>Wikipedia article</strong> — only if you meet notability
           thresholds. Don&apos;t game it; admins delete promotional pages.
         </li>
         <li>
-          <strong>Organization / Person schema with sameAs</strong> — link
-          your home page to LinkedIn, Twitter/X, Crunchbase, Wikidata,
-          Wikipedia. Google reads sameAs as identity-graph evidence.
+          <strong>Organization / Person schema with sameAs</strong> — link your
+          home page to LinkedIn, Twitter/X, Crunchbase, Wikidata, Wikipedia.
+          Google reads sameAs as identity-graph evidence.
         </li>
         <li>
-          <strong>Consistent name everywhere</strong> — same legal name,
-          same brand spelling, same logo across all platforms. Inconsistency
+          <strong>Consistent name everywhere</strong> — same legal name, same
+          brand spelling, same logo across all platforms. Inconsistency
           fragments the entity.
         </li>
         <li>
@@ -770,23 +849,21 @@ function KnowledgeGraph() {
           entity association even without links.
         </li>
         <li>
-          <strong>Author profiles per writer</strong> — every blog author
-          gets a /author/{"<slug>"} page with bio, photo, social profiles,
-          full author Person schema, and a list of their published articles.
+          <strong>Author profiles per writer</strong> — every blog author gets a
+          /author/{"<slug>"} page with bio, photo, social profiles, full author
+          Person schema, and a list of their published articles.
         </li>
       </ol>
       <h3>Brand SERP optimization</h3>
       <ul>
-        <li>
-          Search your brand name. The first SERP is your reputation.
-        </li>
+        <li>Search your brand name. The first SERP is your reputation.</li>
         <li>
           Make sure you control the top 5 results: home, key category, About,
           LinkedIn, Twitter.
         </li>
         <li>
-          Sitelinks are auto-generated by Google. Help Google by having a
-          clean information architecture and keyword-distinct page titles.
+          Sitelinks are auto-generated by Google. Help Google by having a clean
+          information architecture and keyword-distinct page titles.
         </li>
       </ul>
     </Section>
@@ -795,7 +872,12 @@ function KnowledgeGraph() {
 
 function RichSnippets() {
   return (
-    <Section id="rich-snippets" icon={Star} title="Rich snippets — what wins in 2026" accent="amber">
+    <Section
+      id="rich-snippets"
+      icon={Star}
+      title="Rich snippets — what wins in 2026"
+      accent="amber"
+    >
       <p>
         After Google&apos;s 2023-2025 cleanups, many schema types stopped
         producing visible rich results. Here&apos;s what actually shows up in
@@ -878,7 +960,12 @@ function RichSnippets() {
 
 function Eeat() {
   return (
-    <Section id="eeat" icon={Sparkles} title="E-E-A-T in practice" accent="emerald">
+    <Section
+      id="eeat"
+      icon={Sparkles}
+      title="E-E-A-T in practice"
+      accent="emerald"
+    >
       <p>
         Experience, Expertise, Authoritativeness, Trust. Critical for YMYL
         (your-money-your-life: health, finance, legal, news) — important
@@ -897,8 +984,8 @@ function Eeat() {
           <strong>Published date AND last-updated date</strong> visible to user
         </li>
         <li>
-          <strong>Reviewer line</strong> for YMYL: &quot;Medically reviewed
-          by Dr. X, [credential]&quot; or &quot;Fact-checked by [editor]&quot;
+          <strong>Reviewer line</strong> for YMYL: &quot;Medically reviewed by
+          Dr. X, [credential]&quot; or &quot;Fact-checked by [editor]&quot;
         </li>
         <li>
           <strong>Outbound citations</strong> — 3+ to authoritative sources
@@ -906,8 +993,8 @@ function Eeat() {
           mentioned.
         </li>
         <li>
-          <strong>Original imagery</strong> — your screenshot, your photo,
-          your chart. Not stock.
+          <strong>Original imagery</strong> — your screenshot, your photo, your
+          chart. Not stock.
         </li>
       </ul>
       <h3>Site-wide trust pages</h3>
@@ -917,8 +1004,8 @@ function Eeat() {
         <li>Contact — phone, email, physical address if applicable</li>
         <li>Privacy policy + terms — link from footer on every page</li>
         <li>
-          Sources / disclosure — for affiliate sites, disclose. For
-          AI-assisted content, consider disclosing.
+          Sources / disclosure — for affiliate sites, disclose. For AI-assisted
+          content, consider disclosing.
         </li>
       </ul>
       <h3>Schema</h3>
@@ -931,8 +1018,8 @@ function Eeat() {
         </li>
       </ul>
       <p>
-        Run the in-tool E-E-A-T audit (Tools → E-E-A-T audit) on any page to
-        get a score and concrete fix list.
+        Run the in-tool E-E-A-T audit (Tools → E-E-A-T audit) on any page to get
+        a score and concrete fix list.
       </p>
     </Section>
   );
@@ -1169,7 +1256,11 @@ function CourseList({ courses }: { courses: CourseLink[] }) {
                     : "bg-white/5 text-muted-foreground ring-white/10"
               }`}
             >
-              {c.cert === "yes" ? "Free cert" : c.cert === "paid" ? "Paid cert" : "No cert"}
+              {c.cert === "yes"
+                ? "Free cert"
+                : c.cert === "paid"
+                  ? "Paid cert"
+                  : "No cert"}
             </span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">{c.blurb}</p>
@@ -1188,9 +1279,9 @@ function FreeCourses() {
       accent="emerald"
     >
       <p>
-        Curated free (and a few selectively-paid) courses worth your time.
-        Where a free certificate is on offer it&apos;s called out — those go
-        on LinkedIn and resumes immediately. <strong>Green = free cert.</strong>{" "}
+        Curated free (and a few selectively-paid) courses worth your time. Where
+        a free certificate is on offer it&apos;s called out — those go on
+        LinkedIn and resumes immediately. <strong>Green = free cert.</strong>{" "}
         <strong>Amber = paid cert / free coursework.</strong>{" "}
         <strong>Grey = no cert, but worth reading anyway.</strong>
       </p>
@@ -1215,8 +1306,8 @@ function FreeCourses() {
           credential
         </li>
         <li>
-          <strong>Week 4:</strong> Google Ads Search Certification — the
-          single most marketable cert in this list
+          <strong>Week 4:</strong> Google Ads Search Certification — the single
+          most marketable cert in this list
         </li>
         <li>
           <strong>Week 5:</strong> Google Analytics 4 Certification — every
@@ -1232,8 +1323,8 @@ function FreeCourses() {
 
       <p className="mt-3 rounded-md bg-violet-500/[0.06] px-3 py-2 text-xs text-violet-200 ring-1 ring-inset ring-violet-500/20">
         💡 All certifications expire 12-24 months after issue. Set a calendar
-        reminder to retake — the questions change as the platforms evolve and
-        an expired cert is worse than no cert (it signals you stopped learning).
+        reminder to retake — the questions change as the platforms evolve and an
+        expired cert is worse than no cert (it signals you stopped learning).
       </p>
     </Section>
   );
