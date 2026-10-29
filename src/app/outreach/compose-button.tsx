@@ -51,7 +51,7 @@ export function ComposeButton({
   if (!smtpConfigured) {
     return (
       <a
-        href="/settings#smtp"
+        href="/settings#email"
         className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300 ring-1 ring-inset ring-amber-500/30 hover:bg-amber-500/20"
         title="Configure SMTP in Settings to enable sending"
       >

@@ -35,7 +35,12 @@ export const NEEDS_FIX_HREF: Record<ToolNeed, string | null> = {
   gsc: "/settings/google",
   ga4: "/settings/google",
   gbp: null, // Lives on the client page itself.
-  "wp-bridge": "/settings#integrations",
+  // Also per-client — wp-bridge-panel.tsx sits on the client page, next
+  // to GBP. This pointed at /settings#integrations, an anchor that has
+  // never existed, for a setting that is not in Settings at all: the
+  // "fix this" link scrolled nowhere and left the user on a page with
+  // no WordPress field on it.
+  "wp-bridge": null,
 };
 
 export type ToolReadiness =

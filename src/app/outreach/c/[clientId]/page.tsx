@@ -101,7 +101,7 @@ export default async function PerClientOutreachPage({
           SMTP isn&apos;t configured yet — you can add contacts now, but
           sending email is disabled until you{" "}
           <Link
-            href="/settings#smtp"
+            href="/settings#email"
             className="underline hover:text-amber-100"
           >
             connect SMTP in settings

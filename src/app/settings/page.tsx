@@ -56,6 +56,8 @@ import { apiKeys, inboundWebhooks } from "@/db/schema";
 import { desc as descSql } from "drizzle-orm";
 import { InboundWebhooksManager } from "./inbound-webhooks/manager";
 import { UpdateCard } from "./update-card";
+import { SettingsTabs } from "./settings-tabs";
+import { SETTINGS_TABS } from "./settings-tab-map";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
 
 export default async function SettingsPage() {
@@ -162,85 +164,8 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      {/* Jump TOC, sub-grouped. The flat 12-pill row was the symptom of
-          the "Settings has 50+ rows on one page" usability complaint —
-          users couldn't tell which pill was a primary setup step and
-          which was a niche admin knob. Grouped into 5 buckets the
-          mental model becomes scannable in one glance:
-            Setup     — the 3 things every new user needs (AI / Google / Email)
-            Brand     — anything that flows onto exported PDFs + portal
-            Power     — integrations a pro reaches for occasionally
-            Advanced  — performance + browser pool + AI learning controls
-            About     — install / privacy / maintainer credit
-          Anchors and section IDs are preserved so deep-links keep working. */}
-      <nav
-        aria-label="Settings sections"
-        className="space-y-2 text-xs"
-      >
-        {(
-          [
-            {
-              label: "Setup",
-              items: [
-                { href: "#ai", label: "AI keys", primary: true },
-                { href: "#google", label: "Google" },
-                { href: "#team", label: "Team" },
-                { href: "#email", label: "Email" },
-              ],
-            },
-            {
-              label: "Brand",
-              items: [{ href: "#brand", label: "Brand identity" }],
-            },
-            {
-              label: "Power",
-              items: [
-                { href: "#notify", label: "Notifications" },
-                { href: "#api", label: "API access" },
-                { href: "#data", label: "Data" },
-              ],
-            },
-            {
-              label: "Advanced",
-              items: [
-                { href: "#claude-code", label: "Claude Code" },
-                { href: "#browser", label: "Browser pool" },
-                { href: "#ai-learning", label: "AI learning" },
-              ],
-            },
-            {
-              label: "About",
-              items: [
-                { href: "#install", label: "Install" },
-                { href: "#privacy", label: "Privacy" },
-                { href: "#about", label: "Maintainer" },
-              ],
-            },
-          ] as const
-        ).map((group) => (
-          <div key={group.label} className="flex flex-wrap items-center gap-1.5">
-            <span className="w-16 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {group.label}
-            </span>
-            {group.items.map((t) => {
-              const primary = "primary" in t && t.primary;
-              return (
-                <a
-                  key={t.href}
-                  href={t.href}
-                  className={`rounded-md px-2 py-1 ring-1 ring-inset transition-colors ${
-                    primary
-                      ? "bg-violet-500/15 text-violet-300 ring-violet-500/30 hover:bg-violet-500/25"
-                      : "bg-white/[0.02] text-muted-foreground ring-white/10 hover:bg-white/[0.05] hover:text-foreground"
-                  }`}
-                >
-                  {t.label}
-                </a>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
+      <SettingsTabs tabs={SETTINGS_TABS}>
+
 
       {/* Updates — keep at top but visually quieter */}
       <div id="install" className="scroll-mt-24">
@@ -565,7 +490,7 @@ export default async function SettingsPage() {
       </section>
 
       {/* Inbound webhooks */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
+      <section id="webhooks" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Plug className="size-4 text-cyan-300" />
@@ -721,6 +646,7 @@ export default async function SettingsPage() {
       >
         <MaintainerCredit variant="block" />
       </section>
+      </SettingsTabs>
     </div>
   );
 }

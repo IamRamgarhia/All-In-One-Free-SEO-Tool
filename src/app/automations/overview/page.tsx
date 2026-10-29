@@ -165,7 +165,7 @@ const MANUAL_GUIDES: ManualGuide[] = [
       "Pick your GSC property + GA4 property per client.",
       "Wait 24h for the first sync to backfill 28 days of data.",
     ],
-    link: { label: "Settings → Integrations", href: "/settings#integrations" },
+    link: { label: "Settings → Google", href: "/settings#google" },
   },
   {
     title: "Apply for HARO / Connectively responses",
