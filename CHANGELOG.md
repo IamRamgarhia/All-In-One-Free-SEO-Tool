@@ -3,6 +3,38 @@
 Each release has full notes under [docs/releases](docs/releases/). This
 file is the short version.
 
+## v0.9.0 — 2026-10-29
+
+Claude Code works your tasks; Support & about; a licence correction.
+[Full notes](docs/releases/v0.9.0.md)
+
+- **⚖️ The About page told you the wrong licence.** It said this project
+  was noncommercial and that you could not sell it, host it as a paid
+  service, re-license it or rebrand it. It has been **MIT** since June
+  2026 and all four are allowed. `LICENSE` always said MIT; only that
+  page disagreed. A test now reads LICENSE and fails the build if any
+  user-facing file names a different licence.
+- **New: Claude Code on the host** (#49, @Galbir) — a chat per task
+  working in the client's own project folder, a pull request per queue
+  run with Merge and Merge all, per-client autopilot, and five new MCP
+  tools (28 total). **Off until you switch it on**, in Settings →
+  Claude Code on this computer or `SEO_TOOL_HOST_AGENT=1`;
+  `SEO_TOOL_HOST_AGENT=0` is a hard off for any install other people
+  can reach.
+- **New: Support & about** — a live supporters tracker (total, people,
+  goal progress, thanks with search) read from `supporters.json` in the
+  repo, so it updates with no release; cached locally so it still shows
+  offline, and labelled when it is cached. Free ways to help come first.
+  A dashboard card after 5 audits, at most daily, with dismissals that
+  mean what they say. Never shown in the client portal, a PDF or an
+  invoice — a test fails the build if that slips.
+- **Fixed:** the About page claimed two different tool counts, neither
+  matching the README.
+- **Fixed:** a missing total in the tracker file would have rendered
+  "₹0 received" rather than nothing, because `Number(null)` is 0.
+- Four database migrations (0071–0074) — **back up before updating**.
+  WordPress plugin unchanged at 0.6.1. No new dependencies.
+
 ## v0.8.0 — 2026-10-28
 
 Keyword Planner, content automation, and a broken Docker install.
