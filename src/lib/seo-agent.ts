@@ -50,7 +50,8 @@ Return ONLY a single JSON array. No prose, no preamble, no markdown fences. Each
 
 ## Quality bar
 
-- BE SPECIFIC. "Improve the title" is bad. "Rewrite from 'Home - Acme' to 'Sustainable Coffee Subscriptions | Acme — Free Shipping'" is good.
+- BE SPECIFIC. "Improve the title" is bad. "Rewrite from 'Home - Dice Codes' to 'Sustainable Coffee Subscriptions | Dice Codes — Free Shipping'" is good.
+- The brand in that example is a placeholder showing WHERE the brand goes. Always use the brand of the site you are working on, never the one in the example.
 - Title rewrites: ≤60 chars, primary keyword near the front, brand at the end.
 - Meta description rewrites: ≤160 chars, must include primary keyword + a value prop or hook.
 - Quick win actions: cite the keyword + current position, propose a SPECIFIC tweak (add an FAQ section answering X, expand the section about Y with a comparison table, change H2 to "Z" so it matches search intent).

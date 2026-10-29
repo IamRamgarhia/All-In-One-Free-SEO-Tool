@@ -200,7 +200,12 @@ describe("upiNote", () => {
   it("strips what UPI apps reject outright", () => {
     // Some apps refuse the whole payment on an unexpected character, which
     // would look to the user like the app being broken.
-    expect(upiNote("Acme & Co. (Pvt) Ltd #1")).toBe("SEO Tool support - Acme Co. Pvt Ltd 1");
+    // The punctuation is the point of this case — some UPI apps refuse
+    // anything outside letters, digits, space, "." and "-" — so the name
+    // keeps its "&", brackets and "#" even though the brand changed.
+    expect(upiNote("Dice Codes & Co. (Pvt) Ltd #1")).toBe(
+      "SEO Tool support - Dice Codes Co. Pvt Ltd 1",
+    );
     expect(upiNote("a@b/c?d=e")).toBe("SEO Tool support - a b c d e");
   });
 

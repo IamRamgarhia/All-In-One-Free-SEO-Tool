@@ -271,7 +271,8 @@ Migration tip: build the redirect map BEFORE launching, validate with /tools/mig
     tags: ["title", "title tag", "meta title", "serp", "click-through"],
     body: `Length: 30-60 chars (~525 px). Google rewrites if too long, too short, or too generic.
 Format that wins CTR: <Primary keyword> | <Differentiator/benefit> | <Brand>
-Example: "Best espresso machines under $500 (2026 tested) — Acme"
+Example: "Best espresso machines under $500 (2026 tested) — Dice Codes"
+(The brand there is a stand-in for whichever site the title is for.)
 
 Rules:
 - Front-load the primary keyword

@@ -198,7 +198,7 @@ describe("choosing which pages to read", () => {
     for (const p of [
       "/portfolio/bravo-pizza-nyc/",
       "/portfolio-category/ecommerce/",
-      "/case-studies/acme",
+      "/case-studies/dicecodes",
       "/our-work",
       "/testimonials",
       "/blog/2024/news",
@@ -260,8 +260,8 @@ describe("telling the company apart from what it sells", () => {
   });
 
   it("skips a corporate suffix when picking the distinctive word", () => {
-    const b = brandFilterFor("The Acme Group Ltd", "https://acme.example");
-    expect(b.distinctive.has("acme")).toBe(true);
+    const b = brandFilterFor("The Dice Codes Group Ltd", "https://dicecodes.example");
+    expect(b.distinctive.has("dice")).toBe(true);
     expect(b.distinctive.has("the")).toBe(false);
     expect(b.distinctive.has("group")).toBe(false);
   });

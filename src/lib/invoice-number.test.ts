@@ -21,6 +21,6 @@ describe("nextSequenceNumber", () => {
   });
 
   it("ignores hand-typed numbers in other formats", () => {
-    expect(nextSequenceNumber(["ACME-17", "INV-2026-0002"], 2026)).toBe("INV-2026-0003");
+    expect(nextSequenceNumber(["DICE-17", "INV-2026-0002"], 2026)).toBe("INV-2026-0003");
   });
 });

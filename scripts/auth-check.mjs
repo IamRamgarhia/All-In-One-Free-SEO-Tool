@@ -259,7 +259,7 @@ async function inviteAndScope() {
   {
     const { default: Database } = await import("better-sqlite3");
     const sqlite = new Database(DB_PATH);
-    for (const name of ["Acme Ltd", "Globex Inc"]) {
+    for (const name of ["Dicecodes Ltd", "Globex Inc"]) {
       const info = sqlite
         .prepare("INSERT INTO clients (name, url) VALUES (?, ?)")
         .run(name, `https://${name.split(" ")[0].toLowerCase()}.test`);
@@ -340,12 +340,12 @@ async function inviteAndScope() {
   // day clicking cards that 404.
   const list = await req("/clients", { html: true, cookies: member });
   const html = await list.text();
-  if (html.includes("Acme") && !html.includes("Globex"))
+  if (html.includes("Dicecodes") && !html.includes("Globex"))
     ok("the clients list shows only theirs");
   else
     bad(
       "the clients list is not scoped",
-      `Acme=${html.includes("Acme")} Globex=${html.includes("Globex")}`,
+      `Dicecodes=${html.includes("Dicecodes")} Globex=${html.includes("Globex")}`,
     );
 }
 

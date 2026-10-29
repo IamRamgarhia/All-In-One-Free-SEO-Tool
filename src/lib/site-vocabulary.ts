@@ -228,7 +228,7 @@ function textOf(html: string): string {
  * "BOPP Tapes" into "bopp" — it deleted the head noun of the entire
  * product range, because the company is named after what it makes.
  * Company names are overwhelmingly "Distinctive + Category": Prateek
- * Tapes, Acme Fasteners, Dice Codes. The category half belongs to the
+ * Tapes, Gupta Fasteners, Dice Codes. The category half belongs to the
  * products and has to stay.
  */
 export type BrandFilter = {

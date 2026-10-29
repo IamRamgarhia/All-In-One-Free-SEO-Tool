@@ -203,10 +203,10 @@ of them, each pointed at the right place.
 
 > Real screens from the running app. No mockups, no marketing renders.
 
-### Client dashboard — health score + today's priorities
-![Client dashboard for Acme Coffee Co. showing a 32/100 health score gauge, open tasks (73), client count, audits (10), and a setup checklist at 60% complete](docs/screenshots/02-client-overview.png)
+### Client workspace — the order of work, ranked
+![Client workspace showing a 'Start here' checklist at 2 of 3 done — check the site (134 things to look at), agree the keywords and scope (12 keywords tracked), send the client the plan — above a ranked 'What's worth doing for this client' list split into work the agent can do unattended and work that needs a decision, each with a time estimate](docs/screenshots/02-client-overview.png)
 
-Every client gets a focused workspace with a 0-100 health score, today's priorities, daily-automation card, and one-click connections to Google Search Console + Analytics 4.
+Every client opens on the same question: what should happen next, and who has to do it. Work the agent can finish on its own is separated from work that needs a decision, and each item says what it changes and how long it takes.
 
 ### 92 dedicated tools, organized by SEO discipline
 ![All Tools page showing 13 category filters — Audits & scoring, Reports, On-page, Schema, Indexing, Speed, Keywords & content, Backlinks & outreach, Local SEO, Competitors & brand, AI visibility, Imports & integrations — and a grid of tool cards including Full SEO health check, SERP feature tracker, Content attack brief, Meta tag generator, SEO code generator](docs/screenshots/03-all-tools.png)
@@ -218,13 +218,20 @@ Filter by category or pin your favorites. Each tool is single-purpose and chaina
 
 One chat for every SEO topic — the AI auto-focuses on the right specialty (technical, on-page, AI visibility, schema, local, hreflang, CWV, and 20+ more). Drop in an image for image-SEO analysis.
 
-### AI blog writer with client-aware briefs
-![AI blog writer for Acme Coffee Co. showing topic suggestions like 'Buyer's guide: how to pick the right product for your needs' and 'Common mistakes when buying' alongside a brief form with target keyword 'best espresso machines under 500', supporting keywords, tone, audience, and length controls](docs/screenshots/05-ai-blog-writer.png)
+### Writing lives in BlogPilot, not here
 
-Generates ~1200-word SEO-optimized posts. Topic suggestions are pulled from your client's real Search Console data when connected.
+This tool used to include an AI blog writer. It doesn't any more — drafting
+articles is a different job with a different shape, and doing both badly
+helped nobody. Writing moved to
+**[BlogPilot](https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio)**,
+its own tool, also MIT and also self-hosted. The Content section in the
+sidebar links straight to it.
+
+What stayed here is the technical side: audits, findings, fixes, rank
+tracking, reports.
 
 ### Ad Funnel Architect — multi-platform paid-ads strategy
-![Ad Funnel Architect with platform checkboxes for Meta, Google Search, Google Display, Google Shopping, LinkedIn, TikTok, and YouTube Ads; configured for an Acme CRM B2B SaaS targeting marketing managers with a $1000/mo lead-gen budget](docs/screenshots/06-ad-funnel-architect.png)
+![Ad Funnel Architect with platform checkboxes for Meta, Google Search, Google Display Network, Google Shopping, LinkedIn, TikTok and YouTube Ads — Meta and Google Search ticked — above niche, goal and budget fields set to Leads at $1000 a month, a product field reading Dice Codes, and an audience of small agencies and freelancers paying for Semrush out of pocket](docs/screenshots/06-ad-funnel-architect.png)
 
 Pick your platforms, set your budget, describe your audience — get a ready-to-paste funnel: awareness → consideration → conversion. Platform-specific ad copy with character limits respected.
 
