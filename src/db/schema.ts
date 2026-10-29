@@ -1419,7 +1419,17 @@ export const aiCalls = sqliteTable("ai_calls", {
   /** Cost in micros (millionths of USD). 1 USD = 1_000_000. */
   costMicros: integer("cost_micros").notNull().default(0),
   latencyMs: integer("latency_ms"),
-  clientId: integer("client_id"),
+  /**
+   * SET NULL rather than cascade, unlike the other per-client tables.
+   *
+   * This is the spend ledger. Cascading would delete a deleted client's
+   * AI cost history, so the lifetime total on the usage page would drop
+   * retroactively — a number that silently becomes wrong, which is worse
+   * here than a row with no client attached.
+   */
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
   status: text("status").notNull().default("ok"),
   errorMsg: text("error_msg"),
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -1433,7 +1443,9 @@ export type NewAiCall = typeof aiCalls.$inferInsert;
 
 export const serpFeatureSnapshots = sqliteTable("serp_feature_snapshots", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  keywordId: integer("keyword_id"),
+  keywordId: integer("keyword_id").references(() => keywords.id, {
+    onDelete: "cascade",
+  }),
   query: text("query").notNull(),
   country: text("country").notNull().default("US"),
   ourDomain: text("our_domain"),
@@ -1466,7 +1478,9 @@ export type NewSerpFeatureSnapshot = typeof serpFeatureSnapshots.$inferInsert;
 
 export const robotsSnapshots = sqliteTable("robots_snapshots", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  clientId: integer("client_id"),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "cascade",
+  }),
   hostname: text("hostname").notNull(),
   content: text("content").notNull(),
   contentHash: text("content_hash").notNull(),
@@ -1482,7 +1496,9 @@ export type NewRobotsSnapshot = typeof robotsSnapshots.$inferInsert;
 
 export const uptimeTargets = sqliteTable("uptime_targets", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  clientId: integer("client_id"),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "cascade",
+  }),
   url: text("url").notNull(),
   label: text("label"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
@@ -1515,7 +1531,9 @@ export type NewUptimePing = typeof uptimePings.$inferInsert;
 
 export const redirectRules = sqliteTable("redirect_rules", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  clientId: integer("client_id"),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "cascade",
+  }),
   sourcePath: text("source_path").notNull(),
   targetUrl: text("target_url").notNull(),
   statusCode: integer("status_code").notNull().default(301),
@@ -1532,7 +1550,9 @@ export type NewRedirectRule = typeof redirectRules.$inferInsert;
 
 export const notFoundLog = sqliteTable("not_found_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  clientId: integer("client_id"),
+  clientId: integer("client_id").references(() => clients.id, {
+    onDelete: "cascade",
+  }),
   sourcePath: text("source_path").notNull(),
   hits: integer("hits").notNull().default(1),
   firstSeen: integer("first_seen", { mode: "timestamp" })

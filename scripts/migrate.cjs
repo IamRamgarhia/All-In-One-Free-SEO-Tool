@@ -87,8 +87,47 @@ for (const f of files) {
     .split(/-->\s*statement-breakpoint/i)
     .map((s) => s.trim())
     .filter(Boolean);
+
+  // A table rebuild needs foreign keys genuinely off, and asking for it
+  // from inside the SQL does not work.
+  //
+  // drizzle-kit cannot ALTER a constraint on SQLite, so to add one it
+  // emits a rebuild: CREATE __new_x, copy the rows, DROP x, RENAME. It
+  // wraps that in `PRAGMA foreign_keys=OFF` / `=ON`. But SQLite only
+  // honours that pragma when no transaction is pending, and every
+  // migration here runs inside one — so the pragma was a silent no-op
+  // and the rebuild ran with enforcement still ON. Both consequences
+  // were measured on a seeded copy before this was written:
+  //
+  //   - one orphaned row aborts the entire migration with "FOREIGN KEY
+  //     constraint failed". `predev` and `prebuild` call this script, so
+  //     the app then refuses to start — a bricked upgrade.
+  //   - `DROP TABLE parent` performs an implicit DELETE FROM, which
+  //     fires children's ON DELETE CASCADE. Rebuilding uptime_targets
+  //     would have deleted every row of uptime_pings.
+  //
+  // Turning it off before opening the transaction does work, and costs
+  // no atomicity: the statements still commit or roll back together.
+  const needsFkOff = /PRAGMA\s+foreign_keys\s*=\s*OFF/i.test(sql);
+
   const tx = sqlite.transaction(() => {
     for (const stmt of statements) sqlite.exec(stmt);
+    // Enforcement was off for the rebuild, so nothing checked the rows
+    // that were copied across. Check them now, while still inside the
+    // transaction — a violation here throws, which rolls the whole
+    // migration back rather than committing a broken schema.
+    if (needsFkOff) {
+      const violations = sqlite.prepare("PRAGMA foreign_key_check").all();
+      if (violations.length > 0) {
+        const where = violations
+          .slice(0, 5)
+          .map((v) => `${v.table}.rowid=${v.rowid} -> ${v.parent}`)
+          .join("; ");
+        throw new Error(
+          `${violations.length} foreign key violation(s) after rebuild: ${where}`,
+        );
+      }
+    }
     sqlite
       .prepare(
         "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
@@ -96,10 +135,16 @@ for (const f of files) {
       .run(f, Date.now());
   });
   try {
+    if (needsFkOff) sqlite.pragma("foreign_keys = OFF");
     tx();
+    if (needsFkOff) sqlite.pragma("foreign_keys = ON");
     count += 1;
     console.log(`[migrate] applied ${f}`);
   } catch (err) {
+    // Restore enforcement before anything else. The replay below runs
+    // outside a transaction and the loop continues to later migrations;
+    // leaving it off would silently unenforce every one of them.
+    if (needsFkOff) sqlite.pragma("foreign_keys = ON");
     // The "already exists / duplicate column" fast-path used to mark
     // the migration as applied without re-running the SQL. That is
     // unsafe: the migration ran inside a transaction, so the failing
