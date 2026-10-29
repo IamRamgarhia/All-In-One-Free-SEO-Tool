@@ -63,11 +63,36 @@ Rules:
 - "Threats" are competitors gaining momentum OR prompts where AI describes the client negatively.
 - Plain language. No marketing fluff. Direct, factual, actionable.`;
 
-export async function generateGeoSwot(input: {
+/**
+ * Everything this report knows before a model is involved.
+ *
+ * Split out from generateGeoSwot so the page can show it at once. The
+ * two halves have wildly different costs: this is a handful of indexed
+ * SQL reads and some arithmetic, measured in milliseconds, while the
+ * model call after it took 23-31s on this install. The page used to
+ * await both before rendering anything, so a first-time visitor got a
+ * blank screen for half a minute with nothing to say whether it had
+ * hung.
+ *
+ * These are also the numbers the SWOT is required to cite, so they are
+ * the honest thing to show first: real data, not a progress animation
+ * standing in for one.
+ */
+export type GeoSwotInputs = {
+  /** Null when the client does not exist. */
+  client: { name: string; url: string } | null;
+  dataPoints: ExecSummaryDataPoint[];
+  /** The user-turn prompt, already grounded in the numbers above. */
+  promptLines: string[];
+  mentionRate: number;
+  sentimentLabel: string;
+  competitorCount: number;
+};
+
+export async function collectGeoSwotInputs(input: {
   clientId: number;
-  /** Last N days of AI visibility checks to consider. Defaults to 30. */
   windowDays?: number;
-}): Promise<GeoSwot> {
+}): Promise<GeoSwotInputs> {
   const windowDays = input.windowDays ?? 30;
   const since = new Date(Date.now() - windowDays * 86_400_000);
 
@@ -78,7 +103,14 @@ export async function generateGeoSwot(input: {
     .where(eq(clients.id, input.clientId))
     .limit(1);
   if (!client) {
-    return emptySwot("Client not found");
+    return {
+      client: null,
+      dataPoints: [],
+      promptLines: [],
+      mentionRate: 0,
+      sentimentLabel: "neutral",
+      competitorCount: 0,
+    };
   }
 
   // 2. Aggregate AI visibility for this client's keywords over the window.
@@ -189,25 +221,64 @@ export async function generateGeoSwot(input: {
   promptLines.push("");
   promptLines.push("Write the SWOT. Return ONLY the JSON object.");
 
+  return {
+    client: { name: client.name, url: client.url },
+    dataPoints,
+    promptLines,
+    mentionRate,
+    sentimentLabel,
+    competitorCount: comps.length,
+  };
+}
+
+/**
+ * The slow half: ask a model to interpret the numbers.
+ *
+ * Takes inputs already gathered so the caller can render them first and
+ * stream this in behind a Suspense boundary.
+ */
+export async function interpretGeoSwot(
+  inputs: GeoSwotInputs,
+  clientId: number,
+): Promise<GeoSwot> {
+  const { dataPoints, mentionRate, sentimentLabel, competitorCount } = inputs;
+  if (!inputs.client) return emptySwot("Client not found");
+
   const raw = await callAI({
     system: SYSTEM_PROMPT,
-    user: promptLines.join("\n"),
+    user: inputs.promptLines.join("\n"),
     maxTokens: 1200,
     temperature: 0.3,
     timeoutMs: 45_000,
     feature: "geo_swot",
-    clientId: input.clientId,
+    clientId,
     ignoreCreditSaver: true,
   });
 
-  if (!raw) {
-    return { ...templateSwot(mentionRate, sentimentLabel, comps.length), dataPoints, source: "template" };
-  }
+  const fallback = {
+    ...templateSwot(mentionRate, sentimentLabel, competitorCount),
+    dataPoints,
+    source: "template" as const,
+  };
+  if (!raw) return fallback;
   const parsed = parseSwot(raw);
-  if (!parsed) {
-    return { ...templateSwot(mentionRate, sentimentLabel, comps.length), dataPoints, source: "template" };
-  }
+  if (!parsed) return fallback;
   return { ...parsed, dataPoints, source: "ai" };
+}
+
+/**
+ * Both halves, for callers that just want the finished report.
+ *
+ * Kept so this module still answers the original question in one call.
+ * The page does not use it — it needs the halves separately to stream.
+ */
+export async function generateGeoSwot(input: {
+  clientId: number;
+  /** Last N days of AI visibility checks to consider. Defaults to 30. */
+  windowDays?: number;
+}): Promise<GeoSwot> {
+  const inputs = await collectGeoSwotInputs(input);
+  return interpretGeoSwot(inputs, input.clientId);
 }
 
 function emptySwot(reason: string): GeoSwot {
