@@ -86,13 +86,48 @@ function toRoute(file) {
   return "/" + r;
 }
 
+/**
+ * What a bare `[id]` means, per top-level section.
+ *
+ * It used to mean "a client id" everywhere, because that is what
+ * loadIds put under the key `id`. So /audits/[id], /invoices/[id] and
+ * /tasks/[id]/chat were all requested with a CLIENT id, 404'd exactly as
+ * they should, and were reported as four broken pages. A sweep that
+ * reports four false failures is a sweep people stop reading.
+ */
+const ID_TABLE_BY_SECTION = {
+  audits: "audits",
+  clients: "clients",
+  invoices: "invoices",
+  keywords: "keywords",
+  tasks: "tasks",
+};
+
+/**
+ * Stands in for an id the database could not supply.
+ *
+ * It has to contain "[" so the caller's existing "still has a dynamic
+ * segment" check catches it. The previous empty string did not: with no
+ * invoices in the database, /invoices/[id] became "/invoices/" — the
+ * invoices LIST page, which answers 200. The sweep requested a
+ * different page from the one it named and counted it as a pass. An
+ * unfilled parameter has to look unfilled.
+ */
+const UNRESOLVED = "[unresolved]";
+
 function fillParams(route, ids) {
+  const section = route.split("/")[1] ?? "";
   return route.replace(/\[(\.{3})?(\w+)\]/g, (_m, spread, name) => {
     if (spread) return ids.clientId ?? "1";
     const lower = name.toLowerCase();
-    if (lower.includes("client")) return ids.clientId ?? "";
-    if (lower === "id" || lower.endsWith("id")) return ids[name] ?? "";
-    return "";
+    if (lower.includes("client")) return ids.clientId ?? UNRESOLVED;
+    if (lower === "id") {
+      const table = ID_TABLE_BY_SECTION[section];
+      const found = table ? ids[`row:${table}`] : null;
+      return found ?? UNRESOLVED;
+    }
+    if (lower.endsWith("id")) return ids[name] ?? UNRESOLVED;
+    return UNRESOLVED;
   });
 }
 
@@ -121,10 +156,27 @@ async function loadIds() {
     };
     const [auditIdA, auditIdB] = pair("audits");
     const [snapshotIdA, snapshotIdB] = pair("tool_snapshots");
+    const clientId = one("SELECT id FROM clients ORDER BY id LIMIT 1");
     const ids = {
-      clientId: one("SELECT id FROM clients ORDER BY id LIMIT 1"),
-      id: one("SELECT id FROM clients ORDER BY id LIMIT 1"),
-      auditId: one("SELECT id FROM audits ORDER BY id DESC LIMIT 1"),
+      clientId,
+      // One real id per table that a bare `[id]` can refer to. A table
+      // with no rows contributes nothing, and the route is then skipped
+      // as "no id available" rather than requested with something made
+      // up and reported as broken.
+      "row:clients": clientId,
+      "row:audits": one(`SELECT id FROM audits ORDER BY id DESC LIMIT 1`),
+      "row:invoices": one("SELECT id FROM invoices ORDER BY id DESC LIMIT 1"),
+      "row:tasks": one("SELECT id FROM tasks ORDER BY id DESC LIMIT 1"),
+      "row:keywords": one("SELECT id FROM keywords ORDER BY id LIMIT 1"),
+      // Scoped to the client the sweep uses. /clients/[id]/ai-audit/
+      // [auditId] requires the audit to belong to that client, so the
+      // newest audit OVERALL 404s whenever it belongs to someone else —
+      // which it did, and which read as a broken page.
+      auditId: clientId
+        ? one(
+            `SELECT id FROM audits WHERE client_id = ${Number(clientId)} ORDER BY id DESC LIMIT 1`,
+          )
+        : null,
       keywordId: one("SELECT id FROM keywords ORDER BY id LIMIT 1"),
       taskId: one("SELECT id FROM tasks ORDER BY id LIMIT 1"),
       auditIdA,
