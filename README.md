@@ -656,7 +656,7 @@ A maintainer credit + "support this project" donation prompt is included in the 
 If this tool saves you a ₹10,000+/month Ahrefs subscription, the cheapest way to say thanks:
 
 - **⭐ Star this repo** — helps other SEOs discover it (huge impact, zero cost)
-- **💜 Tip via UPI** — `princeramgarhiaa-1@okaxis` (₹100 / ₹300 / ₹500 / ₹1000 presets in-app)
+- **💜 Tip via UPI** — `princeramgarhiaa-1@okaxis` (QR + preset amounts in the app)
 - **💳 Donate via PayPal** (international, cards / bank / PayPal balance) — <https://www.paypal.com/donate/?business=princeramgarhiaa@gmail.com&currency_code=USD&item_name=Support%20DiceCodes>
 - **🛠️ Contribute** — open issues, send PRs, suggest features
 

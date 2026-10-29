@@ -1,13 +1,10 @@
-import Link from "next/link";
 import {
   ArrowRight,
   Bot,
   Bug,
   Code2,
   Globe,
-  Heart,
   Info,
-  Keyboard,
   Rocket,
   Scale,
   Share2,
@@ -35,7 +32,7 @@ export default async function AboutPage() {
   const { tracker, source } = await getSupportTracker();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         title="Support & about"
         description="Who built it, what it stands for, and how to help."
@@ -43,7 +40,15 @@ export default async function AboutPage() {
         accent="violet"
       />
 
-      <div id="support" className="scroll-mt-20 space-y-6">
+      {/* Two columns from `lg` up. This was a single 3xl column, which on
+          any desktop screen left two thirds of the viewport empty and made
+          the page roughly twice as tall as it needed to be. `items-start`
+          so the two cards keep their own heights instead of stretching the
+          shorter one. */}
+      <div
+        id="support"
+        className="scroll-mt-20 grid items-start gap-5 lg:grid-cols-2"
+      >
         <MaintainerCredit variant="block" />
 
         <SupportersTracker tracker={tracker} source={source} />
@@ -51,7 +56,7 @@ export default async function AboutPage() {
         {/* Free ways first, deliberately. Most people reading this cannot
             spare money and can spare thirty seconds, and a page that leads
             with the payment ask reads as a paywall nagging. */}
-        <section className="space-y-1 rounded-2xl border border-white/[0.06] bg-card/40 p-5 text-sm">
+        <section className="space-y-1 rounded-2xl border border-white/[0.06] bg-card/40 p-5 text-sm lg:col-span-2">
           <h2 className="flex items-center gap-2 font-semibold">
             <Star className="size-4 text-amber-300" />
             Help without paying
@@ -59,6 +64,10 @@ export default async function AboutPage() {
           <p className="pb-1 text-xs text-muted-foreground">
             These matter just as much, and two of them take a few seconds.
           </p>
+          {/* Three across only from `md`. At `sm` these are ~190px columns
+              carrying two lines of text each, which reads worse than the
+              stacked list it replaced. */}
+          <div className="grid gap-x-6 md:grid-cols-3">
           {[
             {
               icon: Star,
@@ -97,6 +106,7 @@ export default async function AboutPage() {
               </span>
             </a>
           ))}
+          </div>
         </section>
       </div>
 
@@ -112,7 +122,7 @@ export default async function AboutPage() {
           machine. No monthly fees, no surveillance, no paid APIs
           required to get started.
         </p>
-        <ul className="space-y-1.5 text-xs">
+        <ul className="grid gap-1.5 text-xs sm:grid-cols-2">
           <li className="flex gap-2">
             <span className="mt-1.5 size-1 shrink-0 rounded-full bg-emerald-400" />
             <span>
@@ -148,68 +158,6 @@ export default async function AboutPage() {
             </span>
           </li>
         </ul>
-      </section>
-
-      {/* Developer / website strip */}
-      <section className="grid gap-3 sm:grid-cols-3">
-        {MAINTAINER.website && (
-          <a
-            href={MAINTAINER.website}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="group flex items-start gap-3 rounded-xl border border-white/[0.06] bg-card/40 p-4 transition-colors hover:bg-card/60"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-violet-300 ring-1 ring-inset ring-violet-500/30">
-              <Globe className="size-4" />
-            </span>
-            <div>
-              <div className="text-sm font-semibold group-hover:text-violet-200">
-                dicecodes.com
-              </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">
-                The developer&apos;s site. Other projects, contact, hire.
-              </div>
-            </div>
-          </a>
-        )}
-        {MAINTAINER.github && (
-          <a
-            href={MAINTAINER.github}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="group flex items-start gap-3 rounded-xl border border-white/[0.06] bg-card/40 p-4 transition-colors hover:bg-card/60"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white/[0.04] text-foreground/80 ring-1 ring-inset ring-white/10">
-              <Code2 className="size-4" />
-            </span>
-            <div>
-              <div className="text-sm font-semibold group-hover:text-violet-200">
-                Source code
-              </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">
-                Star, fork, audit, contribute, or self-host whichever way
-                suits.
-              </div>
-            </div>
-          </a>
-        )}
-        <Link
-          href="/shortcuts"
-          className="group flex items-start gap-3 rounded-xl border border-white/[0.06] bg-card/40 p-4 transition-colors hover:bg-card/60"
-        >
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-cyan-500/10 text-cyan-300 ring-1 ring-inset ring-cyan-500/30">
-            <Keyboard className="size-4" />
-          </span>
-          <div>
-            <div className="text-sm font-semibold group-hover:text-cyan-200">
-              Keyboard shortcuts
-            </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              Every binding the app responds to. Press{" "}
-              <kbd className="rounded bg-white/5 px-1">?</kbd> anywhere.
-            </div>
-          </div>
-        </Link>
       </section>
 
       {/* License — plain-English summary of the MIT license.
@@ -290,15 +238,6 @@ export default async function AboutPage() {
           .
         </p>
       </section>
-
-      <p className="rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-4 text-xs text-rose-200">
-        <Heart className="mr-1 inline size-3.5" />
-        If this tool saves you the cost of an Ahrefs / Semrush
-        subscription, a tip keeps the lights on. The{" "}
-        <strong>Support the project</strong> button above opens UPI
-        (with QR + ₹100/300/500/1000 presets) for India and PayPal
-        for everyone else.
-      </p>
 
       {/* Hire DiceCodes — services pitch. Distinct from the LICENSE
           commercial-license clause (which is for reselling THIS tool).
