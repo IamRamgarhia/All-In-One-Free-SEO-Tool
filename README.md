@@ -88,10 +88,20 @@ curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-To
 ### 🐳 Docker manually
 ```bash
 git clone https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool.git && cd All-In-One-Free-SEO-Tool
+echo "APP_PASSWORD=pick-something-long" > .env
 docker compose up -d
 ```
 
-Open <http://localhost:3000>. That's it.
+Open <http://localhost:3000> and sign in with that password.
+
+> **The password line is not optional.** The container has no other
+> authentication, and it cannot see whether Docker published its port to
+> your machine only or to the whole internet — so it refuses to start
+> without one rather than guess. Without `.env` the container
+> crash-loops and `docker compose logs` tells you why.
+>
+> Running it on a laptop, reachable from nowhere else, and you accept
+> the risk? `SEO_ALLOW_NO_PASSWORD=1 docker compose up -d`.
 
 ### 📦 Or download a release
 

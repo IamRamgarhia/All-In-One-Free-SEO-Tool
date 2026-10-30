@@ -18,8 +18,13 @@ Recommended for 50-1000 users. ~$28/mo for a CCX23 (4 vCPU dedicated,
 4. ```bash
    git clone https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool.git
    cd seo
+   # Required. The container refuses to start without it, because it
+   # cannot tell whether its port is published to the world — and on a
+   # VPS it usually is.
+   echo "APP_PASSWORD=$(openssl rand -base64 18)" > .env
    docker compose up -d
    ```
+   Read the password back with `cat .env` — you will need it to sign in.
 5. Point your domain's A record at the server IP.
 6. Add Caddy or Nginx in front for SSL — easiest:
    ```bash
