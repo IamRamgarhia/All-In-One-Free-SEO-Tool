@@ -20,6 +20,73 @@ export type GscKeyword = {
   position: number;
 };
 
+export type GscSiteTotals = {
+  clicks: number;
+  impressions: number;
+  /** Impression-weighted, because Google computes it that way. */
+  position: number | null;
+  ctr: number | null;
+};
+
+/**
+ * Site-wide totals for a window, as Search Console itself reports them.
+ *
+ * Deliberately a dimensionless query — one aggregate row. The snapshot
+ * writer used to build these by summing `getGscTopQueries`, which is
+ * wrong twice over:
+ *
+ *  - That call caps the response at `rowLimit: 200` regardless of the
+ *    `limit` asked for, so on any site with a long tail "organic
+ *    clicks" was the clicks from its 200 best queries, under a name
+ *    that says otherwise. The undercount moved whenever the query mix
+ *    did — and `organicClicks` is one of the five metrics anomaly
+ *    detection runs a z-score over, so the noise it generated looked
+ *    exactly like a real drop.
+ *  - Averaging per-query positions by hand is not Search Console's
+ *    average position. Google weights by impressions (see
+ *    `windowTotals` in gsc-insights.ts, which already does this
+ *    correctly). A simple mean over 200 query rows is dominated by the
+ *    tail: fifty head queries at 5 and a hundred and fifty
+ *    one-impression queries at 70 average to about 54, a number the
+ *    user will never see in Search Console and cannot reconcile.
+ *
+ * Returns null rather than zeroes when the call fails, so a caller
+ * records "not measured" instead of a confident collapse.
+ */
+export async function getGscSiteTotals(opts: {
+  siteUrl: string;
+  days?: number;
+  clientIdScope?: number;
+}): Promise<GscSiteTotals | null> {
+  const days = opts.days ?? 28;
+  try {
+    const rows = await fetchGscPerformance({
+      siteUrl: opts.siteUrl,
+      // Same two-day lag the per-query helper uses, so the totals and
+      // the query list describe the same window.
+      startDate: daysAgo(days + 2),
+      endDate: daysAgo(2),
+      dimensions: [],
+      rowLimit: 1,
+      clientIdScope: opts.clientIdScope,
+    });
+    const row = rows[0];
+    if (!row) {
+      // A site with genuinely no impressions in the window returns no
+      // rows. That is a real zero, not a failure.
+      return { clicks: 0, impressions: 0, position: null, ctr: null };
+    }
+    return {
+      clicks: row.clicks,
+      impressions: row.impressions,
+      position: row.impressions > 0 ? row.position : null,
+      ctr: row.impressions > 0 ? row.ctr : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function getGscTopQueries(opts: {
   siteUrl: string;
   days?: number;

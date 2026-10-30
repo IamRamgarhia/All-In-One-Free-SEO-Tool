@@ -27,7 +27,7 @@ import {
   type ClientMetricSnapshot,
 } from "@/db/schema";
 import {
-  getGscTopQueries,
+  getGscSiteTotals,
   getGa4OrganicTraffic,
   getGa4OrganicConversions,
 } from "./google-data";
@@ -48,7 +48,7 @@ export async function captureClientSnapshot(opts: {
 
   const [
     healthScore,
-    gscRows,
+    gscTotals,
     ga4Rows,
     ga4Conv,
     kwCount,
@@ -60,13 +60,18 @@ export async function captureClientSnapshot(opts: {
     tasksDone,
   ] = await Promise.all([
     latestAuditScore(opts.clientId),
+    // Site totals, not the sum of a top-N query list. getGscTopQueries
+    // caps at 200 rows whatever `limit` says, so this used to record the
+    // clicks and impressions of the 200 best queries as the site's —
+    // and organicClicks is one of the metrics anomaly detection runs a
+    // z-score over. See getGscSiteTotals.
     client.gscProperty
-      ? getGscTopQueries({
+      ? getGscSiteTotals({
           siteUrl: client.gscProperty,
           days: 28,
-          limit: 1000,
-        }).catch(() => [])
-      : Promise.resolve([]),
+          clientIdScope: opts.clientId,
+        })
+      : Promise.resolve(null),
     client.ga4PropertyId
       ? getGa4OrganicTraffic({
           propertyId: client.ga4PropertyId,
@@ -137,12 +142,12 @@ export async function captureClientSnapshot(opts: {
     tasksCompletedSince(opts.clientId, 28),
   ]);
 
-  const totalClicks = gscRows.reduce((s, r) => s + r.clicks, 0);
-  const totalImpressions = gscRows.reduce((s, r) => s + r.impressions, 0);
-  const avgGscPosition =
-    gscRows.length > 0
-      ? gscRows.reduce((s, r) => s + r.position, 0) / gscRows.length
-      : null;
+  // null when Search Console is not connected, or the call failed. Both
+  // mean "not measured", which is stored as null rather than as zero —
+  // a zero here reads as a site that lost all its traffic.
+  const totalClicks = gscTotals?.clicks ?? null;
+  const totalImpressions = gscTotals?.impressions ?? null;
+  const avgGscPosition = gscTotals?.position ?? null;
 
   const ga4Sessions = ga4Rows.reduce((s, r) => s + r.sessions, 0);
   const ga4Users = ga4Rows.reduce((s, r) => s + r.users, 0);
@@ -158,8 +163,12 @@ export async function captureClientSnapshot(opts: {
       clientId: opts.clientId,
       kind: opts.kind,
       healthScore,
-      organicClicks: totalClicks || null,
-      organicImpressions: totalImpressions || null,
+      // `|| null` here turned a measured zero into "not measured",
+      // which is the same conflation the totals themselves had. A site
+      // that really got no clicks this week is a fact worth storing —
+      // and it is the one the anomaly detector most needs to see.
+      organicClicks: totalClicks,
+      organicImpressions: totalImpressions,
       organicAvgPositionX100:
         avgGscPosition !== null ? Math.round(avgGscPosition * 100) : null,
       ga4Sessions: ga4Rows.length > 0 ? ga4Sessions : null,
