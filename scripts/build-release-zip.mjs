@@ -132,7 +132,18 @@ const DROP = [
   /^install\.(ps1|sh)$/,
 ];
 
-function shouldShip(path) {
+/**
+ * Exported so a test can ask the real question — "would this file be in
+ * the download?" — instead of parsing the regexes above out of this
+ * file's own source.
+ *
+ * The first version of that test did parse them, and the extraction
+ * silently matched nothing: it reported zero patterns, asserted against
+ * an empty list, and passed while the file in front of it excluded the
+ * zip updater. A guard that cannot fail is worse than no guard, because
+ * it is also a claim.
+ */
+export function shouldShip(path) {
   const top = path.split("/")[0];
   if (!SHIP_TOP_LEVEL.has(top)) return false;
   return !DROP.some((rx) => rx.test(path));
@@ -203,27 +214,62 @@ function main() {
     rmSync(OUT, { force: true });
 
     say("Zipping...");
-    // PowerShell's Compress-Archive is on every supported Windows and
-    // needs nothing installed. `zip` is used where it exists because it
-    // preserves the executable bit, which the .command and .sh need.
+    /**
+     * `zip` first because it preserves the executable bit the .command
+     * and .sh launchers need. bsdtar second — it ships with Windows 10+
+     * and writes conformant archives.
+     *
+     * NOT PowerShell's Compress-Archive, which was the fallback here and
+     * writes entry names with BACKSLASHES: `_system\Dockerfile` as a
+     * single literal name rather than a path. Windows Explorer hides
+     * this by being forgiving, so the zip looks right on the machine
+     * that built it — and the published v0.9.0 shipped with 1,367 such
+     * entries. On macOS and Linux that unpacks to a heap of
+     * backslash-named files with no directories at all, so the
+     * double-click-a-launcher install the README recommends cannot
+     * work. Checked, not assumed: the assertion below now fails the
+     * build rather than letting another one out.
+     */
     let zipped = false;
-    try {
-      execFileSync("zip", ["-qr", OUT, "."], { cwd: payload, stdio: "pipe" });
-      zipped = true;
-    } catch {
-      /* fall through */
+    const attempts = [];
+    for (const z of [
+      { cmd: "zip", args: ["-qr", OUT, "."] },
+      { cmd: "C:/Windows/System32/tar.exe", args: ["-a", "-c", "-f", OUT, "."] },
+      { cmd: "tar", args: ["-a", "-c", "-f", OUT, "."] },
+    ]) {
+      try {
+        execFileSync(z.cmd, z.args, { cwd: payload, stdio: "pipe" });
+        if (statSync(OUT).size > 0) {
+          zipped = true;
+          if (z.cmd !== "zip") {
+            say(`Used ${z.cmd} — the Mac/Linux launchers will need chmod +x.`);
+          }
+          break;
+        }
+      } catch (e) {
+        attempts.push(`${z.cmd}: ${String(e?.message ?? e).split("\n")[0]}`);
+      }
     }
     if (!zipped) {
-      execFileSync(
-        "powershell",
-        [
-          "-NoProfile",
-          "-Command",
-          `Compress-Archive -Path '${payload}\\*' -DestinationPath '${OUT}' -Force`,
-        ],
-        { stdio: "pipe" },
+      throw new Error(
+        `Could not create the zip. Tried:\n  ${attempts.join("\n  ")}\n` +
+          `Install \`zip\`, or build on Windows 10+ where bsdtar is present.`,
       );
-      say("Used Compress-Archive — the Mac/Linux launchers will need chmod +x.");
+    }
+
+    // Refuse to publish an archive that does not unpack into folders.
+    const listed = execFileSync(
+      existsSync("C:/Windows/System32/tar.exe") ? "C:/Windows/System32/tar.exe" : "tar",
+      ["-tf", OUT],
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    );
+    const bad = listed.split(/\r?\n/).filter((n) => n.includes("\\"));
+    if (bad.length > 0) {
+      rmSync(OUT, { force: true });
+      throw new Error(
+        `${bad.length} zip entries use backslashes, e.g. ${bad[0]}\n` +
+          `That archive does not unpack into folders on macOS or Linux.`,
+      );
     }
 
     const mb = (statSync(OUT).size / 1024 / 1024).toFixed(1);
@@ -233,4 +279,9 @@ function main() {
   }
 }
 
-main();
+// Only when run as a command. Importing this file — which the test
+// does, to call shouldShip against the real lists — must not build a
+// release zip as a side effect.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}
