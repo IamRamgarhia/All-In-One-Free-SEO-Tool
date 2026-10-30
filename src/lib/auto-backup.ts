@@ -39,7 +39,7 @@
 import path from "node:path";
 import { existsSync, readdirSync, statSync, unlinkSync, mkdirSync } from "node:fs";
 import Database from "better-sqlite3";
-import { dataDir } from "./data-dir";
+import { backupDir } from "./data-dir";
 import { getSetting, setSetting } from "./settings-store";
 
 const DEFAULT_CADENCE_HOURS = 24;
@@ -80,7 +80,16 @@ export async function tickAutoBackup(): Promise<void> {
     const src = dbPath();
     if (!existsSync(src)) return;
 
-    const dir = dataDir();
+    // Not the data directory. On a native install that is the app
+    // folder, so every backup sat inside the folder most likely to be
+    // deleted, moved or overwritten — including by this app's own zip
+    // updater. See scripts/backup-dir.mjs.
+    //
+    // Pruning below therefore applies to the NEW directory only.
+    // Backups already in the old one are left alone: they are bounded
+    // (no new ones land there), and quietly deleting someone's existing
+    // backups during an update is the opposite of what this is for.
+    const dir = backupDir();
     try {
       mkdirSync(dir, { recursive: true });
     } catch {

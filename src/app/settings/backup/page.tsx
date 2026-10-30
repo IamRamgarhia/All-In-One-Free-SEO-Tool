@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { RestoreForm } from "./restore-form";
 import { AutoBackupCard } from "./auto-backup-card";
 import { getSetting } from "@/lib/settings-store";
+import { backupDirs } from "@/lib/data-dir";
 
 export const dynamic = "force-dynamic";
 
@@ -47,15 +48,25 @@ export default async function BackupPage() {
     getSetting<string>("autobackup.last_error"),
   ]);
 
-  // Look for prior backup files (.bak-...) in the same folder
-  const dir = path.dirname(dbAbs);
+  // Prior backup files (.bak-...), from BOTH the current backup folder
+  // and the old one beside the database. Looking only where new ones
+  // are written would make an existing install's backups vanish from
+  // this list the day it updates, which reads as "the update deleted
+  // them". See scripts/backup-dir.mjs.
   const dbName = path.basename(dbAbs);
   let priorBackups: { name: string; size: number; mtime: Date }[] = [];
   try {
-    const all = readdirSync(dir);
+    const all = backupDirs().flatMap((dir) => {
+      try {
+        return readdirSync(dir).map((f) => ({ dir, f }));
+      } catch {
+        // A backup folder that does not exist yet is not an error.
+        return [];
+      }
+    });
     priorBackups = all
-      .filter((f) => f.startsWith(`${dbName}.bak-`))
-      .map((f) => {
+      .filter(({ f }) => f.startsWith(`${dbName}.bak-`))
+      .map(({ dir, f }) => {
         const fp = path.join(dir, f);
         const s = statSync(fp);
         return { name: f, size: s.size, mtime: s.mtime };

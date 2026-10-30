@@ -19,6 +19,11 @@
 
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import {
+  backupSearchDirs as searchDirs,
+  resolveBackupDir,
+} from "../../scripts/backup-dir.mjs";
 
 let cached: string | null = null;
 
@@ -42,6 +47,44 @@ export function dataDir(): string {
  * yet AND (b) the legacy path does. Used to keep older installs working
  * after the data-dir consolidation lands.
  */
+/**
+ * Where to WRITE a backup. See scripts/backup-dir.mjs for the rule.
+ *
+ * Not the data directory any more: on a native install that is the app
+ * folder, so every backup lived inside the folder most likely to be
+ * deleted, moved or overwritten — including by this app's own zip
+ * updater.
+ */
+let cachedBackupDir: string | null = null;
+export function backupDir(): string {
+  if (cachedBackupDir) return cachedBackupDir;
+  cachedBackupDir = resolveBackupDir(
+    process.env,
+    dataDir(),
+    homedir(),
+    process.platform,
+    path.sep,
+  ) as string;
+  return cachedBackupDir;
+}
+
+/**
+ * Everywhere to LOOK for a backup — the new location and the old one.
+ *
+ * An install that has been running for months has backups beside its
+ * database. They must keep appearing in the restore list, or the move
+ * reads as "the update deleted my backups".
+ */
+export function backupDirs(): string[] {
+  return searchDirs(backupDir(), dataDir()) as string[];
+}
+
+/** Only for tests, which set env vars between cases. */
+export function resetDataDirCache(): void {
+  cached = null;
+  cachedBackupDir = null;
+}
+
 export function dataFile(name: string): string {
   const preferred = path.join(dataDir(), name);
   if (existsSync(preferred)) return preferred;
