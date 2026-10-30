@@ -155,8 +155,30 @@ export default async function SerpVolatilityPage({
         </div>
       ) : movements.length === 0 ? (
         <div className="glass-apple rounded-2xl p-6 text-sm text-muted-foreground">
-          No keywords have ≥2 rank checks in the last {windowDays} days. Run
-          rank checks for a few keywords and come back.
+          {incomparable > 0 ? (
+            // Not the same thing as having no data, and the difference
+            // matters because the advice differs. These keywords DO have
+            // checks; their window just starts on one measurement and
+            // ends on another, and running more checks does not fix that
+            // — it is what causes it. Saying "run rank checks and come
+            // back" here would send someone to do the thing that made it
+            // happen.
+            <>
+              {incomparable}{" "}
+              {incomparable === 1 ? "keyword has" : "keywords have"} ≥2 checks
+              in the last {windowDays} days, but none can be compared: the
+              window starts and ends on different sources. A Search Console
+              average and a live SERP check measure different things, so
+              subtracting one from the other would invent movement. Widen the
+              window, or check the same keywords again so two readings share a
+              source.
+            </>
+          ) : (
+            <>
+              No keywords have ≥2 rank checks in the last {windowDays} days.
+              Run rank checks for a few keywords and come back.
+            </>
+          )}
         </div>
       ) : (
         <>

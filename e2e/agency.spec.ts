@@ -22,7 +22,16 @@ test.describe("autopilot", () => {
     // The promise the default makes. If this ever flips, an agency's
     // client sites get edited by a setting the user thought was safe —
     // and they'd hear about it from the client, not from us.
-    await expect(page.getByText("Suggest only")).toBeVisible();
+    //
+    // Matched as the level card, not as page text. Once any client
+    // exists the page also renders a per-client <option>Suggest only</option>,
+    // so a bare getByText matched three elements and failed on strict
+    // mode — meaning this assertion only ever worked on an empty
+    // database, and running the suite twice in a row broke it. The
+    // phrase is not the thing being tested; the selected level is.
+    await expect(
+      page.getByRole("button", { name: /^Suggest only/ }),
+    ).toBeVisible();
     await expect(
       page.getByText(/never changes anything/i).first(),
     ).toBeVisible();
