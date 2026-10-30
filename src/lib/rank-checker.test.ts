@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dedupeResults,
   extractDuckDuckGoHrefs,
+  resolveGoogleScan,
   resultKey,
   unwrapDuckDuckGoUrl,
   GOOGLE_NON_ORGANIC,
@@ -224,5 +225,90 @@ describe("GOOGLE_NON_ORGANIC", () => {
     "https://notgoogle.com/x",
   ])("keeps organic result %s", (href) => {
     expect(GOOGLE_NON_ORGANIC.test(href)).toBe(false);
+  });
+});
+
+/**
+ * The third one of the same shape, found 30 Oct 2026.
+ *
+ * Paging with `&start=` was added precisely because a single page of ten
+ * results made everything ranking 11+ report as "not found". A captcha
+ * part-way through the paging put that back: checkOnGoogle broke out of
+ * the loop, kept the partial results, and returned `position: null` with
+ * NO error — identical in every field to a completed scan of all 100.
+ * The daily scheduler wrote that to keyword_rankings as a drop, the
+ * history chart drew it, and the monthly report explained it.
+ *
+ * `resultsScanned` was already on the result, so the information to tell
+ * these apart was being carried and then ignored.
+ */
+describe("resolveGoogleScan", () => {
+  const ten = Array.from(
+    { length: 10 },
+    (_, i) => `https://other${i}.com/page`,
+  );
+
+  it("reports the position when the domain is in the results", () => {
+    const hrefs = [...ten.slice(0, 2), "https://example.com/x", ...ten];
+    expect(
+      resolveGoogleScan({ hrefs, domain: "example.com", truncatedBy: null }),
+    ).toEqual({ position: 3, url: "https://example.com/x" });
+  });
+
+  it("reports a clean miss when the whole index was scanned", () => {
+    // No error: we looked at everything Google would serve and the
+    // domain is genuinely not there. This one SHOULD go in the history.
+    const r = resolveGoogleScan({
+      hrefs: ten,
+      domain: "example.com",
+      truncatedBy: null,
+    });
+    expect(r.position).toBeNull();
+    expect(r.error).toBeUndefined();
+  });
+
+  it("refuses to call a truncated scan a miss", () => {
+    // This is the bug. Blocked on page 3 → we saw 20 results, never
+    // looked at 21-100, and the domain may rank #34.
+    const r = resolveGoogleScan({
+      hrefs: ten,
+      domain: "example.com",
+      truncatedBy: "Google showed a CAPTCHA.",
+    });
+    expect(r.position).toBeNull();
+    expect(r.error).toContain("Google showed a CAPTCHA.");
+    // Says how little it looked at, so the caller can say so too.
+    expect(r.error).toContain("first 10 results");
+  });
+
+  it("still reports a position found before the scan was cut short", () => {
+    // Presence is evidence however early we stopped — only absence
+    // needs the full scan. Reporting an error here would discard a
+    // position we actually saw, and send the caller to DuckDuckGo for
+    // an answer it already had.
+    const hrefs = ["https://example.com/x", ...ten];
+    const r = resolveGoogleScan({
+      hrefs,
+      domain: "example.com",
+      truncatedBy: "Google showed a CAPTCHA.",
+    });
+    expect(r).toEqual({ position: 1, url: "https://example.com/x" });
+  });
+
+  it("matches subdomains but not lookalike domains", () => {
+    expect(
+      resolveGoogleScan({
+        hrefs: ["https://blog.example.com/x"],
+        domain: "example.com",
+        truncatedBy: null,
+      }).position,
+    ).toBe(1);
+    expect(
+      resolveGoogleScan({
+        hrefs: ["https://notexample.com/x"],
+        domain: "example.com",
+        truncatedBy: null,
+      }).position,
+    ).toBeNull();
   });
 });

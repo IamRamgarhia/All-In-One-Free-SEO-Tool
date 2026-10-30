@@ -51,6 +51,46 @@ function urlMatches(href: string, domain: string): boolean {
 }
 
 /**
+ * Decide what a finished Google scan actually means.
+ *
+ * Extracted from checkOnGoogle so the one judgement that matters can be
+ * tested without a browser: whether "we did not find the domain" is a
+ * measurement or a guess.
+ *
+ * The paging loop above exists because Google stopped honouring
+ * `&num=100`, which made everything ranking 11+ report as "not found"
+ * — a drop in the history that never happened. A captcha part-way
+ * through the paging reintroduces exactly that: blocked on page 3, we
+ * have seen results 1-20 and never looked at 21-100, so a domain
+ * ranking #34 comes back as `position: null`. Not finding it in a
+ * truncated scan is not evidence of absence, so it carries the reason
+ * and the caller falls back to DuckDuckGo instead of recording a drop.
+ *
+ * Finding it is unaffected: a position seen is a position, however
+ * early the scan stopped.
+ */
+export function resolveGoogleScan(opts: {
+  hrefs: string[];
+  domain: string;
+  /** Reason the scan stopped before the end of the index, if it did. */
+  truncatedBy: string | null;
+}): { position: number | null; url: string | null; error?: string } {
+  for (let i = 0; i < opts.hrefs.length; i++) {
+    if (urlMatches(opts.hrefs[i], opts.domain)) {
+      return { position: i + 1, url: opts.hrefs[i] };
+    }
+  }
+  if (opts.truncatedBy) {
+    return {
+      position: null,
+      url: null,
+      error: `${opts.truncatedBy} Only the first ${opts.hrefs.length} results were checked, so "not ranking" could not be confirmed.`,
+    };
+  }
+  return { position: null, url: null };
+}
+
+/**
  * Collapse a result URL to the identity we rank on: host + path, no
  * scheme, no www, no query, no hash, no trailing slash.
  *
@@ -236,6 +276,11 @@ async function checkOnGoogle(
 
     const collected: string[] = [];
     let screenshotBuffer: Buffer | undefined;
+    // Why we stopped paging early, when stopping early leaves the answer
+    // incomplete. Reaching the end of the index or finding the domain are
+    // both complete answers; a captcha on page 3 is not, because results
+    // 21+ were never looked at. See resolveGoogleScan.
+    let truncatedBy: string | null = null;
 
     // Google stopped honouring &num=100 in late 2025 — it now returns one
     // page of ~10 results no matter what you ask for. Requesting 100 and
@@ -272,6 +317,7 @@ async function checkOnGoogle(
             error: captchaUserMessage(cap.reason),
           };
         }
+        truncatedBy = captchaUserMessage(cap.reason);
         break;
       }
 
@@ -322,32 +368,23 @@ async function checkOnGoogle(
       }
     }
 
-    for (let i = 0; i < filtered.length; i++) {
-      if (urlMatches(filtered[i], domain)) {
-        return {
-          query,
-          domain,
-          engine: "google",
-          position: i + 1,
-          url: filtered[i],
-          checkedAt,
-          device,
-          resultsScanned,
-          screenshotBuffer,
-        };
-      }
-    }
+    const scan = resolveGoogleScan({
+      hrefs: filtered,
+      domain,
+      truncatedBy,
+    });
 
     return {
       query,
       domain,
       engine: "google",
-      position: null,
-      url: null,
+      position: scan.position,
+      url: scan.url,
       checkedAt,
       device,
       resultsScanned,
       screenshotBuffer,
+      ...(scan.error ? { error: scan.error } : {}),
     };
   } catch (err) {
     return {

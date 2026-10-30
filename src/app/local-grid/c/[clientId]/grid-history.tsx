@@ -3,8 +3,11 @@
 import { useState } from "react";
 import { History } from "lucide-react";
 import { Heatmap } from "./heatmap";
-
-type Cell = { lat: number; lng: number; position: number | null };
+// Type-only, so none of the lib's browser machinery is bundled. Imported
+// rather than re-declared: this shape used to be written out separately
+// here, in heatmap.tsx and in schema.ts, and the `error` field added on
+// 30 Oct 2026 would have reached exactly one of them.
+import type { GridCell } from "@/lib/local-grid";
 
 type GridSnapshot = {
   id: number;
@@ -12,7 +15,7 @@ type GridSnapshot = {
   ranAt: Date;
   gridSize: number;
   spacingM: number;
-  cells: Cell[];
+  cells: GridCell[];
   avgPosition: number | null;
   inPackPct: number | null;
 };
@@ -44,8 +47,19 @@ export function GridHistory({ grids }: { grids: GridSnapshot[] }) {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-emerald-300 font-semibold">
-                  {g.inPackPct ?? 0}% in pack
+                {/* Null means the run produced no conclusive cell, not
+                    zero visibility. `?? 0` rendered that as a confident
+                    "0% in pack" — the worst reading available. */}
+                <div
+                  className={
+                    g.inPackPct === null
+                      ? "font-semibold text-muted-foreground"
+                      : "font-semibold text-emerald-300"
+                  }
+                >
+                  {g.inPackPct === null
+                    ? "not measured"
+                    : `${g.inPackPct}% in pack`}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
                   avg #{g.avgPosition ?? "—"}

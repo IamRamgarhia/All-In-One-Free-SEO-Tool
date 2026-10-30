@@ -1135,9 +1135,15 @@ export const localGridChecks = sqliteTable("local_grid_checks", {
   gridSize: integer("grid_size").notNull().default(5),
   spacingM: integer("spacing_m").notNull().default(1500),
   cells: text("cells", { mode: "json" }).$type<
-    { lat: number; lng: number; position: number | null }[]
+    { lat: number; lng: number; position: number | null; error?: string }[]
   >(),
   avgPosition: integer("avg_position"),
+  /**
+   * Null when no cell produced a conclusive answer — a wholly blocked
+   * run. Read it as "not measured", never as 0: rows written before
+   * 30 Oct 2026 counted blocked cells as misses, so an old low number
+   * may be a block rather than a ranking.
+   */
   inPackPct: integer("in_pack_pct"),
   ranAt: integer("ran_at", { mode: "timestamp" })
     .notNull()

@@ -108,10 +108,28 @@ export function GridForm({ clientId }: { clientId: number }) {
               Result: &quot;{state.result.query}&quot;
             </h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              In-pack at <strong>{state.result.inPackPct}%</strong> of cells ·
-              avg position{" "}
+              {state.result.inPackPct === null ? (
+                <>No cell could be checked, so in-pack share is unknown</>
+              ) : (
+                <>
+                  In-pack at <strong>{state.result.inPackPct}%</strong> of the{" "}
+                  {state.result.conclusiveCells} cells we could check
+                </>
+              )}{" "}
+              · avg position{" "}
               <strong>{state.result.avgPosition ?? "(not ranked)"}</strong>
             </p>
+            {state.result.failedCells > 0 && (
+              // Say it on the card, not just in a tooltip. A grid where
+              // half the cells were blocked is a different measurement
+              // from a grid where half the cells genuinely do not rank,
+              // and the two used to look identical.
+              <p className="mt-1.5 text-[11px] text-amber-300">
+                {state.result.failedCells} of {state.result.cells.length} cells
+                gave no answer (blocked or unreachable) and are excluded
+                rather than counted as not ranking.
+              </p>
+            )}
           </header>
           <div className="p-5">
             <Heatmap

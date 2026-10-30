@@ -14,6 +14,19 @@ export type GridCell = {
   lat: number;
   lng: number;
   position: number | null;
+  /**
+   * Why this cell has no position, when "no position" is not an answer.
+   *
+   * `position: null` meant two unrelated things and this grid used to
+   * conflate them: the check ran and the domain is genuinely outside the
+   * local pack here, or the check never produced an answer at all.
+   * `checkRank` does not throw — it returns `position: null` with
+   * `error` set — so a captcha, a consent wall or a dead network
+   * arrived looking exactly like a real miss.
+   *
+   * Undefined means we got an answer. A string means we did not.
+   */
+  error?: string;
 };
 
 export type GridResult = {
@@ -23,8 +36,18 @@ export type GridResult = {
   gridSize: number;
   spacingM: number;
   cells: GridCell[];
+  /** Average position across the cells where the domain ranks at all. */
   avgPosition: number | null;
-  inPackPct: number;
+  /**
+   * Share of *conclusive* cells in the top 3, or null when no cell was
+   * conclusive. Never a share of all cells: a blocked check is not
+   * evidence of absence, and counting one as "not in the pack" reported
+   * local visibility as collapsed when Google had shown us a captcha.
+   */
+  inPackPct: number | null;
+  /** Cells that produced an answer, and cells that did not. */
+  conclusiveCells: number;
+  failedCells: number;
   ranAt: Date;
 };
 
@@ -94,23 +117,29 @@ export async function runLocalGrid(opts: {
         language: opts.language,
         city: `${c.lat.toFixed(4)},${c.lng.toFixed(4)}`,
       });
-      results.push({ lat: c.lat, lng: c.lng, position: r.position });
-    } catch {
-      results.push({ lat: c.lat, lng: c.lng, position: null });
+      results.push({
+        lat: c.lat,
+        lng: c.lng,
+        position: r.position,
+        // checkRank reports a captcha, a consent wall or a transport
+        // failure this way rather than throwing, so this is the only
+        // place the distinction still exists. Dropping it here is what
+        // turned a blocked run into "0% in the pack".
+        ...(r.error ? { error: r.error } : {}),
+      });
+    } catch (err) {
+      // Defensive: checkRank is not supposed to throw. If it ever does,
+      // the cell is unknown, not absent.
+      results.push({
+        lat: c.lat,
+        lng: c.lng,
+        position: null,
+        error: (err as Error).message || "Rank check failed",
+      });
     }
   }
 
-  const ranked = results.filter((r) => r.position !== null);
-  const avgPosition =
-    ranked.length > 0
-      ? Math.round(
-          ranked.reduce((s, r) => s + (r.position ?? 0), 0) / ranked.length,
-        )
-      : null;
-  const inPack = results.filter(
-    (r) => r.position !== null && r.position <= 3,
-  ).length;
-  const inPackPct = Math.round((inPack / results.length) * 100);
+  const stats = summariseGrid(results);
 
   return {
     query: opts.query,
@@ -119,8 +148,45 @@ export async function runLocalGrid(opts: {
     gridSize: opts.size ?? 5,
     spacingM: opts.spacingM ?? 1500,
     cells: results,
-    avgPosition,
-    inPackPct,
+    ...stats,
     ranAt: new Date(),
+  };
+}
+
+/**
+ * Reduce the cells to the two numbers the UI shows.
+ *
+ * Separate and pure so the arithmetic is testable without a browser —
+ * the whole bug here was arithmetic over the wrong set.
+ *
+ * A cell is *conclusive* when it tells us something: either we saw a
+ * position (presence is evidence even from a scan that was cut short)
+ * or the check completed without error (absence is evidence only then).
+ * Everything else is unknown, and unknown is excluded from the
+ * denominator rather than counted as a miss.
+ */
+export function summariseGrid(cells: GridCell[]): {
+  avgPosition: number | null;
+  inPackPct: number | null;
+  conclusiveCells: number;
+  failedCells: number;
+} {
+  const conclusive = cells.filter((c) => c.position !== null || !c.error);
+  const ranked = cells.filter((c) => c.position !== null);
+  const inPack = ranked.filter((c) => (c.position ?? 0) <= 3).length;
+
+  return {
+    avgPosition:
+      ranked.length > 0
+        ? Math.round(
+            ranked.reduce((s, c) => s + (c.position ?? 0), 0) / ranked.length,
+          )
+        : null,
+    inPackPct:
+      conclusive.length > 0
+        ? Math.round((inPack / conclusive.length) * 100)
+        : null,
+    conclusiveCells: conclusive.length,
+    failedCells: cells.length - conclusive.length,
   };
 }
