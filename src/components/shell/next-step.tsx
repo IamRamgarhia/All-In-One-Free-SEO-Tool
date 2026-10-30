@@ -191,9 +191,15 @@ export async function NextStep() {
   }
   if (!step) return null;
 
+  // `min-w-0 shrink` here and `truncate` on the detail below: this
+  // banner carries a label and a whole sentence of detail, and with
+  // nothing capping it the rest of the bar got squeezed until the
+  // search label and the "Add client" button both wrapped inside a
+  // 56px-tall header. Truncating the detail is cheap — the link already
+  // carries the full text as its tooltip.
   return (
     <div
-      className={`hidden items-center gap-1 rounded-md border pr-1 text-[12px] transition-colors md:inline-flex ${
+      className={`hidden min-w-0 shrink items-center gap-1 rounded-md border pr-1 text-[12px] transition-colors md:inline-flex ${
         step.primary
           ? "border-primary/40 bg-primary/10 text-foreground"
           : "border-border bg-card text-muted-foreground"
@@ -202,20 +208,20 @@ export async function NextStep() {
       <Link
         href={step.href}
         title={step.detail}
-        className={`flex items-center gap-2 px-2.5 py-1 transition-colors ${
+        className={`flex min-w-0 items-center gap-2 px-2.5 py-1 transition-colors ${
           step.primary
             ? "hover:bg-primary/20 hover:text-foreground"
             : "hover:bg-accent hover:text-foreground"
         }`}
       >
         <Sparkles
-          className={`size-3 ${step.primary ? "text-primary" : "text-muted-foreground"}`}
+          className={`size-3 shrink-0 ${step.primary ? "text-primary" : "text-muted-foreground"}`}
         />
-        <span className="font-medium">{step.label}</span>
-        <span className="hidden text-muted-foreground lg:inline">
+        <span className="whitespace-nowrap font-medium">{step.label}</span>
+        <span className="hidden max-w-[22ch] truncate text-muted-foreground lg:inline">
           — {step.detail}
         </span>
-        <ArrowRight className="size-3 opacity-60" />
+        <ArrowRight className="size-3 shrink-0 opacity-60" />
       </Link>
       <NextStepDismissButton stepId={step.id} />
     </div>

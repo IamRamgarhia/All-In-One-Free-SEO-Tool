@@ -164,11 +164,16 @@ export function SearchPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group flex h-9 max-w-md flex-1 items-center gap-2 rounded-lg border border-white/10 bg-card/60 px-3 text-sm text-muted-foreground transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/[0.04]"
+        className="group flex h-9 min-w-[150px] max-w-md flex-1 items-center gap-2 rounded-lg border border-white/10 bg-card/60 px-3 text-sm text-muted-foreground transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/[0.04] xl:min-w-[260px]"
         title="Quick search — Cmd / Ctrl + K"
       >
-        <Search className="size-4 transition-colors group-hover:text-cyan-300" />
-        <span className="flex-1 text-left transition-colors group-hover:text-foreground">
+        <Search className="size-4 shrink-0 transition-colors group-hover:text-cyan-300" />
+        {/* truncate, not wrap. With a long NextStep banner beside it
+            this button gets squeezed, and the label was wrapping to
+            three lines inside a 56px header — text spilling out of the
+            bar, above and below it. An ellipsis is the honest way to
+            run out of room. */}
+        <span className="flex-1 truncate text-left transition-colors group-hover:text-foreground">
           Search clients, keywords, tasks…
         </span>
         {/* Visually prominent so users notice the shortcut. The cyan

@@ -47,10 +47,26 @@ export function ToolDot({
  * no key is a puzzle, and the point of the dot was to save the user a
  * click, not add one.
  */
-export function ToolDotLegend({ className = "" }: { className?: string }) {
+export function ToolDotLegend({
+  className = "",
+  wrap = true,
+}: {
+  className?: string;
+  /**
+   * Allow the two entries to stack when there is no room. True in a
+   * narrow rail; false in the top bar, where stacking two lines of 10px
+   * text inside a 56px header looks like a rendering fault. A prop
+   * rather than an overriding class — `flex-wrap` and `flex-nowrap` set
+   * the same property, so which one wins would come down to the order
+   * Tailwind happened to emit them in.
+   */
+  wrap?: boolean;
+}) {
   return (
     <p
-      className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground ${className}`}
+      className={`flex items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground ${
+        wrap ? "flex-wrap" : "flex-nowrap whitespace-nowrap"
+      } ${className}`}
     >
       <span className="inline-flex items-center gap-1.5">
         <span className="inline-block size-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25" />

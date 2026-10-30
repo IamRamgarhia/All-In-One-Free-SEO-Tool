@@ -50,6 +50,41 @@ test.describe("shell", () => {
     await expect(page.locator("aside").first()).toHaveClass(/w-\[60px\]/);
   });
 
+  test("dot legend, profile and mode toggle live in the top bar, not the rail", async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, "No desktop rail below md, and the legend is xl-only.");
+
+    // Explicit, not the project's default: the legend's breakpoint is
+    // xl (1280px) and Desktop Chrome's default viewport is exactly
+    // 1280, which would make this test sit on the knife edge of the
+    // media query it is checking.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    const header = page.locator("header").first();
+    const rail = page.locator("aside").first();
+
+    // The legend moved up here. Asserting it is INSIDE <header> is the
+    // point — asserting it exists on the page would pass with it still
+    // sitting at the foot of the sidebar, which is the thing that was
+    // removed.
+    await expect(header.getByText("Needs setup")).toBeVisible();
+    await expect(header.getByRole("button", { name: "Profile menu" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Guided" })).toBeVisible();
+
+    // ...and none of the three is duplicated in the rail. Two of them
+    // were in both places at once before this; a second copy is how the
+    // two drift apart with nothing to catch it.
+    await expect(rail.getByText("Needs setup")).toHaveCount(0);
+    await expect(rail.getByText("Local user")).toHaveCount(0);
+    await expect(rail.getByText(/Guided mode|Show all tools/)).toHaveCount(0);
+
+    // The rail keeps its own route to settings, so dropping the footer
+    // user block did not cost one.
+    await expect(rail.getByRole("link", { name: "Settings" })).toBeVisible();
+  });
+
   test("theme toggle cycles and persists", async ({ page }) => {
     await page.goto("/");
     const html = page.locator("html");

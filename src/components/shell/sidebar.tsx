@@ -6,7 +6,7 @@ import { useState } from "react";
 import { motion, LayoutGroup } from "motion/react";
 import { Search, PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { NAV_GROUPS, type NavGroup, type NavItem } from "./nav-items";
-import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
+import { ToolDot } from "@/components/tool-dot";
 import { useStoredState } from "@/components/use-stored-state";
 
 /** Alias kept so the render code below reads unchanged. */
@@ -479,84 +479,19 @@ export function Sidebar({
       </nav>
       </LayoutGroup>
 
-      {/* What the dots mean. They were shipped without a key twice and
-          reported unreadable both times; a color with no legend is a
-          puzzle, and the dot exists to save a click, not add one.
-          Hidden when the rail is collapsed — there is no room, and no
-          dots are drawn there either. */}
-      {!collapsed && (
-        <ToolDotLegend className="border-t border-sidebar-border px-3 py-2" />
-      )}
-
-      {/* User block + live status — shadcn-admin pattern */}
-      <div className="border-t border-sidebar-border">
-        {/* User block */}
-        <Link
-          href="/settings"
-          title={collapsed ? "Account · Settings" : undefined}
-          className={`flex items-center gap-2 transition-colors hover:bg-sidebar-accent ${
-            collapsed ? "h-12 justify-center" : "h-14 px-3"
-          }`}
-        >
-          <div className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-xs font-semibold text-white">
-            SE
-          </div>
-          {!collapsed && (
-            <>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium leading-none text-sidebar-foreground">
-                  Local user
-                </div>
-                <div className="mt-1 truncate text-xs text-sidebar-foreground/60">
-                  Single-user mode
-                </div>
-              </div>
-              <ChevronRight className="size-4 text-sidebar-foreground/40" />
-            </>
-          )}
-        </Link>
-        {/* Guided/Pro mode toggle. In guided mode the rail is filtered
-            down to ~15 essentials; switching to pro reveals all 80+
-            entries. Persisted via the ui.mode workspace setting so the
-            choice survives reloads. */}
-        {!collapsed && (
-          <form
-            action="/api/ui-mode/toggle"
-            method="POST"
-            className="border-t border-sidebar-border px-3 py-2"
-          >
-            <button
-              type="submit"
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
-              title={
-                uiMode === "guided"
-                  ? "Reveal every tool in the sidebar"
-                  : "Hide advanced tools — keep the essentials only"
-              }
-            >
-              <span className="inline-flex items-center gap-2">
-                {uiMode === "guided" ? (
-                  <PanelLeftOpen className="size-3.5" />
-                ) : (
-                  <PanelLeftClose className="size-3.5" />
-                )}
-                <span>{uiMode === "guided" ? "Show all tools" : "Guided mode"}</span>
-              </span>
-              <span className="rounded bg-sidebar-accent/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sidebar-foreground/80">
-                {uiMode === "guided" ? "Pro" : "Easy"}
-              </span>
-            </button>
-          </form>
-        )}
-        {/* Live status pill */}
-        <div
-          className={`flex items-center gap-2 border-t border-sidebar-border py-2 text-xs text-sidebar-foreground/60 ${
-            collapsed ? "justify-center px-2" : "px-3"
-          }`}
-        >
-          <span className="size-1.5 rounded-full bg-emerald-400" />
-          {!collapsed && <span>Local · everything on this machine</span>}
-        </div>
+      {/* Live status pill — all that is left at the foot of the rail.
+          The dot legend, the "Local user" block and the guided/pro
+          toggle used to sit above it and now live in the top bar. Two
+          of the three were already up there (ProfileMenu, ModeToggle),
+          so the rail was carrying a second copy of controls that
+          already existed — and a second copy is how they drift. */}
+      <div
+        className={`flex items-center gap-2 border-t border-sidebar-border py-2 text-xs text-sidebar-foreground/60 ${
+          collapsed ? "justify-center px-2" : "px-3"
+        }`}
+      >
+        <span className="size-1.5 rounded-full bg-emerald-400" />
+        {!collapsed && <span>Local · everything on this machine</span>}
       </div>
     </aside>
   );

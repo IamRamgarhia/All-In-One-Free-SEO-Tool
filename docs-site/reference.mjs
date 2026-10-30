@@ -225,7 +225,7 @@ export function screensPage() {
         h2: "The sidebar, in order",
         html:
           `<p>Guided mode shows about fifteen of these; Pro mode shows all of them. The toggle is
-at the bottom of the sidebar.</p>\n` + blocks,
+in the top bar, on the right.</p>\n` + blocks,
       },
     ],
     searchExtra: groups.flatMap((g) =>
