@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { HelpLink } from "@/components/shell/help-link";
 import {
   AlertCircle,
   ArrowLeft,
@@ -57,13 +58,25 @@ export default function ContentScorePage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <Link
-        href="/tools"
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-3" />
-        All tools
-      </Link>
+      {/*
+        The back link and the help button share a row.
+
+        These pages hand-roll their header instead of using PageHeader,
+        which is where <HelpLink /> normally lives — so 18 of the 92
+        tools had no way to reach their documentation at all. The help
+        link resolves the current route to that tool's own anchor on the
+        reference page.
+      */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/tools"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3" />
+          All tools
+        </Link>
+        <HelpLink />
+      </div>
 
       <header className="space-y-2">
         <div className="flex items-center gap-3">

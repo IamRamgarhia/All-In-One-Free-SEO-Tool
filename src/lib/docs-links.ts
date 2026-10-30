@@ -69,6 +69,20 @@ const ROUTE_DOCS: Record<string, string> = {
 export function docsUrlFor(pathname: string | null | undefined): string {
   const path = (pathname ?? "/").split("?")[0].replace(/\/+$/, "") || "/";
 
+  // Every one of the ~94 tools has its own row on the generated
+  // reference page, with an id. Linking the whole page instead dropped
+  // the reader at the top of a table of ninety-odd rows to find their
+  // own — technically the right page, practically no help at all.
+  //
+  // The anchors are produced by toolsPage() in docs-site/reference.mjs
+  // as `tool-<slug>` from the same route, so the two cannot disagree
+  // about the slug; docs-links.test.ts checks a sample against the
+  // built page.
+  const tool = /^\/tools\/([a-z0-9-]+)/.exec(path);
+  if (tool) {
+    return `${DOCS_BASE}${ROUTE_DOCS["/tools"]}#tool-${tool[1]}`;
+  }
+
   let best = "";
   for (const prefix of Object.keys(ROUTE_DOCS)) {
     if (prefix === "/") continue;

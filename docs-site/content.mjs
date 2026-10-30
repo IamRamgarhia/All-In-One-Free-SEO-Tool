@@ -16,6 +16,35 @@
  *   misled if nobody told them first.
  */
 
+import { readMcpTools } from "./reference.mjs";
+
+/**
+ * Counted from the server's own TOOLS array at build time, never typed
+ * into prose. This page said "22 tools in total" and "15 of the 22"
+ * long after the real numbers were 29 and 21 — the exact drift the
+ * generated reference pages exist to prevent, in the one place that was
+ * still hand-written.
+ */
+const MCP_TOOLS = readMcpTools();
+const MCP_TOTAL = MCP_TOOLS.length;
+const MCP_READ_ONLY = MCP_TOOLS.filter((t) => !t.writes).length;
+const MCP_WRITERS = MCP_TOOLS.filter((t) => t.writes);
+
+/** The full tool table, so the docs list what the server actually serves. */
+const mcpToolRows = (tools) =>
+  tools
+    .map(
+      (t) =>
+        `<tr id="mcp-${t.name.replace(/_/g, "-")}">` +
+        `<td><code>${t.name}</code></td>` +
+        `<td>${t.writes ? "<strong>writes</strong>" : "reads"}</td>` +
+        `<td>${t.description
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")}</td></tr>`,
+    )
+    .join("\n");
+
 export const SITE = {
   name: "All-In-One Free SEO Tool",
   origin: "https://dicecodes.com",
@@ -908,26 +937,115 @@ Slack / Discord / Teams / email for alerts, and Shopify and Webflow for non-Word
 stores — crawl findings, rank history from both sources, AI citations, Search Console, and
 every change the agent made — joined together. &ldquo;Why did this page drop last month&rdquo;
 needs all of it at once.</p>
-<p>22 tools in total: reading your data, reading Search Console, and acting (running the
-agent, applying a queued fix, replying to a review).</p>`,
+<p><strong>${MCP_TOTAL} tools</strong> in total: ${MCP_READ_ONLY} that only read, and
+${MCP_WRITERS.length} that can act. Every one is listed
+<a href="#tools">further down this page</a>.</p>`,
       },
       {
         id: "setup",
         h2: "Connecting a local client",
         html: `
-<p>Claude Desktop, Claude Code and Cursor run the server themselves — nothing is exposed and
-no token is involved. Open <strong>Settings &rarr; AI connection</strong> and copy the
-configuration shown there; it is filled in with your real paths already.</p>`,
+<p>Claude Code, Claude Desktop and Cursor start the server themselves. Nothing is exposed to
+the network, no token exists, and the server runs as whoever owns the database file.</p>
+<p>The quickest route is <strong>Settings &rarr; AI connection</strong> inside the app: it
+shows the configuration with your real paths already filled in, ready to copy. The blocks
+below are the same thing, if you would rather type it.</p>
+
+<h3>Claude Code</h3>
+<p>From the folder the tool is installed in:</p>
+<pre><code>claude mcp add seo-tool -- npx tsx scripts/mcp-server.ts</code></pre>
+<p>Then ask Claude &ldquo;list my SEO clients&rdquo; to confirm it answered.</p>
+
+<h3>Claude Desktop</h3>
+<p>Edit <code>claude_desktop_config.json</code> —
+<code>%APPDATA%\\Claude\\</code> on Windows,
+<code>~/Library/Application Support/Claude/</code> on macOS — and restart the app:</p>
+<pre><code>{
+  "mcpServers": {
+    "seo-tool": {
+      "command": "npx",
+      "args": ["tsx", "scripts/mcp-server.ts"],
+      "cwd": "/full/path/to/your/seo-tool/folder"
+    }
+  }
+}</code></pre>
+<p>The <code>cwd</code> matters: without it the server cannot find your database.</p>
+
+<h3>Cursor</h3>
+<p>Create <code>.cursor/mcp.json</code> in the project, or edit the global one from
+<em>Settings &rarr; MCP</em>. Same shape as Claude Desktop above.</p>
+
+<h3>VS Code, Windsurf, Cline, Zed and the rest</h3>
+<p>Any client that speaks MCP over stdio works, because none of this is
+Claude-specific. They differ only in where the file lives:</p>
+<ul>
+<li><strong>VS Code</strong> (GitHub Copilot) — <code>.vscode/mcp.json</code>, under a
+<code>"servers"</code> key rather than <code>"mcpServers"</code>.</li>
+<li><strong>Windsurf</strong> — <code>~/.codeium/windsurf/mcp_config.json</code>.</li>
+<li><strong>Cline</strong> — the MCP Servers panel, or
+<code>cline_mcp_settings.json</code>.</li>
+<li><strong>Zed</strong> — <code>settings.json</code>, under
+<code>"context_servers"</code>.</li>
+</ul>
+<p>In every case the command is <code>npx</code>, the arguments are
+<code>tsx scripts/mcp-server.ts</code>, and the working directory is the tool's folder.</p>`,
       },
       {
         id: "remote",
-        h2: "Connecting a chat app",
+        h2: "Connecting a chat app over HTTP",
         html: `
-<p>For connectors that need a URL, the tool can serve the same tools over HTTP. It stays off
-until you generate a token.</p>
-<p>Generate a <strong>read-only</strong> token for this. It reaches 15 of the 22 tools and
-cannot run the agent or change your site — which is what you want for a token living in
-someone else's settings screen. Requests are capped per token.</p>`,
+<p>For connectors that need a URL rather than a command — a phone, a hosted chat app, a
+teammate's machine — the same tools are served over HTTP at <code>/api/mcp</code>. It stays
+off until you generate a token, so an install nobody configured has nothing listening.</p>
+<p>Generate a <strong>read-only</strong> token for this. It reaches ${MCP_READ_ONLY} of the
+${MCP_TOTAL} tools and cannot run the agent or change your site, which is what you want for a
+token living in someone else's settings screen. Requests are capped per token.</p>
+<pre><code>{
+  "mcpServers": {
+    "seo-tool": {
+      "url": "http://localhost:3000/api/mcp",
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
+    }
+  }
+}</code></pre>
+<p>Reaching it from another machine means exposing the app, so put a reverse proxy with TLS
+in front of it and set <code>APP_PASSWORD</code> first. A bare
+<code>SEO_BIND_ADDR=0.0.0.0</code> publishes every client record and saved API key to whoever
+finds the port.</p>`,
+      },
+      {
+        id: "tools",
+        h2: `All ${MCP_TOTAL} tools`,
+        html: `
+<p>Generated from the server's own list, so this cannot drift from what your install
+actually serves. <strong>Reads</strong> can only answer questions.
+<strong>Writes</strong> can change something — and still cannot exceed your autonomy
+setting.</p>
+<table>
+<thead><tr><th>Tool</th><th>Kind</th><th>What it does</th></tr></thead>
+<tbody>
+${mcpToolRows(MCP_TOOLS)}
+</tbody>
+</table>`,
+      },
+      {
+        id: "troubleshooting",
+        h2: "When it does not connect",
+        html: `
+<ul>
+<li><strong>The client lists no tools.</strong> Almost always a wrong working directory.
+The command must run from the tool's own folder — check <code>cwd</code>.</li>
+<li><strong>&ldquo;Client not found&rdquo; on every call.</strong> The server started
+against a different database. On a Docker install the database lives in a volume, so a
+server started outside the container sees an empty one.</li>
+<li><strong>The HTTP endpoint returns 401.</strong> The token is missing, wrong, or was
+regenerated. Tokens are not recoverable — generate a new one and paste it again.</li>
+<li><strong>It worked and then stopped.</strong> Local clients spawn the server per
+session; if the tool's folder moved, the stored path is stale.</li>
+</ul>
+<p>To check the server itself rather than the client, run
+<code>pnpm test:mcp</code> in the tool's folder. It speaks the real protocol to the real
+server against your real database and prints what passed.</p>`,
       },
       {
         id: "safety",

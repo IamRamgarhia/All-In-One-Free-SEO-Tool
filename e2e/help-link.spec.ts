@@ -35,6 +35,30 @@ test.describe("help link", () => {
     });
   }
 
+  test("every tool deep-links to its own row in the reference", async ({ page }) => {
+    /**
+     * All ~92 tools share one generated reference page, so a link to
+     * the page alone drops the reader at the top of a table of ninety
+     * rows to find their own.
+     *
+     * A sweep on 30 Oct 2026 found 18 tools with no help link at all:
+     * they hand-roll their header instead of using PageHeader, which is
+     * where HelpLink lives, so the whole feature was simply absent and
+     * nothing said so. These four are two from each group — two that
+     * always had it, two that did not — so this fails if either idiom
+     * loses the button again.
+     */
+    for (const slug of ["geo-swot", "meta-tag-generator", "headers", "schema"]) {
+      await page.goto(`/tools/${slug}`);
+      const help = page.getByRole("link", { name: /help for this screen/i }).first();
+      await expect(help, `/tools/${slug} has no help link`).toBeVisible();
+      expect(
+        await help.getAttribute("href"),
+        `/tools/${slug} should link to its own anchor`,
+      ).toContain(`tools.html#tool-${slug}`);
+    }
+  });
+
   test("screens that are themselves an explanation do not offer one", async ({ page }) => {
     await page.goto("/docs");
     await expect(

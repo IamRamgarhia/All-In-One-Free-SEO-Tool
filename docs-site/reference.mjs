@@ -52,6 +52,53 @@ export function readRoutes() {
   return out;
 }
 
+/**
+ * Every MCP tool, read out of the server's own TOOLS array.
+ *
+ * Same reason as readRoutes: the MCP page used to say "22 tools in
+ * total" and "15 of the 22" in hand-written prose, and by the time
+ * anyone looked there were 29 and 21. A number typed into documentation
+ * is a number that goes stale on the next commit; the README's copy is
+ * kept honest by a test, and this is the docs' equivalent.
+ *
+ * Read-only is derived the way the server derives it — a tool is a
+ * writer only if it says `readOnlyHint: false`. Omitting annotations
+ * means "this reads", which is the documented idiom.
+ */
+export function readMcpTools() {
+  const src = readFileSync(join(APP, "src/lib/mcp/server.ts"), "utf8");
+  const start = src.indexOf("const TOOLS = [");
+  if (start === -1) throw new Error("MCP TOOLS array not found in server.ts");
+  const body = src.slice(start, src.indexOf("\n];", start));
+
+  const out = [];
+  // Entries start at a two-space `{`; split on that so a description
+  // containing a brace cannot derail the scan.
+  for (const chunk of body.split(/\n  \{\n/).slice(1)) {
+    const name = /name:\s*"([^"]+)"/.exec(chunk);
+    if (!name) continue;
+    const desc = /description:\s*\n?\s*((?:"(?:[^"\\]|\\.)*"\s*\+?\s*)+)/.exec(chunk);
+    const description = desc
+      ? unq(
+          desc[1]
+            .split("+")
+            .map((part) => part.trim().replace(/^"|"$/g, ""))
+            .join(""),
+        )
+      : "";
+    out.push({
+      name: name[1],
+      description,
+      // A writer declares itself. Anything else reads.
+      writes: /readOnlyHint:\s*false/.test(chunk),
+    });
+  }
+  if (out.length < 20) {
+    throw new Error(`Only ${out.length} MCP tools parsed — server.ts shape changed.`);
+  }
+  return out;
+}
+
 /** The sidebar, so the docs list screens in the order the app does. */
 export function readNav() {
   const src = readFileSync(join(APP, "src/components/shell/nav-items.ts"), "utf8");

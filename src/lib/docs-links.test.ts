@@ -1,87 +1,143 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DOCS_BASE, DOCS_PAGES, docsPage, docsUrlFor } from "./docs-links";
+import { docsUrlFor, DOCS_BASE, DOCS_PAGES } from "./docs-links";
+import { TOOL_CAPABILITIES } from "./tool-capabilities.generated";
 
 /**
- * The help button is on 192 screens (195 render PageHeader; /docs,
- * /learn and /welcome pass noHelp because they are the help). A link that
- * 404s from there is
- * worse than no link: it is offered at the exact moment someone is
- * already stuck, and it teaches them the docs are not worth trying.
+ * The help button, and where it actually lands.
  *
- * So every page this map can produce has to exist in docs-site/, which
- * is checked against the source content rather than a built folder —
- * dist/ is generated and gitignored, so a test that read it would pass
- * or fail depending on whether someone had run a build.
+ * Every screen has one; it is the only route from "I don't understand
+ * this page" to an explanation, and nobody files a bug when it points
+ * somewhere useless. Two ways it can be useless:
+ *
+ *   - the wrong page, which an e2e test already covers for five screens
+ *   - the right page and the wrong place on it, which is what this
+ *     covers. All ~92 tools live on one generated reference page, so a
+ *     link to the page alone drops the reader at the top of a table of
+ *     ninety-odd rows to find their own.
+ *
+ * The anchors come from toolsPage() in docs-site/reference.mjs, built
+ * from the same routes. These tests check the two agree rather than
+ * trusting that they do.
  */
 
-const ROOT = process.cwd();
-const CONTENT = join(ROOT, "docs-site", "content.mjs");
+const DIST = join(process.cwd(), "docs-site/dist/tools.html");
 
-/** Slugs the written pages define, plus the two generated ones. */
-function knownSlugs(): Set<string> {
-  const src = existsSync(CONTENT) ? readFileSync(CONTENT, "utf8") : "";
-  const slugs = [...src.matchAll(/slug:\s*"([^"]+)"/g)].map((m) => m[1]);
-  // reference.mjs builds these two from the app's own source.
-  slugs.push("tools.html", "screens.html");
-  return new Set(slugs);
-}
+/** Tool routes, as the app's own generated capability table lists them. */
+const TOOL_ROUTES = TOOL_CAPABILITIES.map((t) => t.route).filter((r) =>
+  /^\/tools\/[a-z0-9-]+$/.test(r),
+);
 
-describe("documentation links", () => {
-  const slugs = knownSlugs();
-
-  it("finds the docs content to check against", () => {
-    expect(existsSync(CONTENT), "docs-site/content.mjs is missing").toBe(true);
-    expect(slugs.size).toBeGreaterThan(15);
-  });
-
-  it("every named page exists", () => {
-    for (const key of Object.keys(DOCS_PAGES) as (keyof typeof DOCS_PAGES)[]) {
-      const file = DOCS_PAGES[key];
-      expect(slugs.has(file.split("#")[0]), `DOCS_PAGES.${key} -> ${file} does not exist`).toBe(true);
-      expect(docsPage(key).startsWith(DOCS_BASE)).toBe(true);
-    }
-  });
-
-  it("every route in the map points at a page that exists", () => {
-    // Exercised through the public function, so the map cannot be right
-    // while the lookup is wrong.
-    const routes = [
-      "/", "/welcome", "/clients", "/audits", "/tasks", "/morning", "/keywords",
-      "/cannibalization", "/content", "/title-tests", "/backlinks", "/outreach",
-      "/gbp", "/citations", "/local-rank", "/competitors", "/compare",
-      "/ai-visibility", "/agent", "/agent/autopilot", "/automations", "/monitor",
-      "/reports", "/proposals", "/connect", "/settings", "/settings/backup",
-      "/tools", "/docs",
-    ];
-    for (const route of routes) {
+describe("docsUrlFor", () => {
+  it("sends each tool to its own anchor, not just the page", () => {
+    expect(TOOL_ROUTES.length).toBeGreaterThan(50);
+    for (const route of TOOL_ROUTES) {
       const url = docsUrlFor(route);
-      const file = url.slice(DOCS_BASE.length).split("#")[0];
-      expect(slugs.has(file), `${route} -> ${file} does not exist`).toBe(true);
+      const slug = route.replace("/tools/", "");
+      expect(url, `${route} should deep-link`).toBe(
+        `${DOCS_BASE}tools.html#tool-${slug}`,
+      );
     }
   });
 
-  it("sends an unknown screen to the front page rather than nowhere", () => {
-    expect(docsUrlFor("/something/nobody/added")).toBe(DOCS_BASE + "index.html");
-    expect(docsUrlFor(null)).toBe(DOCS_BASE + "index.html");
+  it("still sends the tools index to the page itself", () => {
+    // No anchor here on purpose: /tools IS the list.
+    expect(docsUrlFor("/tools")).toBe(`${DOCS_BASE}tools.html`);
   });
 
-  it("picks the most specific match, not the first", () => {
-    // /agent/autopilot must not resolve to the /agent page just because
-    // that prefix also matches.
-    expect(docsUrlFor("/agent/autopilot")).toContain("#control");
-    expect(docsUrlFor("/settings/backup")).toContain("backup.html");
-    expect(docsUrlFor("/settings")).toContain("integrations.html");
+  it("leaves non-tool screens alone", () => {
+    expect(docsUrlFor("/keywords")).toBe(`${DOCS_BASE}keywords.html`);
+    expect(docsUrlFor("/agent/autopilot")).toBe(`${DOCS_BASE}agent.html#control`);
+    expect(docsUrlFor("/settings/backup")).toBe(`${DOCS_BASE}backup.html`);
   });
 
-  it("handles a trailing slash and a query string", () => {
-    expect(docsUrlFor("/audits/")).toBe(docsUrlFor("/audits"));
-    expect(docsUrlFor("/audits?id=3")).toBe(docsUrlFor("/audits"));
+  it("falls back to the front page for an unknown route", () => {
+    // A screen nobody mapped must still go somewhere real.
+    expect(docsUrlFor("/some/screen/nobody/mapped")).toBe(`${DOCS_BASE}index.html`);
+    expect(docsUrlFor(null)).toBe(`${DOCS_BASE}index.html`);
+    expect(docsUrlFor("")).toBe(`${DOCS_BASE}index.html`);
   });
 
-  it("nested client routes inherit their section's page", () => {
-    expect(docsUrlFor("/audits/c/4")).toBe(docsUrlFor("/audits"));
-    expect(docsUrlFor("/clients/12/onboarding")).toBe(docsUrlFor("/clients"));
+  it("ignores a query string and a trailing slash", () => {
+    expect(docsUrlFor("/tools/geo-swot/")).toBe(
+      `${DOCS_BASE}tools.html#tool-geo-swot`,
+    );
+    expect(docsUrlFor("/tools/geo-swot?client=4")).toBe(
+      `${DOCS_BASE}tools.html#tool-geo-swot`,
+    );
+  });
+
+  it("never builds a double slash", () => {
+    // DOCS_BASE is normalised to end in exactly one slash; a second one
+    // from a page value would 404 on a static host.
+    for (const page of Object.values(DOCS_PAGES)) {
+      expect(`${DOCS_BASE}${page}`).not.toMatch(/[^:]\/\//);
+    }
+  });
+});
+
+describe("the anchors exist on the built docs page", () => {
+  /**
+   * Skipped rather than failed when dist/ is absent: a fresh clone has
+   * not run the docs build, and a unit suite that demands a build
+   * artefact is a unit suite people start skipping. CI builds the docs,
+   * so it runs there.
+   */
+  const built = existsSync(DIST) ? readFileSync(DIST, "utf8") : null;
+
+  it.runIf(built)("every tool help link resolves to a real anchor", () => {
+    const anchors = new Set(
+      [...built!.matchAll(/id="(tool-[a-z0-9-]+)"/g)].map((m) => m[1]),
+    );
+    const missing = TOOL_ROUTES.map((r) => docsUrlFor(r).split("#")[1]).filter(
+      (hash) => !hash || !anchors.has(hash),
+    );
+    expect(
+      missing,
+      `these tools link to an anchor the docs page does not have, so the ` +
+        `help button lands at the top of the table instead: ${missing.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it.runIf(existsSync(join(process.cwd(), "docs-site/dist/mcp.html")))(
+    "the MCP page states the real tool counts",
+    async () => {
+      /**
+       * The same guard the README has, for the other place the number
+       * is published. This page read "22 tools in total" and "15 of the
+       * 22" long after the real figures were 29 and 21 — prose cannot
+       * be trusted to track code, so content.mjs now counts them at
+       * build time and this checks the output.
+       */
+      const { MCP_TOOL_LIST, READ_ONLY_TOOLS } = await import("./mcp/server");
+      const raw = readFileSync(
+        join(process.cwd(), "docs-site/dist/mcp.html"),
+        "utf8",
+      );
+      // Collapsed, because where the generated HTML wraps a line is
+      // incidental and asserting on it makes this fail for the wrong
+      // reason — which it did on the first run.
+      const html = raw.replace(/\s+/g, " ");
+      expect(html).toContain(`${MCP_TOOL_LIST.length} tools`);
+      expect(html).toContain(`${READ_ONLY_TOOLS.length} of the ${MCP_TOOL_LIST.length}`);
+      // And one row per tool, each with an anchor of its own.
+      const rows = [...raw.matchAll(/id="mcp-[a-z0-9-]+"/g)].length;
+      expect(rows).toBe(MCP_TOOL_LIST.length);
+    },
+  );
+
+  it.runIf(built)("the docs page has no anchor for a tool that is gone", () => {
+    // The other direction: a removed tool leaving a stale row is a
+    // documented feature that no longer exists, which is worse than a
+    // missing one.
+    const anchors = [...built!.matchAll(/id="(tool-[a-z0-9-]+)"/g)].map((m) =>
+      m[1].replace(/^tool-/, ""),
+    );
+    const routes = new Set(TOOL_ROUTES.map((r) => r.replace("/tools/", "")));
+    const orphans = anchors.filter((a) => !routes.has(a));
+    expect(orphans, `documented but not in the app: ${orphans.join(", ")}`).toEqual(
+      [],
+    );
   });
 });
