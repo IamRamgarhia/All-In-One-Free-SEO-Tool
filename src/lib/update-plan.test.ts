@@ -6,6 +6,8 @@ import {
   KEEP,
   compareVersions,
   parseVersion,
+  pickReleaseAsset,
+  releaseAssetName,
   repoSlug,
   shouldKeep,
 } from "../../scripts/update-plan.mjs";
@@ -153,6 +155,70 @@ describe("parseVersion", () => {
     for (const v of ["", "v1", "1.2", "latest", null, undefined]) {
       expect(parseVersion(v), String(v)).toBeNull();
     }
+  });
+});
+
+describe("pickReleaseAsset", () => {
+  /**
+   * The real asset list of the real v0.10.0 release, in the order
+   * GitHub returned it.
+   *
+   * The first version of this took the first asset ending in ".zip",
+   * which is the WordPress bridge plugin — 30 KB, and it sorts first.
+   * The updater downloaded the plugin, found no package.json in it and
+   * refused. Caught end to end against the published release.
+   */
+  const REAL_ASSETS = [
+    { name: "seo-tool-bridge.zip", browser_download_url: "https://x/bridge" },
+    { name: "seo-tool-v0.10.0.zip", browser_download_url: "https://x/app" },
+  ];
+
+  it("picks the app, not the WordPress plugin", () => {
+    expect(pickReleaseAsset(REAL_ASSETS, "v0.10.0")?.name).toBe("seo-tool-v0.10.0.zip");
+  });
+
+  it("matches the exact version before falling back to the pattern", () => {
+    // A release carrying two app zips must hand back the one its tag
+    // names, not whichever is listed first.
+    const assets = [
+      { name: "seo-tool-v0.9.0.zip" },
+      { name: "seo-tool-v0.10.0.zip" },
+    ];
+    expect(pickReleaseAsset(assets, "v0.10.0")?.name).toBe("seo-tool-v0.10.0.zip");
+    expect(pickReleaseAsset(assets, "v0.9.0")?.name).toBe("seo-tool-v0.9.0.zip");
+  });
+
+  it("falls back to any app-shaped zip when the exact name is absent", () => {
+    // A tag that does not match the file inside it should still update
+    // rather than stop.
+    expect(pickReleaseAsset([{ name: "seo-tool-v0.11.0.zip" }], "v0.11.1")?.name).toBe(
+      "seo-tool-v0.11.0.zip",
+    );
+  });
+
+  it("returns null rather than guessing", () => {
+    // The caller then uses GitHub's source zipball. Returning the
+    // plugin, a checksum file or a .exe would mean downloading
+    // something and unpacking it over the user's install.
+    for (const assets of [
+      [],
+      null,
+      undefined,
+      [{ name: "seo-tool-bridge.zip" }],
+      [{ name: "checksums.txt" }, { name: "SEO-Tool-Setup.exe" }],
+      [{ noName: true }],
+    ]) {
+      expect(pickReleaseAsset(assets as never, "v0.10.0")).toBeNull();
+    }
+  });
+
+  it("names the asset the packaging script actually writes", () => {
+    // One source of truth for the filename: the script that writes it
+    // and the updater that looks for it both call releaseAssetName.
+    // They disagreeing IS the bug above.
+    expect(releaseAssetName("0.10.0")).toBe("seo-tool-v0.10.0.zip");
+    expect(releaseAssetName("v0.10.0")).toBe("seo-tool-v0.10.0.zip");
+    expect(pickReleaseAsset([{ name: releaseAssetName("0.12.3") }], "v0.12.3")).not.toBeNull();
   });
 });
 

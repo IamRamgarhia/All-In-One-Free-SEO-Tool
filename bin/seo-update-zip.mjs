@@ -69,7 +69,12 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { commonPrefix, extractZip } from "../scripts/zip-read.mjs";
-import { compareVersions, repoSlug, shouldKeep } from "../scripts/update-plan.mjs";
+import {
+  compareVersions,
+  pickReleaseAsset,
+  repoSlug,
+  shouldKeep,
+} from "../scripts/update-plan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -171,12 +176,11 @@ async function main() {
     process.exit(0);
   }
 
-  // Prefer a release asset — that is the zip with the launchers in it,
-  // the one the README tells people to download. The source zipball
-  // GitHub attaches to every release is the fallback.
-  const asset = (release.assets ?? []).find(
-    (a) => typeof a.name === "string" && a.name.endsWith(".zip"),
-  );
+  // The app zip specifically — a release also carries the WordPress
+  // bridge plugin, and "first asset ending in .zip" picked THAT (30 KB,
+  // sorts first). See pickReleaseAsset. The source zipball GitHub
+  // attaches to every release is the fallback.
+  const asset = pickReleaseAsset(release.assets, latest);
   const url = asset?.browser_download_url ?? release.zipball_url;
   if (!url) die("That release has no zip to download.");
 

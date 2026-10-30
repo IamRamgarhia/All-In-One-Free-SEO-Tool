@@ -79,6 +79,43 @@ export function compareVersions(a, b) {
 }
 
 /**
+ * What the release zip is called. Owned here, used by the packaging
+ * script that writes it and the updater that looks for it — so they
+ * cannot disagree about the name, which is the whole bug below.
+ */
+export function releaseAssetName(version) {
+  return `seo-tool-v${String(version).replace(/^v/, "")}.zip`;
+}
+
+/** Matches that convention for any version. */
+const APP_ZIP = /^seo-tool-v\d+\.\d+\.\d+\.zip$/;
+
+/**
+ * Which attached file is the app?
+ *
+ * The first version of this took the first asset whose name ends in
+ * ".zip", and a release carries more than one: the WordPress bridge
+ * plugin is also attached, it is 30 KB, and it sorted first. So the
+ * updater downloaded the plugin, found no package.json inside it, and
+ * refused. Caught end to end against the real published v0.10.0
+ * release, by the validate-before-touching step — which is exactly the
+ * outcome that step exists for, and the reason it runs before anything
+ * is overwritten rather than after.
+ *
+ * Exact name first, so a release carrying several versions of the app
+ * zip cannot hand back the wrong one. Null means "nothing here matches"
+ * and the caller falls back to the source zipball, rather than this
+ * guessing.
+ */
+export function pickReleaseAsset(assets, tag) {
+  const list = Array.isArray(assets) ? assets.filter((a) => a && typeof a.name === "string") : [];
+  const wanted = releaseAssetName(tag);
+  return (
+    list.find((a) => a.name === wanted) ?? list.find((a) => APP_ZIP.test(a.name)) ?? null
+  );
+}
+
+/**
  * The GitHub `owner/name` from package.json's repository url.
  *
  * Read rather than written down again. `src/lib/repo.ts` is the slug's

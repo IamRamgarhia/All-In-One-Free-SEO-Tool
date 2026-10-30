@@ -39,6 +39,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { releaseAssetName } from "./update-plan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -52,7 +53,7 @@ const OUT = resolve(
   ROOT,
   outArg !== -1 && process.argv[outArg + 1]
     ? process.argv[outArg + 1]
-    : `dist/seo-tool-v${version}.zip`,
+    : `dist/${releaseAssetName(version)}`,
 );
 
 function say(msg) {
