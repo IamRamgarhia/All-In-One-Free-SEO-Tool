@@ -85,6 +85,35 @@ export const SITE_WIDE_KINDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Finding types the agent fixes WITHOUT a FIXABLE entry.
+ *
+ * Step 1b below plans internal links from a whole-site crawl rather than
+ * from a finding, because an orphan's problem is the absence of a link
+ * on some OTHER page and no per-page check can see that. So
+ * `orphan_pages` has no FIXABLE key — and the coverage metric, which
+ * counted FIXABLE keys, therefore reported this finding as something
+ * the agent cannot fix. It has been fixing it all along.
+ *
+ * That made the headline number — "the agent can auto-fix N of the
+ * crawler's finding types", the number planner-coverage.test.ts guards
+ * and the README quotes — wrong by one, and put `orphan_pages` on the
+ * printed roadmap of things still to build. Someone would have built it
+ * twice.
+ *
+ * Listing it here rather than adding it to FIXABLE on purpose: a FIXABLE
+ * entry would make step 1 plan a second, per-page action for the same
+ * problem, targeted at the finding's url, which is the HOME page
+ * (the finding is reported against the site, not against each orphan).
+ * The site-wide pass already targets the right pages.
+ *
+ * Anything added here must be genuinely planned somewhere, and
+ * planner-coverage.test.ts fails if it is not a real finding type.
+ */
+export const FIXED_WITHOUT_FINDING: ReadonlySet<string> = new Set([
+  "orphan_pages",
+]);
+
+/**
  * Which hardening toggle each WordPress finding turns on.
  *
  * Six findings, six switches, one per problem. Kept as a map rather than
