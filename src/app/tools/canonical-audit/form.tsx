@@ -74,7 +74,23 @@ export function CanonForm() {
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
             <Stat label="Pages crawled" value={state.result.pagesChecked.toString()} />
             <Stat label="Issues" value={state.result.issues.length.toString()} tone={state.result.issues.length === 0 ? "emerald" : "amber"} />
-            <Stat label="Critical" value={String(state.result.summary["broken-target"] ?? 0 + (state.result.summary["multiple"] ?? 0) + (state.result.summary["noindex-conflict"] ?? 0))} tone="rose" />
+            {/*
+              Counted off each issue's own severity, not by re-summing
+              named kinds. The previous version did the latter and got
+              it wrong twice over:
+
+                summary["broken-target"] ?? 0 + (...) + (...)
+
+              `??` binds looser than `+`, so that parses as
+              `broken-target ?? (0 + multiple + noindex-conflict)` — the
+              card showed ONLY broken-target whenever there was one, and
+              the sum of the other two when there wasn't. 2 broken + 5
+              multiple + 9 noindex rendered as "Critical: 2".
+
+              It was also a second copy of the critical set, which
+              canonical-audit.ts already decides per issue.
+            */}
+            <Stat label="Critical" value={state.result.issues.filter((i) => i.severity === "critical").length.toString()} tone="rose" />
             <Stat label="Self-mismatch" value={(state.result.summary["self-mismatch"] ?? 0).toString()} tone="amber" />
           </div>
 

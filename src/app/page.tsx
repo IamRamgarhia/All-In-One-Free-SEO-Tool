@@ -499,12 +499,20 @@ export default async function DashboardPage() {
           <AreaChart
             data={[...trendAudits]
               .reverse()
+              // audits.score is nullable and the query filters only on
+              // status, so a completed audit without a score plotted as
+              // 0 — a dive to the floor of the chart, which reads as a
+              // site that collapsed. Both completion paths do set a
+              // score today, so this is a guard, not a live fix. Drop
+              // the point instead of inventing one, the same choice the
+              // pagesCrawled comment in schema.ts explains.
+              .filter((a) => a.score !== null)
               .map((a, i) => ({
                 name: (a.completedAt ?? a.createdAt).toLocaleDateString(
                   undefined,
                   { month: "short", day: "numeric" },
                 ),
-                value: a.score ?? 0,
+                value: a.score as number,
                 _idx: i,
               }))}
             colorClass="text-violet-500"

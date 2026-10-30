@@ -13,6 +13,7 @@ import {
   serpScreenshots,
 } from "@/db/schema";
 import { checkRank, shutdownBrowser } from "@/lib/rank-checker";
+import { comparePositions } from "@/lib/rank-comparison";
 import { prefetchGscSnapshot, resolveRank } from "@/lib/rank-resolve";
 import type { GscRankLookup } from "@/lib/rank-gsc";
 import { notify } from "@/lib/notifier";
@@ -91,15 +92,23 @@ export async function checkRankAction(
     language: row.kwLanguage || row.clientLanguage || "en",
   };
 
-  // Most recent prior reading (for delta + alerts)
+  // Most recent prior reading (for delta + alerts).
+  //
+  // The source comes with it. Selecting the position alone is what let
+  // this compare a Search Console average against a live scrape and
+  // call the difference a ranking drop — see lib/rank-comparison.ts.
   const previous = await db
-    .select({ position: keywordRankings.position })
+    .select({
+      position: keywordRankings.position,
+      source: keywordRankings.source,
+    })
     .from(keywordRankings)
     .where(eq(keywordRankings.keywordId, keywordId))
     .orderBy(keywordRankings.checkedAt)
     .all();
-  const previousPosition =
-    previous.length > 0 ? previous[previous.length - 1].position : null;
+  const previousReading =
+    previous.length > 0 ? previous[previous.length - 1] : null;
+  const previousPosition = previousReading?.position ?? null;
 
   // Capture screenshot on first check or when previous position is unknown.
   // Subsequent checks only screenshot if we know the position changed by ≥3
@@ -141,11 +150,16 @@ export async function checkRankAction(
     dataDate: result.dataDate,
   });
 
-  // Persist screenshot if we got one (or if position changed meaningfully)
+  const movement = comparePositions(previousReading, {
+    position: result.position,
+    source: result.source,
+  });
+
+  // Persist screenshot if we got one (or if position changed meaningfully).
+  // A cross-source comparison is not a change, so it does not earn the
+  // extra browser launch either.
   const positionChangedBigly =
-    previousPosition !== null &&
-    result.position !== null &&
-    Math.abs(result.position - previousPosition) >= 3;
+    movement.drop !== null && Math.abs(movement.drop) >= 3;
 
   let buffer = result.screenshotBuffer;
   if (!buffer && positionChangedBigly && result.source === "scrape") {
@@ -182,12 +196,11 @@ export async function checkRankAction(
     }
   }
 
-  // Score-drop-style alert: if we previously ranked and dropped 5+ positions
-  if (
-    previousPosition !== null &&
-    result.position !== null &&
-    result.position - previousPosition >= 5
-  ) {
+  // Score-drop-style alert: if we previously ranked and dropped 5+
+  // positions *in the same measurement*. movement.drop is null when the
+  // two readings came from different sources, which is not a drop — it
+  // is two different questions with two different answers.
+  if (movement.drop !== null && movement.drop >= 5) {
     notify({
       title: `Ranking drop — ${row.clientName ?? "Client"}`,
       body: `"${row.query}" fell from #${previousPosition} to #${result.position}.`,
@@ -195,15 +208,18 @@ export async function checkRankAction(
       fields: [
         { label: "Keyword", value: row.query },
         {
+          // Both readings, not just the latest. The old field named only
+          // the current source, which read as though the comparison had
+          // provenance when it could not have had.
           label: "Source",
           value:
             result.source === "gsc"
-              ? `Search Console (${result.dataDate})`
-              : "Live SERP check",
+              ? `Search Console (${result.dataDate}), both readings`
+              : "Live SERP check, both readings",
         },
         {
           label: "Change",
-          value: `▼ ${result.position - previousPosition} positions`,
+          value: `▼ ${movement.drop} positions`,
         },
       ],
     }).catch(() => {});

@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { clients, keywords, keywordRankings } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { clientScope } from "@/lib/client-scope";
+import { comparePositions } from "@/lib/rank-comparison";
 
 type Movement = {
   keywordId: number;
@@ -71,26 +72,38 @@ export default async function SerpVolatilityPage({
   }
 
   const movements: Movement[] = [];
+  // Keywords whose two ends of the window came from different sources.
+  // Excluded from the score rather than counted as movement, and
+  // reported, because silently dropping them would overstate how much
+  // of the tracked set this number covers.
+  let incomparable = 0;
   for (const [keywordId, history] of byKw.entries()) {
     if (history.length < 2) continue;
     // Recent first → oldest last (because of desc above). The "first" in
     // chronological terms is the last element.
     const oldest = history[history.length - 1];
     const newest = history[0];
-    if (oldest.position === null || newest.position === null) continue;
     const k = kwById.get(keywordId);
     if (!k) continue;
     const c = clientById.get(k.clientId);
     if (!c) continue;
+    // A Search Console average minus a live scrape is not a shift. This
+    // score averages |delta| and labels the result calm/choppy/stormy,
+    // so including one reported an algorithm update that never happened.
+    const movement = comparePositions(oldest, newest);
+    if (!movement.comparable) {
+      if (movement.note) incomparable += 1;
+      continue;
+    }
     movements.push({
       keywordId,
       query: k.query,
       clientId: k.clientId,
       clientName: c.name,
       device: k.device,
-      first: oldest.position,
-      last: newest.position,
-      delta: newest.position - oldest.position,
+      first: oldest.position as number,
+      last: newest.position as number,
+      delta: movement.drop as number,
     });
   }
 
@@ -182,8 +195,17 @@ export default async function SerpVolatilityPage({
                   <strong className="text-foreground">
                     {movements.length}
                   </strong>{" "}
-                  keywords with ≥2 checks
+                  keywords with ≥2 comparable checks
                 </div>
+                {incomparable > 0 && (
+                  // Say what the score does not cover. These keywords
+                  // used to be counted as movement, which inflated the
+                  // score and could label the SERP "stormy" on nothing.
+                  <div className="text-amber-300/80">
+                    {incomparable} excluded — window starts and ends on
+                    different sources
+                  </div>
+                )}
                 <div>
                   <strong className="text-emerald-300">
                     {gainers.length}

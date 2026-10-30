@@ -52,6 +52,7 @@ import {
   topPagesByImpressions,
   windowTotals,
 } from "@/lib/gsc-insights";
+import { comparePositions } from "@/lib/rank-comparison";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -296,23 +297,24 @@ export async function getKeywordRankings(opts: {
         const history = byKeyword.get(k.id) ?? [];
         const latest = history[0];
         const oldest = history[history.length - 1];
+        // Movement only where both ends came from the same source. A
+        // "rise" that is really a switch from scrape to GSC is an
+        // invented result, and it reads exactly like a real one.
+        //
+        // This was the only place in the app that honoured that rule,
+        // written inline. It now shares lib/rank-comparison.ts with the
+        // rank-drop notification and the volatility score, which did
+        // not. `gain` is positive for an improvement, which is the sign
+        // this field has always had.
+        const movement = comparePositions(oldest, latest);
         return {
           query: k.query,
           country: k.country,
           latestPosition: latest?.position ?? null,
           checkedAt: latest?.checkedAt ?? null,
           freshness: freshness(latest?.checkedAt),
-          // Movement only where both ends came from the same source.
-          // A "rise" that is really a switch from scrape to GSC is an
-          // invented result, and it reads exactly like a real one.
-          change:
-            latest && oldest && latest.source === oldest.source && latest.position && oldest.position
-              ? oldest.position - latest.position
-              : null,
-          changeNote:
-            latest && oldest && latest.source !== oldest.source
-              ? "Not comparable — the start and end of this window came from different sources."
-              : undefined,
+          change: movement.gain,
+          changeNote: movement.note,
           source: latest?.source ?? null,
           provenance: latest ? rankProvenance(latest.source) : "never checked",
         };
