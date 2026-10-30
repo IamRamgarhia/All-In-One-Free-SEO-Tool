@@ -18,6 +18,7 @@ import { prefetchGscSnapshot, resolveRank } from "@/lib/rank-resolve";
 import type { GscRankLookup } from "@/lib/rank-gsc";
 import { notify } from "@/lib/notifier";
 import { guardAction } from "@/lib/action-guard";
+import type { RankSource } from "@/lib/serp/sources";
 
 function screenshotsRoot(): string {
   if (process.env.SEO_SCREENSHOTS_DIR) return process.env.SEO_SCREENSHOTS_DIR;
@@ -36,7 +37,7 @@ export type CheckRankResult =
       engine: "google" | "duckduckgo";
       previousPosition: number | null;
       /** Where the number came from. See src/lib/rank-resolve.ts. */
-      source: "gsc" | "scrape";
+      source: RankSource;
       /** GSC only: the day it describes, which is not today. */
       dataDate: string | null;
       /** GSC only: impressions behind the average, i.e. how much to trust it. */

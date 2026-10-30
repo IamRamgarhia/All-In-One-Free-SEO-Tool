@@ -22,6 +22,7 @@ import { NeedsConnection } from "@/components/ui/needs-connection";
 import { RankSparkline } from "./rank-sparkline";
 import { PlannerPanel } from "@/app/clients/[id]/planner-panel";
 import { getAdsStatus } from "@/lib/google-ads";
+import type { RankSource } from "@/lib/serp/sources";
 
 const deviceTone: Record<string, string> = {
   desktop: "bg-violet-500/15 text-violet-300 ring-violet-500/30",
@@ -158,7 +159,7 @@ export default async function PerClientKeywordsPage({
       hasFeaturedSnippet: boolean;
       hasLocalPack: boolean;
       paaCount: number;
-      source: "scrape" | "gsc";
+      source: RankSource;
       impressions: number | null;
       dataDate: string | null;
     }[]

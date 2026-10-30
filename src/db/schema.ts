@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { RANK_SOURCE_IDS } from "@/lib/serp/sources";
 
 const timestamps = {
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -980,7 +981,11 @@ export const keywordRankings = sqliteTable("keyword_rankings", {
    * is a point-in-time position our IP was shown. Mixing them on a chart
    * without saying which is which invents movement that never happened.
    */
-  source: text("source", { enum: ["scrape", "gsc"] })
+  // Values come from RANK_SOURCES in lib/serp/sources.ts — one table, so
+  // adding a source cannot leave this list behind. SQLite stores plain
+  // text with no CHECK, so this is a TypeScript guard, not a database
+  // one; `isRankSource` is what guards a value read back out.
+  source: text("source", { enum: RANK_SOURCE_IDS })
     .notNull()
     .default("scrape"),
   /** GSC only: how many impressions the average rests on. */

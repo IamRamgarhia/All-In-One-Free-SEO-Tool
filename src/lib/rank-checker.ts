@@ -2,6 +2,7 @@ import { type Page } from "playwright";
 import { withBrowserContext } from "./browser-pool";
 import { captchaUserMessage, detectCaptcha, emptyResultsReason } from "./captcha-detect";
 import { normaliseCountry } from "./countries";
+import { urlMatchesDomain } from "./serp/match";
 
 export type RankCheckResult = {
   query: string;
@@ -40,15 +41,12 @@ function normalizeDomain(input: string): string {
     .toLowerCase();
 }
 
-function urlMatches(href: string, domain: string): boolean {
-  try {
-    const u = new URL(href);
-    const host = u.hostname.replace(/^www\./i, "").toLowerCase();
-    return host === domain || host.endsWith("." + domain);
-  } catch {
-    return false;
-  }
-}
+/**
+ * Moved to serp/match.ts, which SearXNG and Brave also use. Kept as a
+ * local alias so the call sites below read unchanged — the point of the
+ * move is that there is now one implementation, not three.
+ */
+const urlMatches = urlMatchesDomain;
 
 /**
  * Decide what a finished Google scan actually means.

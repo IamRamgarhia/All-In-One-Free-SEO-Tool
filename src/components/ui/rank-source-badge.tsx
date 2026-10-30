@@ -15,7 +15,13 @@
  * for rankings.
  */
 
-import { Database, Globe } from "lucide-react";
+import { Database, Globe, Layers, Shield } from "lucide-react";
+import {
+  RANK_SOURCES,
+  isRankSource,
+  rankProvenance,
+  type RankSource,
+} from "@/lib/serp/sources";
 
 export function RankSourceBadge({
   source,
@@ -23,7 +29,7 @@ export function RankSourceBadge({
   impressions,
   className,
 }: {
-  source: "gsc" | "scrape" | null | undefined;
+  source: RankSource | null | undefined;
   /** The day a GSC figure describes — not the day it was fetched. */
   dataDate?: string | null;
   impressions?: number | null;
@@ -62,13 +68,31 @@ export function RankSourceBadge({
     );
   }
 
+  // Everything that is not Search Console. This used to be a single
+  // fallback branch reading "Live check", which was fine while the only
+  // other source was the browser — and became wrong the moment SearXNG
+  // and Brave joined the chain, because it would have called a
+  // metasearch answer something this server was shown. Label and tooltip
+  // both come from RANK_SOURCES.
+  const meta = isRankSource(source) ? RANK_SOURCES[source] : null;
+  const Icon = source === "searxng" ? Layers : source === "brave" ? Shield : Globe;
+
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-white/10 ${className ?? ""}`}
-      title="Checked by loading the live search results page. Fresher than Search Console, but it's what one server was shown rather than what your visitors saw — expect ±1-2 positions of noise from personalisation and rotating SERP features. Connect Search Console for this client to get Google's own numbers instead."
+      title={
+        (meta?.provenance ?? rankProvenance(source)) +
+        (source === "scrape"
+          ? ". Expect ±1-2 positions of noise from personalisation and rotating SERP features."
+          : "") +
+        (source === "brave"
+          ? ". Useful as its own series — do not read it as a Google position."
+          : "") +
+        " Connect Search Console for this client to get Google's own numbers instead."
+      }
     >
-      <Globe className="size-2.5" />
-      Live check
+      <Icon className="size-2.5" />
+      {meta?.label ?? source}
     </span>
   );
 }

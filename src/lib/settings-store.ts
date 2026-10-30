@@ -189,6 +189,16 @@ export type SettingKey =
   // Cookie jar for logged-in scraping. Stored as JSON array of
   // { domain, name, value, path?, expires?, secure?, httpOnly? }.
   | "browser.cookies"
+  // Attach to a Chrome the USER started, instead of launching our own.
+  // Expects the http://127.0.0.1:<port> that --remote-debugging-port
+  // prints. Their browser, their profile, their session — which is the
+  // honest version of "browser mode", and the only one that is not us
+  // trying to look like something we are not.
+  | "browser.cdp_url"
+  // Keyless rank sources, tried between Search Console and the browser.
+  // See lib/serp. Both optional; the tool works with neither.
+  | "serp.searxng_url"
+  | "serp.brave_key"
   // Monthly USD cap for AI calls. When set, calls past the cap return null
   // (with a "cap reached" error), so a runaway workflow can't drain credits.
   | "ai.monthly_cap_usd"

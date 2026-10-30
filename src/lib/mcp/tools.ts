@@ -84,17 +84,15 @@ function freshness(at: Date | null | undefined): string {
 }
 
 /**
- * What a rank number actually is.
+ * What a rank number actually is — from RANK_SOURCES, not restated here.
  *
- * These are not interchangeable and a model must not average them. GSC
- * is an impression-weighted daily average across everyone who saw the
- * result; a scrape is one position our IP was shown at one moment.
+ * This was a two-way ternary that treated everything except "gsc" as a
+ * browser scrape. The moment SearXNG and Brave joined the chain it
+ * would have described both as "the position this server was shown",
+ * which is wrong about where the number came from and wrong about how
+ * much to trust it.
  */
-function rankProvenance(source: string): string {
-  return source === "gsc"
-    ? "Google Search Console — impression-weighted average position for the day, across real searchers"
-    : "browser scrape — the position this server was shown at one moment, from one location";
-}
+import { rankProvenance } from "@/lib/serp/sources";
 
 async function resolveClient(clientId: number) {
   const [c] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);

@@ -36,10 +36,18 @@
  * reasoning is from the code and the schema, not from a reproduction.
  */
 
+import type { RankSource } from "./serp/sources";
+
 export type RankReading = {
   position: number | null;
-  /** Matches keyword_rankings.source, which is NOT NULL default "scrape". */
-  source: "scrape" | "gsc";
+  /**
+   * Matches keyword_rankings.source, which is NOT NULL default
+   * "scrape". Typed from RANK_SOURCES so adding a source cannot leave
+   * this behind — and adding one makes this rule matter MORE, not less:
+   * with SearXNG and Brave in the chain, a keyword can now move between
+   * four kinds of measurement rather than two.
+   */
+  source: RankSource;
 };
 
 export const CROSS_SOURCE_NOTE =

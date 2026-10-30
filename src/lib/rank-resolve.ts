@@ -16,6 +16,7 @@
  */
 
 import { checkRank, type RankCheckResult } from "./rank-checker";
+import { configuredSerpProviders } from "./serp";
 import {
   fetchGscRankForQuery,
   fetchGscRankSnapshot,
@@ -23,14 +24,15 @@ import {
   type GscRankLookup,
 } from "./rank-gsc";
 
-export type RankSource = "gsc" | "scrape";
+export type { RankSource } from "./serp/sources";
+type RankSourceId = import("./serp/sources").RankSource;
 
 export type ResolvedRank = {
   query: string;
   position: number | null;
   url: string | null;
   device: "desktop" | "mobile";
-  source: RankSource;
+  source: RankSourceId;
   checkedAt: Date;
   /** GSC only: the day the figure describes, which is not today. */
   dataDate: string | null;
@@ -135,18 +137,18 @@ export async function resolveRank(opts: {
       } catch (err) {
         // Token expired, property removed, quota — any of these should
         // degrade to scraping rather than leaving the user with nothing.
-        return scrapeFallback(opts, now, gscErrorReason(err));
+        return nonGscFallback(opts, now, gscErrorReason(err));
       }
-      return scrapeFallback(
+      return nonGscFallback(
         opts,
         now,
         "No Search Console impressions for this query in the last 10 days, so there was no position to read. Checked the live SERP instead.",
       );
     }
-    return scrapeFallback(opts, now, availability.reason);
+    return nonGscFallback(opts, now, availability.reason);
   }
 
-  return scrapeFallback(opts, now, undefined);
+  return nonGscFallback(opts, now, undefined);
 }
 
 function gscErrorReason(err: unknown): string {
@@ -158,6 +160,72 @@ function gscErrorReason(err: unknown): string {
     return "Search Console is rate-limiting us right now. Fell back to checking the live SERP.";
   }
   return "Couldn't reach Search Console, so this came from a live SERP check instead.";
+}
+
+/**
+ * Everything Search Console could not answer, in order of preference.
+ *
+ * Tries each configured keyless source, then the browser. The browser
+ * is LAST on purpose: it is the slowest, the most memory-hungry, and —
+ * measured from this machine on 30 Oct 2026 — the one Google and
+ * DuckDuckGo both refuse outright. A free SearXNG instance answering in
+ * 400 ms beats a headless Chrome that gets a CAPTCHA in 30 seconds.
+ *
+ * A source that FAILS falls through to the next. A source that answers
+ * "you are not in these results" does NOT: that is an answer, and
+ * retrying it on a different engine would silently return whichever
+ * source flattered the client most.
+ */
+async function nonGscFallback(
+  opts: Parameters<typeof resolveRank>[0],
+  now: Date,
+  reason: string | undefined,
+): Promise<ResolvedRank> {
+  let providerNote = reason;
+
+  for (const provider of await configuredSerpProviders()) {
+    let hit: Awaited<ReturnType<typeof provider.lookup>>;
+    try {
+      hit = await provider.lookup({
+        query: opts.query,
+        domain: opts.domain,
+        country: opts.country,
+        language: opts.language,
+      });
+    } catch (err) {
+      // A provider throwing must not end the chain — the browser below
+      // is still a real option.
+      providerNote = joinNotes(
+        providerNote,
+        `${provider.label} failed: ${(err as Error).message}`,
+      );
+      continue;
+    }
+
+    if (hit.ok) {
+      return {
+        query: opts.query,
+        position: hit.position,
+        url: hit.url,
+        device: opts.device,
+        source: provider.id,
+        checkedAt: now,
+        dataDate: null,
+        impressions: null,
+        resultsScanned: hit.resultsScanned,
+        gscSkipReason: joinNotes(providerNote, hit.detail),
+      };
+    }
+    providerNote = joinNotes(providerNote, `${provider.label}: ${hit.error}`);
+  }
+
+  return scrapeFallback(opts, now, providerNote);
+}
+
+/** Two optional sentences, joined without a stray separator. */
+function joinNotes(a: string | undefined, b: string | undefined): string | undefined {
+  const parts = [a, b].filter((s): s is string => Boolean(s && s.trim()));
+  return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
 async function scrapeFallback(

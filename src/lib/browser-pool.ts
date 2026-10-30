@@ -35,6 +35,13 @@ const MAX_CONCURRENCY_HARD_CAP = 8;
 
 let cachedBrowser: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
+/**
+ * True when `cachedBrowser` is a browser the USER started and we merely
+ * attached to over CDP. Changes two things that would otherwise be
+ * destructive: we reuse their existing context instead of making a
+ * profile-less one, and we never close either.
+ */
+let attachedOverCdp = false;
 let proxyCounter = 0;
 
 // Simple semaphore.
@@ -215,11 +222,77 @@ async function getRemoteWsEndpoint(): Promise<string | null> {
   return env && env.trim() ? env.trim() : null;
 }
 
+/**
+ * Attach to a Chrome the USER started, instead of launching our own.
+ *
+ * They run their everyday Chrome with a debugging port open:
+ *
+ *   chrome.exe --remote-debugging-port=9222
+ *
+ * and put `http://127.0.0.1:9222` in Settings. We then drive that
+ * browser — their profile, their cookies, their consent choices, their
+ * real fingerprint — rather than a fresh headless Chromium that every
+ * search engine recognises on sight.
+ *
+ * Why this and not a stealth arms race: measured from this machine on
+ * 30 Oct 2026, a plain request got a JS interstitial from Google, a
+ * CAPTCHA from DuckDuckGo ("select all squares containing a duck") and
+ * an empty shell from Bing. The honest way to look like a real browser
+ * is to be one, operated by the person it belongs to — not to bolt
+ * detection-evasion flags onto an automated one.
+ *
+ * Costs worth knowing, and the Settings copy says all three:
+ *  - anything with that port open can drive the browser, so it is
+ *    loopback-only and still a real exposure on a shared machine;
+ *  - the tool acts as the signed-in user, in their session;
+ *  - closing Chrome ends the ability to check ranks.
+ */
+async function getCdpEndpoint(): Promise<string | null> {
+  const fromDb = await getSetting<string>("browser.cdp_url");
+  if (fromDb && fromDb.trim()) return fromDb.trim();
+  const env = process.env.SEO_CHROME_CDP_URL;
+  return env && env.trim() ? env.trim() : null;
+}
+
+/**
+ * Only loopback. A CDP endpoint is full control of a browser with no
+ * authentication; pointing this at another machine would hand that
+ * control to the network, and a typo in a settings box should not be
+ * able to do that.
+ */
+export function isLoopbackCdpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw.trim());
+    if (!/^https?:$/.test(u.protocol)) return false;
+    const h = u.hostname.toLowerCase();
+    return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
 async function getBrowser(): Promise<Browser> {
   if (cachedBrowser && cachedBrowser.isConnected()) return cachedBrowser;
   if (!browserPromise) {
+    const cdp = await getCdpEndpoint();
     const remoteWs = await getRemoteWsEndpoint();
-    if (remoteWs) {
+    if (cdp) {
+      // The user's own Chrome, first in line: if they went to the
+      // trouble of opening a debug port, that is the browser they want
+      // driven. Refuse a non-loopback address rather than quietly
+      // ignoring it — silently falling back to headless would leave
+      // them wondering why rank checks still get blocked.
+      if (!isLoopbackCdpUrl(cdp)) {
+        throw new Error(
+          `The Chrome debugging address "${cdp}" isn't on this machine. ` +
+            `A debugging port is unauthenticated full control of a browser, ` +
+            `so only http://127.0.0.1:<port> or http://localhost:<port> is accepted.`,
+        );
+      }
+      attachedOverCdp = true;
+      browserPromise = chromium.connectOverCDP(cdp);
+    } else if (remoteWs) {
+      attachedOverCdp = false;
       // Remote browser: chromium.connect over WebSocket. The service
       // handles launch/teardown; we just attach to a running instance.
       browserPromise = chromium.connect(remoteWs);
@@ -249,6 +322,7 @@ async function getBrowser(): Promise<Browser> {
           "--js-flags=--max-old-space-size=512",
         ],
       };
+      attachedOverCdp = false;
       browserPromise = chromium.launch(opts);
     }
 
@@ -355,6 +429,8 @@ export async function withBrowserContext<T>(
 ): Promise<T> {
   await acquire();
   let context: BrowserContext | null = null;
+  /** Set when `context` is the user's own, so we never close it. */
+  let borrowedContext: BrowserContext | null = null;
   try {
     const browser = await getBrowser();
     const stealth = await isStealthEnabled();
@@ -362,16 +438,38 @@ export async function withBrowserContext<T>(
     const proxyRaw = nextProxy(proxies);
     const proxy = proxyRaw ? parseProxy(proxyRaw) : null;
 
-    context = await browser.newContext({
-      userAgent: opts.userAgent ?? REALISTIC_UA,
-      viewport: opts.viewport ?? { width: 1280, height: 1800 },
-      locale: opts.locale ?? "en-US",
-      timezoneId: opts.timezoneId ?? "UTC",
-      extraHTTPHeaders: {
-        "accept-language": opts.acceptLanguage ?? "en-US,en;q=0.9",
-      },
-      ...(proxy ? { proxy } : {}),
-    });
+    // When attached to the user's own Chrome, reuse the context that is
+    // already there. `newContext()` over CDP gives a fresh, profile-less
+    // context — no cookies, no consent choices, no sign-ins — which is
+    // precisely what we attached in order to get. It would look like a
+    // brand-new browser to every search engine, i.e. exactly the thing
+    // that gets blocked, while the user reasonably believed their real
+    // profile was being used.
+    //
+    // It also must not be closed in `finally` below: it is their
+    // browsing session, not ours to end.
+    if (attachedOverCdp) {
+      const existing = browser.contexts()[0];
+      if (!existing) {
+        throw new Error(
+          "Connected to Chrome but it has no open window. Leave at least one " +
+            "tab open — the tool drives your browser rather than starting its own.",
+        );
+      }
+      borrowedContext = existing;
+      context = existing;
+    } else {
+      context = await browser.newContext({
+        userAgent: opts.userAgent ?? REALISTIC_UA,
+        viewport: opts.viewport ?? { width: 1280, height: 1800 },
+        locale: opts.locale ?? "en-US",
+        timezoneId: opts.timezoneId ?? "UTC",
+        extraHTTPHeaders: {
+          "accept-language": opts.acceptLanguage ?? "en-US,en;q=0.9",
+        },
+        ...(proxy ? { proxy } : {}),
+      });
+    }
 
     // Block heavy resource types by default — saves ~100-200 MB per page
     // load. Disable explicitly when capturing actual screenshots/visuals.
@@ -450,7 +548,9 @@ export async function withBrowserContext<T>(
 
     return await fn(context);
   } finally {
-    if (context) {
+    // Never close a context we borrowed from the user's browser —
+    // that is their window and their tabs.
+    if (context && context !== borrowedContext) {
       await context.close().catch(() => {});
     }
     release();
@@ -580,9 +680,21 @@ export function poolStats() {
  */
 export async function closeBrowser(): Promise<void> {
   const b = cachedBrowser;
+  const borrowed = attachedOverCdp;
   cachedBrowser = null;
   browserPromise = null;
-  if (b && b.isConnected()) {
-    await b.close().catch(() => {});
+  attachedOverCdp = false;
+  if (!b || !b.isConnected()) return;
+  if (borrowed) {
+    // Deliberately does NOT call close(). We attached to a browser the
+    // user started; `Browser.close()` over CDP can take the whole
+    // browser down with it — every tab they had open — because a
+    // setting was saved or a rank run finished. Playwright exposes no
+    // public "disconnect", so the reference is dropped and the socket
+    // is left for process exit to reap. A leaked socket is a much
+    // smaller problem than closing somebody's browser out from under
+    // them.
+    return;
   }
+  await b.close().catch(() => {});
 }
