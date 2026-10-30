@@ -1,5 +1,6 @@
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
+import { comparePeriodHalves } from "./period-compare";
 import { isNotNull } from "drizzle-orm";
 import {
   getGa4OrganicTraffic,
@@ -94,25 +95,32 @@ export async function getPortfolioTraffic(): Promise<PortfolioTraffic> {
     .map(([date, { sessions }]) => ({ date, sessions }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const half = Math.floor(daily.length / 2);
-  const recent = daily.slice(half).reduce((s, r) => s + r.sessions, 0);
-  const prior = daily.slice(0, half).reduce((s, r) => s + r.sessions, 0);
-  const deltaPct =
-    prior > 0 ? Math.round(((recent - prior) / prior) * 100) : null;
+  const portfolio = comparePeriodHalves(
+    daily,
+    (r) => r.date,
+    (r) => r.sessions,
+  );
+  const deltaPct = portfolio.deltaPct;
 
-  // Movers: per-client week-over-week
+  // Movers: per-client, same period split as the portfolio figure.
+  //
+  // Splitting on each client's own row count, as this did, meant two
+  // clients on the same dashboard could be compared over different
+  // periods — a client with gaps in its GA4 data got a different window
+  // from one without, and both differed from the portfolio total above.
   const movers: PortfolioMover[] = valid.map(({ client, rows }) => {
-    const halfC = Math.floor(rows.length / 2);
-    const recentC = rows.slice(halfC).reduce((s, r) => s + r.sessions, 0);
-    const priorC = rows.slice(0, halfC).reduce((s, r) => s + r.sessions, 0);
+    const p = comparePeriodHalves(
+      rows,
+      (r) => r.date,
+      (r) => r.sessions,
+    );
     return {
       clientId: client.id,
       clientName: client.name,
       clientUrl: client.url,
-      recentSessions: recentC,
-      priorSessions: priorC,
-      deltaPct:
-        priorC > 0 ? Math.round(((recentC - priorC) / priorC) * 100) : null,
+      recentSessions: p.recent,
+      priorSessions: p.prior,
+      deltaPct: p.deltaPct,
     };
   });
 

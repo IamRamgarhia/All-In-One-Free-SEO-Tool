@@ -1,5 +1,6 @@
 import { TrendingDown, TrendingUp, Activity } from "lucide-react";
 import { getGa4OrganicTraffic } from "@/lib/google-data";
+import { comparePeriodHalves } from "@/lib/period-compare";
 import { cn } from "@/lib/utils";
 
 export async function OrganicTrafficPanel({
@@ -18,12 +19,15 @@ export async function OrganicTrafficPanel({
     { sessions: 0, users: 0, pageviews: 0 },
   );
 
-  // Compute week-over-week change for sessions
-  const half = Math.floor(rows.length / 2);
-  const recent = rows.slice(half).reduce((s, r) => s + r.sessions, 0);
-  const prior = rows.slice(0, half).reduce((s, r) => s + r.sessions, 0);
-  const delta =
-    prior > 0 ? Math.round(((recent - prior) / prior) * 100) : null;
+  // Period-over-period change in sessions. The comment here said
+  // "week-over-week" over a 28-day fetch, which it never was.
+  const period = comparePeriodHalves(
+    rows,
+    (r) => r.date,
+    (r) => r.sessions,
+  );
+  const delta = period.deltaPct;
+  const daysPerHalf = period.daysPerHalf;
 
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">
@@ -51,6 +55,7 @@ export async function OrganicTrafficPanel({
               label="Sessions"
               value={totals.sessions}
               delta={delta}
+              deltaPeriod={daysPerHalf}
               accent="cyan"
             />
             <Metric
@@ -75,11 +80,14 @@ function Metric({
   label,
   value,
   delta,
+  deltaPeriod,
   accent,
 }: {
   label: string;
   value: number;
   delta?: number | null;
+  /** Days on each side of the comparison, so the label can name it. */
+  deltaPeriod?: number;
   accent: "cyan" | "violet" | "emerald";
 }) {
   const accentText = {
@@ -112,7 +120,10 @@ function Metric({
             <TrendingDown className="size-3" />
           ) : null}
           {delta > 0 ? "+" : ""}
-          {delta}% vs prior period
+          {delta}%{" "}
+          {deltaPeriod
+            ? `· last ${deltaPeriod}d vs prior ${deltaPeriod}d`
+            : "vs prior period"}
         </div>
       )}
     </div>

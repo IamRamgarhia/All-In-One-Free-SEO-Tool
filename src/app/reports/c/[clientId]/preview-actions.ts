@@ -12,6 +12,7 @@ import {
   type GscKeyword,
 } from "@/lib/google-data";
 import { isOpenTask } from "@/lib/task-status";
+import { comparePeriodHalves } from "@/lib/period-compare";
 import { guardAction } from "@/lib/action-guard";
 
 const severityRank = (s: string) =>
@@ -102,17 +103,14 @@ export async function previewExecSummary(
   ]);
 
   const totalSessions = ga4Daily.reduce((s, r) => s + r.sessions, 0);
-  const half = Math.floor(ga4Daily.length / 2);
-  const recentSessions = ga4Daily
-    .slice(half)
-    .reduce((s, r) => s + r.sessions, 0);
-  const priorSessions = ga4Daily
-    .slice(0, half)
-    .reduce((s, r) => s + r.sessions, 0);
-  const sessionsDeltaPct =
-    priorSessions > 0
-      ? Math.round(((recentSessions - priorSessions) / priorSessions) * 100)
-      : null;
+  // Must match report-generator.ts exactly — this is the preview of
+  // that PDF, and the two computed it separately. See period-compare.ts.
+  const sessionsPeriod = comparePeriodHalves(
+    ga4Daily,
+    (r) => r.date,
+    (r) => r.sessions,
+  );
+  const sessionsDeltaPct = sessionsPeriod.deltaPct;
 
   const summary = await generateExecSummary({
     clientId: client.id,

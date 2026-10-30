@@ -634,6 +634,15 @@ async function sitemapHealthStep(): Promise<string> {
 /**
  * Daily traffic-drop check. For every client with GSC data, compare the
  * trailing 7-day clicks to the prior 7-day clicks. ≥10% drop = alert.
+ *
+ * The two windows must be the same length, which until 30 Oct 2026 they
+ * were not: Search Console date ranges are inclusive, so ymd(9)..ymd(2)
+ * is 8 days and ymd(16)..ymd(10) is 7. The recent half carried an extra
+ * day of clicks, inflating it by 8/7, so a real 10% weekly drop came out
+ * as +2.9% GROWTH and the alert only fired once a site had lost about
+ * 21%. This step is the first item in the "morning health check" the
+ * product claims to automate, and it was quietly missing half the drops
+ * it promised to catch — the failure being that nothing appeared at all.
  */
 async function trafficDropAlertStep(): Promise<string> {
   const all = await db.select({ id: clients.id, url: clients.url, name: clients.name }).from(clients);
@@ -650,10 +659,14 @@ async function trafficDropAlertStep(): Promise<string> {
         d.setUTCDate(d.getUTCDate() - offset);
         return d.toISOString().slice(0, 10);
       };
+      // Both windows 7 inclusive days, back to back, ending at ymd(2)
+      // because Search Console data lags two to three days:
+      //   recent  ymd(8) .. ymd(2)
+      //   prior   ymd(15) .. ymd(9)
       const [recent, prev] = await Promise.all([
         fetchGscPerformance({
           siteUrl: c.url,
-          startDate: ymd(9),
+          startDate: ymd(8),
           endDate: ymd(2),
           dimensions: ["query"],
           rowLimit: 100,
@@ -661,8 +674,8 @@ async function trafficDropAlertStep(): Promise<string> {
         }),
         fetchGscPerformance({
           siteUrl: c.url,
-          startDate: ymd(16),
-          endDate: ymd(10),
+          startDate: ymd(15),
+          endDate: ymd(9),
           dimensions: ["query"],
           rowLimit: 100,
           clientIdScope: c.id,

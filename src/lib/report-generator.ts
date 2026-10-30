@@ -17,6 +17,7 @@ import {
   tasks,
 } from "@/db/schema";
 import { generateExecSummary } from "./ai-summary";
+import { comparePeriodHalves } from "./period-compare";
 import { openToolFindings } from "./tool-findings";
 import { planProgress } from "./plan-tasks";
 import { mapToolFinding } from "./agent/tool-finding-map";
@@ -592,19 +593,19 @@ export async function generateReportPdf(
       : Promise.resolve([] as Ga4DailyTraffic[]),
   ]);
 
-  // Aggregate GA4 — total sessions + week-over-week delta
+  // Aggregate GA4 — total sessions + period-over-period delta.
+  //
+  // This is the figure that goes to the client, so it gets the shared
+  // date-based split rather than the index split it had, which gave the
+  // recent half an extra day on any odd row count. See period-compare.ts.
   const totalSessions = ga4Daily.reduce((s, r) => s + r.sessions, 0);
-  const half = Math.floor(ga4Daily.length / 2);
-  const recentSessions = ga4Daily
-    .slice(half)
-    .reduce((s, r) => s + r.sessions, 0);
-  const priorSessions = ga4Daily
-    .slice(0, half)
-    .reduce((s, r) => s + r.sessions, 0);
-  const sessionsDeltaPct =
-    priorSessions > 0
-      ? Math.round(((recentSessions - priorSessions) / priorSessions) * 100)
-      : null;
+  const sessionsPeriod = comparePeriodHalves(
+    ga4Daily,
+    (r) => r.date,
+    (r) => r.sessions,
+  );
+  const sessionsDeltaPct = sessionsPeriod.deltaPct;
+  const sessionsDaysPerHalf = sessionsPeriod.daysPerHalf;
 
   const exec = await generateExecSummary({
     clientId: client.id,
@@ -933,7 +934,10 @@ export async function generateReportPdf(
     if (sessionsDeltaPct !== null) {
       drawKeyValueRow(
         doc,
-        "Week-over-week",
+        // Was "Week-over-week" on a 28-day fetch, so the client was told
+        // a fortnight-over-fortnight figure was a week's change. Name
+        // the period the number actually covers.
+        `Last ${sessionsDaysPerHalf}d vs prior ${sessionsDaysPerHalf}d`,
         `${sessionsDeltaPct > 0 ? "+" : ""}${sessionsDeltaPct}%`,
       );
     }
