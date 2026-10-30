@@ -9,6 +9,7 @@ import {
   Send,
   Wrench,
 } from "lucide-react";
+import { WP_PLUGIN_ZIP_URL } from "@/lib/repo";
 import {
   disconnectWpBridge,
   pushWpFix,
@@ -92,9 +93,15 @@ export function WpBridgePanel({
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Push title / meta / canonical / schema fixes straight into the
-            client&apos;s WordPress site instead of copy-paste. Requires
-            our SEO Tool Bridge plugin (free,{" "}
-            <code>wordpress-plugin/seo-tool-bridge.php</code>).
+            client&apos;s WordPress site instead of copy-paste. Requires our
+            free SEO Tool Bridge plugin —{" "}
+            <a
+              href={WP_PLUGIN_ZIP_URL}
+              className="font-medium underline underline-offset-2"
+            >
+              download the zip
+            </a>
+            .
           </p>
         </div>
         {isConnected && (
@@ -131,9 +138,15 @@ function ConnectForm({ clientId }: { clientId: number }) {
       <input type="hidden" name="clientId" value={clientId} />
       <ol className="list-decimal space-y-1.5 pl-5 text-xs text-muted-foreground">
         <li>
-          Install the bridge plugin from{" "}
-          <code>wordpress-plugin/seo-tool-bridge.php</code> on the client&apos;s
-          WordPress site.
+          <a
+            href={WP_PLUGIN_ZIP_URL}
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Download the plugin zip
+          </a>
+          , then in WordPress go to{" "}
+          <strong>Plugins → Add New → Upload Plugin</strong>, choose it,
+          install and activate.
         </li>
         <li>
           In WordPress, go to <strong>Tools → SEO Tool Bridge</strong> to

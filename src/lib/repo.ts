@@ -22,6 +22,23 @@ export const REPO_URL = `https://github.com/${REPO_SLUG}`;
 export const REPO_ISSUES_URL = `${REPO_URL}/issues`;
 export const REPO_NEW_ISSUE_URL = `${REPO_URL}/issues/new`;
 export const REPO_RELEASES_URL = `${REPO_URL}/releases`;
+
+/**
+ * The WordPress plugin zip, as a direct download.
+ *
+ * Deliberately separate from the release download: they are different
+ * artefacts for different jobs, and conflating them is how somebody
+ * ends up trying to install the 3 MB app zip into WordPress. The app
+ * used to print the path `wordpress-plugin/seo-tool-bridge.php` at
+ * people instead, which is only actionable if you already have the
+ * repository checked out — the one group who does not need a download
+ * link.
+ *
+ * Built and version-checked by scripts/build-plugin-zip.mjs; see
+ * plugin-zip.test.ts, which fails if the committed zip drifts from the
+ * source beside it.
+ */
+export const WP_PLUGIN_ZIP_URL = `${REPO_URL}/raw/main/wordpress-plugin/seo-tool-bridge.zip`;
 export const REPO_API_URL = `https://api.github.com/repos/${REPO_SLUG}`;
 export const REPO_RAW_URL = `https://raw.githubusercontent.com/${REPO_SLUG}`;
 

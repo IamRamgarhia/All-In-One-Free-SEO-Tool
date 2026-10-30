@@ -116,6 +116,24 @@ you if the machine hasn't got it, and nothing is added to your system
 PATH. No Git, no terminal. (`docker compose up -d` still works if you'd
 rather, and so does `npm install && npm run build && npm start`.)
 
+### 🔌 WordPress plugin — a separate download
+
+The tool finds problems on any site by crawling it. To **fix** one on a
+WordPress site — rewrite a title, add a meta description, write alt text
+— it needs a way to write back in. That is this plugin, and it is a
+different file from the one above.
+
+**[⬇️ Download the WordPress plugin](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/raw/main/wordpress-plugin/seo-tool-bridge.zip)** — 30 KB
+ · [source](wordpress-plugin/seo-tool-bridge.php) · [readme](wordpress-plugin/readme.txt)
+
+In WordPress: **Plugins → Add New → Upload Plugin**, choose the zip,
+Install, Activate. It shows you a key — paste that into the tool at
+**Clients → your site → Edit**.
+
+You only need it for sites you want the tool to *change*. Everything
+else — crawling, rankings, Search Console, reports, the AI tools —
+works without it, on any platform.
+
 Each release lists its zip's SHA-256 in the release notes if you want to
 verify the download.
 

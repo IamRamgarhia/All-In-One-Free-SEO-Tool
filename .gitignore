@@ -129,8 +129,21 @@ CLAUDE.md
 # must never be committed.
 backups/
 
-# Built plugin archive — regenerate with the packaging script, do not commit.
+# Built plugin archives stay out — EXCEPT the one people download.
+#
+# The WordPress bridge has to be installable by someone who is not going
+# to clone a repository: WordPress only accepts a .zip, and the docs
+# used to point at a bare .php path, which its upload form rejects. So
+# seo-tool-bridge.zip is committed, and gets a direct raw.githubusercontent
+# URL from the README and from inside the app.
+#
+# Committing a binary is only safe with something holding it to its
+# source. `plugin-zip.test.ts` compares the PHP inside the zip against
+# the PHP beside it, byte for byte — the previous hand-built archive sat
+# at v0.6.0 for six weeks while the source said v0.6.1, and nothing
+# noticed. Rebuild with: node scripts/build-plugin-zip.mjs
 wordpress-plugin/*.zip
+!wordpress-plugin/seo-tool-bridge.zip
 
 # Built docs site — regenerate with `node docs-site/build.mjs`
 /docs-site/dist

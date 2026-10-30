@@ -883,14 +883,24 @@ reports can show what the traffic did rather than only that it arrived.</p>`,
         h2: "WordPress",
         html: `
 <p><span class="pill pill-free">Free</span> The bridge plugin is what lets the agent apply
-fixes to a live site and undo them.</p>
+fixes to a live site and undo them. It is a <strong>separate download</strong> from the app
+itself, and you only need it for sites you want the tool to change — crawling, rankings,
+Search Console and reports work on any platform without it.</p>
 <ol class="steps">
-  <li><strong>Find the plugin</strong><p>It ships with the app, at
-  <code>_system/wordpress-plugin/seo-tool-bridge.php</code>.</p></li>
+  <li><strong>Download the plugin</strong><p>
+  <a href="${REPO}/raw/main/wordpress-plugin/seo-tool-bridge.zip"><strong>seo-tool-bridge.zip</strong></a>
+  — about 30&nbsp;KB. It is also in the app folder at
+  <code>_system/wordpress-plugin/</code>.</p>
+  <p class="note-inline">It must be the <strong>.zip</strong>. WordPress&rsquo;s upload form
+  rejects a bare <code>.php</code> file, and these instructions used to point at one.</p></li>
   <li><strong>Upload it to the site</strong><p>WordPress admin &rarr; Plugins &rarr; Add New
-  &rarr; Upload, then activate.</p></li>
+  &rarr; Upload Plugin, choose the zip, Install, then Activate.</p></li>
   <li><strong>Paste the key</strong><p>The plugin shows a connection key. Paste it into the
   client's WordPress panel in the tool.</p></li>
+  <li><strong>Check it connected</strong><p>The panel says
+  &ldquo;Connected to plugin v…&rdquo;. If it still says the plugin did not respond, the
+  site is reachable but the plugin is not active — <code>/wp-json/</code> on the site will
+  not list a <code>seo-tool/v1</code> namespace.</p></li>
 </ol>
 <div class="note"><strong>Keep the plugin current</strong>
 <p>Older versions saved some changes without rendering them on the page. The app tells you
