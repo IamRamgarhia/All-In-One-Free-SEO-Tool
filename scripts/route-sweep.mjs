@@ -29,6 +29,23 @@ const BASE = process.argv[2] ?? "http://localhost:3000";
 const DB_PATH = process.argv[3] ?? null;
 const APP_DIR = "src/app";
 
+/**
+ * Cookie for a password-protected install, e.g.
+ *
+ *   SWEEP_COOKIE="stb_auth=<token>" node scripts/route-sweep.mjs ...
+ *
+ * Without it this could only sweep an open install — which is every
+ * configuration EXCEPT the documented Docker one, where APP_PASSWORD is
+ * mandatory. Every route came back 401 and the sweep had nothing to say
+ * about the deployment most people will actually run.
+ *
+ * The token is the one the login endpoint sets; it is a hash of the
+ * password, not the password.
+ */
+const AUTH_HEADERS = process.env.SWEEP_COOKIE
+  ? { cookie: process.env.SWEEP_COOKIE }
+  : {};
+
 /** Routes that are expected not to return 200 to an anonymous GET. */
 const EXPECT_NON_200 = new Set([
   "/login", // 200, but redirects when already authed
@@ -232,7 +249,7 @@ async function main() {
     let note = "";
     try {
       const res = await fetch(BASE + url, {
-        headers: { accept: "text/html" },
+        headers: { accept: "text/html", ...AUTH_HEADERS },
         redirect: "manual",
       });
       status = res.status;
