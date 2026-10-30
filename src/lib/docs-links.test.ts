@@ -125,6 +125,15 @@ describe("the anchors exist on the built docs page", () => {
       const rows = [...raw.matchAll(/id="mcp-[a-z0-9-]+"/g)].length;
       expect(rows).toBe(MCP_TOOL_LIST.length);
     },
+    // Not the default 5s. The `await import` above is the only reason
+    // this test is slow and it is also the whole point of it — importing
+    // the real module is what makes the assertion about the real tool
+    // list rather than about a copy of it. That import pulls in the db
+    // layer and its Drizzle schema, which costs a few seconds to
+    // transform; alone it finishes in about 1s, and under a loaded full
+    // suite it crossed 5s and failed the run. A timeout tuned to an idle
+    // machine is a test that fails for a reason unrelated to the code.
+    20_000,
   );
 
   it.runIf(built)("the docs page has no anchor for a tool that is gone", () => {
