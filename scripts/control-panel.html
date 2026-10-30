@@ -167,6 +167,16 @@ async function refresh() {
       '<code>docker compose down</code> from this folder, and take backups ' +
       'inside the app at <em>Settings &rarr; Backup</em> — the database ' +
       'lives in a Docker volume this page cannot reach.';
+  } else if (s.installMode === "unknown") {
+    // Say it here, not only after a button refuses. Someone who opened
+    // this page to press Start should know before they press it.
+    dk.classList.remove("hidden");
+    dk.innerHTML = '<strong>Can&rsquo;t tell how this install is set up,' +
+      ' so the buttons that change things are holding off.</strong> ' +
+      esc(s.installModeWhy || '') +
+      ' Acting on a guess here would start a second copy of the app' +
+      ' against a different, empty database &mdash; and it would look' +
+      ' like it worked.';
   } else {
     dk.classList.add("hidden");
   }

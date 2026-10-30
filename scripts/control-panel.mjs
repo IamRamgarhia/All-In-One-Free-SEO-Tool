@@ -61,6 +61,11 @@ import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { homedir, platform } from "node:os";
 import { createRequire } from "node:module";
+import {
+  DOCKER,
+  UNKNOWN,
+  detectInstallMode,
+} from "./install-mode.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -204,7 +209,8 @@ function resolveBackup(id) {
  * `-a` because a stopped container is still a Docker install, and that is
  * exactly when someone comes here looking for a Start button.
  */
-let dockerCheck = { at: 0, value: false };
+/** Cached {mode, why} from installMode(), not a boolean. */
+let dockerCheck = { at: 0, value: null };
 
 function execCapped(cmd, args, ms) {
   return new Promise((resolve) => {
@@ -221,25 +227,32 @@ function execCapped(cmd, args, ms) {
   });
 }
 
-async function isDockerInstall() {
-  // Detection is never perfect, so it can be overridden — the same rule
-  // this project applies to tech-stack detection. Also the only way to
-  // exercise the Docker branch on a machine without Docker:
-  //   SEO_INSTALL_MODE=docker  (or native)
-  const forced = String(process.env.SEO_INSTALL_MODE ?? "").toLowerCase();
-  if (forced === "docker") return true;
-  if (forced === "native") return false;
-
+/**
+ * Which kind of install this is, as one of three answers.
+ *
+ * The decision itself lives in install-mode.mjs so it can be tested
+ * without Docker; this supplies the three things that touch the machine
+ * and caches the result. UNKNOWN is why it is no longer a boolean — see
+ * that file. Previously "could not tell" and "not Docker" were the same
+ * value, and that value took the native path.
+ */
+async function installMode() {
   // State is polled every few seconds; shelling out to Docker that often
   // would make the page crawl when Docker Desktop is slow to answer.
   if (Date.now() - dockerCheck.at < 30_000) return dockerCheck.value;
-  let value = false;
-  if (existsSync(join(ROOT, "docker-compose.yml")) && (await which("docker"))) {
-    const out = await execCapped("docker", ["compose", "ps", "-a", "--format", "json"], 6000);
-    value = Boolean(out && out.trim() && out.includes("seo"));
-  }
-  dockerCheck = { at: Date.now(), value };
-  return value;
+  const result = await detectInstallMode({
+    env: process.env,
+    hasComposeFile: () => existsSync(join(ROOT, "docker-compose.yml")),
+    hasDockerBin: async () => Boolean(await which("docker")),
+    composePs: () =>
+      execCapped("docker", ["compose", "ps", "-a", "--format", "json"], 6000),
+  });
+  dockerCheck = { at: Date.now(), value: result };
+  return result;
+}
+
+async function isDockerInstall() {
+  return (await installMode()).mode === DOCKER;
 }
 
 /** Refuse a native action on a Docker install, and say what to do instead. */
@@ -253,6 +266,47 @@ function refuseOnDocker(action, command) {
   log("");
   log("Backups live inside the app for Docker installs: open it and go to");
   log("Settings -> Backup.");
+  return false;
+}
+
+/**
+ * Refuse a native action when we could not establish that this is a
+ * native install.
+ *
+ * The old code could not reach this state: "could not tell" was the same
+ * boolean as "not Docker", and that took the native path — so a Docker
+ * install whose daemon was simply not running got a second app started
+ * against an empty database, and a success message. Doing nothing and
+ * saying why is the only safe answer to a question we failed to ask.
+ */
+function refuseUnknownInstall(action, why) {
+  log(`"${action}" is not safe to run until it is clear how this install`);
+  log("is set up, so nothing has been changed.");
+  log("");
+  log(`Why: ${why}`);
+  log("");
+  log("If this app runs in Docker, running it natively as well would");
+  log("start a second copy against a different, empty database — and it");
+  log("would look like it worked.");
+  return false;
+}
+
+/**
+ * Guard for every task that drives bin/START.* and the local data.db.
+ *
+ * Returns true when it has refused and logged the reason, in which case
+ * the caller must do nothing.
+ */
+async function refuseUnlessNative(action, command) {
+  const { mode, why } = await installMode();
+  if (mode === DOCKER) {
+    refuseOnDocker(action, command);
+    return true;
+  }
+  if (mode === UNKNOWN) {
+    refuseUnknownInstall(action, why);
+    return true;
+  }
   return false;
 }
 
@@ -302,6 +356,10 @@ async function readState() {
       : 0,
     backups: listBackups(),
     dockerInstall: await isDockerInstall(),
+    // Three states, not two. "Could not tell" used to be reported as
+    // "not Docker", and every button then took the native path.
+    installMode: (await installMode()).mode,
+    installModeWhy: (await installMode()).why,
     running: await appIsResponding(),
     appPort: appPort(),
     version,
@@ -454,8 +512,7 @@ const TASKS = {
   // whatever is already done. So "Install" and "Start" are the same
   // script — the difference is only what the user is told to expect.
   install: async () => {
-    if (await isDockerInstall())
-      return refuseOnDocker("Install", "docker compose up -d");
+    if (await refuseUnlessNative("Install", "docker compose up -d")) return false;
     const ok = await runBin("START");
     // Only on success: a Desktop icon pointing at a half-built install
     // is worse than none.
@@ -463,18 +520,23 @@ const TASKS = {
     return ok;
   },
   start: async () =>
-    (await isDockerInstall())
-      ? refuseOnDocker("Start", "docker compose up -d")
+    (await refuseUnlessNative("Start", "docker compose up -d"))
+      ? false
       : runBin("START"),
   stop: async () =>
-    (await isDockerInstall())
-      ? refuseOnDocker("Stop", "docker compose down")
+    (await refuseUnlessNative("Stop", "docker compose down"))
+      ? false
       : runBin("STOP"),
   shortcut: () => addDesktopShortcut(),
 
   update: async () => {
-    if (await isDockerInstall())
-      return refuseOnDocker("Update", "git pull && docker compose up -d --build");
+    if (
+      await refuseUnlessNative(
+        "Update",
+        "git pull && docker compose up -d --build",
+      )
+    )
+      return false;
     if (!(await which("git"))) {
       log("git isn't installed, so the code can't update itself.");
       log("Download the latest zip from GitHub and replace this folder,");
@@ -502,12 +564,13 @@ const TASKS = {
    * Reported as issue #37.
    */
   async browser() {
-    if (await isDockerInstall()) {
-      return refuseOnDocker(
+    if (
+      await refuseUnlessNative(
         "Install the headless browser",
         "docker compose exec seo npx playwright install chromium",
-      );
-    }
+      )
+    )
+      return false;
     if (!existsSync(join(ROOT, "node_modules"))) {
       log("Nothing is installed yet — press Set up first.");
       return false;
@@ -560,13 +623,22 @@ const TASKS = {
    * and a backup made by the app are the same kind of file.
    */
   async backup() {
-    if (await isDockerInstall()) {
+    const backupMode = await installMode();
+    if (backupMode.mode === DOCKER) {
       log("This install keeps its data in a Docker volume, which this");
       log("panel cannot reach from outside the container.");
       log("");
       log("Open the app and use Settings -> Backup. It takes the same");
       log("kind of snapshot, from inside, where the database actually is.");
       return false;
+    }
+    // The worst place to guess. If this is a Docker install, the local
+    // data.db is not the live one, so a "backup" here would snapshot an
+    // empty or stale file and report success — and the person reading
+    // that line would believe their data was saved. This panel has
+    // already shipped one bug of exactly that shape.
+    if (backupMode.mode === UNKNOWN) {
+      return refuseUnknownInstall("Back up", backupMode.why);
     }
     const dbPath = dbFilePath();
     if (!existsSync(dbPath)) {
@@ -632,10 +704,14 @@ const TASKS = {
    * one database against another is how you corrupt both.
    */
   async restore(id) {
-    if (await isDockerInstall()) {
+    const restoreMode = await installMode();
+    if (restoreMode.mode === DOCKER) {
       log("Restoring into a Docker volume has to happen from inside the");
       log("container. Open the app and use Settings -> Backup.");
       return false;
+    }
+    if (restoreMode.mode === UNKNOWN) {
+      return refuseUnknownInstall("Restore", restoreMode.why);
     }
     // Never resolve a path the browser sent — only an entry already in
     // the list, matched exactly, with its directory decided here.

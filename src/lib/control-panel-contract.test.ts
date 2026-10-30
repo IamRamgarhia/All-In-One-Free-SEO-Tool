@@ -81,12 +81,23 @@ describe("control panel: page and server agree", () => {
     expect(restoreFn).toMatch(/run\(['"]restore['"]/);
   });
 
-  it("every task that touches this folder checks for Docker first", () => {
+  it("every task that touches this folder refuses unless it is sure", () => {
     // A Docker install keeps its database in a volume and runs the app in
     // a container. These tasks drive bin/START.*, bin/STOP.* and the
     // local data.db, so on a Docker install they would start a second
     // copy of the app against a different, empty database — and report
     // success. Each one has to ask before acting.
+    //
+    // "Ask" used to mean calling isDockerInstall(), which returned a
+    // boolean — and false meant both "this is native" and "Docker would
+    // not answer, so I could not tell". The second one took the native
+    // path, which is the dangerous one, and it is the common case:
+    // Docker Desktop installed but not running is exactly when someone
+    // opens this panel looking for a Start button.
+    //
+    // So the requirement is stronger than before. A task must either go
+    // through refuseUnlessNative(), which handles both states, or read
+    // installMode() AND handle UNKNOWN itself.
     const start = PANEL_JS.indexOf("const TASKS = {");
     const body = PANEL_JS.slice(start, PANEL_JS.indexOf("\n};", start));
     for (const task of ["install", "start", "stop", "update", "backup", "restore"]) {
@@ -96,12 +107,31 @@ describe("control panel: page and server agree", () => {
       const rest = body.slice(from + 1);
       const to = rest.search(/^ {2}(?:async )?[a-zA-Z_]+[:(]/m);
       const fn = to === -1 ? rest : rest.slice(0, to);
+
+      const viaHelper = fn.includes("refuseUnlessNative");
+      const viaMode = fn.includes("installMode") && fn.includes("UNKNOWN");
       expect(
-        fn.includes("isDockerInstall"),
-        `"${task}" does not check isDockerInstall(), so on a Docker ` +
-          `install it would act on the wrong files and report success.`,
+        viaHelper || viaMode,
+        `"${task}" does not establish the install mode before acting. On ` +
+          `a Docker install — or one where Docker could not be reached — ` +
+          `it would act on the wrong files and report success. Call ` +
+          `refuseUnlessNative(), or read installMode() and handle UNKNOWN.`,
       ).toBe(true);
     }
+  });
+
+  it("the old two-state check is gone from the tasks", () => {
+    // isDockerInstall() still exists for the status line, where a
+    // boolean is fine. Inside a task it is the bug: it cannot express
+    // "could not tell", so every caller silently chose the native path
+    // for it.
+    const start = PANEL_JS.indexOf("const TASKS = {");
+    const body = PANEL_JS.slice(start, PANEL_JS.indexOf("\n};", start));
+    expect(
+      body.includes("isDockerInstall"),
+      "a task is using isDockerInstall(), which treats \"could not tell\" " +
+        "as \"not Docker\". Use refuseUnlessNative() or installMode().",
+    ).toBe(false);
   });
 
   it("the server never resolves a path the browser sent", () => {
