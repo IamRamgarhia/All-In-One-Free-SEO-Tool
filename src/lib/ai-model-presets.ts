@@ -68,17 +68,36 @@ export const MODEL_PRESETS: Record<ActiveProvider, ModelPreset[]> = {
     // Checked against the live models endpoint on 12 Sep 2026. The same
     // rot took the 1.5 family in Sept 2025; assume these need
     // re-checking rather than trusting the date.
+    // Order matters: defaultModelFor() returns the first entry, so this
+    // is what every install uses until someone chooses otherwise.
+    //
+    // The pinned version leads, and the alias follows. Two reasons, and
+    // the second is the one that should outlast the first:
+    //
+    //   Measured 30 Oct 2026 — `gemini-flash-latest` answered 503 "this
+    //   model is currently overloaded" or hung past 45s on three
+    //   consecutive probes, while `gemini-2.5-flash` returned the same
+    //   prompt in 1.2s. Every AI feature was falling back to templates.
+    //
+    //   But an outage is a bad reason to reorder a list, and this is
+    //   the good one: an alias tracks whatever Flash currently IS, so
+    //   it can change underneath an install with no release, no
+    //   changelog and no way to correlate the day everything got slower.
+    //   A default should be predictable. Pricing is identical, so this
+    //   costs nothing.
+    //
+    // The alias is kept, one line down, for anyone who wants it.
     {
-      id: "gemini-flash-latest",
-      label: "Gemini Flash (latest)",
-      hint: "Free tier · tracks the current Flash",
+      id: "gemini-2.5-flash",
+      label: "Gemini 2.5 Flash",
+      hint: "Pinned version · recommended default",
       inputPer1M: 0.3,
       outputPer1M: 2.5,
     },
     {
-      id: "gemini-2.5-flash",
-      label: "Gemini 2.5 Flash",
-      hint: "Pinned version · good default",
+      id: "gemini-flash-latest",
+      label: "Gemini Flash (latest)",
+      hint: "Free tier · tracks the current Flash, so it can change without warning",
       inputPer1M: 0.3,
       outputPer1M: 2.5,
     },

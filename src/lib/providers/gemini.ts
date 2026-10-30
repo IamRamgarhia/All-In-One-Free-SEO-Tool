@@ -39,6 +39,17 @@ export type GeminiCallOpts = {
   temperature: number;
   /** Total wall-clock budget across all fallback attempts. */
   timeoutMs: number;
+  /**
+   * Floor for a single attempt, overriding MIN_ATTEMPT_MS.
+   *
+   * Exists so the budget-sharing behaviour can be tested in
+   * milliseconds. Exercising it honestly needs a budget larger than
+   * `floor x models`, which at the 8s production floor means a unit
+   * test that really sleeps for eight seconds — slow, and fragile
+   * under load in a way that makes the whole suite untrustworthy.
+   * Production never sets this.
+   */
+  minAttemptMs?: number;
   /** Where this call originated — surfaced in console.error logs. */
   caller?: string;
   /**
@@ -184,7 +195,8 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
     // inside a 25s budget get 8.3s each, which is six times the
     // measured healthy latency.
     const attemptsLeft = tryList.length - i;
-    const share = Math.max(MIN_ATTEMPT_MS, Math.floor(remaining / attemptsLeft));
+    const floor = opts.minAttemptMs ?? MIN_ATTEMPT_MS;
+    const share = Math.max(floor, Math.floor(remaining / attemptsLeft));
     const t = setTimeout(() => ctl.abort(), Math.min(remaining, share, 30_000));
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(opts.apiKey)}`;

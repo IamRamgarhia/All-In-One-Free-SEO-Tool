@@ -21,6 +21,8 @@
  */
 
 import { describe, expect, it, vi, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { callGemini } from "./gemini";
 
 type Captured = { url: string; body: Record<string, unknown> };
@@ -274,29 +276,48 @@ describe("budget sharing across the fallback chain", () => {
     return { tried };
   }
 
+  /**
+   * Scaled down with `minAttemptMs`. The production floor is 8s, and
+   * exercising sharing needs a budget bigger than floor x models — so
+   * at real values this test genuinely sleeps for eight seconds, which
+   * is both slow and fragile under load. The ratios are identical: a
+   * budget of 900ms across three models shares 300ms each, exactly as
+   * 25s shares 8.3s each.
+   */
+  const FAST = { minAttemptMs: 100, timeoutMs: 900 };
+
   it("reaches the second model when the first hangs", async () => {
     const { tried } = hangFirst();
     const started = Date.now();
-    // 25s is the budget exec_summary uses, and the one that used to be
-    // consumed whole by a single dead model.
-    const out = await callGemini({ ...base, model: "gemini-flash-latest", timeoutMs: 25_000 });
+    const out = await callGemini({ ...base, ...FAST, model: "gemini-flash-latest" });
     const elapsed = Date.now() - started;
 
     expect(out).toBe("hello");
     expect(tried.length).toBeGreaterThan(1);
     expect(tried[0]).toBe("gemini-flash-latest");
-    // The whole point: the hung model gets a share, not the lot. With
-    // three models in the list that is ~8.3s, so finishing must take
-    // well under the 25s budget.
-    expect(elapsed).toBeLessThan(20_000);
-  }, 40_000);
+    // The whole point: the hung model gets a share, not the lot. The
+    // margin is 2x rather than a few seconds, so CPU contention cannot
+    // turn a correct implementation into a red suite.
+    expect(elapsed).toBeLessThan(700);
+  });
 
   it("gives a lone model the whole budget", async () => {
     // Nothing to fall back to means nothing to reserve time for, so the
     // floor must not shorten a legitimately slow single attempt.
     const { tried } = hangFirst();
-    const out = await callGemini({ ...base, model: undefined, timeoutMs: 25_000 });
+    const out = await callGemini({ ...base, ...FAST, model: undefined });
     expect(out).toBe("hello");
     expect(tried.length).toBeGreaterThan(1);
-  }, 40_000);
+  });
+
+  it("still defaults to the production floor when nothing overrides it", () => {
+    // The scaled-down tests above would pass against an implementation
+    // with no floor at all, so assert the real default exists.
+    const src = readFileSync(
+      join(process.cwd(), "src/lib/providers/gemini.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(/const MIN_ATTEMPT_MS = 8_000;/);
+    expect(src).toContain("opts.minAttemptMs ?? MIN_ATTEMPT_MS");
+  });
 });
