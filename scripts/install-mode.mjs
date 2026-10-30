@@ -26,6 +26,40 @@
  * So there are three states, and UNKNOWN refuses rather than guessing.
  * That is the same rule template-preflight.ts applies to task
  * suppression: unknown is not a verdict.
+ *
+ * WHAT THAT GOT WRONG, IN THE OTHER DIRECTION (30 Oct 2026)
+ *
+ * Refusing is safe and it was still the wrong answer for the commonest
+ * machine there is: Docker Desktop installed for something else
+ * entirely, not running, and this app installed natively. Every button
+ * on the control panel then refuses, and the panel IS the product for
+ * anyone who does not use a terminal. Measured on the maintainer's own
+ * machine the day Docker was installed on it: mode `unknown`, Start
+ * refused, nothing to click. The guard worked and the app became
+ * unusable.
+ *
+ * Two ways out, in order:
+ *
+ *   1. `nativeEvidence` — something only a native install has. The
+ *      compose file mounts a NAMED VOLUME (`seo-data:/data`) and sets
+ *      `SEO_DB_PATH=/data/data.db`, so a Docker install's database is
+ *      inside Docker and this folder never gets a `data.db`. One sitting
+ *      here means this install has run natively, which is enough to act
+ *      on when the daemon will not answer. Reported as `inferred` so the
+ *      panel can say so rather than implying the daemon confirmed it.
+ *
+ *   2. `savedMode` — the answer to a question, asked once. Evidence
+ *      cannot settle a fresh native install that has never been started
+ *      (no database yet), and "set an environment variable" is not an
+ *      instruction for the person this panel exists for. So the panel
+ *      asks, and remembers.
+ *
+ * Note which direction the inference runs. Local evidence can only ever
+ * conclude NATIVE, never DOCKER, and a daemon that does answer always
+ * beats both. The migrated case — ran natively, moved to Docker, daemon
+ * now down — is the one this gets wrong, and it is why the result says
+ * the conclusion was inferred and the backup task prints the file it
+ * copied with its modified time.
  */
 
 export const NATIVE = "native";
@@ -151,9 +185,21 @@ function serviceFromContainerName(raw) {
  * @param deps.hasComposeFile () => boolean
  * @param deps.hasDockerBin   () => Promise<boolean>
  * @param deps.composePs      () => Promise<string|null>
+ * @param deps.savedMode      optional () => "docker"|"native"|null — an
+ *                            answer the user gave in the panel
+ * @param deps.nativeEvidence optional () => string|null — a phrase
+ *                            describing something only a native install
+ *                            has, used only when the daemon stays silent
  */
 export async function detectInstallMode(deps) {
-  const { env = {}, hasComposeFile, hasDockerBin, composePs } = deps;
+  const {
+    env = {},
+    hasComposeFile,
+    hasDockerBin,
+    composePs,
+    savedMode,
+    nativeEvidence,
+  } = deps;
 
   const forced = forcedMode(env);
   if (forced === DOCKER || forced === NATIVE) {
@@ -166,6 +212,22 @@ export async function detectInstallMode(deps) {
         `SEO_INSTALL_MODE is set to something that is neither "docker" nor ` +
         `"native", so it is not clear what was meant.`,
       forced: true,
+    };
+  }
+
+  // An answer the user gave in the panel. Below the environment
+  // variable, because that is the one an administrator sets deliberately
+  // for a whole deployment; above detection, because it is a person
+  // stating a fact about their own machine and detection is a guess
+  // about it. Validated through the same parser, so a corrupted file
+  // cannot mean something halfway.
+  const remembered = savedMode ? forcedMode({ SEO_INSTALL_MODE: savedMode() }) : null;
+  if (remembered === DOCKER || remembered === NATIVE) {
+    return {
+      mode: remembered,
+      why: `you told this panel it is ${remembered === DOCKER ? "a Docker" : "a native"} install`,
+      forced: true,
+      saved: true,
     };
   }
 
@@ -187,11 +249,35 @@ export async function detectInstallMode(deps) {
   if (mode === NATIVE) {
     return { mode, why: "docker is installed but this project has no containers" };
   }
+
+  // The daemon said nothing. Before refusing, look for something only a
+  // native install has — see the note at the top of this file. This can
+  // only ever conclude NATIVE: there is no local evidence that proves
+  // the opposite, and inventing one would be the original bug with extra
+  // steps.
+  const evidence = nativeEvidence ? nativeEvidence() : null;
+  if (evidence) {
+    return {
+      mode: NATIVE,
+      inferred: true,
+      // The phrase on its own, so a caller can quote it without having
+      // to pick it back out of the sentence below.
+      evidence,
+      why:
+        `Docker is installed but would not answer — it is usually not ` +
+        `running. Treating this as a native install because ${evidence}, ` +
+        `and a Docker install keeps its database inside Docker rather ` +
+        `than in this folder.`,
+    };
+  }
+
   return {
     mode: UNKNOWN,
     why:
       "Docker is installed but would not say whether this project has " +
-      "containers — it is usually not running. Start Docker Desktop, or " +
-      "set SEO_INSTALL_MODE=docker or =native to say which this is.",
+      "containers — it is usually not running, and there is nothing in " +
+      "this folder that settles it either way. Start Docker Desktop, or " +
+      "tell this panel which kind of install this is (the same thing " +
+      "SEO_INSTALL_MODE=docker or =native does).",
   };
 }

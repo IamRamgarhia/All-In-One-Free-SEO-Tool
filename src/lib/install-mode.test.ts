@@ -14,18 +14,18 @@ import {
  * the local `data.db`; on a Docker install that starts a second app
  * against a different, empty database and reports success.
  *
- * CLAUDE.md recorded this detection as unverified against real Docker,
- * and it still is at the one point that needs it — whether `execFile`
- * can launch the binary. There is no Docker on this machine and a
- * stubbed `docker.cmd` cannot stand in, because Node's `execFile` will
- * not launch a `.cmd`. Everything downstream of that call is pure, and
- * is covered here.
+ * Verified against real Docker on 30 Oct 2026 (Docker Desktop 4.97.0,
+ * engine 29.9.2), which closed the one gap these pure tests cannot
+ * cover: whether Node's `execFile` can launch the binary at all. It
+ * can — `docker.exe`, not a `.cmd`, which is why a stub could never
+ * stand in for it.
  *
- * The compose-output fixtures are written from the documented
- * `docker compose ps --format json` schema and the two shapes it has
- * shipped — a JSON array before Compose v2.21, NDJSON after. They are
- * NOT captured from a live daemon. If a real run disagrees with one of
- * these, the fixture is what is wrong.
+ * The NDJSON fixtures match what that run produced: one object per
+ * line carrying `Service`, `Name` and `Image`, and empty output with
+ * exit 0 when the project has no containers. The pre-2.21 JSON-array
+ * shape and the malformed cases remain written from the documented
+ * schema rather than captured, since this machine's Compose only emits
+ * the newer one.
  */
 
 const NDJSON_RUNNING = [
@@ -167,8 +167,127 @@ describe("detectInstallMode", () => {
     const r = await detectInstallMode(deps({ composePs: async () => null }));
     expect(r.mode).toBe(UNKNOWN);
     expect(r.why).toMatch(/not running/);
-    // The message has to tell the user how to get past it.
-    expect(r.why).toMatch(/SEO_INSTALL_MODE/);
+    // The message has to tell the user how to get past it, and both
+    // routes count — the buttons in the panel and the env var.
+    expect(r.why).toMatch(/tell this panel|SEO_INSTALL_MODE/);
+  });
+
+  /**
+   * The case that made the control panel unusable.
+   *
+   * Installing Docker Desktop on a machine with a working native
+   * install, and not running it, moved detection from NATIVE ("docker is
+   * not installed") to UNKNOWN — and UNKNOWN refuses every button. The
+   * guard was right and the product stopped working: measured on the
+   * maintainer's own machine, Start returned "not safe to run".
+   */
+  describe("when the daemon stays silent", () => {
+    const silent = (over = {}) => deps({ composePs: async () => null, ...over });
+
+    it("takes local evidence over refusing", async () => {
+      const r = await detectInstallMode(
+        silent({ nativeEvidence: () => "data.db is in this folder" }),
+      );
+      expect(r.mode).toBe(NATIVE);
+      // Flagged, because this is weaker than an answer from Docker and
+      // the panel says so rather than implying it was confirmed.
+      expect(r.inferred).toBe(true);
+      expect(r.evidence).toBe("data.db is in this folder");
+      expect(r.why).toMatch(/data\.db is in this folder/);
+    });
+
+    it("still refuses when there is no evidence either way", async () => {
+      // A fresh clone has no data.db, so nothing here settles it. This
+      // is the half the inference must not swallow.
+      const r = await detectInstallMode(silent({ nativeEvidence: () => null }));
+      expect(r.mode).toBe(UNKNOWN);
+    });
+
+    it("refuses when no evidence function was supplied at all", async () => {
+      // Back-compatibility with a caller that predates the parameter
+      // must fail safe, not fail open.
+      const r = await detectInstallMode(silent());
+      expect(r.mode).toBe(UNKNOWN);
+    });
+
+    it("never infers DOCKER from anything local", async () => {
+      // Local evidence can only conclude "native". Concluding Docker
+      // from a file on disk would be the original bug — guessing — with
+      // extra steps, and would refuse to start an app that works.
+      for (const evidence of ["a Dockerfile is here", "docker-compose.yml is here"]) {
+        const r = await detectInstallMode(silent({ nativeEvidence: () => evidence }));
+        expect(r.mode).toBe(NATIVE);
+      }
+    });
+  });
+
+  it("a real answer from docker beats local evidence", async () => {
+    // The inference is a fallback for silence, not a vote. A daemon that
+    // says "this project has a container" is the fact.
+    const r = await detectInstallMode(
+      deps({ nativeEvidence: () => "data.db is in this folder" }),
+    );
+    expect(r.mode).toBe(DOCKER);
+    expect(r.inferred).toBeFalsy();
+  });
+
+  describe("a saved answer from the panel", () => {
+    it("decides it, without touching the machine", async () => {
+      let touched = false;
+      const spy = {
+        hasComposeFile: () => {
+          touched = true;
+          return true;
+        },
+        hasDockerBin: async () => {
+          touched = true;
+          return true;
+        },
+        composePs: async () => {
+          touched = true;
+          return NDJSON_RUNNING;
+        },
+      };
+      for (const [saved, expected] of [
+        ["native", NATIVE],
+        ["docker", DOCKER],
+        // What a person types, and what a file with a trailing newline
+        // holds. The panel writes the newline itself.
+        ["native\n", NATIVE],
+        [" Docker ", DOCKER],
+      ] as const) {
+        const r = await detectInstallMode(deps({ savedMode: () => saved, ...spy }));
+        expect(r.mode).toBe(expected);
+        expect(r.saved).toBe(true);
+        expect(r.why).toMatch(/told this panel/);
+      }
+      expect(touched, "a saved answer should short-circuit detection").toBe(false);
+    });
+
+    it("loses to the environment variable", async () => {
+      // SEO_INSTALL_MODE is what an administrator sets for a whole
+      // deployment; a click in the panel is one person on one machine.
+      const r = await detectInstallMode(
+        deps({ env: { SEO_INSTALL_MODE: "docker" }, savedMode: () => "native" }),
+      );
+      expect(r.mode).toBe(DOCKER);
+    });
+
+    it("is ignored when the file holds something else", async () => {
+      // A truncated or hand-edited file must not mean anything halfway.
+      // Detection runs instead, which here finds a container.
+      for (const junk of ["", "  ", "yes", "DOCKERR", "native docker"]) {
+        const r = await detectInstallMode(deps({ savedMode: () => junk }));
+        expect(r.mode, `saved=${JSON.stringify(junk)}`).toBe(DOCKER);
+        expect(r.saved).toBeFalsy();
+      }
+    });
+
+    it("is ignored when the file is missing", async () => {
+      const r = await detectInstallMode(deps({ savedMode: () => null }));
+      expect(r.mode).toBe(DOCKER);
+      expect(r.saved).toBeFalsy();
+    });
   });
 
   it("an override wins without touching the machine", async () => {

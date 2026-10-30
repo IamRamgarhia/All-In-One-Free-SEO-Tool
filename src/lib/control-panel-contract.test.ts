@@ -66,6 +66,49 @@ describe("control panel: page and server agree", () => {
     }
   });
 
+  it("update takes a safety copy before it changes anything", () => {
+    /**
+     * An update runs migrations, and a SQLite migration that adds a
+     * constraint rebuilds the table — which drops that table's indexes
+     * and, with foreign-key enforcement in the wrong place, deletes
+     * child rows while reporting success. See
+     * src/db/migration-fk-safety.test.ts; that is a bug this project
+     * has actually had.
+     *
+     * The panel has a Back up button and nothing ever made anyone press
+     * it before the one action that rewrites their schema. Order
+     * matters as much as presence: a backup taken after `git reset
+     * --hard` has already lost the thing it was protecting.
+     */
+    const start = PANEL_JS.indexOf("const TASKS = {");
+    const body = PANEL_JS.slice(start, PANEL_JS.indexOf("\n};", start));
+    const from = body.search(/^ {2}(?:async )?update[:(]/m);
+    const rest = body.slice(from + 1);
+    const to = rest.search(/^ {2}(?:async )?[a-zA-Z_]+[:(]/m);
+    const fn = to === -1 ? rest : rest.slice(0, to);
+
+    const backupAt = fn.indexOf("snapshotBeforeUpdate");
+    const updateAt = fn.indexOf("seo-update.cjs");
+    expect(backupAt, "update no longer takes a safety copy first").toBeGreaterThan(-1);
+    expect(updateAt, "update no longer runs the updater").toBeGreaterThan(-1);
+    expect(
+      backupAt,
+      "the safety copy is taken AFTER the updater runs, which is too late",
+    ).toBeLessThan(updateAt);
+  });
+
+  it("the safety copy is named so the restore list says what it is", () => {
+    // backup-label.mjs renders `backups/data-before-<x>.db` as "safety
+    // copy, taken before <x>" and anything else as "routine backup".
+    // Get the name wrong and the one backup that matters is listed as
+    // indistinguishable from the nightly ones.
+    const fn =
+      /async function snapshotBeforeUpdate\(\)[\s\S]*?\n\}/.exec(PANEL_JS)?.[0] ?? "";
+    expect(fn, "snapshotBeforeUpdate not found").not.toBe("");
+    expect(fn).toContain("data-before-update");
+    expect(fn, "not written to the backups/ bucket").toContain("BACKUP_BUCKETS.backups");
+  });
+
   it("every task has a progress label, so none reads 'Working…'", () => {
     const labels = /\(\{\s*install:[\s\S]*?\}\)\[task\]/.exec(PANEL_HTML)?.[0] ?? "";
     for (const task of serverTasks()) {

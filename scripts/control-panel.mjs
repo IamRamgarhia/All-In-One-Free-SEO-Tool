@@ -58,19 +58,29 @@ import {
   writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { homedir, platform } from "node:os";
 import { createRequire } from "node:module";
 import {
   DOCKER,
+  NATIVE,
   UNKNOWN,
   detectInstallMode,
 } from "./install-mode.mjs";
 import { describeBackup } from "./backup-label.mjs";
+import { resolveBackupDir } from "./backup-dir.mjs";
+import {
+  candidatePorts as portCandidates,
+  healthMatches,
+  samePath as pathsEqual,
+} from "./app-port.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
-const PORT = Number(process.env.SEO_PANEL_PORT ?? 4321);
+// `let`, because the panel moves to the next port when something else
+// holds this one — and the Origin check below has to compare against
+// the port it actually got, not the one it hoped for.
+let PORT = Number(process.env.SEO_PANEL_PORT ?? 4321);
 const IS_WINDOWS = platform() === "win32";
 
 /** One task at a time — two installs at once corrupts node_modules. */
@@ -147,15 +157,34 @@ function dbFilePath() {
  * up here and the filename is checked for separators.
  */
 const BACKUP_BUCKETS = {
+  // Where routine backups go now: out of the app folder, so deleting,
+  // moving or re-downloading the app does not take every copy of the
+  // database with it. See scripts/backup-dir.mjs.
+  home: () => backupDirPath(),
+  // Where they used to go — beside the database. Still listed, or an
+  // existing install's backups would disappear from this screen the day
+  // it updates.
   data: () => dataDirPath(),
   backups: () => join(ROOT, "backups"),
 };
 
+/** The same rule the app uses, so the two never disagree. */
+function backupDirPath() {
+  return resolveBackupDir(process.env, dataDirPath(), homedir(), platform(), sep);
+}
+
 function listBackups() {
   const dbName = basename(dbFilePath());
   const found = [];
+  // The buckets are policies, not necessarily distinct folders: on
+  // Docker, and whenever SEO_DATA_DIR is set, "home" and "data" resolve
+  // to the same place. Scanning both would list every backup twice,
+  // under two different ids, which looks like duplicate files.
+  const seenDirs = new Set();
   const scan = (bucket, match) => {
     const dir = BACKUP_BUCKETS[bucket]();
+    if (seenDirs.has(dir)) return;
+    seenDirs.add(dir);
     let entries = [];
     try {
       entries = readdirSync(dir);
@@ -184,6 +213,7 @@ function listBackups() {
       }
     }
   };
+  scan("home", (f) => f.startsWith(`${dbName}.bak-`));
   scan("data", (f) => f.startsWith(`${dbName}.bak-`));
   scan("backups", (f) => f.endsWith(".db"));
   return found.sort((a, b) => (a.when < b.when ? 1 : -1));
@@ -243,19 +273,50 @@ function execCapped(cmd, args, ms) {
  * that file. Previously "could not tell" and "not Docker" were the same
  * value, and that value took the native path.
  */
+/**
+ * Where an answer given in the panel is kept.
+ *
+ * Beside the other per-install runtime state (`.seo-port`,
+ * `.seo-encryption-key`), and gitignored with them. It holds one word.
+ */
+const MODE_FILE = join(ROOT, ".seo-install-mode");
+
 async function installMode() {
   // State is polled every few seconds; shelling out to Docker that often
   // would make the page crawl when Docker Desktop is slow to answer.
   if (Date.now() - dockerCheck.at < 30_000) return dockerCheck.value;
   const result = await detectInstallMode({
     env: process.env,
+    savedMode: () => readTextIfPresent(MODE_FILE),
     hasComposeFile: () => existsSync(join(ROOT, "docker-compose.yml")),
     hasDockerBin: async () => Boolean(await which("docker")),
     composePs: () =>
       execCapped("docker", ["compose", "ps", "-a", "--format", "json"], 6000),
+    // Only consulted when the daemon stays silent. docker-compose.yml
+    // mounts a named volume and points SEO_DB_PATH at /data/data.db, so
+    // a Docker install never writes a data.db here; one in this folder
+    // means this install has run natively. See install-mode.mjs.
+    nativeEvidence: () =>
+      existsSync(join(ROOT, "data.db")) ? "data.db is in this folder" : null,
   });
   dockerCheck = { at: Date.now(), value: result };
   return result;
+}
+
+/**
+ * Record the user's answer, and act on it immediately.
+ *
+ * Returns false for anything that is not one of the two words, so a
+ * malformed request cannot write a file that makes every later
+ * detection ambiguous.
+ */
+function rememberInstallMode(mode) {
+  if (mode !== DOCKER && mode !== NATIVE) return false;
+  writeFileSync(MODE_FILE, `${mode}\n`, "utf8");
+  // Drop the cache, or the page keeps showing the question for up to 30
+  // seconds after it was answered and looks like it ignored the click.
+  dockerCheck = { at: 0, value: null };
+  return true;
 }
 
 async function isDockerInstall() {
@@ -317,26 +378,63 @@ async function refuseUnlessNative(action, command) {
   return false;
 }
 
-/** The port bin/START.* chose, so "Open the app" goes to the right place. */
-function appPort() {
-  const fromFile = readTextIfPresent(join(ROOT, ".seo-port"));
-  const n = Number(fromFile ?? process.env.PORT ?? 3000);
-  return Number.isFinite(n) && n > 0 ? n : 3000;
+/**
+ * Ports the app might be on, best guess first.
+ *
+ * `.seo-port` is what bin/START.* wrote the last time IT started the
+ * app, which is not the same as where the app is now. Measured on this
+ * machine 30 Oct 2026: the file said 3399 while a healthy app answered
+ * on 3000, because that run had been started directly rather than
+ * through the launcher. The panel believed the file, reported "Installed,
+ * not running" over a running app, and pointed "Open the app" at a dead
+ * port — a confident wrong answer, which is the failure mode this
+ * project treats as worse than a crash.
+ *
+ * So the file is a hint to try first, not the answer.
+ */
+function candidatePorts() {
+  return portCandidates(readTextIfPresent(join(ROOT, ".seo-port")), process.env.PORT);
 }
 
-/** Ask the app itself, rather than trusting a pid file that may be stale. */
-async function appIsResponding() {
+/**
+ * Is THIS install's app answering, and where?
+ *
+ * The health endpoint reports `service` and `installRoot`, so a stranger
+ * on port 3000 — another project's dev server, which is the single most
+ * contended port there is — cannot be mistaken for ours and have the
+ * Stop button aimed at it.
+ *
+ * A field that is absent is not treated as a mismatch: an older build of
+ * the app predates `installRoot`, and refusing to see it would turn one
+ * wrong answer into another.
+ */
+async function probeHealth(port) {
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 1500);
-    const res = await fetch(`http://localhost:${appPort()}/api/v1/health`, {
+    const res = await fetch(`http://localhost:${port}/api/v1/health`, {
       signal: c.signal,
     });
     clearTimeout(t);
-    return res.ok;
+    if (!res.ok) return null;
+    const body = await res.json().catch(() => null);
+    return healthMatches(body, ROOT, IS_WINDOWS) ? body : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Two spellings of one path — see scripts/app-port.mjs. */
+function samePath(a, b) {
+  return pathsEqual(a, b, IS_WINDOWS);
+}
+
+/** Ask the app itself, rather than trusting a file that may be stale. */
+async function findRunningApp() {
+  for (const port of candidatePorts()) {
+    if (await probeHealth(port)) return port;
+  }
+  return null;
 }
 
 async function readState() {
@@ -349,6 +447,8 @@ async function readState() {
   } catch {
     /* fine */
   }
+
+  const runningOn = await findRunningApp();
 
   return {
     nodeVersion: process.versions.node,
@@ -367,8 +467,16 @@ async function readState() {
     // "not Docker", and every button then took the native path.
     installMode: (await installMode()).mode,
     installModeWhy: (await installMode()).why,
-    running: await appIsResponding(),
-    appPort: appPort(),
+    // Whether that mode was concluded from local evidence rather than
+    // from Docker itself, and whether it came from an answer given here.
+    // The page says which, because "native" deduced from a file on disk
+    // is not the same claim as "native" confirmed by the daemon.
+    installModeInferred: Boolean((await installMode()).inferred),
+    installModeSaved: Boolean((await installMode()).saved),
+    // One probe, used for both — so "Running" and the port the Open
+    // button uses can never disagree with each other.
+    running: runningOn !== null,
+    appPort: runningOn ?? candidatePorts()[0],
     version,
     root: ROOT,
     busy: current && !current.done ? current.name : null,
@@ -407,6 +515,98 @@ function runStep(cmd, args, opts = {}) {
     });
     child.on("close", (code) => resolve(code === 0));
   });
+}
+
+/**
+ * Copy the database to `dest`, as consistently as this machine allows.
+ *
+ * Extracted so the Update button can take a snapshot before it runs
+ * migrations, using the same code path as the Back up button rather
+ * than a second, slightly different copy of it — this codebase has been
+ * bitten by every such pair it has grown.
+ */
+async function snapshotDatabase(dbPath, dest) {
+  try {
+    const require = createRequire(import.meta.url);
+    const Database = require("better-sqlite3");
+    const sqlite = new Database(dbPath, { readonly: true });
+    try {
+      // VACUUM INTO writes a fresh, fully-checkpointed copy and works
+      // while the app is running, without blocking it.
+      sqlite.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
+      log("Took a consistent snapshot with SQLite (VACUUM INTO).");
+      return true;
+    } finally {
+      sqlite.close();
+    }
+  } catch (e) {
+    log(`SQLite snapshot unavailable (${e.message.split("\n")[0]}).`);
+  }
+
+  // Last resort, and honest about what it is. The -wal file holds
+  // committed data that data.db does not, so it has to come too or the
+  // backup is quietly incomplete.
+  if ((await findRunningApp()) !== null) {
+    log("The app is running and SQLite isn't available here, so this");
+    log("is a plain file copy — press Stop first for a clean one.");
+  }
+  copyFileSync(dbPath, dest);
+  log("> copied data.db");
+  for (const suffix of ["-wal", "-shm"]) {
+    if (existsSync(dbPath + suffix)) {
+      copyFileSync(dbPath + suffix, dest + suffix);
+      log(`> copied data.db${suffix} (it holds data the main file doesn't)`);
+    }
+  }
+  return true;
+}
+
+/**
+ * The safety copy taken before an update.
+ *
+ * Goes to `backups/`, not beside the database, for two reasons. It is
+ * the bucket `describeBackup` renders as "safety copy, taken before …"
+ * rather than "routine backup", so the restore dropdown says what this
+ * one is for. And it is not the directory an update rewrites.
+ *
+ * Returns false only when there is a database and it could not be
+ * copied. No database at all is a fresh install with nothing to lose,
+ * which must not block the update.
+ */
+async function snapshotBeforeUpdate() {
+  const dbPath = dbFilePath();
+  if (!existsSync(dbPath)) {
+    log("No database yet, so there is nothing to protect — updating.");
+    return true;
+  }
+
+  const version = (() => {
+    try {
+      return JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
+    } catch {
+      return "unknown";
+    }
+  })();
+  const stamp = new Date().toISOString().slice(0, 10);
+  const dir = BACKUP_BUCKETS.backups();
+  const dest = join(dir, `data-before-update-from-v${version}-${stamp}.db`);
+
+  try {
+    mkdirSync(dir, { recursive: true });
+    // Re-running an update on the same day must not fail on an existing
+    // file, and must not silently keep the older copy either: the point
+    // is a snapshot of the state this update is about to change.
+    rmSync(dest, { force: true });
+    await snapshotDatabase(dbPath, dest);
+    const mb = Math.round((statSync(dest).size / 1024 / 1024) * 10) / 10;
+    log(`Safety copy saved: ${basename(dest)} (${mb} MB)`);
+    log(`in ${dir}`);
+    log("Restore it from this screen if the update goes wrong.\n");
+    return true;
+  } catch (e) {
+    log(`Could not take a safety copy: ${e.message.split("\n")[0]}`);
+    return false;
+  }
 }
 
 /** The platform's launcher script in bin/. */
@@ -544,13 +744,56 @@ const TASKS = {
       )
     )
       return false;
-    if (!(await which("git"))) {
-      log("git isn't installed, so the code can't update itself.");
-      log("Download the latest zip from GitHub and replace this folder,");
-      log("keeping your data.db file — that's where everything lives.");
+    /**
+     * Two kinds of install, two updaters.
+     *
+     * A git checkout pulls commits. A zip install replaces files from
+     * the latest GitHub release. Until seo-update-zip.mjs existed, the
+     * second one simply refused — "not a git repository (ZIP installer
+     * was used)" — and told the user to re-run a curl one-liner, which
+     * is not an instruction for someone whose whole interface is this
+     * page. The headline install could never be updated.
+     */
+    const isGitCheckout = existsSync(join(ROOT, ".git"));
+    if (isGitCheckout && !(await which("git"))) {
+      log("This is a git checkout but git isn't installed, so the code");
+      log("can't update itself. Install git, or download the latest zip");
+      log("from GitHub and keep your data.db file — that's where");
+      log("everything lives.");
       return false;
     }
-    return runStep("node", [join(ROOT, "bin", "seo-update.cjs")]);
+
+    // Snapshot the database BEFORE anything is changed.
+    //
+    // An update runs migrations, and a SQLite migration that adds a
+    // constraint does it by rebuilding the table — which drops that
+    // table's indexes and, if foreign keys are enforced wrongly, can
+    // delete child rows while reporting success. That is not
+    // hypothetical here; it is written up in this project's own notes
+    // and guarded by src/db/migration-fk-safety.test.ts.
+    //
+    // There is already a Back up button, and nothing makes anyone press
+    // it before the one action that rewrites their schema. So press it
+    // for them. It costs a second and a few MB.
+    if (!(await snapshotBeforeUpdate())) {
+      log("Stopping here rather than updating without a safety copy.");
+      log("Press Back up to see the error in full.");
+      return false;
+    }
+
+    if (isGitCheckout) {
+      return runStep("node", [join(ROOT, "bin", "seo-update.cjs")]);
+    }
+
+    // A zip update replaces files on disk, including .next and the
+    // server's own source. Do it with the app stopped: on Windows a
+    // running node.exe holds those files open and the copy fails
+    // halfway, which is the worst possible moment to stop.
+    if ((await findRunningApp()) !== null) {
+      log("Stopping the app first, so its files aren't locked…");
+      await runBin("STOP");
+    }
+    return runStep("node", [join(ROOT, "bin", "seo-update-zip.mjs")]);
   },
 
   doctor: () => runStep("node", [join(ROOT, "bin", "seo-doctor.cjs")]),
@@ -653,49 +896,35 @@ const TASKS = {
       return false;
     }
 
+    // Name the file and when it last changed, always.
+    //
+    // This is the one task where being wrong about the install mode is
+    // silent and expensive, and the mode can now be concluded from local
+    // evidence rather than from Docker itself (see install-mode.mjs).
+    // Someone who moved a native install into Docker and then stopped
+    // Docker would get that conclusion — so print what was actually
+    // copied. A last-changed date from months ago is the tell, and it is
+    // visible before they rely on the backup rather than after.
+    log(`Backing up ${dbPath}`);
+    log(`last changed ${statSync(dbPath).mtime.toLocaleString()}`);
+    if (backupMode.inferred) {
+      log("");
+      log("Note: Docker is installed on this machine and did not answer,");
+      log(`so this was treated as a native install — ${backupMode.evidence}.`);
+      log("If the app really runs in Docker, back up from inside it");
+      log("instead: Settings -> Backup.");
+    }
+    log("");
+
     // Same directory and naming as src/lib/auto-backup.ts, so the app's
     // retention pruning sees these too and there is one place to look.
-    const dir = dataDirPath();
+    const dir = backupDirPath();
     mkdirSync(dir, { recursive: true });
     const stamp = new Date().toISOString().replace(/:/g, "-").replace(/\..+$/, "Z");
     const name = `${basename(dbPath)}.bak-${stamp}`;
     const dest = join(dir, name);
 
-    let done = false;
-    try {
-      const require = createRequire(import.meta.url);
-      const Database = require("better-sqlite3");
-      const sqlite = new Database(dbPath, { readonly: true });
-      try {
-        // VACUUM INTO writes a fresh, fully-checkpointed copy and works
-        // while the app is running, without blocking it.
-        sqlite.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`);
-        done = true;
-        log("Took a consistent snapshot with SQLite (VACUUM INTO).");
-      } finally {
-        sqlite.close();
-      }
-    } catch (e) {
-      log(`SQLite snapshot unavailable (${e.message.split("\n")[0]}).`);
-    }
-
-    if (!done) {
-      // Last resort, and honest about what it is. The -wal file holds
-      // committed data that data.db does not, so it has to come too or
-      // the backup is quietly incomplete.
-      if (await appIsResponding()) {
-        log("The app is running and SQLite isn't available here, so this");
-        log("is a plain file copy — press Stop first for a clean one.");
-      }
-      copyFileSync(dbPath, dest);
-      log("> copied data.db");
-      for (const suffix of ["-wal", "-shm"]) {
-        if (existsSync(dbPath + suffix)) {
-          copyFileSync(dbPath + suffix, dest + suffix);
-          log(`> copied data.db${suffix} (it holds data the main file doesn't)`);
-        }
-      }
-    }
+    await snapshotDatabase(dbPath, dest);
 
     const mb = Math.round((statSync(dest).size / 1024 / 1024) * 10) / 10;
     log(`\nSaved ${name} (${mb} MB)`);
@@ -731,7 +960,7 @@ const TASKS = {
     const dbPath = dbFilePath();
     const source = choice.path;
 
-    if (await appIsResponding()) {
+    if ((await findRunningApp()) !== null) {
       log("Stopping the app first…");
       await runBin("STOP");
     }
@@ -820,6 +1049,20 @@ const server = createServer(async (req, res) => {
     );
   }
 
+  /**
+   * Cheap "are you a panel, and whose?" probe.
+   *
+   * Separate from /api/state because that one can take seconds: it
+   * shells out to `docker compose ps` with a 6s cap. The launcher uses
+   * this to decide whether a panel is already open on this port, and a
+   * slow answer there means a second panel opens on the next port
+   * instead of joining the first — measured on this machine, which has
+   * Docker installed.
+   */
+  if (url.pathname === "/api/ping") {
+    return send(200, { panel: true, root: ROOT });
+  }
+
   if (url.pathname === "/api/state") return send(200, await readState());
 
   if (url.pathname === "/api/log") {
@@ -834,6 +1077,20 @@ const server = createServer(async (req, res) => {
       done: current.done,
       ok: current.ok,
     });
+  }
+
+  // Answer the "is this Docker or native?" question from the page.
+  //
+  // Without this the UNKNOWN state is a dead end: the banner explains
+  // why every button is holding off and the only way out is an
+  // environment variable, which is not an instruction for someone whose
+  // whole interface is this page.
+  if (req.method === "POST" && url.pathname === "/api/install-mode") {
+    const mode = url.searchParams.get("mode");
+    if (!rememberInstallMode(mode)) {
+      return send(400, { ok: false, error: 'mode must be "docker" or "native"' });
+    }
+    return send(200, { ok: true, mode });
   }
 
   if (req.method === "POST" && url.pathname.startsWith("/api/run/")) {
@@ -855,13 +1112,8 @@ const server = createServer(async (req, res) => {
   send(404, { error: "not found" });
 });
 
-// 127.0.0.1, not 0.0.0.0. This endpoint can run commands, so it must
-// never be reachable from the network — the same decision bin/START.*
-// makes for the app itself.
-server.listen(PORT, "127.0.0.1", () => {
-  const url = `http://localhost:${PORT}`;
-  console.log(`\n  SEO Tool control panel: ${url}`);
-  console.log("  Leave this window open — closing it closes the panel.\n");
+/** Open a URL in the user's default browser. */
+function openInBrowser(url) {
   // `start` is a cmd builtin, so it needs cmd — but explicitly, not via
   // shell: true, which would concatenate unescaped. The empty "" is
   // start's title argument; without it a quoted URL becomes the title
@@ -873,19 +1125,89 @@ server.listen(PORT, "127.0.0.1", () => {
       : ["xdg-open", [url]];
   try {
     spawn(opener, openerArgs, { stdio: "ignore", detached: true }).unref();
+    return true;
   } catch {
-    console.log(`  Open ${url} in your browser.`);
+    return false;
   }
-});
+}
 
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(
-      `\n  The control panel is already open at http://localhost:${PORT}\n` +
-        "  Switch to that browser tab, or close the other window first.\n",
-    );
-  } else {
-    console.error("\n  Couldn't start the control panel:", err.message, "\n");
+/** Is the thing already on this port our own panel, or a stranger? */
+async function panelAlreadyOn(port) {
+  try {
+    const c = new AbortController();
+    // /api/ping, not /api/state: state shells out to Docker and can
+    // take seconds, and a probe that times out reports "no panel here"
+    // — so the launcher would open a second one on the next port rather
+    // than joining the one already running.
+    const t = setTimeout(() => c.abort(), 2000);
+    const res = await fetch(`http://127.0.0.1:${port}/api/ping`, { signal: c.signal });
+    clearTimeout(t);
+    if (!res.ok) return false;
+    const body = await res.json().catch(() => null);
+    // Matching on the root as well as the flag, so two different
+    // checkouts on neighbouring ports do not adopt each other's panel.
+    return Boolean(body?.panel === true && samePath(body.root ?? "", ROOT));
+  } catch {
+    return false;
   }
-  process.exit(1);
-});
+}
+
+/**
+ * Start the panel, and land the user in it whatever is already running.
+ *
+ * Double-clicking the launcher a second time used to print "already
+ * open — switch to that browser tab" and exit 1, which the .cmd turns
+ * into a black window waiting on a keypress. For someone whose entire
+ * interface is this page, pressing the one icon they have and getting a
+ * console error is indistinguishable from the app being broken — and
+ * the fix they need ("switch tabs") is being told to them in the window
+ * they are being told to leave.
+ *
+ * So: if the panel is already up, open the browser at it and exit 0.
+ * That is what they wanted. If something ELSE holds the port, move to
+ * the next one rather than refusing — the port is ours by convention,
+ * not by right.
+ */
+async function listenOrJoin(port, attemptsLeft = 12) {
+  // Every retry reuses one server object, and `server.listen(p, h, cb)`
+  // registers cb as a one-time "listening" listener that a FAILED
+  // listen never consumes. Leave it there and the next attempt's
+  // success fires the previous attempt's callback too — measured: bound
+  // to 4401 and announced 4400, which is the URL the browser would then
+  // be sent to. Clear both before each attempt.
+  server.removeAllListeners("listening");
+  server.removeAllListeners("error");
+
+  if (await panelAlreadyOn(port)) {
+    const url = `http://localhost:${port}`;
+    console.log(`\n  The control panel is already open: ${url}`);
+    console.log("  Bringing it to the front.\n");
+    openInBrowser(url);
+    process.exit(0);
+  }
+
+  server.once("error", (err) => {
+    if (err.code === "EADDRINUSE" && attemptsLeft > 0) {
+      // Not our panel, and not free. Someone else's server — take the
+      // next port instead of dying on a convention.
+      console.log(`  Port ${port} is taken by something else, trying ${port + 1}…`);
+      void listenOrJoin(port + 1, attemptsLeft - 1);
+      return;
+    }
+    console.error("\n  Couldn't start the control panel:", err.message, "\n");
+    process.exit(1);
+  });
+
+  // 127.0.0.1, not 0.0.0.0. This endpoint can run commands, so it must
+  // never be reachable from the network — the same decision bin/START.*
+  // makes for the app itself.
+  server.listen(port, "127.0.0.1", () => {
+    PORT = port;
+    const url = `http://localhost:${port}`;
+    console.log(`\n  SEO Tool control panel: ${url}`);
+    console.log("  Leave this window open — closing it closes the panel.\n");
+    if (!openInBrowser(url)) console.log(`  Open ${url} in your browser.`);
+  });
+}
+
+void listenOrJoin(PORT);

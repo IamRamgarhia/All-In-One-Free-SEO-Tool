@@ -76,6 +76,10 @@ data.db-*.backup*
 
 # Per-instance runtime state
 .seo-port
+# One word, "docker" or "native" — the answer the control panel asks for
+# when Docker is installed but not running, so it only asks once. Per
+# machine, so it must not travel with the repo.
+.seo-install-mode
 dev-server.log
 dev-server.err.log
 .dev-server.pid

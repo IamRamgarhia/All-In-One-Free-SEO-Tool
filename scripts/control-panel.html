@@ -58,6 +58,12 @@
     border: 1px solid var(--line);
   }
   .banner.bad { border-color: var(--bad); color: var(--bad); }
+  /* The two answers to "is this Docker or not?", inside the banner that
+     asks. Buttons rather than a line of prose about an environment
+     variable, because the banner used to be a dead end. */
+  .modePick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .modePick button { font-size: 13px; padding: 8px 12px; }
+  .banner small { display: block; margin-top: 8px; color: var(--muted); font-size: 12.5px; }
   a { color: var(--accent); }
   .hidden { display: none !important; }
 </style>
@@ -175,13 +181,33 @@ async function refresh() {
   } else if (s.installMode === "unknown") {
     // Say it here, not only after a button refuses. Someone who opened
     // this page to press Start should know before they press it.
+    //
+    // And give them a way out. This used to end at the explanation,
+    // which left the only escape an environment variable — no use to
+    // the person this page exists for, who then has a panel where
+    // nothing works and no way to fix it. Two buttons, asked once.
     dk.classList.remove("hidden");
     dk.innerHTML = '<strong>Can&rsquo;t tell how this install is set up,' +
       ' so the buttons that change things are holding off.</strong> ' +
       esc(s.installModeWhy || '') +
       ' Acting on a guess here would start a second copy of the app' +
       ' against a different, empty database &mdash; and it would look' +
-      ' like it worked.';
+      ' like it worked.' +
+      '<div class="modePick">' +
+      '<button onclick="setMode(\'native\')">This app runs on this computer</button>' +
+      '<button onclick="setMode(\'docker\')">It runs in Docker</button>' +
+      '</div>' +
+      '<small>If you have never heard of Docker, the first one is right.</small>';
+  } else if (s.installModeInferred) {
+    // A mode worked out from a file on disk is a weaker claim than one
+    // Docker confirmed, so it does not get to look the same. Quiet, but
+    // present — and it names the way to overrule it.
+    dk.classList.remove("hidden");
+    dk.innerHTML = '<strong>Treated as an app installed on this computer.</strong> ' +
+      esc(s.installModeWhy || '') +
+      '<div class="modePick">' +
+      '<button onclick="setMode(\'docker\')">No &mdash; it runs in Docker</button>' +
+      '</div>';
   } else {
     dk.classList.add("hidden");
   }
@@ -373,6 +399,26 @@ async function pollLog() {
 }
 
 function openApp(port) { window.open("http://localhost:" + port, "_blank"); }
+
+/**
+ * Answer the "Docker or not?" question, and remember it.
+ *
+ * The server writes one word to .seo-install-mode and clears its cache,
+ * so the next refresh shows the resolved state. Deliberately not a
+ * silent setting: the banner it replaces explains what the answer does.
+ */
+async function setMode(mode) {
+  for (const b of document.querySelectorAll(".modePick button")) b.disabled = true;
+  const res = await api("/api/install-mode?mode=" + encodeURIComponent(mode), { method: "POST" });
+  if (!res || res.ok !== true) {
+    // Never leave the buttons dead with no explanation — that is the
+    // same failure this whole block exists to remove.
+    for (const b of document.querySelectorAll(".modePick button")) b.disabled = false;
+    alert("Couldn't save that. " + ((res && res.error) || "The panel may have closed."));
+    return;
+  }
+  refresh();
+}
 
 refresh();
 setInterval(() => { if (!polling) refresh(); }, 3000);
