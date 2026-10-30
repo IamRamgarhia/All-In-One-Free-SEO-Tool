@@ -93,6 +93,8 @@ function freshness(at: Date | null | undefined): string {
  * much to trust it.
  */
 import { rankProvenance } from "@/lib/serp/sources";
+import { getAiUsageSummary } from "@/lib/ai-usage-summary";
+import { checkMonthlyCap } from "@/lib/ai-usage";
 
 async function resolveClient(clientId: number) {
   const [c] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
@@ -1454,4 +1456,80 @@ export async function getQueueItem(opts: {
     };
   }
   return { ok: true, data: { ...base, body: item.body } };
+}
+
+/**
+ * What this install has spent on AI, and on what.
+ *
+ * The web UI has had this at /settings/ai-usage; MCP had nothing, so
+ * "how much have I spent this month?" asked through Claude had no tool
+ * to answer it and the model would either decline or guess.
+ *
+ * Serves `getAiUsageSummary`, the same aggregation the page uses, so
+ * the two cannot disagree — and so this does not inherit the 500-row
+ * slice the page's headline numbers were computed from.
+ */
+export async function getAiUsage(opts: {
+  windowDays?: number;
+}): Promise<McpToolResult> {
+  const windowDays = Math.min(Math.max(opts.windowDays ?? 30, 1), 365);
+  const s = await getAiUsageSummary(windowDays);
+  const usd = (micros: number) => Number((micros / 1_000_000).toFixed(6));
+  const cap = await checkMonthlyCap();
+
+  return {
+    ok: true,
+    data: {
+      window: `last ${windowDays} days, from ${s.since.toISOString().slice(0, 10)}`,
+      totals: {
+        calls: s.calls,
+        costUsd: usd(s.costMicros),
+        tokensIn: s.tokensIn,
+        tokensOut: s.tokensOut,
+        // Stated rather than buried: a spend summary that counts only
+        // successes reads healthier than the install actually is, and
+        // a failing provider is the usual reason a feature looks dead.
+        failedCalls: s.errorCalls,
+      },
+      today: { calls: s.todayCalls, costUsd: usd(s.todayCostMicros) },
+      thisCalendarMonth: {
+        costUsd: usd(s.monthCostMicros),
+        capUsd: cap.capUsd,
+        capReached: cap.capped,
+      },
+      byFeature: s.byFeature.map((b) => ({
+        feature: b.key,
+        calls: b.calls,
+        costUsd: usd(b.costMicros),
+        tokens: b.tokens,
+      })),
+      byProvider: s.byProvider.map((b) => ({
+        provider: b.key,
+        calls: b.calls,
+        costUsd: usd(b.costMicros),
+        tokens: b.tokens,
+      })),
+      byModel: s.byModel.map((b) => ({
+        model: b.key,
+        calls: b.calls,
+        costUsd: usd(b.costMicros),
+        tokens: b.tokens,
+      })),
+      byClient: s.byClient.map((b) => ({
+        clientId: b.clientId,
+        client: b.key,
+        calls: b.calls,
+        costUsd: usd(b.costMicros),
+        tokens: b.tokens,
+      })),
+      daily: s.daily.map((d) => ({
+        day: d.day,
+        calls: d.calls,
+        costUsd: usd(d.costMicros),
+      })),
+      note:
+        "Costs are this install's own ledger, priced from ai-model-presets.ts at " +
+        "the time of each call — not a figure read back from the provider's billing.",
+    },
+  };
 }

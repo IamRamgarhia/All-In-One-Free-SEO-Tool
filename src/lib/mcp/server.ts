@@ -47,6 +47,7 @@ import {
   updateTask,
   listPublishQueue,
   getQueueItem,
+  getAiUsage,
   type McpToolResult,
 } from "./tools";
 const clientIdArg = {
@@ -504,6 +505,21 @@ const TOOLS = [
       required: ["itemId"],
     },
     handler: (a: { itemId: number; forAi?: boolean }) => getQueueItem(a),
+  },
+  {
+    name: "get_ai_usage",
+    description:
+      "What this install has spent on AI and where it went: totals for the window, today, and the calendar month against the spend cap, broken down by feature, provider, model and client, plus a per-day series. Costs come from this install's own ledger, priced at the time of each call — not from the provider's billing. Failed calls are reported separately, because a provider that stopped working is the usual reason a feature looks dead.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        windowDays: {
+          type: "number",
+          description: "Days to summarise. Default 30, min 1, max 365.",
+        },
+      },
+    },
+    handler: (a: { windowDays?: number }) => getAiUsage(a),
   },
 ];
 

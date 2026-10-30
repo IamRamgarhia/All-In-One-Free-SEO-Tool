@@ -8,6 +8,7 @@ import { aiCalls, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { microsToDisplay } from "@/lib/ai-cost";
 import { getSetting } from "@/lib/settings-store";
+import { getAiUsageSummary } from "@/lib/ai-usage-summary";
 import { CapForm } from "./cap-form";
 import { UsageCharts } from "./usage-charts";
 
@@ -15,32 +16,32 @@ export default async function AiUsagePage() {
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 30);
 
-  // Aggregates last 30 days
+  // Every headline figure is aggregated in SQL over the whole window.
+  //
+  // They used to be computed from `recentCalls` below, which is capped
+  // at 500 rows — so past 500 calls in 30 days the totals, the daily
+  // chart and the month-to-date figure shown beside the spend cap all
+  // silently became "the total of the 500 most recent calls" under
+  // labels saying otherwise. The per-client block already used full SQL
+  // and its comment explained why; the rest did not.
+  const summary = await getAiUsageSummary(30);
+
+  const total = summary.calls;
+  const totalIn = summary.tokensIn;
+  const totalOut = summary.tokensOut;
+  const totalCost = summary.costMicros;
+  const todayCost = summary.todayCostMicros;
+  const monthCost = summary.monthCostMicros;
+
+  // Still a capped list, but now only for the "recent calls" table,
+  // where showing the most recent 500 is the intent rather than an
+  // accident.
   const recentCalls = await db
     .select()
     .from(aiCalls)
     .where(gte(aiCalls.createdAt, since))
     .orderBy(desc(aiCalls.createdAt))
     .limit(500);
-
-  const total = recentCalls.length;
-  const totalIn = recentCalls.reduce((s, r) => s + r.promptTokens, 0);
-  const totalOut = recentCalls.reduce((s, r) => s + r.completionTokens, 0);
-  const totalCost = recentCalls.reduce((s, r) => s + r.costMicros, 0);
-
-  // Today
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const todayCalls = recentCalls.filter((r) => r.createdAt >= today);
-  const todayCost = todayCalls.reduce((s, r) => s + r.costMicros, 0);
-
-  // This calendar month for cap display
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-  const monthCost = recentCalls
-    .filter((r) => r.createdAt >= monthStart)
-    .reduce((s, r) => s + r.costMicros, 0);
 
   // Per-feature breakdown
   const byFeature = new Map<string, { calls: number; cost: number; tokens: number }>();
@@ -131,7 +132,7 @@ export default async function AiUsagePage() {
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
         <Stat
           label="Today"
-          value={`${todayCalls.length} calls`}
+          value={`${summary.todayCalls} calls`}
           hint={microsToDisplay(todayCost)}
           tone="violet"
         />
