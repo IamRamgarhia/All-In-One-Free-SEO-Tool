@@ -66,6 +66,7 @@ import {
   UNKNOWN,
   detectInstallMode,
 } from "./install-mode.mjs";
+import { describeBackup } from "./backup-label.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -166,9 +167,15 @@ function listBackups() {
       try {
         const s = statSync(join(dir, f));
         if (!s.isFile()) continue;
+        // kind/detail say what the backup IS. The dropdown used to show
+        // the filename and nothing else, which answers a question
+        // nobody asked and not the one they did.
+        const { kind, detail } = describeBackup(bucket, f);
         found.push({
           id: `${bucket}/${f}`,
           name: f,
+          kind,
+          detail,
           sizeMb: Math.round((s.size / 1024 / 1024) * 10) / 10,
           when: s.mtime.toISOString(),
         });

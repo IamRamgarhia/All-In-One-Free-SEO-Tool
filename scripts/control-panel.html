@@ -86,12 +86,17 @@
       <button onclick="run('doctor')" id="btnLogs">Collect info for support</button>
     </div>
     <div class="row" id="restoreRow" style="margin-top:12px">
-      <select id="restorePick" style="flex:1;min-width:220px"></select>
+      <select id="restorePick" style="flex:1;min-width:220px" onchange="showPicked()"></select>
       <button onclick="restore()" id="btnRestore">Restore this backup</button>
     </div>
+    <p class="hint" id="restorePicked"></p>
     <p class="hint" id="restoreHint">
       Restoring replaces everything with the backup you pick. Your current
       data is copied aside first, so a wrong choice is undoable.
+      <br><strong>Routine backup</strong> is the nightly one, or one you took
+      with Back up now &mdash; they are written the same way, so they cannot be
+      told apart afterwards. <strong>Safety copy</strong> was taken
+      automatically just before something changed the database.
     </p>
     <p class="hint">
       Installing adds the Desktop icon for you. The button is here in case
@@ -227,14 +232,46 @@ function backupSummary(s) {
 }
 
 /** "today 14:32" reads better than an ISO string when you are picking one. */
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/**
+ * A date a person can read at a glance.
+ *
+ * This mixed three formats in one list — "today 04:46", "10/29/2026
+ * 18:59", "9/24/2026 19:02" — so the eye had to re-parse every row, and
+ * the US-style numeric dates are ambiguous to most of the world.
+ */
 function when(iso) {
   try {
     var d = new Date(iso);
-    var today = new Date();
-    var sameDay = d.toDateString() === today.toDateString();
+    if (isNaN(d.getTime())) return iso;
+    var now = new Date();
     var time = d.toTimeString().slice(0, 5);
-    return sameDay ? 'today ' + time : d.toLocaleDateString() + ' ' + time;
+    var midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var days = Math.floor((midnight - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+    if (days === 0) return 'Today ' + time;
+    if (days === 1) return 'Yesterday ' + time;
+    var stamp = d.getDate() + ' ' + MONTHS[d.getMonth()];
+    if (d.getFullYear() !== now.getFullYear()) stamp += ' ' + d.getFullYear();
+    return stamp + ', ' + time;
   } catch (e) { return iso; }
+}
+
+/** "4 days ago" — what people actually weigh when picking a backup. */
+function age(iso) {
+  var then = Date.parse(iso);
+  if (isNaN(then)) return null;
+  var mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+  var hours = Math.round(mins / 60);
+  if (hours < 24) return hours + (hours === 1 ? ' hour ago' : ' hours ago');
+  var days = Math.round(hours / 24);
+  if (days < 7) return days + (days === 1 ? ' day ago' : ' days ago');
+  var weeks = Math.round(days / 7);
+  if (weeks < 9) return weeks + (weeks === 1 ? ' week ago' : ' weeks ago');
+  var months = Math.round(days / 30);
+  return months + (months === 1 ? ' month ago' : ' months ago');
 }
 
 function fillRestore(s) {
@@ -248,12 +285,39 @@ function fillRestore(s) {
   }
   row.style.display = '';
   var keep = sel.value;
+  // What it is, in words, before the numbers. The filename is not here
+  // on purpose — it repeated the date, told the reader nothing they
+  // could act on, and crowded out the part that did.
   sel.innerHTML = b.map(function (x) {
+    var what = x.detail ? x.kind + ', ' + x.detail : (x.kind || 'backup');
     return '<option value="' + esc(x.id) + '">' + esc(when(x.when))
-      + '  ·  ' + esc(x.sizeMb) + ' MB  ·  ' + esc(x.name) + '</option>';
+      + '  ·  ' + esc(what) + '  ·  ' + esc(x.sizeMb) + ' MB</option>';
   }).join('');
   if (keep) sel.value = keep;
   btn.disabled = Boolean(s.busy);
+  restoreBackups = b;
+  showPicked();
+}
+
+/** The list, kept so the detail line can look up what is selected. */
+var restoreBackups = [];
+
+/**
+ * The exact file, under the dropdown rather than inside it.
+ *
+ * Still worth showing — it is what you would look for on disk, and what
+ * you would quote asking for help. It just is not the thing to choose
+ * by.
+ */
+function showPicked() {
+  var el = document.getElementById('restorePicked');
+  if (!el) return;
+  var sel = document.getElementById('restorePick');
+  var pick = restoreBackups.filter(function (x) { return x.id === sel.value; })[0];
+  if (!pick) { el.textContent = ''; return; }
+  var ago = age(pick.when);
+  el.innerHTML = 'Selected: <code>' + esc(pick.name) + '</code>'
+    + (ago ? ' — taken ' + esc(ago) : '');
 }
 
 function restore() {
