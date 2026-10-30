@@ -17,7 +17,15 @@
 
 > **Use cases:** free seo tool · all in one seo · ahrefs alternative · semrush alternative · moz alternative · open source seo · self-hosted seo · rank tracker · keyword research · technical seo · local seo · AI search optimization (GEO) · LLM citation tracking · backlink checker · content brief generator · white-label client reports · SEO automation for freelancers and small agencies
 
-[**⚡ Install**](#-install-in-one-command) · [**📖 Documentation**](https://dicecodes.com/seo-tool/) · [**💰 How much you save**](#-how-much-you-save) · [**📸 Screenshots**](#-screenshots) · [**📦 Full feature list**](#-full-feature-list) · [**🔮 Coming soon**](#-coming-soon) · [**🆘 Troubleshooting**](docs/TROUBLESHOOTING.md) · [**❓ FAQ**](#-faq) · [**📜 License**](#-license)
+[![Install](https://img.shields.io/badge/%E2%9A%A1_Install-7C3AED?style=for-the-badge)](#-install-in-one-command)
+[![Documentation](https://img.shields.io/badge/%F0%9F%93%96_Documentation-2563EB?style=for-the-badge)](https://dicecodes.com/seo-tool/)
+[![How much you save](https://img.shields.io/badge/%F0%9F%92%B0_How_much_you_save-059669?style=for-the-badge)](#-how-much-you-save)
+[![Screenshots](https://img.shields.io/badge/%F0%9F%93%B8_Screenshots-0891B2?style=for-the-badge)](#-screenshots)
+[![Full feature list](https://img.shields.io/badge/%F0%9F%93%A6_Full_feature_list-4F46E5?style=for-the-badge)](#-full-feature-list)
+[![Coming soon](https://img.shields.io/badge/%F0%9F%94%AE_Coming_soon-C026D3?style=for-the-badge)](#-coming-soon)
+[![Troubleshooting](https://img.shields.io/badge/%F0%9F%86%98_Troubleshooting-E11D48?style=for-the-badge)](docs/TROUBLESHOOTING.md)
+[![FAQ](https://img.shields.io/badge/%E2%9D%93_FAQ-475569?style=for-the-badge)](#-faq)
+[![License](https://img.shields.io/badge/%F0%9F%93%9C_License-16A34A?style=for-the-badge)](#-license)
 
 ![SEO Tool dashboard — health score, today's priorities, open tasks, latest audit score](docs/screenshots/01-dashboard.png)
 
