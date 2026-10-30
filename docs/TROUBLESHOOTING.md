@@ -164,11 +164,68 @@ This is platform-dependent and not critical. Just open <http://localhost:3000> m
 
 Two common causes:
 
-1. **Google rate-limited your IP.** The headless browser fan-out at scale can trigger this. Solutions:
-   - Set a paid SERP API key (Serper, DataForSEO) in Settings → API keys → BYO
-   - Use a residential proxy: set `PLAYWRIGHT_PROXY=http://...` env
-   - Spread checks across days (lower "rank check frequency" in Settings)
-2. **Search results are personalized.** The headless browser uses a clean profile, so results may differ from your manual incognito check.
+**First, if it is a site you own: connect Search Console.** It replaces
+scraped rankings with Google's own impression-weighted position — free,
+covering every query you actually appear for, and impossible to
+rate-limit or block. Nothing below beats it. The rest of this section is
+for competitors' sites and clients who have not connected it.
+
+Measured from one developer machine on 30 Oct 2026, a plain HTTP request
+got: Google → a JavaScript interstitial, DuckDuckGo → a CAPTCHA, Bing →
+a page shell with no result links, Startpage → a shell. So "the browser
+is blocked" is the normal case, not the unlucky one.
+
+Rank checks run through four sources in order — **Search Console →
+SearXNG → Brave → headless browser** — and the last three are configured
+at **Settings → Advanced → Where rankings come from**.
+
+1. **Run your own SearXNG** (free, no API key). It is an open-source
+   metasearch engine: it queries Google, Bing, Brave and others and
+   merges the results, so it keeps working when any one of them blocks
+   you.
+
+   ```bash
+   docker run -d --name searxng -p 8888:8080 \
+     -v "$PWD/searxng:/etc/searxng" searxng/searxng:latest
+   ```
+
+   Then edit `searxng/settings.yml` and add `json` to the formats, or
+   every request comes back as HTML and the tool will tell you so:
+
+   ```yaml
+   search:
+     formats:
+       - html
+       - json
+   ```
+
+   Restart it, and put `http://localhost:8888` in Settings.
+
+   Use **your own** instance. Public ones rate-limit automated queries
+   within a few requests, and it is somebody's volunteer bandwidth.
+
+2. **Brave Search API** — official, free tier, needs a key from
+   api.search.brave.com. It searches Brave's own index rather than
+   Google's, so treat it as its own series: a page can sit at #3 there
+   and #30 on Google. The tool records which source each number came
+   from and refuses to subtract one source from another.
+
+3. **Attach to a Chrome you started.** Launch your everyday Chrome with
+   `--remote-debugging-port=9222` and put `http://127.0.0.1:9222` in
+   Settings. Rank checks then run in your browser, with your profile and
+   cookies, instead of a fresh headless one.
+
+   Three caveats, all real: anything able to reach that port can drive
+   your browser, so it must be on the same machine; the tool acts as
+   whoever is signed in; and closing Chrome stops rank checks.
+
+4. **Search results are personalized.** The headless browser uses a
+   clean profile, so results differ from your own incognito check —
+   which is one reason option 3 exists.
+
+5. Paid SERP APIs (Serper, DataForSEO) remain available under
+   Settings → API keys → BYO if you want volume without any of the
+   above.
 
 ### "Playwright browser not found"
 
