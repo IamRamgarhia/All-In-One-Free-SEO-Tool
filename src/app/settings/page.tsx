@@ -11,6 +11,7 @@ import {
   Clock,
   CheckCircle2,
   Globe,
+  Search,
   Database,
   Key,
   Mail,
@@ -58,6 +59,8 @@ import { InboundWebhooksManager } from "./inbound-webhooks/manager";
 import { UpdateCard } from "./update-card";
 import { PageTabs } from "@/components/shell/page-tabs";
 import { SETTINGS_TABS } from "./settings-tab-map";
+import { RankSourcesForm } from "./rank-sources-form";
+import { loadRankSources } from "./rank-sources-actions";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
 
 export default async function SettingsPage() {
@@ -118,6 +121,7 @@ export default async function SettingsPage() {
   const smtpSecure = await getSetting<string>("smtp.secure");
   const smtpHasPassword = Boolean(await getSetting<string>("smtp.password"));
   const browserSettings = await loadBrowserSettings();
+  const rankSources = await loadRankSources();
 
   const apiKeyRows = await dbClient
     .select()
@@ -444,6 +448,23 @@ export default async function SettingsPage() {
       </section>
 
       {/* Browser pool */}
+      <section id="rank-sources" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
+        <header className="relative border-b border-white/5 px-5 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Search className="size-4 text-emerald-300" />
+            Where rankings come from
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Optional sources tried when Search Console can&apos;t answer —
+            competitors&apos; sites, and clients who haven&apos;t connected it.
+            All three are free; the tool works without any of them.
+          </p>
+        </header>
+        <div className="relative p-5">
+          <RankSourcesForm initial={rankSources} />
+        </div>
+      </section>
+
       <section id="browser" className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
         <header className="relative border-b border-white/5 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">

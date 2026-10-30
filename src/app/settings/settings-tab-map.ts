@@ -27,7 +27,7 @@ export const SETTINGS_TABS: readonly PageTab[] = [
   {
     id: "advanced",
     label: "Advanced",
-    sections: ["claude-code", "browser", "ai-learning"],
+    sections: ["claude-code", "rank-sources", "browser", "ai-learning"],
   },
   { id: "about", label: "About", sections: ["install", "update", "privacy", "about"] },
 ] as const;
