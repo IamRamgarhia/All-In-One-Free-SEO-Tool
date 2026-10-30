@@ -77,6 +77,16 @@ export type GeminiCallOpts = {
  * aliases are the only ids that survive Google retiring a release, so the
  * fallbacks are those and the pinned version leads.
  */
+/**
+ * Least a single model attempt gets, however many are queued behind it.
+ *
+ * Healthy Gemini latency measured from this machine is ~1-1.4s for a
+ * short answer, so eight seconds is a wide margin. Lower and a model
+ * that is merely busy gets abandoned; higher and one hung model can
+ * still starve the chain.
+ */
+const MIN_ATTEMPT_MS = 8_000;
+
 const FALLBACK_MODELS = [
   "gemini-2.5-flash",
   // Was gemini-2.0-flash, which Google has now retired too — it answers
@@ -151,14 +161,31 @@ export async function callGemini(opts: GeminiCallOpts): Promise<string | null> {
   let lastError = "";
   let lastStatus = 0;
 
-  for (const model of tryList) {
+  for (let i = 0; i < tryList.length; i++) {
+    const model = tryList[i];
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
       lastError = lastError || "Gemini timed out before any model responded";
       break;
     }
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), Math.min(remaining, 30_000));
+    // Share the budget with the models behind this one.
+    //
+    // This was `Math.min(remaining, 30_000)`, so the FIRST model could
+    // spend the entire budget and the fallback chain — which exists for
+    // exactly this case — was never reached. Measured on 30 Oct 2026:
+    // `gemini-flash-latest` was returning 503 "model is currently
+    // overloaded" or hanging past 45s, while `gemini-2.5-flash`
+    // answered the same prompt in 1.2s. Every feature with a 20-30s
+    // budget failed outright, because the dead model ate all of it
+    // before the working one was tried.
+    //
+    // A floor, so a slow-but-working model is not cut off: three models
+    // inside a 25s budget get 8.3s each, which is six times the
+    // measured healthy latency.
+    const attemptsLeft = tryList.length - i;
+    const share = Math.max(MIN_ATTEMPT_MS, Math.floor(remaining / attemptsLeft));
+    const t = setTimeout(() => ctl.abort(), Math.min(remaining, share, 30_000));
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(opts.apiKey)}`;
       const res = await fetch(url, {

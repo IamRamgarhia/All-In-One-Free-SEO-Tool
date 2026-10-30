@@ -229,3 +229,74 @@ describe("onModelUsed reports the model that answered", () => {
     ).resolves.toBe("hello");
   });
 });
+
+/**
+ * One hung model must not starve the fallback chain.
+ *
+ * Found live on 30 Oct 2026. `gemini-flash-latest` was returning 503
+ * "this model is currently overloaded" or simply not answering inside
+ * 45 seconds, while `gemini-2.5-flash` answered the same prompt in
+ * 1.2s. The chain existed and should have sailed past it — but the
+ * per-attempt abort was `Math.min(remaining, 30_000)`, so the dead
+ * model spent the entire 20-30s budget every feature had, and the
+ * working one was never reached.
+ *
+ * Measured across five features before and after: exec_summary 25s and
+ * a template fallback became 9.7s of real output; review_reply 30s of
+ * "the AI provider did not respond" became an 11.3s reply. Nothing
+ * about the models changed — only who got to use the time.
+ */
+describe("budget sharing across the fallback chain", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** First model never resolves; the rest answer instantly. */
+  function hangFirst(): { tried: string[] } {
+    const tried: string[] = [];
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) => {
+      const model = String(url).split("/models/")[1]?.split(":")[0] ?? "?";
+      tried.push(model);
+      if (tried.length === 1) {
+        // Hangs until the caller's AbortController fires.
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(Object.assign(new Error("This operation was aborted"), { name: "AbortError" })),
+          );
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: "hello" }] }, finishReason: "STOP" }],
+        }),
+      } as unknown as Response);
+    });
+    return { tried };
+  }
+
+  it("reaches the second model when the first hangs", async () => {
+    const { tried } = hangFirst();
+    const started = Date.now();
+    // 25s is the budget exec_summary uses, and the one that used to be
+    // consumed whole by a single dead model.
+    const out = await callGemini({ ...base, model: "gemini-flash-latest", timeoutMs: 25_000 });
+    const elapsed = Date.now() - started;
+
+    expect(out).toBe("hello");
+    expect(tried.length).toBeGreaterThan(1);
+    expect(tried[0]).toBe("gemini-flash-latest");
+    // The whole point: the hung model gets a share, not the lot. With
+    // three models in the list that is ~8.3s, so finishing must take
+    // well under the 25s budget.
+    expect(elapsed).toBeLessThan(20_000);
+  }, 40_000);
+
+  it("gives a lone model the whole budget", async () => {
+    // Nothing to fall back to means nothing to reserve time for, so the
+    // floor must not shorten a legitimately slow single attempt.
+    const { tried } = hangFirst();
+    const out = await callGemini({ ...base, model: undefined, timeoutMs: 25_000 });
+    expect(out).toBe("hello");
+    expect(tried.length).toBeGreaterThan(1);
+  }, 40_000);
+});
