@@ -266,11 +266,6 @@ sidebar links straight to it.
 What stayed here is the technical side: audits, findings, fixes, rank
 tracking, reports.
 
-### Ad Funnel Architect — multi-platform paid-ads strategy
-![Ad Funnel Architect with platform checkboxes for Meta, Google Search, Google Display Network, Google Shopping, LinkedIn, TikTok and YouTube Ads — Meta and Google Search ticked — above niche, goal and budget fields set to Leads at $1000 a month, a product field reading Dice Codes, and an audience of small agencies and freelancers paying for Semrush out of pocket](docs/screenshots/06-ad-funnel-architect.png)
-
-Pick your platforms, set your budget, describe your audience — get a ready-to-paste funnel: awareness → consideration → conversion. Platform-specific ad copy with character limits respected.
-
 ### And there's a global overview, too
 ![Main agency dashboard with 'Working late, here's what needs attention today' greeting, latest audit score gauge, open tasks counter (73), clients count, audits run (10), and a 5-step setup checklist with progress bar](docs/screenshots/01-dashboard.png)
 

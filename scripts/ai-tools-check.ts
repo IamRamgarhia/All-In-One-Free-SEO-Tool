@@ -203,23 +203,6 @@ function cases(): Case[] {
         ),
     },
     {
-      id: "ads-funnel",
-      run: async () => {
-        const f = fd({
-            productName: "Website build",
-            offer: "Free audit",
-            audience: "small business owners",
-            goal: "leads",
-            niche: "services",
-            landingUrl: SITE,
-            monthlyBudgetUsd: "500",
-        });
-        // getAll("platforms"), so it needs a repeated field rather than one value.
-        f.append("platforms", "google_search");
-        return (await import("@/app/tools/ads-funnel/actions")).generateAdsFunnel(null, f);
-      },
-    },
-    {
       id: "llms-txt (generate)",
       run: async () =>
         (await import("@/app/tools/llms-txt/actions")).generateLlmsTxt({

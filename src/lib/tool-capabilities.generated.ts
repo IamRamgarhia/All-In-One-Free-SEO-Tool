@@ -3,8 +3,8 @@
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
-// 227 routes · 100 need AI · 70 use a browser.
-// 92 are /tools/* · 34 need AI · 92 carry copy.
+// 226 routes · 99 need AI · 70 use a browser.
+// 91 are /tools/* · 33 need AI · 91 carry copy.
 
 export const TOOL_CAPABILITIES = [
   { route: "/", needsAI: true, aiUsage: "required", usesBrowser: true },
@@ -140,7 +140,6 @@ export const TOOL_CAPABILITIES = [
   { route: "/tasks/templates", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/title-tests", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/tools", needsAI: false, aiUsage: "none", usesBrowser: false },
-  { route: "/tools/ads-funnel", needsAI: true, aiUsage: "required", usesBrowser: false, title: "Ad Funnel Architect ⭐", description: "Multi-platform paid-ads strategy generator. Pick Meta, Google Search/Display/Shopping, LinkedIn, TikTok, or YouTube — get launch-ready copy variants, image-generation prompts, keyword bundles, funnel map, budget split, and tracking setup. Works on just AI." },
   { route: "/tools/ai-citation-tactics", needsAI: false, aiUsage: "none", usesBrowser: false, title: "AI citation tactics (per platform)", description: "Only 11% of cited domains overlap between ChatGPT and Perplexity. Niche-specific priority + concrete tactics for each platform: ChatGPT, Perplexity, Claude, Gemini, AI Overviews." },
   { route: "/tools/ai-overview", needsAI: true, aiUsage: "required", usesBrowser: false, title: "AI Overview optimizer", description: "AI scores your page's citation-worthiness for Google's AI Overviews. Specific changes to make ranked by impact." },
   { route: "/tools/ai-robots", needsAI: false, aiUsage: "none", usesBrowser: false, title: "AI-bot robots.txt audit ⭐", description: "Which AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) can currently reach this site? Per-bot status + a copy-paste patch you can flip Allow/Disallow per line before pasting into robots.txt." },

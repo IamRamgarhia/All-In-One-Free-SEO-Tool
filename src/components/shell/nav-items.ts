@@ -34,7 +34,6 @@ import {
   Link2,
   ListChecks,
   MapPin,
-  Megaphone,
   Network,
   Newspaper,
   Plug,
@@ -151,20 +150,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/cannibalization", label: "Cannibalization", icon: GitMerge },
       { href: "/cwv", label: "Core Web Vitals", icon: Gauge },
       { href: "/serp-scans", label: "SERP scans archive", icon: Globe },
-    ],
-  },
-  {
-    id: "paid-ads",
-    title: "Paid ads",
-    defaultOpen: true,
-    items: [
-      // The ⭐ marks this as the newest / most-recommended entry —
-      // matches the same treatment on /tools and the per-client launcher.
-      {
-        href: "/tools/ads-funnel",
-        label: "Ad Funnel Architect ⭐",
-        icon: Megaphone,
-      },
+      // Branded vs non-branded splits Search Console queries by brand
+      // intent. It lived under a "Paid ads" group, which is where nobody
+      // looking for a Search Console report would ever think to look.
       { href: "/tools/branded-split", label: "Branded vs non-branded", icon: Target },
     ],
   },

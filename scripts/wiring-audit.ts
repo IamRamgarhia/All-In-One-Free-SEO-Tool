@@ -60,7 +60,7 @@ const NOT_A_CHECK = new Set([
   "trending", "reddit-research", "youtube", "wayback", "dns-whois",
   "search-volume", "keyword-difficulty", "intent-classifier", "serp-features",
   "serp-volatility", "crux", "crux-origin", "branded-split",
-  "utm-attribution", "ads-funnel", "gsc-coverage", "rank-where", "external",
+  "utm-attribution", "gsc-coverage", "rank-where", "external",
   "bing", "domain-overview", "robots-history", "link-graph", "pagerank",
   "anchor-distribution", "backlink-discovery",
   // Analyses the shape of a page's links — how many are external,

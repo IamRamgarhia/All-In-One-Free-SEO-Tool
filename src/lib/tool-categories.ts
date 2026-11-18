@@ -234,7 +234,6 @@ const EXPLICIT: Record<string, ToolCategoryId> = {
   "/tools/attack-briefs": "occasional",
   "/tools/content-helpers": "occasional",
   "/tools/trending": "occasional",
-  "/tools/ads-funnel": "occasional",
   "/tools/external": "occasional",
 };
 

@@ -18,7 +18,6 @@ The current `main` branch covers everything below. Install via [README → Insta
 - Backlink profile (GSC + Ahrefs Webmaster Tools), toxic-link flagging, disavow generator, outreach hub, 314 curated backlink prospects
 - AI search visibility — LLM mention tracker (ChatGPT, Perplexity, Claude, Gemini, AI Overviews), `llms.txt` manager, AI-bot crawl tracking
 - Local SEO — GBP manager, review hub, citation tracker, local rank tracker with map view, GBP photos + posts scheduler
-- Paid ads — Ad Funnel Architect across Meta / Google Search-Display-Shopping / LinkedIn / TikTok / YouTube
 - White-label PDF reports with AI executive summary, scheduled email delivery, client portal with magic-link access
 - Invoice generator (INR + UPI, USD via PayPal)
 - WordPress plugin with one-click apply + full undo

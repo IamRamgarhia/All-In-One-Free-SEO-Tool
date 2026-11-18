@@ -227,19 +227,6 @@ function buildGroups(client: {
       ],
     },
     {
-      label: "Paid ads & growth",
-      blurb: "Multi-platform paid-ads strategy + copy generator.",
-      tools: [
-        {
-          href: `/tools/ads-funnel?clientId=${id}`,
-          title: "Ad Funnel Architect ⭐",
-          icon: Sparkles,
-          blurb:
-            "Meta / Google / LinkedIn / TikTok / YouTube — copy, image prompts, keywords, funnel + budget split.",
-        },
-      ],
-    },
-    {
       label: "Links — internal + outbound",
       blurb: "Internal linking, prospects, anchor profile.",
       tools: [

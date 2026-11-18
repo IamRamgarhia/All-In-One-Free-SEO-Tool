@@ -48,13 +48,27 @@ describe("every surface points at rail groups that exist", () => {
     ).toEqual([]);
   });
 
-  it("the rail has groups no surface claims, and that is allowed", () => {
-    // "Paid ads & growth" belongs to no surface. Unmapped must not be
-    // treated as out-of-scope, or a tool nobody decided about gets
-    // demoted below a "not in this engagement" divider.
-    const real = railGroupLabels();
+  it("a group no surface claims is left alone, not pushed out of scope", () => {
+    // Unmapped must not be treated as out-of-scope, or a tool nobody
+    // decided about gets demoted below a "not in this engagement"
+    // divider.
+    //
+    // This used to assert that some real rail group was unmapped, and
+    // named "Paid ads & growth" as the example. That group was deleted
+    // when the paid-ads tooling came out, every remaining group happened
+    // to be mapped, and the test failed — reporting a product change as
+    // a defect. The property it cares about is about groupsForSurfaces,
+    // so it now asks groupsForSurfaces directly and does not depend on
+    // the rail happening to contain an example.
+    const everySurface = SURFACES.map((s) => s.id);
+    const covered = new Set(groupsForSurfaces(everySurface));
+    expect(covered.has("A group no surface has ever heard of")).toBe(false);
+
+    // And the real invariant: whatever it returns is only ever groups a
+    // surface actually claims, so the caller can treat "not in this
+    // list" as "leave it where it is" rather than "out of scope".
     const mapped = new Set(allMappedGroups());
-    expect([...real].some((g) => !mapped.has(g))).toBe(true);
+    for (const g of covered) expect(mapped.has(g)).toBe(true);
   });
 });
 

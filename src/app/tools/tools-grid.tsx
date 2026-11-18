@@ -25,7 +25,6 @@ import {
   ListChecks,
   Lock,
   Map as MapIcon,
-  Megaphone,
   MessageCircle,
   Network,
   Newspaper,
@@ -106,14 +105,6 @@ const tools = [
     description:
       "Day-over-day position shifts across every tracked keyword. Volatility score spikes during algorithm updates — pause big content moves when stormy.",
     accent: "amber",
-  },
-  {
-    href: "/tools/ads-funnel",
-    icon: Megaphone,
-    title: "Ad Funnel Architect ⭐",
-    description:
-      "Multi-platform paid-ads strategy generator. Pick Meta, Google Search/Display/Shopping, LinkedIn, TikTok, or YouTube — get launch-ready copy variants, image-generation prompts, keyword bundles, funnel map, budget split, and tracking setup. Works on just AI.",
-    accent: "rose",
   },
   {
     href: "/tools/cannibalization",
