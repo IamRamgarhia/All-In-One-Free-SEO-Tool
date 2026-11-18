@@ -11,6 +11,17 @@ data.db
 data.db-*
 *.sqlite
 *.sqlite-*
+# Control-panel and pre-migration database copies. These were NOT here,
+# and the Dockerfile starts with `COPY . .` — so anyone running
+# `docker compose up --build` on a machine that had ever taken a backup
+# baked their own database into the image. Gitignored, so CI images
+# built from a clean checkout were never affected; the person building
+# locally is exactly the self-hoster this project is for.
+backups
+*.db
+*.db-wal
+*.db-shm
+.e2e
 coverage
 dist
 out

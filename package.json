@@ -90,7 +90,7 @@
     "dev": "next dev",
     "dev:watch": "node scripts/migrate-watch.cjs",
     "prebuild": "node scripts/migrate.cjs && node scripts/ensure-build.cjs --cleanup",
-    "build": "next build && node scripts/ensure-build.cjs --stamp",
+    "build": "next build && node scripts/prune-standalone.mjs && node scripts/ensure-build.cjs --stamp",
     "start": "next start",
     "start:daily": "node scripts/migrate.cjs && node scripts/ensure-build.cjs && next start",
     "lint": "eslint",
