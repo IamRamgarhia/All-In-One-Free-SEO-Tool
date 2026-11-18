@@ -322,7 +322,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Keyword clustering by topic + intent  
 ✅ Difficulty estimate from SERP analysis  
 ✅ CSV import / export + Google Sheets sync  
-✅ **Google Keyword Planner** (optional; needs a Google Ads account plus a Google Cloud project with **Basic** API access, which requires brand verification) — real monthly searches and competition; finds keywords for you automatically, ranks them by demand, and feeds them to the daily agent, blog/GBP post automations and the MCP server
+✅ **Google Keyword Planner** (optional add-on; needs a Google Ads account plus a Google Cloud project with **Basic** API access, which requires brand verification — and on the prebuilt download, one `pnpm add google-ads-api`, because its protobuf bundle is 120 MB and most installs never connect Ads) — real monthly searches and competition; finds keywords for you automatically, ranks them by demand, and feeds them to the daily agent, blog/GBP post automations and the MCP server
 ✅ Keyword history with annotations on key dates
 
 ### ✍️ Content

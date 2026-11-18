@@ -114,6 +114,9 @@
     "test:mcp": "tsx scripts/mcp-check.ts",
     "test:mcp:http": "tsx scripts/mcp-http-check.ts"
   },
+  "optionalDependencies": {
+    "google-ads-api": "^25.1.0"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
@@ -140,7 +143,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
-    "google-ads-api": "^25.1.0",
     "lucide-react": "^1.14.0",
     "motion": "^12.38.0",
     "next": "16.4.6",

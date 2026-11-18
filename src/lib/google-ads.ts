@@ -2,7 +2,49 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients, keywords } from "@/db/schema";
 import { decrypt } from "@/lib/crypto";
-import { GoogleAdsApi, enums } from "google-ads-api";
+/**
+ * `google-ads-api` is loaded on demand, not imported at the top.
+ *
+ * Its generated protobuf bundle (`google-ads-node`) is 120 MB — a
+ * quarter of the prebuilt installer payload — for an integration that is
+ * optional, gated behind three credentials most installs never set, and
+ * whose availability to new applicants is in question (issue #57).
+ * Keeping it out of the default download means this module has to cope
+ * with it being absent, so the import happens where it is used and a
+ * missing package becomes a sentence rather than a crash on boot.
+ *
+ * A static import here would also defeat the whole exercise: Next traces
+ * it into the server bundle whether or not anyone has connected Ads.
+ */
+type AdsModule = typeof import("google-ads-api");
+
+let adsModule: AdsModule | null = null;
+
+/**
+ * The one enum value this module needs, read from the library rather
+ * than hardcoded — a wrong magic number here would be sent to Google as
+ * a valid-looking request and come back with the wrong data, which is
+ * worse than failing.
+ */
+async function googleSearchNetwork() {
+  const { enums } = await loadAdsLibrary();
+  return enums.KeywordPlanNetwork.GOOGLE_SEARCH;
+}
+
+async function loadAdsLibrary(): Promise<AdsModule> {
+  if (adsModule) return adsModule;
+  try {
+    adsModule = (await import("google-ads-api")) as AdsModule;
+    return adsModule;
+  } catch {
+    throw new Error(
+      "The Google Ads add-on is not installed. It is a 120 MB optional " +
+        "download kept out of the default install. Add it with " +
+        "`pnpm add google-ads-api`, or use keyword research without it — " +
+        "autocomplete, People Also Ask and related searches need no key.",
+    );
+  }
+}
 import { getGoogleClientCredentials } from "@/lib/google-oauth";
 import { getSetting, setSetting } from "@/lib/settings-store";
 
@@ -278,6 +320,7 @@ async function planner(
   call: "generateKeywordIdeas" | "generateKeywordHistoricalMetrics",
   body: Record<string, unknown>,
 ): Promise<unknown> {
+  const { GoogleAdsApi } = await loadAdsLibrary();
   const api = new GoogleAdsApi({
     client_id: cfg.clientId,
     client_secret: cfg.clientSecret,
@@ -323,7 +366,7 @@ export async function generateKeywordIdeas(opts: {
   const body: Record<string, unknown> = {
     language: languageFor(opts.language),
     geo_target_constants: [geoTargetFor(opts.country)],
-    keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
+    keyword_plan_network: await googleSearchNetwork(),
     include_adult_keywords: false,
     page_size: Math.min(opts.limit ?? 300, 1000),
   };
@@ -350,7 +393,7 @@ export async function keywordMetrics(opts: {
     keywords: opts.keywords.slice(0, 1000),
     language: languageFor(opts.language),
     geo_target_constants: [geoTargetFor(opts.country)],
-    keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
+    keyword_plan_network: await googleSearchNetwork(),
   });
   return parseKeywordIdeas(res);
 }

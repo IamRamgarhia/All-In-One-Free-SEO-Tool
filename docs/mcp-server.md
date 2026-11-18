@@ -84,7 +84,7 @@ the read-only token is refused when it tries to write.
 | `get_client_overview` | Audit score, open issues by severity, keywords tracked, what's connected. |
 | `list_audit_issues` | Technical problems from the latest crawl, filterable by severity and type. |
 | `get_keyword_rankings` | Positions and movement over a window, each with its source. |
-| `get_keyword_ideas` | Google Keyword Planner ideas with real monthly searches and competition (needs Google Ads connected). |
+| `get_keyword_ideas` | Google Keyword Planner ideas with real monthly searches and competition. Needs Google Ads connected **and** the optional Ads add-on installed — see below. |
 | `get_ai_visibility` | Individual AI-assistant checks and their citations. |
 | `get_citation_landscape` | Which domains get cited for your topics, ranked, with your own share. "Who is being cited instead of me." |
 | `list_agent_actions` | What the agent changed, and whether it can still be undone. |
@@ -219,6 +219,36 @@ not match the one stored here. Generating a new token invalidates the old
 one.
 
 **Errors mentioning a missing table.** Run `pnpm db:migrate`.
+
+**`get_keyword_ideas` says the Google Ads add-on is not installed.** The
+Ads client library pulls in `google-ads-node`, a 120 MB generated
+protobuf bundle — a quarter of the prebuilt download — for an
+integration that is gated behind three credentials most installs never
+set. It is therefore an optional dependency and is left out of the
+prebuilt installer. Add it with:
+
+```bash
+pnpm add google-ads-api
+```
+
+A normal `pnpm install` from the repository already includes it, so this
+only affects the prebuilt download. Every other keyword tool is
+unaffected: research without Ads runs on autocomplete, People Also Ask
+and related searches, and needs no key at all.
+
+**`get_keyword_ideas` says Google Ads is not connected.** Different
+problem — the library is there, the credentials are not. Settings →
+Google.
+
+**Search Console tools return 403 "User does not have sufficient
+permission".** The OAuth token is fine (that would be a 401); the
+property string is not. The connected Google account cannot read the
+property saved against that client — usually because the site is
+verified as a *domain* property (`sc-domain:example.com`) while the
+URL-prefix form (`https://example.com/`) was saved, or because a
+different Google account is connected now. Settings → Health names the
+client and the property it should be using, and `npx tsx
+scripts/gsc-props-check.ts` prints the same from the terminal.
 
 **Tools don't appear.** Restart the client — the server list is only read
 at startup.

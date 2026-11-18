@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Globe,
+  Search,
 } from "lucide-react";
 import { count, eq, gte } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -27,6 +28,12 @@ import {
 import { PageHeader } from "@/components/shell/page-header";
 import { getSetting } from "@/lib/settings-store";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
+import { listGscProperties } from "@/lib/google-oauth";
+import {
+  diagnoseGscProperties,
+  describeGscIssue,
+  type GscPropertyHealth,
+} from "@/lib/gsc-property-health";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +64,37 @@ export default async function HealthPage() {
 
   const now = Date.now();
   const last24h = new Date(now - 24 * 60 * 60 * 1000);
+
+  /**
+   * Does every client's saved Search Console property still exist in the
+   * connected account?
+   *
+   * Nothing asked this until now. listGscProperties() runs when you PICK
+   * a property and never again, so one that stops being readable keeps
+   * being sent to Google forever and every Search Console feature fails
+   * one call at a time, with a raw 403 inside whichever tool the user
+   * opened. Measured on this install: the account held zero properties
+   * while a client still asked for "https://dicecodes.com/".
+   *
+   * null means Google is not connected at all, which is a different and
+   * much less alarming thing than "connected and broken".
+   */
+  let gscHealth: GscPropertyHealth | null = null;
+  try {
+    const [available, clientRows] = await Promise.all([
+      listGscProperties(),
+      db
+        .select({
+          id: clients.id,
+          name: clients.name,
+          gscProperty: clients.gscProperty,
+        })
+        .from(clients),
+    ]);
+    gscHealth = diagnoseGscProperties(clientRows, available);
+  } catch {
+    gscHealth = null;
+  }
 
   const [
     [{ value: clientCount }],
@@ -172,6 +210,33 @@ export default async function HealthPage() {
           value={`${clientCount} clients`}
           subtitle={`${keywordCount} keywords · ${auditCount} audits · ${reportCount} reports · ${toolRunCount} tool runs`}
           tone="ok"
+        />
+        <Card
+          icon={Search}
+          title="Search Console"
+          value={
+            gscHealth === null
+              ? "Not connected"
+              : gscHealth.issues.length > 0
+                ? `${gscHealth.issues.length} broken`
+                : `${gscHealth.okCount} connected`
+          }
+          subtitle={
+            gscHealth === null
+              ? "No Google account connected, or the token has expired"
+              : gscHealth.issues.length > 0
+                ? describeGscIssue(gscHealth.issues[0])
+                : `${gscHealth.unsetCount} client${gscHealth.unsetCount === 1 ? "" : "s"} without a property`
+          }
+          tone={
+            gscHealth === null
+              ? "warn"
+              : gscHealth.issues.length > 0
+                ? "error"
+                : "ok"
+          }
+          href="/connect"
+          ctaLabel="Fix"
         />
       </section>
 

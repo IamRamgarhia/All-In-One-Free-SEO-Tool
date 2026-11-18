@@ -227,6 +227,12 @@ try {
       "pnpm@10.34.5",
       "install",
       "--prod",
+      // NOT --no-optional. Combined with --prod it makes pnpm reject the
+      // lockfile over an unrelated peer entry:
+      //   ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY  no entry for '@types/react'
+      // The optional Ads add-on is removed by prunePayload() instead,
+      // which is the same mechanism already used for the SWC compiler and
+      // does not depend on how the resolver feels about peers.
       "--frozen-lockfile",
       "--node-linker=hoisted",
       "--ignore-workspace",
@@ -326,6 +332,39 @@ function prunePayload() {
   };
   walk(nm);
 
+  /**
+   * The optional Google Ads add-on.
+   *
+   * `google-ads-node` is a 120 MB generated protobuf bundle — a quarter
+   * of the payload — behind an integration gated on three credentials
+   * most installs never set, and whose availability to new applicants is
+   * in question (issue #57). src/lib/google-ads.ts imports it on demand
+   * and explains how to add it when it is absent, so removing it costs
+   * a sentence rather than a crash.
+   */
+  for (const name of ["google-ads-api", "google-ads-node"]) {
+    const dir = join(nm, name);
+    if (!existsSync(dir)) continue;
+    const measure = (d) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const f = join(d, e.name);
+        if (e.isDirectory()) measure(f);
+        else
+          try {
+            bytes += statSync(f).size;
+          } catch {
+            /* advisory */
+          }
+      }
+    };
+    try {
+      measure(dir);
+    } catch {
+      /* advisory */
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+
   // The SWC native compiler, per platform. Build-time only.
   const scoped = join(nm, "@next");
   if (existsSync(scoped)) {
@@ -356,7 +395,10 @@ function prunePayload() {
 }
 
 const savedMb = prunePayload();
-say(`Pruned ${savedMb} MB of source maps, type definitions and the SWC compiler`);
+say(
+  `Pruned ${savedMb} MB — source maps, type definitions, the SWC compiler ` +
+    `and the optional Google Ads add-on`,
+);
 
 say("Checking the payload can open a database and load Playwright...");
 verifyPayloadLoads();

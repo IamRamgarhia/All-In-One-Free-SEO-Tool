@@ -66,12 +66,50 @@ $env:SEO_PORT='4000'; iwr -useb https://raw.githubusercontent.com/IamRamgarhia/A
 
 ### "Node version too old"
 
-We need Node 20 LTS or newer. Check yours with `node -v`. Upgrade:
+We need Node 20.11 or newer, and **below Node 27**. Check yours with
+`node -v`. Upgrade:
 
 - **macOS (Homebrew):** `brew upgrade node`
 - **Windows:** Download fresh from [nodejs.org](https://nodejs.org/) (LTS)
 - **Linux (nvm):** `nvm install --lts && nvm use --lts`
-- **Linux (apt):** `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs`
+- **Linux (apt):** `curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs`
+
+CI tests on Node 22, so that is the version we know works.
+
+### "ERR_DLOPEN_FAILED" or "was compiled against a different Node.js version"
+
+The full message looks like this:
+
+```
+Error: The module '...\better_sqlite3.node'
+was compiled against a different Node.js version using
+NODE_MODULE_VERSION 137. This version of Node.js requires
+NODE_MODULE_VERSION 147.
+```
+
+**Your Node was upgraded underneath an existing install.** The database
+driver is a native module compiled for one specific Node version. When
+Node moves to a new major, the compiled file no longer loads, and the
+app cannot start — `pnpm dev`, `pnpm build` and the migration step all
+fail at the same point.
+
+Nothing is damaged and no data is lost. Rebuild the driver:
+
+```bash
+pnpm rebuild better-sqlite3
+```
+
+Then start the app as usual. If that does not do it, a full
+`pnpm install` will.
+
+This is the reason `package.json` now sets an upper bound on the Node
+version. It previously said only "20.11 or newer", which read as a
+promise that any newer Node would work — and newer Nodes are exactly
+what cause this.
+
+> **The installer does not have this problem.** The prebuilt download
+> ships its own Node and its own compiled driver, matched to each other.
+> This only affects installs that build from source.
 
 ### Installer hangs at "Building production bundle"
 
