@@ -60,12 +60,33 @@ Expertise: Credentials, years, specialism. Bio with verifiable facts. For YMYL, 
 Authoritativeness: External signals — citations, mentions, brand entity in the knowledge graph (Wikidata, Wikipedia, Crunchbase, sameAs schema).
 Trust: HTTPS, contact page, About page, privacy policy, editorial policy, dates (published + updated), citations to authoritative sources (.gov / .edu / known publishers).
 
+Accuracy, not just authorship (added by Google 2 Oct 2026). Google's own
+helpful-content page now says, to site owners rather than only to quality
+raters: "For topics that could significantly impact people's lives or
+well-being (YMYL topics), the content must be highly accurate and
+consistent with established expert consensus."
+
+That is a second, separate bar. A page can have a real doctor's byline,
+a reviewer line and perfect Person schema and still fail it, because the
+test is whether the claims match what the field actually accepts. If your
+YMYL page argues against the mainstream position, no amount of
+credentials makes it a helpful-content win — and the honest answer is
+sometimes that the page should not rank, rather than that it needs better
+markup.
+
+Practically: for health, finance, legal and safety pages, cite the
+primary bodies (NHS, NIH, WHO, FDA, the relevant regulator) rather than
+other blogs, state dates on claims that age, and have a named person sign
+off on the facts — not just the prose.
+
 Concrete fixes that move E-E-A-T fastest:
 1. Add author byline on every post → /author/<slug> page with bio + sameAs
 2. Add Person + Organization schema with sameAs to LinkedIn, Twitter, Wikidata
 3. Add "last-updated" dates to published posts; refresh + bump every 90-180 days
 4. Add 3-5 outbound citations to authoritative sources per article
-5. Add a Reviewer / Fact-checker line on YMYL content`,
+5. Add a Reviewer / Fact-checker line on YMYL content
+6. On YMYL pages, check the claims against current expert consensus — the
+   accuracy bar above is about what the page says, not who signed it`,
     tools: ["/tools/eeat-audit", "/tools/ai-schema"],
   },
   {

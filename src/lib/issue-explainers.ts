@@ -681,6 +681,7 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
       "Add an author to the Article schema, with a link to a page about them.",
       "Give the author a real byline on the page too, not just in the markup.",
       "Machine-generated content with an invented author is worse than none.",
+      "If this is a health, finance, legal or safety page, a byline is only half of it. Google's helpful-content guidance (updated 2 October 2026) says such pages \"must be highly accurate and consistent with established expert consensus\" — so check the claims against the primary bodies in that field, not just who signed the piece.",
     ],
     confidence: "probably",
     googleDoc:

@@ -33,7 +33,18 @@ const OPTIONS: { level: AutonomyLevel; label: string; hint: string }[] = [
   },
 ];
 
-export function AutonomyChoice({ current }: { current: AutonomyLevel }) {
+export function AutonomyChoice({
+  current,
+  waiting = null,
+}: {
+  current: AutonomyLevel;
+  /**
+   * One sentence naming how much the agent is holding, when it is
+   * holding anything. Null on a fresh install, where "0 changes are
+   * waiting" would be noise on the first screen somebody sees.
+   */
+  waiting?: string | null;
+}) {
   const [picked, setPicked] = useState<AutonomyLevel | null>(null);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,10 +75,21 @@ export function AutonomyChoice({ current }: { current: AutonomyLevel }) {
             How much should the agent do on its own?
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            It currently finds work every night and changes nothing, because
-            nobody has answered this yet. Every change it makes is logged with
-            the previous value and can be undone in one click. You can change
-            this any time in agent settings.
+            {waiting ? (
+              <>
+                <span className="font-medium text-amber-300">{waiting}</span>{" "}
+                The agent finds work every night and changes nothing, because
+                nobody has answered this yet.
+              </>
+            ) : (
+              <>
+                It currently finds work every night and changes nothing,
+                because nobody has answered this yet.
+              </>
+            )}{" "}
+            Every change it makes is logged with the previous value and can be
+            undone in one click. You can change this any time in agent
+            settings.
           </p>
         </span>
       </header>

@@ -1,8 +1,25 @@
 {
   "source": "https://status.search.google.com/products/rGHU1u87FJnkP6W2GwMi/history",
-  "fetchedAt": "2026-09-13T07:26:01.071Z",
+  "fetchedAt": "2026-11-18T21:56:36.733Z",
   "timeZone": "US/Pacific",
   "updates": [
+    {
+      "id": "WLxcJyC6jMWMfryxsKMc",
+      "name": "November 2026 core update",
+      "type": "core",
+      "date": "2026-11-10",
+      "url": "https://status.search.google.com/incidents/WLxcJyC6jMWMfryxsKMc",
+      "summary": "Released the November 2026 core update, which applies globally and to all languages. The rollout may take up to 2 weeks to complete."
+    },
+    {
+      "id": "XhUDXP7A67iHCD2kmbVu",
+      "name": "September 2026 spam update",
+      "type": "spam",
+      "date": "2026-09-24",
+      "endDate": "2026-10-08",
+      "url": "https://status.search.google.com/incidents/XhUDXP7A67iHCD2kmbVu",
+      "summary": "Released the September 2026 spam update, which applies globally and to all languages. The rollout may take up to two weeks to complete."
+    },
     {
       "id": "LEubPCm2octf2uMqCFKE",
       "name": "August 2026 spam update",
@@ -353,24 +370,6 @@
       "endDate": "2021-12-21",
       "url": "https://status.search.google.com/incidents/hgwP7ei5H1uKbYSeZrBZ",
       "summary": "Released the December 2021 product reviews update."
-    },
-    {
-      "id": "FncPfR7zRSZ3diemah4o",
-      "name": "November 2021 core update",
-      "type": "core",
-      "date": "2021-11-17",
-      "endDate": "2021-11-30",
-      "url": "https://status.search.google.com/incidents/FncPfR7zRSZ3diemah4o",
-      "summary": "Released the November 2021 core update."
-    },
-    {
-      "id": "AFdXceQVsh1GEfKFvHyD",
-      "name": "November 2021 spam update",
-      "type": "spam",
-      "date": "2021-11-03",
-      "endDate": "2021-11-11",
-      "url": "https://status.search.google.com/incidents/AFdXceQVsh1GEfKFvHyD",
-      "summary": "Released the November 2021 spam update."
     }
   ]
 }

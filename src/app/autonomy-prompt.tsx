@@ -1,7 +1,8 @@
 import { getAgentSettings, hasChosenAutonomy } from "@/lib/agent/autonomy";
 import { db } from "@/db/client";
-import { clients } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { agentActions, clients } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { describeWaitingWork } from "@/lib/agent/waiting-work";
 import { AutonomyChoice } from "./autonomy-choice";
 
 /**
@@ -38,5 +39,29 @@ export async function AutonomyPrompt() {
     .from(clients);
   if ((row?.n ?? 0) === 0) return null;
 
-  return <AutonomyChoice current={settings.level} />;
+  /**
+   * What the silence has cost so far.
+   *
+   * "It finds work every night and changes nothing" is true and easy to
+   * scroll past. On the install this was measured against, the honest
+   * version was "14 changes have been waiting for 8 weeks" — the same
+   * fact with the cost attached, and the one somebody acts on.
+   */
+  const [queuedRow] = await db
+    .select({
+      n: sql<number>`count(*)`,
+      oldest: sql<number | null>`min(${agentActions.createdAt})`,
+    })
+    .from(agentActions)
+    .where(eq(agentActions.status, "queued"));
+
+  const oldestRaw = queuedRow?.oldest ?? null;
+  const waiting = describeWaitingWork({
+    queued: Number(queuedRow?.n ?? 0),
+    // Stored as unix seconds; Date wants milliseconds. Getting this
+    // wrong would date everything to 1970 and read as "for 56 years".
+    oldest: oldestRaw ? new Date(Number(oldestRaw) * 1000) : null,
+  });
+
+  return <AutonomyChoice current={settings.level} waiting={waiting} />;
 }
