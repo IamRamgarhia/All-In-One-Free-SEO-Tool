@@ -72,6 +72,14 @@ export function ProfileMenu() {
 
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    // A full page load, deliberately — not router.push.
+    //
+    // Next 16.4 added a lint rule against this, and it is right about
+    // ordinary navigation. Signing out is not ordinary: the router keeps
+    // the client-side RSC cache, which holds everything rendered while
+    // the user was signed in. Pushing to /login would clear the cookie
+    // and leave that data a Back button away.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/login";
   }
 

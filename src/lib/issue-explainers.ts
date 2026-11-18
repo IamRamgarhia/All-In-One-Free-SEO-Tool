@@ -15,6 +15,8 @@
  * by the "Fix it for me" wizard.
  */
 
+import { TECH_ISSUE_EXPLAINERS } from "./issue-explainers-tech";
+
 /**
  * A snippet, and — the part that actually matters — where to put it and
  * how to get back if it goes wrong.
@@ -831,8 +833,63 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
 };
 
 /**
+ * AI site-audit check ids that mean the same thing as a guide we have
+ * already written, pointed at that guide.
+ *
+ * The AI audit (lib/ai-site-audit.ts) emits 27 ids of its own and writes
+ * them into the same audit_issues table the crawler uses, so they render
+ * through the same IssueExplainer. Not one of them had an entry here, so
+ * all 27 showed "we haven't written the fix guide for this check yet" —
+ * reported twice from the wild before anyone looked (#55, #56).
+ *
+ * Aliases rather than 27 new entries: `https` and `no_https` are the
+ * same problem with the same fix, and a second copy of that guide is a
+ * second thing to keep correct. Rule 4.
+ *
+ * Deliberately NOT aliased, because the guide would be wrong as often as
+ * right: `title` and `meta_description` here are length-range checks
+ * ("30-60 chars"), and we have separate long_/short_ guides — picking
+ * one would tell half of the readers the opposite of what they need.
+ * Those, plus internal_links, external_citations, eeat_dates,
+ * eeat_authoritative, mobile_no_interstitial and perf_score, fall
+ * through to the fix steps the AI wrote for that specific page, which
+ * IssueExplainer renders as a clearly-labelled fallback.
+ */
+export const AI_AUDIT_EXPLAINER_ALIASES: Record<string, string> = {
+  https: "no_https",
+  status: "bad_status",
+  canonical: "missing_canonical",
+  indexable: "noindex_set",
+  h1: "missing_h1",
+  heading_structure: "heading_order",
+  word_count: "thin_content",
+  image_alts: "missing_image_alt",
+  og_image: "missing_og_tags",
+  twitter_card: "missing_twitter_card",
+  schema_present: "missing_schema",
+  schema_valid: "missing_schema",
+  eeat_byline: "article_missing_author",
+  mobile_viewport: "missing_viewport",
+  perf_lcp: "slow_lcp",
+  perf_cls: "poor_cls",
+  anchor_overopt: "weak_anchor_text",
+  hsts: "missing_security_headers",
+  clickjacking: "missing_security_headers",
+};
+
+/**
  * Look up explainer with graceful fallback for unknown types.
+ *
+ * Reads the tech guides too. They were written specifically because the
+ * WordPress findings had none — and then never wired in here, so all
+ * twelve stayed unreachable and every wp_* finding went on saying no
+ * guide existed. The drift test did not catch it because it asserted the
+ * guides EXIST, not that anything can reach them; `getExplainer` is the
+ * only way they reach a user, so that is what the test checks now.
  */
 export function getExplainer(type: string): IssueExplainer | null {
-  return ISSUE_EXPLAINERS[type] ?? null;
+  const direct = ISSUE_EXPLAINERS[type] ?? TECH_ISSUE_EXPLAINERS[type];
+  if (direct) return direct;
+  const alias = AI_AUDIT_EXPLAINER_ALIASES[type];
+  return alias ? ISSUE_EXPLAINERS[alias] ?? null : null;
 }

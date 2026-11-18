@@ -20,6 +20,16 @@ type Props = {
   url?: string;
   /** Render compact (just the button) or expanded by default. */
   defaultOpen?: boolean;
+  /**
+   * Fix steps carried on the finding itself, used only when this type
+   * has no hand-written explainer.
+   *
+   * The AI site audit writes steps per failing check. Showing "we
+   * haven't written the fix guide" above a row that is holding one is
+   * worse than having no guide at all — it sends the reader to file a
+   * GitHub issue for text the page already had.
+   */
+  fallbackSteps?: string | null;
 };
 
 const CONFIDENCE_META = {
@@ -40,10 +50,50 @@ const CONFIDENCE_META = {
   },
 } as const;
 
-export function IssueExplainer({ issueType, url, defaultOpen = false }: Props) {
+export function IssueExplainer({
+  issueType,
+  url,
+  defaultOpen = false,
+  fallbackSteps = null,
+}: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
   const explainer = getExplainer(issueType);
+
+  // No hand-written guide, but the finding brought its own steps. Show
+  // them, and say where they came from — an AI-written guide and one a
+  // person checked against Google's documentation are not the same
+  // thing, and the reader is entitled to know which they are reading.
+  if (!explainer && fallbackSteps?.trim()) {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="inline-flex items-center gap-1 rounded-md bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-300 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/20"
+        >
+          {open ? (
+            <ChevronDown className="size-2.5" />
+          ) : (
+            <ChevronRight className="size-2.5" />
+          )}
+          <Wrench className="size-2.5" />
+          How to fix
+        </button>
+        {open && (
+          <div className="space-y-2 rounded-md bg-white/[0.03] p-3 text-xs ring-1 ring-inset ring-white/5">
+            <p className="whitespace-pre-wrap leading-relaxed">
+              {fallbackSteps.trim()}
+            </p>
+            <p className="flex items-center gap-1 border-t border-white/5 pt-2 text-[10px] text-muted-foreground">
+              <FlaskConical className="size-2.5" />
+              Written by the AI for this page. Check it before you apply it.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!explainer) {
     // Say so, rather than rendering nothing.

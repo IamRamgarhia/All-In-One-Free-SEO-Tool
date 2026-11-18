@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,6 +101,7 @@ function LeadRow({
   lead: Lead;
   onError: (m: string) => void;
 }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [status, setStatus] = useState(lead.status);
   const [gone, setGone] = useState(false);
@@ -187,7 +189,7 @@ function LeadRow({
             start(async () => {
               const r = await convertLeadToClient(lead.id);
               if (!r.ok) onError(r.error ?? "Couldn't convert that.");
-              else if (r.clientId) window.location.href = `/clients/${r.clientId}`;
+              else if (r.clientId) router.push(`/clients/${r.clientId}`);
             })
           }
         >

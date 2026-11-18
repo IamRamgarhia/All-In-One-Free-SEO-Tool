@@ -10,7 +10,11 @@ import {
 // so four guides became invisible to this test the moment one was
 // written. These are real exported objects; reading them is simpler and
 // immune to whatever a code sample happens to contain.
-import { ISSUE_EXPLAINERS } from "./issue-explainers";
+import {
+  ISSUE_EXPLAINERS,
+  AI_AUDIT_EXPLAINER_ALIASES,
+  getExplainer,
+} from "./issue-explainers";
 import { TECH_ISSUE_EXPLAINERS } from "./issue-explainers-tech";
 
 /**
@@ -225,5 +229,136 @@ describe("guidance reaches the user", () => {
         `${unexplained.join(", ")}. Each one shows a user a problem with ` +
         `no guidance on fixing it.`,
     ).toEqual([]);
+  });
+});
+
+/**
+ * The third file of findings, and the difference between a guide
+ * existing and a guide being reachable.
+ *
+ * Two bugs of the same shape were live at once here, and the tests above
+ * passed through both:
+ *
+ *   - lib/ai-site-audit.ts emits 27 ids of its own into the SAME
+ *     audit_issues table, so they render through the same component. Not
+ *     one had an entry. Users filed #55 and #56 for two of them.
+ *   - All twelve TECH_ISSUE_EXPLAINERS were written precisely because
+ *     the WordPress findings had no guide — and then never wired into
+ *     getExplainer(), so every one stayed unreachable.
+ *
+ * The second is the instructive one. The test above asserts the guide
+ * EXISTS, by reading the object. Nothing asserted a user could reach it.
+ * So these go through getExplainer() — the only path to a screen — and
+ * the earlier `FINDING_SOURCES` blind spot is now a third entry rather
+ * than a third silent gap.
+ */
+const AI_AUDIT_SOURCE = "lib/ai-site-audit.ts";
+
+function typesEmittedByAiAudit(): Set<string> {
+  const out = new Set<string>();
+  for (const m of src(AI_AUDIT_SOURCE).matchAll(/^\s{4,}id:\s*"([a-z0-9_]+)"/gm)) {
+    out.add(m[1]);
+  }
+  return out;
+}
+
+/**
+ * AI checks with no hand-written guide, on purpose.
+ *
+ * Each is either a length-range check where we hold two opposed guides
+ * (long_/short_) and picking one would mislead half the readers, or a
+ * check nothing generic covers. They fall through to the per-page fix
+ * steps the AI wrote, which IssueExplainer renders behind a "written by
+ * the AI, check it" label.
+ *
+ * Shrinking this list is the improvement. Growing it needs a reason.
+ */
+const AI_TYPES_ON_AI_STEPS = [
+  "title",
+  "meta_description",
+  "internal_links",
+  "external_citations",
+  "eeat_dates",
+  "eeat_authoritative",
+  "mobile_no_interstitial",
+  "perf_score",
+];
+
+describe("the AI site audit's findings reach guidance too", () => {
+  it("emits the ids we think it does", () => {
+    // Guards the guard: a regex that matched nothing would make every
+    // assertion below pass against an empty set.
+    const ids = typesEmittedByAiAudit();
+    expect(ids.size).toBeGreaterThanOrEqual(25);
+    expect(ids.has("eeat_byline")).toBe(true);
+    expect(ids.has("perf_lcp")).toBe(true);
+  });
+
+  it("every AI check either resolves to a guide or is a known fallback", () => {
+    const ids = [...typesEmittedByAiAudit()];
+    const stranded = ids.filter(
+      (id) => !getExplainer(id) && !AI_TYPES_ON_AI_STEPS.includes(id),
+    );
+    expect(
+      stranded,
+      `${stranded.join(", ")} shows a user a failing check with no guide ` +
+        `and no entry in AI_TYPES_ON_AI_STEPS. Either alias it to the ` +
+        `guide that already covers it, write one, or add it to that list ` +
+        `with a reason.`,
+    ).toEqual([]);
+  });
+
+  it("every alias points at a guide that exists", () => {
+    const broken = Object.entries(AI_AUDIT_EXPLAINER_ALIASES).filter(
+      ([, target]) => !ISSUE_EXPLAINERS[target],
+    );
+    expect(
+      broken.map(([k, v]) => `${k} -> ${v}`),
+      `An alias naming a guide that does not exist resolves to null, ` +
+        `which looks exactly like having no alias at all.`,
+    ).toEqual([]);
+  });
+
+  it("the fallback list names only ids the AI audit actually emits", () => {
+    const ids = typesEmittedByAiAudit();
+    const dead = AI_TYPES_ON_AI_STEPS.filter((t) => !ids.has(t));
+    expect(
+      dead,
+      `${dead.join(", ")} is excused from needing a guide but nothing ` +
+        `emits it — so the excuse covers nothing and reads as coverage.`,
+    ).toEqual([]);
+  });
+});
+
+describe("written guidance is reachable, not just present", () => {
+  it("every tech explainer can be reached through getExplainer", () => {
+    // The whole file was unreachable: getExplainer read only
+    // ISSUE_EXPLAINERS, so twelve WordPress guides sat in the repo while
+    // every wp_* finding said none had been written.
+    const unreachable = Object.keys(TECH_ISSUE_EXPLAINERS).filter(
+      (t) => !getExplainer(t),
+    );
+    expect(
+      unreachable,
+      `${unreachable.join(", ")} exist in TECH_ISSUE_EXPLAINERS but ` +
+        `getExplainer() returns null for them, so no screen can show ` +
+        `them. Writing the guide is only half of shipping it.`,
+    ).toEqual([]);
+  });
+
+  it("every generic explainer can be reached through getExplainer", () => {
+    const unreachable = Object.keys(ISSUE_EXPLAINERS).filter(
+      (t) => !getExplainer(t),
+    );
+    expect(unreachable).toEqual([]);
+  });
+
+  it("the audit page still passes the AI fix-steps fallback", () => {
+    // Without this prop the eight AI_TYPES_ON_AI_STEPS checks go back to
+    // "we haven't written the fix guide", which is what #55 and #56
+    // were. A prop is easy to drop in a refactor and nothing else here
+    // would notice.
+    const page = src("app/audits/[id]/page.tsx");
+    expect(page).toMatch(/fallbackSteps=\{g\.fixSteps\}/);
   });
 });

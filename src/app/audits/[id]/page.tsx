@@ -170,6 +170,19 @@ export default async function AuditDetailPage({
     issueIds: number[];
     confidence: "definitely" | "probably" | "test" | null;
     aiGenerated: boolean;
+    /**
+     * The row's own fix steps, when it has any.
+     *
+     * The AI site audit writes these per failing check and its own page
+     * renders them — but its rows land in this same table, and here they
+     * were read from the database and dropped. Every one of the AI
+     * audit's 27 check types also has no entry in ISSUE_EXPLAINERS, so
+     * this page told the user "we haven't written the fix guide for this
+     * check yet" while the guide sat unread in the row it was printing.
+     * Two users filed that as a bug (#55, #56) before anyone noticed the
+     * text was already there.
+     */
+    fixSteps: string | null;
   };
   const CONF_RANK: Record<string, number> = { definitely: 3, probably: 2, test: 1 };
   function groupByType(issues: typeof sorted): Group[] {
@@ -179,9 +192,14 @@ export default async function AuditDetailPage({
       const existing = map.get(key);
       const iConf = (i as { confidence?: "definitely" | "probably" | "test" | null }).confidence ?? null;
       const iAi = (i as { aiGenerated?: boolean }).aiGenerated ?? false;
+      const iSteps =
+        (i as { fixSteps?: string | null }).fixSteps?.trim() || null;
       if (existing) {
         existing.affectedUrls.push(i.url);
         existing.issueIds.push(i.id);
+        // First non-empty wins. Rows of one type carry the same guide,
+        // and a later empty one must not blank out an earlier real one.
+        existing.fixSteps ??= iSteps;
         if (
           iConf &&
           (!existing.confidence ||
@@ -198,6 +216,7 @@ export default async function AuditDetailPage({
           issueIds: [i.id],
           confidence: iConf,
           aiGenerated: iAi,
+          fixSteps: iSteps,
         });
       }
     }
@@ -475,6 +494,7 @@ export default async function AuditDetailPage({
                         <IssueExplainer
                           issueType={g.type}
                           url={g.affectedUrls[0]}
+                          fallbackSteps={g.fixSteps}
                         />
                       </div>
 
