@@ -54,8 +54,32 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
-const argOf = (name) =>
-  process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
+/**
+ * Reads `--name=value` AND `--name value`.
+ *
+ * It only read the `=` form, while this file's own usage line two dozen
+ * lines up documents the space form: `[--out dist/payload]`. So
+ * `--out dist/installer-payload` was silently ignored and the payload
+ * went to the default `dist/payload` — and the caller, which then looks
+ * for it where it asked for it, finds an empty directory.
+ *
+ * Found while writing the installer workflow, which passed the
+ * documented form. It would have produced an installer with no app
+ * inside it, and the only symptom would have been a suspiciously small
+ * .exe.
+ */
+const argOf = (name) => {
+  const eq = process.argv.find((a) => a.startsWith(`--${name}=`));
+  if (eq) return eq.split("=").slice(1).join("=");
+  const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1) {
+    const next = process.argv[i + 1];
+    // A following flag means the value is missing, not that the flag is
+    // the value.
+    if (next && !next.startsWith("--")) return next;
+  }
+  return undefined;
+};
 const OUT = resolve(ROOT, argOf("out") || "dist/payload");
 const SKIP_BUILD = process.argv.includes("--skip-build");
 

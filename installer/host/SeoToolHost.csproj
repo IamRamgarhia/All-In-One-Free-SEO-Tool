@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The native window. Built only in CI (windows-latest) — see
+    .github/workflows/installer.yml and installer/README.md.
+
+    WindowsForms rather than WPF: this is one window containing one
+    WebView2 control, and WinForms adds less to the output.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>SEO Tool</AssemblyName>
+    <RootNamespace>SeoTool</RootNamespace>
+    <!--
+      Self-contained with the runtime trimmed in, so the installer does
+      not also have to install .NET. The audience for an installer is
+      exactly the audience that should not be asked to.
+    -->
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!--
+      Trimming is OFF deliberately. WinForms and WebView2 both use
+      reflection, the trimmer's own warnings say so, and a trimmed build
+      that throws MissingMethodException at runtime would fail on the
+      user's machine rather than in CI. The 60-70 MB this costs is worth
+      not shipping that.
+    -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- No console window flashing up behind the WinExe. -->
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Pinned exactly, not a floating range. A WebView2 SDK that moves
+      under CI is a build that works on Tuesday and fails on Wednesday
+      for reasons unrelated to any change.
+    -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+</Project>

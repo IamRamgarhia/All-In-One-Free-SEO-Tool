@@ -1,0 +1,184 @@
+name: Windows installer
+
+# Builds the Windows .exe installer.
+#
+# This workflow is the ONLY place the installer has ever been compiled.
+# A typical developer machine has no .NET SDK and no Inno Setup (checked
+# on the maintainer's: neither, plus no csc), so the host and the .iss
+# cannot be built or smoke-tested locally. That is why this runs on
+# push to a tag AND on demand — the first real run is the first proof
+# any of it works.
+#
+# Deliberately NOT part of the release workflow yet. Attaching an
+# unverified installer to a release would put it in front of users
+# before anyone has double-clicked it once.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version for the installer filename (defaults to package.json)"
+        required: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the version
+        id: ver
+        shell: bash
+        run: |
+          # The input wins, then the tag, then package.json — one source
+          # per run, printed so the artefact's name is never a mystery.
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            v="${{ github.event.inputs.version }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            v=$(node -p "require('./package.json').version")
+          fi
+          echo "version=${v#v}" >> "$GITHUB_OUTPUT"
+          echo "Building installer for ${v#v}"
+
+      # ─── The app payload ────────────────────────────────────────────
+      #
+      # The same builder the zip release uses, so the installer and the
+      # zip cannot contain different apps. It runs a real
+      # `pnpm install --prod --node-linker=hoisted`, verifies the result
+      # actually loads (SQLite round-trip + Playwright), and deletes the
+      # whole payload if it finds a private file.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - uses: actions/setup-node@v4
+        with:
+          # Pinned to the LTS the lockfile's native modules are built
+          # for. Node 25+ also ships no corepack, which is why pnpm is
+          # installed by the action above rather than enabled.
+          node-version: "22"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        run: pnpm build
+
+      - name: Build the payload
+        run: node scripts/build-payload.mjs --out dist/installer-payload
+
+      # ─── Portable Node ──────────────────────────────────────────────
+      - name: Fetch node.exe and verify its checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Must match setup-node above: the payload's native modules
+          # (better-sqlite3, @resvg/resvg-js) are compiled against one
+          # NODE_MODULE_VERSION, and a mismatched runtime fails with
+          # ERR_DLOPEN_FAILED at startup — the exact error this project
+          # already hit when a developer's Node moved under an install.
+          NODE_VERSION="$(node -p 'process.versions.node')"
+          echo "Bundling Node v${NODE_VERSION}"
+
+          base="https://nodejs.org/dist/v${NODE_VERSION}"
+          pkg="node-v${NODE_VERSION}-win-x64.zip"
+
+          curl -fsSL -o "$pkg" "${base}/${pkg}"
+          curl -fsSL -o SHASUMS256.txt "${base}/SHASUMS256.txt"
+
+          # Against Node's own published list. An installer that bundles
+          # a runtime it has not checked is an installer that can be made
+          # to ship somebody else's binary.
+          grep " ${pkg}\$" SHASUMS256.txt > expected.txt
+          sha256sum -c expected.txt
+
+          unzip -q "$pkg"
+          mkdir -p dist/installer-node
+          cp "node-v${NODE_VERSION}-win-x64/node.exe" dist/installer-node/
+          ls -l dist/installer-node/
+
+      # ─── The native window ──────────────────────────────────────────
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish the host
+        run: >
+          dotnet publish installer/host/SeoToolHost.csproj
+          -c Release
+          -o dist/installer-host
+
+      - name: Check the host actually produced an exe
+        shell: bash
+        run: |
+          # dotnet publish exits 0 having produced nothing more than once
+          # in its life. Named explicitly so a silent failure here does
+          # not become an installer missing its own application.
+          test -f "dist/installer-host/SEO Tool.exe" \
+            || { echo "::error::host exe was not produced"; exit 1; }
+          ls -l "dist/installer-host/SEO Tool.exe"
+
+      # ─── Package ────────────────────────────────────────────────────
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Compile the installer
+        shell: cmd
+        run: >
+          "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+          /DAppVersion=${{ steps.ver.outputs.version }}
+          /DPayloadDir=..\dist\installer-payload
+          /DHostDir=..\dist\installer-host
+          /DNodeDir=..\dist\installer-node
+          installer\seo-tool.iss
+
+      - name: Report what was built
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="dist/SEO-Tool-Setup-${{ steps.ver.outputs.version }}.exe"
+          test -f "$out" || { echo "::error::installer not found at $out"; exit 1; }
+          size=$(( $(stat -c%s "$out") / 1048576 ))
+          echo "::notice::Installer built: ${out} (${size} MB)"
+          # A plausible size range, not an exact number. Under 40 MB
+          # means the payload did not make it in; over 600 means
+          # something unintended did — a database, a Chromium, a .git.
+          if [ "$size" -lt 40 ] || [ "$size" -gt 600 ]; then
+            echo "::error::${size} MB is outside the expected range — check the payload"
+            exit 1
+          fi
+
+      - name: Refuse to ship a database
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The payload builder scans for these and the standalone prune
+          # removes them, but this is the last gate before an artefact
+          # anyone can download. Build output has carried the
+          # maintainer's live database once already.
+          found=$(find dist/installer-payload \
+            -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \
+            -o -name '.env' -o -name '.env.local' | head -20)
+          if [ -n "$found" ]; then
+            echo "::error::private files in the payload:"
+            echo "$found"
+            exit 1
+          fi
+          echo "payload is clean"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SEO-Tool-Setup-${{ steps.ver.outputs.version }}
+          path: dist/SEO-Tool-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30
