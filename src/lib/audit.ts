@@ -263,6 +263,64 @@ async function fetchText(
   }
 }
 
+/** The query parameter used to defeat a CDN on a re-check. */
+export const RECHECK_BUST_PARAM = "_seorecheck";
+
+/** Remove the cache-busting parameter from a URL, if present. */
+export function stripRecheckParam(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (!u.searchParams.has(RECHECK_BUST_PARAM)) return raw;
+    u.searchParams.delete(RECHECK_BUST_PARAM);
+    // A URL whose only parameter was ours should not keep a bare "?".
+    const qs = u.searchParams.toString();
+    u.search = qs ? `?${qs}` : "";
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * Fetch a page for re-checking, with the cache defeated.
+ *
+ * Two things this has to get right, and both are about not inventing a
+ * finding that is an artefact of the extra parameter:
+ *
+ *   - A site that answers 4xx to an unknown query parameter is rare but
+ *     real, and a `bad_status` finding from it would read as "the fix
+ *     did not work". So a failing busted fetch falls back to the plain
+ *     URL rather than being believed.
+ *   - `finalUrl` is what the per-page checks attribute findings to and
+ *     compare canonicals against. Left as the busted URL it would
+ *     produce a canonical mismatch on every single re-check. It is put
+ *     back before any check runs.
+ */
+async function fetchRecheckPage(
+  url: string,
+  allowPrivateHosts: boolean,
+): Promise<FetchedPage | null> {
+  let busted = url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set(RECHECK_BUST_PARAM, Date.now().toString(36));
+    busted = u.toString();
+  } catch {
+    // Not a parseable URL; fetchPage will fail on it either way.
+  }
+
+  let page = busted === url ? null : await fetchPage(busted, 15_000, allowPrivateHosts);
+  if (!page || page.status >= 400) {
+    const plain = await fetchPage(url, 15_000, allowPrivateHosts);
+    // Prefer the plain response only when it is genuinely better — a
+    // site that 404s both ways should still report the 404.
+    if (plain && (!page || plain.status < page.status)) page = plain;
+  }
+  if (!page) return null;
+
+  return { ...page, url, finalUrl: stripRecheckParam(page.finalUrl) };
+}
+
 /**
  * Re-run the per-page checks on ONE live URL.
  *
@@ -292,7 +350,19 @@ export async function recheckUrl(
   url: string,
   options: { allowPrivateHosts?: boolean } = {},
 ): Promise<{ findings: AuditFinding[]; meta: { title: string | null; description: string | null } } | null> {
-  const page = await fetchPage(url, 15_000, options.allowPrivateHosts ?? false);
+  // CACHE-BUST the re-check, because the comment above is not
+  // hypothetical.
+  //
+  // Measured 19 Nov 2026 against a live WordPress site behind
+  // Hostinger's CDN: a write that had landed perfectly read back as
+  // unchanged, repeatedly, because the CDN served HTML from before the
+  // write. A request-level `cache: "no-store"` does nothing about that
+  // — it instructs THIS client, not the network in front of the site.
+  //
+  // Without this, the common case on a cached site is: the fix works,
+  // the re-check sees the old page, the finding stays open, and the
+  // user is told their change did not take. Conservative, and wrong.
+  const page = await fetchRecheckPage(url, options.allowPrivateHosts ?? false);
   if (!page) return null;
   // Raw HTML, no headless browser — unlike the crawler, which renders by
   // default. The fields the agent writes (title, meta description,
