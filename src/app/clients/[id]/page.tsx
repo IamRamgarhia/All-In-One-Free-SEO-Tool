@@ -47,6 +47,7 @@ import { GscKeywordsPanel } from "./gsc-keywords-panel";
 import { QuickWinsPanel } from "./quick-wins-panel";
 import { SnapshotSparklines } from "@/components/snapshot-sparklines";
 import { WpBridgePanel } from "./wp-bridge-panel";
+import { wpBridgeProblem } from "@/lib/wp-bridge-problem";
 import { OrganicTrafficPanel } from "./organic-traffic-panel";
 import { ReportScheduleCard } from "./report-schedule-card";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
@@ -1095,6 +1096,7 @@ export default async function ClientDetailPage({
                 looksLikeWordPress={(client.techStack ?? []).some((t) =>
                   String(t).toLowerCase().includes("wordpress"),
                 )}
+                problem={await wpBridgeProblem(client.id)}
               />
 
               {/* SCHEDULED REPORTS */}

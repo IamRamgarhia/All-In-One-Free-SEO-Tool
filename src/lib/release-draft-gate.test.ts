@@ -96,6 +96,28 @@ describe("the installer release job", () => {
     expect(job).toContain("contents: write");
   });
 
+  it("refuses a draft carrying a payload with no checksum", () => {
+    // MEASURED: GitHub lost the macOS-arm64 runner mid-run, so that leg
+    // was cancelled while the other two rebuilt. The job uploaded the
+    // two it had, plus a SHA256SUMS.txt covering only those two — and
+    // left the draft holding THREE payloads, one of them the stale
+    // 407 MB uncompressed build from the previous run with no checksum
+    // line.
+    //
+    // install-prebuilt.sh treats a missing checksum as non-fatal, by
+    // design, because older releases have none. So an Apple Silicon
+    // user would have installed an old build with nothing verifying it
+    // and no indication anything was wrong.
+    //
+    // A partial draft is fine. A draft that cannot verify what it
+    // carries is not.
+    expect(job).toContain("SHA256SUMS.txt");
+    expect(job, "the check must read the DRAFT's assets, not the run's output").toMatch(
+      /gh release view[^\n]*assets[\s\S]{0,200}seo-tool-prebuilt-/,
+    );
+    expect(job).toMatch(/no line in SHA256SUMS\.txt[\s\S]{0,600}exit 1/);
+  });
+
   it("refuses to publish an empty draft, and verifies what it attaches", () => {
     // A draft with no assets reads as a release that failed to build;
     // and the payloads are what the one-liner trusts SHA256SUMS.txt for,

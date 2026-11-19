@@ -20,7 +20,10 @@ export const SETTINGS_TABS: readonly PageTab[] = [
     id: "setup",
     label: "Setup",
     primary: true,
-    sections: ["general", "ai", "google", "team", "email"],
+    // "cms" sits next to "google" on purpose: both answer "connect my
+    // stuff", and the WordPress plugin's own admin page sends people to
+    // "Settings → CMS connections" by name.
+    sections: ["general", "ai", "google", "cms", "team", "email"],
   },
   { id: "brand", label: "Brand", sections: ["brand"] },
   { id: "power", label: "Power", sections: ["notify", "api", "data", "webhooks"] },

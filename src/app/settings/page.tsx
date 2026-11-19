@@ -23,7 +23,9 @@ import {
   Sparkles,
   Users2,
 } from "lucide-react";
+import { Suspense } from "react";
 import { SmtpForm } from "./smtp-form";
+import { CmsConnections } from "./cms-connections";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { db } from "@/db/client";
 import { audits, clients, keywords, tasks, users } from "@/db/schema";
@@ -331,6 +333,39 @@ export default async function SettingsPage() {
             {googleStatus.configured ? "Manage" : "Set up"}
             <ArrowRight className="size-3.5" />
           </Link>
+        </div>
+      </section>
+
+      {/* CMS connections — the place the WordPress plugin tells you to go.
+          It said "SEO Tool → Settings → CMS connections" and there was no
+          such page; the fields were on the client page's Site tab, four
+          clicks away. Settings is where people look for "connect a thing",
+          which is why Google and email are already here. */}
+      <section
+        id="cms"
+        className="relative overflow-hidden scroll-mt-24 rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md"
+      >
+        <header className="relative border-b border-white/5 px-5 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Plug className="size-4 text-violet-300" />
+            CMS connections
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Let this tool apply fixes to a site directly, instead of handing
+            you text to paste. This is where the WordPress plugin&apos;s
+            endpoint and key go.
+          </p>
+        </header>
+        <div className="relative p-5">
+          <Suspense
+            fallback={
+              <p className="text-sm text-muted-foreground">
+                Loading your sites…
+              </p>
+            }
+          >
+            <CmsConnections />
+          </Suspense>
         </div>
       </section>
 

@@ -31,10 +31,18 @@ export function WpBridgePanel({
   isConnected,
   endpoint,
   looksLikeWordPress,
+  problem = null,
 }: {
   clientId: number;
   isConnected: boolean;
   endpoint: string | null;
+  /**
+   * What the last health check found wrong with this bridge, if
+   * anything. Read from the STORED health result rather than pinged
+   * here: a live request on every render would make the client page
+   * wait on somebody else's web server.
+   */
+  problem?: string | null;
   /**
    * Whether WordPress was actually detected on the site.
    *
@@ -81,13 +89,24 @@ export function WpBridgePanel({
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Wrench className="size-4 text-violet-300" />
             WordPress one-click bridge
-            {isConnected ? (
-              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
-                connected
-              </span>
-            ) : (
+            {/* Three states, not two.
+                "connected" used to mean only that an endpoint and a key
+                were stored — so this install showed a green "connected"
+                badge for weeks while the plugin was not installed on the
+                site at all and every fix the agent planned had nowhere
+                to go. A green tick over a dead connection is worse than
+                a red one, because nobody goes looking. */}
+            {!isConnected ? (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-300 ring-1 ring-inset ring-amber-500/30">
                 not connected
+              </span>
+            ) : problem ? (
+              <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] text-rose-300 ring-1 ring-inset ring-rose-500/30">
+                not responding
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
+                connected
               </span>
             )}
           </h2>
@@ -105,19 +124,50 @@ export function WpBridgePanel({
           </p>
         </div>
         {isConnected && (
-          <form action={disconnectWpBridge.bind(null, clientId)}>
+          <div className="flex items-center gap-3">
+            {/* A way back to the key field, without disconnecting first.
+                MEASURED: this install had an endpoint and key saved while
+                the plugin was not installed, so the panel said
+                "connected" and offered only a push-fix form. The key had
+                to be re-entered and there was nowhere to type it — the
+                only route was Disconnect, which is a destructive-sounding
+                button to press when you are trying to FIX a connection.
+                Re-pasting a key is the commonest repair there is: the
+                plugin was reinstalled, the site moved, the key rotated. */}
             <button
-              type="submit"
-              className="text-[10px] text-muted-foreground hover:text-rose-300 hover:underline"
+              type="button"
+              onClick={() => setForceOpen((v) => !v)}
+              className="text-[10px] text-muted-foreground hover:text-foreground hover:underline"
             >
-              Disconnect
+              {forceOpen ? "Cancel" : "Re-enter key"}
             </button>
-          </form>
+            <form action={disconnectWpBridge.bind(null, clientId)}>
+              <button
+                type="submit"
+                className="text-[10px] text-muted-foreground hover:text-rose-300 hover:underline"
+              >
+                Disconnect
+              </button>
+            </form>
+          </div>
         )}
       </header>
 
+      {problem && isConnected && (
+        <div className="border-b border-rose-500/20 bg-rose-500/5 px-5 py-3 text-xs text-rose-200">
+          <p className="font-medium">This connection is not working.</p>
+          <p className="mt-1 text-rose-200/80">{problem}</p>
+          <p className="mt-1 text-rose-200/60">
+            Re-copy the key from WordPress → Tools → SEO Tool Bridge and
+            paste it below. You do not need to disconnect first.
+          </p>
+        </div>
+      )}
+
       <div className="p-5">
-        {isConnected ? (
+        {/* A broken connection opens on the form, not on a push-fix box
+            that cannot work. */}
+        {isConnected && !forceOpen && !problem ? (
           <PushFixForm clientId={clientId} endpoint={endpoint ?? ""} />
         ) : (
           <ConnectForm clientId={clientId} />

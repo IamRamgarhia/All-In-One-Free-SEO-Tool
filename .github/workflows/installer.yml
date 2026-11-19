@@ -563,6 +563,42 @@ jobs:
               --notes-file body.md
           fi
 
+          # ─── every payload ON THE DRAFT must have a checksum ──────────
+          #
+          # The case this exists for, which happened on the first update:
+          # GitHub lost the macOS-arm64 runner, so that leg was cancelled
+          # while the other two rebuilt. The job then uploaded the two it
+          # had — and SHA256SUMS.txt, computed over those two — leaving
+          # the draft holding THREE payloads of which one was the stale
+          # 407 MB build from the previous run, with no checksum line.
+          #
+          # install-prebuilt.sh treats a MISSING checksum as non-fatal on
+          # purpose, because older releases have none. So an Apple
+          # Silicon user — the commonest Mac — would have downloaded an
+          # old build, had nothing to verify it against, and been told
+          # nothing. A silent wrong answer, assembled out of two
+          # individually reasonable decisions.
+          #
+          # A partial draft is allowed. A draft that cannot verify what
+          # it carries is not: this fails the job, so the draft is
+          # visibly not ready rather than quietly wrong.
+          gh release download "$tag" --pattern SHA256SUMS.txt --dir verify --clobber
+          mapfile -t on_release < <(
+            gh release view "$tag" --json assets \
+              --jq '.assets[].name | select(startswith("seo-tool-prebuilt-"))'
+          )
+          missing=()
+          for a in "${on_release[@]}"; do
+            grep -qF "  ${a}" verify/SHA256SUMS.txt || missing+=("$a")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::The draft carries payloads with no line in SHA256SUMS.txt — they are almost certainly stale assets from an earlier run, and the installer would accept them without verifying anything:"
+            for a in "${missing[@]}"; do echo "::error::  ${a}"; done
+            echo "::error::Re-run the whole workflow on this tag so every payload is rebuilt together, or delete the stale assets."
+            exit 1
+          fi
+          echo "::notice::all ${#on_release[@]} payload(s) on the draft are covered by SHA256SUMS.txt"
+
           echo "::notice::Draft ${tag} ready — review it, run the checklist, then Publish."
           gh release view "$tag" --json isDraft,assets \
             --jq '"draft=\(.isDraft) assets=\(.assets | length)"'
