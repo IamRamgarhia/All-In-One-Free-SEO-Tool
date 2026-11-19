@@ -45,10 +45,28 @@ const argOf = (name) => {
  * ("x64", not "x86_64"), which is exactly the kind of near-miss that
  * produces a 404 nobody can explain.
  */
-export function prebuiltAssetName(version, platform = process.platform, arch = process.arch) {
+export function prebuiltAssetName(
+  version,
+  platform = process.platform,
+  arch = process.arch,
+  nodeMajor = Number(process.versions.node.split(".")[0]),
+) {
   const os = platform === "darwin" ? "darwin" : platform === "win32" ? "win32" : "linux";
   const machine = arch === "arm64" ? "arm64" : arch === "x64" ? "x86_64" : arch;
-  return `seo-tool-prebuilt-${String(version).replace(/^v/, "")}-${os}-${machine}.zip`;
+  // The Node major is part of the name, not a detail.
+  //
+  // The payload contains native modules compiled against ONE Node ABI:
+  // Node 20 is 115, 22 is 127, 24 is 137, 26 is 147. A payload built on
+  // 22 and unpacked under 26 fails at startup with ERR_DLOPEN_FAILED —
+  // which reads as a corrupt download, not a version mismatch, and is
+  // the exact error that broke this project's own dev machine when its
+  // Node moved underneath an install.
+  //
+  // payload.json records nodeModuleVersion precisely so a launcher can
+  // say "this needs Node 22, you have Node 26". Putting the major in the
+  // filename means the installer can fetch the RIGHT one instead of
+  // downloading the wrong one and then explaining itself.
+  return `seo-tool-prebuilt-${String(version).replace(/^v/, "")}-${os}-${machine}-node${nodeMajor}.zip`;
 }
 
 async function main() {
@@ -88,8 +106,32 @@ async function main() {
     process.exit(1);
   }
 
+  // The manifest the payload builder wrote, so the filename describes
+  // what is actually inside rather than what this process happens to be
+  // running. Packaging a darwin payload from a linux box, or a node-22
+  // payload while on node 26, would otherwise produce a correctly-named
+  // lie.
+  let manifest = null;
+  try {
+    manifest = JSON.parse(readFileSync(join(payload, "payload.json"), "utf8"));
+  } catch {
+    console.error(
+      `${payload}/payload.json is missing or unreadable.
+` +
+        `It records the platform, arch and Node ABI the native modules were ` +
+        `built for, and the asset name is derived from it. Rebuild the ` +
+        `payload with scripts/build-payload.mjs.`,
+    );
+    process.exit(1);
+  }
+
   mkdirSync(outDir, { recursive: true });
-  const name = prebuiltAssetName(version);
+  const name = prebuiltAssetName(
+    version,
+    manifest.platform,
+    manifest.arch,
+    Number(String(manifest.nodeVersion ?? "").replace(/^v/, "").split(".")[0]),
+  );
   const out = join(outDir, name);
 
   process.stdout.write(`  packaging ${payload}\n`);

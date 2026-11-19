@@ -13,7 +13,8 @@ different for each piece.
 | `scripts/zip-write.mjs` | **Tested.** Output verified against `unzip` and against this project's own `zip-read.mjs`. |
 | `host/SeoToolHost.cs` | **NEVER COMPILED.** No .NET SDK on the machine it was written on. |
 | `seo-tool.iss` | **NEVER COMPILED.** No Inno Setup on that machine either. |
-| `.github/workflows/installer.yml` | **NEVER RUN.** |
+| `.github/workflows/installer.yml` | **NEVER RUN.** Valid YAML, four jobs, verified to create no release — but no job has ever executed. |
+| macOS / Linux payload jobs | **NEVER RUN.** A macOS payload cannot be built anywhere else: `pnpm install --prod` compiles the native modules for whichever platform it runs on. |
 
 So: the Mac/Linux one-liner is real and tested. **The Windows `.exe` is
 written and unproven.** Its first CI run is the first evidence any of it
@@ -27,10 +28,22 @@ in front of users before anybody has double-clicked it once.
 ## Running it the first time
 
 ```
-Actions → "Windows installer" → Run workflow
+Actions → "Installers" → Run workflow
 ```
 
-It uploads `SEO-Tool-Setup-<version>.exe` as an artifact. Download it,
+Four jobs. Nothing is released — every one ends in `upload-artifact`, so
+the results are private builds on the Actions tab:
+
+| Artifact | What it is |
+|---|---|
+| `SEO-Tool-Setup-<version>` | the Windows `.exe` |
+| `prebuilt-macos-latest` | payload for Apple Silicon |
+| `prebuilt-macos-13` | payload for Intel Macs |
+| `prebuilt-ubuntu-latest` | payload for Linux x86_64 |
+| `SHA256SUMS` | the checksums `install-prebuilt.sh` verifies |
+
+`fail-fast` is off on the payload matrix, so on a first run one platform
+failing still tells you about the others. Download it,
 install it on a machine that is **not** the development one, and check:
 
 - [ ] it installs without an admin prompt (`PrivilegesRequired=lowest`)
@@ -124,5 +137,21 @@ node scripts/build-prebuilt-zip.mjs --payload dist/payload
 # attach dist/seo-tool-prebuilt-<version>-<os>-<arch>.zip to the release
 ```
 
-One asset per platform, because the payload contains native modules
-compiled for one OS, one architecture and one Node ABI.
+One asset per platform **and per Node major**, because the payload
+contains native modules compiled against a single Node ABI: 20 is 115,
+22 is 127, 24 is 137, 26 is 147. A node-22 payload unpacked under Node 26
+fails at startup with `ERR_DLOPEN_FAILED`, which reads as a corrupt
+download rather than a version mismatch — and is the error that broke
+this project's own dev machine when its Node moved under an install.
+
+So the Node major is in the filename
+(`…-darwin-arm64-node22.zip`), the installer asks for its own, and if
+there is no match it **lists what the release does carry** and says to
+install one of those versions. `install-prebuilt.sh` also re-checks
+`payload.json`'s recorded ABI against the running Node after unpacking,
+before anything is overwritten — a correctly-named archive built on the
+wrong runtime is the one case the filename cannot catch.
+
+Only Node 22 is built for now: it is the LTS the lockfile's native
+modules are routinely built against, and each extra major multiplies the
+matrix. Adding 24 is one line in the workflow.

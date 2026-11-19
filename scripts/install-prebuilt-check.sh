@@ -74,6 +74,25 @@ mkdir -p "$WORK/plugin/seo-tool-bridge"
 printf '<?php // plugin\n' > "$WORK/plugin/seo-tool-bridge/seo-tool-bridge.php"
 make_zip "$WORK/plugin" "$WORK/assets/plugin.zip"
 
+# 4. Correctly named, built for a DIFFERENT Node ABI. The case the
+#    filename cannot catch, and the one whose consequence is
+#    ERR_DLOPEN_FAILED on first start rather than a refusal here.
+mkdir -p "$WORK/wrongabi/node_modules/x" "$WORK/wrongabi/.next"
+printf 'console.log("x");
+' > "$WORK/wrongabi/server.js"
+printf '{}
+' > "$WORK/wrongabi/node_modules/x/package.json"
+printf 'B
+' > "$WORK/wrongabi/.next/BUILD_ID"
+node -e '
+const { writeFileSync } = require("node:fs");
+writeFileSync(process.argv[1], JSON.stringify({
+  platform: process.platform, arch: process.arch,
+  nodeVersion: "v18.0.0",
+  nodeModuleVersion: "108",
+}, null, 2));' "$WORK/wrongabi/payload.json"
+make_zip "$WORK/wrongabi" "$WORK/assets/wrongabi.zip"
+
 # 3. Source only: has server.js, but nothing is built.
 mkdir -p "$WORK/source/src"
 printf 'console.log("x");\n' > "$WORK/source/server.js"
@@ -89,7 +108,7 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 const [, , dir, port, which] = process.argv;
-const asset = { good: "good.zip", plugin: "plugin.zip", source: "source.zip" }[which];
+const asset = { good: "good.zip", plugin: "plugin.zip", source: "source.zip", wrongabi: "wrongabi.zip" }[which];
 createServer((req, res) => {
   if (req.url.startsWith("/releases/latest")) {
     res.writeHead(200, { "content-type": "application/json" });
@@ -119,7 +138,8 @@ createServer((req, res) => {
 }).listen(Number(port), "127.0.0.1");
 SERVER
 
-WANT="seo-tool-prebuilt-9.9.9-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).zip"
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
+WANT="seo-tool-prebuilt-9.9.9-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)-node${NODE_MAJOR}.zip"
 
 run_case() {
   local which="$1" dest="$2"
@@ -175,6 +195,16 @@ else
 fi
 grep -qiE "missing (node_modules|\.next)" "$WORK/source.log" \
   && check "and named what was missing" yes || check "and named what was missing" no
+
+echo
+echo "A payload built for another Node ABI is REFUSED"
+if run_case wrongabi "$WORK/install-wrongabi"; then
+  check "refused it" no
+else
+  check "refused it" yes
+fi
+grep -qi "built for a different Node" "$WORK/wrongabi.log"   && check "and says so, naming both versions" yes   || check "and says so, naming both versions" no
+[ ! -f "$WORK/install-wrongabi/server.js" ]   && check "nothing was installed" yes || check "nothing was installed" no
 
 echo
 echo "Re-running keeps the user's data"

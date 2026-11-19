@@ -1,23 +1,25 @@
-name: Windows installer
+name: Installers
 
-# Builds the Windows .exe installer.
+# Builds everything a user downloads: the Windows .exe, and the prebuilt
+# payloads the macOS/Linux one-liner fetches.
 #
-# This workflow is the ONLY place the installer has ever been compiled.
-# A typical developer machine has no .NET SDK and no Inno Setup (checked
-# on the maintainer's: neither, plus no csc), so the host and the .iss
-# cannot be built or smoke-tested locally. That is why this runs on
-# push to a tag AND on demand — the first real run is the first proof
-# any of it works.
+# This workflow is the ONLY place any of it has ever been compiled. A
+# typical developer machine has no .NET SDK and no Inno Setup (checked on
+# the maintainer's: neither, plus no csc), and a macOS payload cannot be
+# built on Windows at all — `pnpm install --prod` compiles
+# better-sqlite3 and @resvg/resvg-js for whichever platform it runs on.
+# So the first real run is the first proof any of this works.
 #
-# Deliberately NOT part of the release workflow yet. Attaching an
-# unverified installer to a release would put it in front of users
-# before anyone has double-clicked it once.
+# Deliberately NOT part of a release. Nothing here attaches an asset to
+# anything; every job ends in upload-artifact, which produces a private
+# build you download from the Actions tab. Putting an unverified
+# installer in front of users is the thing this avoids.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version for the installer filename (defaults to package.json)"
+        description: "Version for the filenames (defaults to package.json)"
         required: false
   push:
     tags:
@@ -27,19 +29,17 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: windows-latest
-    timeout-minutes: 60
-
+  # One source for the version, so a run cannot produce an .exe and a
+  # payload that disagree about what they are.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Read the version
-        id: ver
+      - id: v
         shell: bash
         run: |
-          # The input wins, then the tag, then package.json — one source
-          # per run, printed so the artefact's name is never a mystery.
           if [ -n "${{ github.event.inputs.version }}" ]; then
             v="${{ github.event.inputs.version }}"
           elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
@@ -48,24 +48,151 @@ jobs:
             v=$(node -p "require('./package.json').version")
           fi
           echo "version=${v#v}" >> "$GITHUB_OUTPUT"
-          echo "Building installer for ${v#v}"
+          echo "Building installers for ${v#v}"
 
-      # ─── The app payload ────────────────────────────────────────────
-      #
-      # The same builder the zip release uses, so the installer and the
-      # zip cannot contain different apps. It runs a real
-      # `pnpm install --prod --node-linker=hoisted`, verifies the result
-      # actually loads (SQLite round-trip + Playwright), and deletes the
-      # whole payload if it finds a private file.
+  # ───────────────────────────────────────────────────────────────────
+  # The prebuilt payloads: what install-prebuilt.sh downloads instead of
+  # building from source.
+  #
+  # One per platform AND per Node major, because the payload contains
+  # native modules compiled against a single Node ABI — 20 is 115, 22 is
+  # 127, 24 is 137, 26 is 147. A node-22 payload unpacked under Node 26
+  # fails at startup with ERR_DLOPEN_FAILED, which reads as a corrupt
+  # download rather than a version mismatch. The asset name carries the
+  # major so the installer fetches the right one.
+  #
+  # Node 22 only for now: it is the LTS the lockfile's native modules are
+  # routinely built against, and adding majors multiplies the matrix.
+  # Adding 24 later is one line here.
+  # ───────────────────────────────────────────────────────────────────
+  payload:
+    needs: version
+    strategy:
+      # One platform failing must not cancel the others. On a first run
+      # that is the difference between learning about one problem and
+      # learning about all of them.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS arm64
+          - os: macos-13
+            name: macOS x86_64
+          - os: ubuntu-latest
+            name: Linux x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    name: payload (${{ matrix.name }})
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.34.5
 
       - uses: actions/setup-node@v4
         with:
-          # Pinned to the LTS the lockfile's native modules are built
-          # for. Node 25+ also ships no corepack, which is why pnpm is
-          # installed by the action above rather than enabled.
+          # Must match the `node22` in the asset name below. Node 25+
+          # also ships no corepack, which is why pnpm is installed by the
+          # action above rather than enabled through it.
+          node-version: "22"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        run: pnpm build
+
+      - name: Build the payload
+        # Runs a real `pnpm install --prod --node-linker=hoisted`, probes
+        # that the result actually loads (SQLite round-trip plus a
+        # Playwright require), and deletes the whole payload if it finds
+        # a private file.
+        run: node scripts/build-payload.mjs --out dist/payload
+
+      - name: Package it
+        run: node scripts/build-prebuilt-zip.mjs --payload dist/payload --out dist
+
+      - name: Check the manifest describes this runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The asset name is derived from payload.json, so a wrong
+          # manifest produces a correctly-named lie — a darwin filename
+          # on a linux payload. Cheap to assert, impossible to notice
+          # later.
+          node - <<'JS'
+          const { readFileSync } = require("node:fs");
+          const m = JSON.parse(readFileSync("dist/payload/payload.json", "utf8"));
+          const expected = process.platform;
+          if (m.platform !== expected) {
+            console.error(`::error::payload.json says ${m.platform}, runner is ${expected}`);
+            process.exit(1);
+          }
+          const major = Number(m.nodeVersion.replace(/^v/, "").split(".")[0]);
+          if (major !== 22) {
+            console.error(`::error::payload built on Node ${major}, expected 22`);
+            process.exit(1);
+          }
+          console.log(`payload.json ok: ${m.platform}-${m.arch}, ${m.nodeVersion}, ABI ${m.nodeModuleVersion}`);
+          JS
+
+      - name: Refuse to ship a database
+        shell: bash
+        run: |
+          set -euo pipefail
+          # build-payload scans and deletes on a hit; this is the last
+          # gate before an artefact anyone can download. Build output has
+          # carried the maintainer's live database once already.
+          found=$(find dist/payload \
+            \( -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \
+            -o -name '.env' -o -name '.env.local' \) -print | head -20)
+          if [ -n "$found" ]; then
+            echo "::error::private files in the payload:"
+            echo "$found"
+            exit 1
+          fi
+          echo "payload is clean"
+
+      - name: Report size
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip=$(ls dist/seo-tool-prebuilt-*.zip)
+          size=$(( $(wc -c < "$zip") / 1048576 ))
+          echo "::notice::$(basename "$zip") — ${size} MB"
+          # A plausible range. Under 40 means the payload did not make it
+          # in; over 600 means something unintended did.
+          if [ "$size" -lt 40 ] || [ "$size" -gt 600 ]; then
+            echo "::error::${size} MB is outside the expected range"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prebuilt-${{ matrix.os }}
+          path: dist/seo-tool-prebuilt-*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  # ───────────────────────────────────────────────────────────────────
+  # The Windows installer. Never compiled anywhere but here.
+  # ───────────────────────────────────────────────────────────────────
+  windows:
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - uses: actions/setup-node@v4
+        with:
           node-version: "22"
           cache: "pnpm"
 
@@ -82,11 +209,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Must match setup-node above: the payload's native modules
-          # (better-sqlite3, @resvg/resvg-js) are compiled against one
-          # NODE_MODULE_VERSION, and a mismatched runtime fails with
-          # ERR_DLOPEN_FAILED at startup — the exact error this project
-          # already hit when a developer's Node moved under an install.
+          # Must match setup-node above: the payload's native modules are
+          # compiled against one NODE_MODULE_VERSION, and a mismatched
+          # runtime fails with ERR_DLOPEN_FAILED at startup — the error
+          # this project already hit when a developer's Node moved under
+          # an install.
           NODE_VERSION="$(node -p 'process.versions.node')"
           echo "Bundling Node v${NODE_VERSION}"
 
@@ -97,8 +224,8 @@ jobs:
           curl -fsSL -o SHASUMS256.txt "${base}/SHASUMS256.txt"
 
           # Against Node's own published list. An installer that bundles
-          # a runtime it has not checked is an installer that can be made
-          # to ship somebody else's binary.
+          # a runtime it has not checked is one that can be made to ship
+          # somebody else's binary.
           grep " ${pkg}\$" SHASUMS256.txt > expected.txt
           sha256sum -c expected.txt
 
@@ -121,9 +248,9 @@ jobs:
       - name: Check the host actually produced an exe
         shell: bash
         run: |
-          # dotnet publish exits 0 having produced nothing more than once
-          # in its life. Named explicitly so a silent failure here does
-          # not become an installer missing its own application.
+          # dotnet publish has exited 0 having produced nothing before.
+          # Named explicitly so a silent failure does not become an
+          # installer missing its own application.
           test -f "dist/installer-host/SEO Tool.exe" \
             || { echo "::error::host exe was not produced"; exit 1; }
           ls -l "dist/installer-host/SEO Tool.exe"
@@ -136,7 +263,7 @@ jobs:
         shell: cmd
         run: >
           "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
-          /DAppVersion=${{ steps.ver.outputs.version }}
+          /DAppVersion=${{ needs.version.outputs.version }}
           /DPayloadDir=..\dist\installer-payload
           /DHostDir=..\dist\installer-host
           /DNodeDir=..\dist\installer-node
@@ -146,13 +273,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out="dist/SEO-Tool-Setup-${{ steps.ver.outputs.version }}.exe"
+          out="dist/SEO-Tool-Setup-${{ needs.version.outputs.version }}.exe"
           test -f "$out" || { echo "::error::installer not found at $out"; exit 1; }
           size=$(( $(stat -c%s "$out") / 1048576 ))
           echo "::notice::Installer built: ${out} (${size} MB)"
-          # A plausible size range, not an exact number. Under 40 MB
-          # means the payload did not make it in; over 600 means
-          # something unintended did — a database, a Chromium, a .git.
           if [ "$size" -lt 40 ] || [ "$size" -gt 600 ]; then
             echo "::error::${size} MB is outside the expected range — check the payload"
             exit 1
@@ -162,13 +286,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The payload builder scans for these and the standalone prune
-          # removes them, but this is the last gate before an artefact
-          # anyone can download. Build output has carried the
-          # maintainer's live database once already.
           found=$(find dist/installer-payload \
-            -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \
-            -o -name '.env' -o -name '.env.local' | head -20)
+            \( -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \
+            -o -name '.env' -o -name '.env.local' \) -print | head -20)
           if [ -n "$found" ]; then
             echo "::error::private files in the payload:"
             echo "$found"
@@ -178,7 +298,32 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SEO-Tool-Setup-${{ steps.ver.outputs.version }}
+          name: SEO-Tool-Setup-${{ needs.version.outputs.version }}
           path: dist/SEO-Tool-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  # The checksums the one-liner verifies, over every payload in one run.
+  # Written here rather than per-job because a SHA256SUMS.txt per platform
+  # is three files the installer would have to guess between.
+  checksums:
+    needs: [version, payload]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prebuilt-*
+          merge-multiple: true
+          path: payloads
+      - shell: bash
+        run: |
+          set -euo pipefail
+          cd payloads
+          sha256sum *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SHA256SUMS
+          path: payloads/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30

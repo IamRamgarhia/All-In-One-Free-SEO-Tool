@@ -89,7 +89,21 @@ process.stdin.on("data", (d) => (s += d)).on("end", () => {
 # shipped in v0.10.0's updater, which downloaded the plugin and refused
 # because it found no app inside — caught against the real published
 # release. Same trap, same answer: match the name.
-WANT="seo-tool-prebuilt-${TAG#v}-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).zip"
+# Named for THIS machine's Node major, not just its platform.
+#
+# The payload contains native modules compiled against one Node ABI —
+# Node 20 is 115, 22 is 127, 24 is 137, 26 is 147. A node-22 payload
+# unpacked under Node 26 fails at startup with ERR_DLOPEN_FAILED, which
+# reads as a corrupt download rather than a version mismatch. It is the
+# same error that broke this project's own dev machine when its Node
+# moved underneath an install, and payload.json records the ABI
+# specifically so a launcher can say "this needs Node 22, you have
+# Node 26".
+#
+# Checking the Node MAJOR only (20..26, as the first version of this
+# script did) spans four incompatible ABIs and would have shipped that
+# error to anyone not on the exact build version.
+WANT="seo-tool-prebuilt-${TAG#v}-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)-node${NODE_MAJOR}.zip"
 
 URL="$(printf '%s' "$RELEASE_JSON" | WANT="$WANT" node -e '
 let s = "";
@@ -102,9 +116,39 @@ process.stdin.on("data", (d) => (s += d)).on("end", () => {
 });')"
 
 if [ -z "$URL" ]; then
-  die "Release ${TAG} has no prebuilt payload for this platform.
+  # Say what IS available rather than only what is missing. The usual
+  # cause is a Node version this release was not built for, and "install
+  # Node 22" is actionable where "no payload for this platform" is not.
+  AVAILABLE="$(printf '%s' "$RELEASE_JSON" | node -e '
+let s = "";
+process.stdin.on("data", (d) => (s += d)).on("end", () => {
+  try {
+    const names = (JSON.parse(s).assets || [])
+      .map((a) => a.name)
+      .filter((n) => n.startsWith("seo-tool-prebuilt-"));
+    console.log(names.join("
+"));
+  } catch { console.log(""); }
+});')"
 
-  Expected asset:  ${WANT}
+  if [ -n "$AVAILABLE" ]; then
+    die "Release ${TAG} has no prebuilt payload for Node ${NODE_MAJOR} on $(uname -s)/$(uname -m).
+
+  Wanted:     ${WANT}
+
+  Available:
+$(printf '%s' "$AVAILABLE" | sed 's/^/    /')
+
+  Install a Node version this release was built for — the native modules
+  are compiled per Node ABI, so this is not a limitation that can be
+  worked around — or build from source:
+
+    curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | bash"
+  fi
+
+  die "Release ${TAG} carries no prebuilt payload at all.
+
+  Expected something like:  ${WANT}
 
   The prebuilt payload is attached from v0.10.2 onwards. Until then,
   build from source instead:
@@ -174,6 +218,35 @@ fi
 # reason this check happens here and not after the copy.
 [ -d "$SRC/node_modules" ] || die "The payload is missing node_modules — it is not a prebuilt build."
 [ -d "$SRC/.next" ] || die "The payload is missing .next — it is not a prebuilt build."
+
+# The manifest, not the filename. A correctly-named archive built on the
+# wrong runtime is exactly the case the filename cannot catch, and the
+# consequence is ERR_DLOPEN_FAILED on first start rather than here.
+if [ -f "$SRC/payload.json" ]; then
+  WANT_ABI="$(node -p "process.versions.modules")"
+  GOT_ABI="$(node -e '
+const { readFileSync } = require("node:fs");
+try {
+  console.log(JSON.parse(readFileSync(process.argv[1], "utf8")).nodeModuleVersion ?? "");
+} catch { console.log(""); }' "$SRC/payload.json")"
+  if [ -n "$GOT_ABI" ] && [ "$GOT_ABI" != "$WANT_ABI" ]; then
+    BUILT_ON="$(node -e '
+const { readFileSync } = require("node:fs");
+try {
+  console.log(JSON.parse(readFileSync(process.argv[1], "utf8")).nodeVersion ?? "unknown");
+} catch { console.log("unknown"); }' "$SRC/payload.json")"
+    die "This payload was built for a different Node than you are running.
+
+  It needs Node ABI ${GOT_ABI} (built on ${BUILT_ON}); you have ABI ${WANT_ABI}
+  on $(node -p 'process.version').
+
+  Nothing was installed. Install the Node version above and run this
+  again — the database driver is a compiled binary and cannot load
+  across ABI versions."
+  fi
+  ok "Built for your Node (ABI ${WANT_ABI})"
+fi
+
 ok "Payload looks right"
 
 # ─── install ──────────────────────────────────────────────────────────
