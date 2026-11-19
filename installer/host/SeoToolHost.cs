@@ -49,16 +49,13 @@ namespace SeoTool
             // from a stack trace, and it has a one-click fix. Checked
             // before anything else so the message is about the real
             // cause rather than a managed exception from the control.
-            if (!WebView2Available())
+            var problem = WebView2Problem();
+            if (problem != null)
             {
+                TryLog("startup refused: " + problem.Replace("\n", " "));
                 MessageBox.Show(
-                    "This app needs the Microsoft Edge WebView2 runtime, which is "
-                        + "missing on this computer.\n\n"
-                        + "It is a free Microsoft component and most Windows 10 and 11 "
-                        + "machines already have it. Install it from:\n\n"
-                        + "https://developer.microsoft.com/microsoft-edge/webview2/\n\n"
-                        + "Then start this app again.",
-                    "SEO Tool — one component missing",
+                    problem,
+                    "SEO Tool — cannot open",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
                 return;
@@ -84,16 +81,77 @@ namespace SeoTool
             }
         }
 
-        private static bool WebView2Available()
+        /// <summary>
+        /// Why WebView2 could not be used, or null when it can be.
+        /// </summary>
+        /// <remarks>
+        /// This returned a bool, and the caller turned false into "the
+        /// WebView2 runtime is missing on this computer". On the first
+        /// machine this installer ever ran on, that message appeared
+        /// while WebView2 WAS installed — 158.0.4370.26, in HKLM, with
+        /// the runtime folder on disk.
+        ///
+        /// The real cause was that the installer shipped only the exe
+        /// and left WebView2Loader.dll behind, so the P/Invoke threw
+        /// DllNotFoundException and a blanket catch turned our own
+        /// packaging bug into an accusation about the user's machine —
+        /// one they cannot act on, because the thing they would go and
+        /// install is already there.
+        ///
+        /// The exceptions are distinguishable, so they are now
+        /// distinguished. WebView2RuntimeNotFoundException genuinely
+        /// means "go and install it". Anything else means this install
+        /// is broken and says so.
+        /// </remarks>
+        private static string? WebView2Problem()
         {
             try
             {
-                return !string.IsNullOrEmpty(
-                    CoreWebView2Environment.GetAvailableBrowserVersionString(null));
+                var version = CoreWebView2Environment.GetAvailableBrowserVersionString(null);
+                if (string.IsNullOrEmpty(version))
+                {
+                    return
+                        "This app needs the Microsoft Edge WebView2 runtime, which is "
+                        + "missing on this computer.\n\n"
+                        + "It is a free Microsoft component and most Windows 10 and 11 "
+                        + "machines already have it. Install it from:\n\n"
+                        + "https://developer.microsoft.com/microsoft-edge/webview2/\n\n"
+                        + "Then start this app again.";
+                }
+                return null;
             }
-            catch
+            catch (WebView2RuntimeNotFoundException)
             {
-                return false;
+                return
+                    "This app needs the Microsoft Edge WebView2 runtime, which is "
+                    + "missing on this computer.\n\n"
+                    + "It is a free Microsoft component and most Windows 10 and 11 "
+                    + "machines already have it. Install it from:\n\n"
+                    + "https://developer.microsoft.com/microsoft-edge/webview2/\n\n"
+                    + "Then start this app again.";
+            }
+            catch (DllNotFoundException)
+            {
+                // OUR fault, every time. Never send someone to install
+                // something they may already have because we dropped a
+                // file out of the installer.
+                return
+                    "This copy of SEO Tool is missing one of its own files "
+                    + "(WebView2Loader.dll), so it cannot open its window.\n\n"
+                    + "This is a problem with the installer, not with your "
+                    + "computer — installing anything else will not fix it.\n\n"
+                    + "Download the installer again and re-run it. If it keeps "
+                    + "happening, please report it:\n\n"
+                    + "https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues";
+            }
+            catch (Exception ex)
+            {
+                // Still say what happened rather than guessing at a cause.
+                return
+                    "SEO Tool could not start its window.\n\n"
+                    + ex.GetType().Name + ": " + ex.Message + "\n\n"
+                    + "Please report this with the message above:\n\n"
+                    + "https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/issues";
             }
         }
 

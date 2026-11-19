@@ -90,7 +90,27 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
 
 [Files]
-Source: "{#HostDir}\SEO Tool.exe"; DestDir: "{app}"; Flags: ignoreversion
+; The WHOLE host output, not just the exe.
+;
+; This said `{#HostDir}\SEO Tool.exe` and shipped exactly that one file.
+; PublishSingleFile bundles the MANAGED assemblies and the .NET runtime
+; into the exe — but NOT native ones. WebView2Loader.dll is native, and
+; the publish leaves it as a sibling file, which this line then left
+; behind.
+;
+; The result, on the first machine the installer was ever run on:
+; GetAvailableBrowserVersionString P/Invokes into that missing DLL,
+; throws DllNotFoundException, the host's catch-all returns false, and
+; the app says "This app needs the Microsoft Edge WebView2 runtime,
+; which is missing on this computer."
+;
+; WebView2 was installed on that computer. Version 158.0.4370.26, in
+; HKLM, with the runtime folder on disk. The app blamed the user's
+; machine for a file we forgot to ship — and there is no way to debug
+; that from the message.
+;
+; recursesubdirs because a publish can emit runtimes\ subfolders.
+Source: "{#HostDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\public\icon.ico"; DestDir: "{app}"; DestName: "app.ico"; Flags: ignoreversion
 
 ; The app payload. recursesubdirs + createallsubdirs because node_modules

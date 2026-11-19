@@ -300,6 +300,29 @@ jobs:
           # installer missing its own application.
           test -f "dist/installer-host/SEO Tool.exe" \
             || { echo "::error::host exe was not produced"; exit 1; }
+
+          # ...and its NATIVE sibling, which the exe cannot run without.
+          #
+          # PublishSingleFile bundles managed assemblies and the .NET
+          # runtime into the exe. It does NOT bundle native ones, so
+          # WebView2Loader.dll is emitted beside it — and the first real
+          # installer shipped only the exe, so the app opened, failed the
+          # P/Invoke, and told the user their computer was missing
+          # WebView2. It was not: 158.0.4370.26 was installed.
+          #
+          # Checked here rather than only in the .iss, because this is
+          # where it would go missing: a csproj change
+          # (IncludeNativeLibrariesForSelfExtract, a different RID, a
+          # trimming option) can stop it being produced at all, and then
+          # the .iss copies a folder that simply does not have it.
+          found=$(find dist/installer-host -iname 'WebView2Loader.dll' | head -1)
+          if [ -z "$found" ]; then
+            echo "::error::WebView2Loader.dll is not in the host publish output. The installed app will report 'WebView2 is missing on this computer' on machines that have it."
+            echo "What the publish did produce:"
+            find dist/installer-host -maxdepth 2 -type f -printf '  %p\n'
+            exit 1
+          fi
+          echo "native loader: $found"
           ls -l "dist/installer-host/SEO Tool.exe"
 
       # ─── Package ────────────────────────────────────────────────────

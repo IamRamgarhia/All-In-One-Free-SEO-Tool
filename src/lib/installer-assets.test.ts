@@ -103,6 +103,59 @@ describe("the installer script references files that exist", () => {
     expect(wf).toContain(`${name}.exe`);
   });
 
+  it("ships the whole host output, not just the exe", () => {
+    // MEASURED on the first machine the installer was ever run on: the
+    // [Files] line was `{#HostDir}\SEO Tool.exe`, so exactly one file
+    // was installed. PublishSingleFile bundles the MANAGED assemblies
+    // and the .NET runtime into the exe but NOT native ones, so
+    // WebView2Loader.dll sat beside it in the publish output and was
+    // left behind.
+    //
+    // The app then opened, P/Invoked into the missing DLL, caught
+    // DllNotFoundException, and reported "the Microsoft Edge WebView2
+    // runtime is missing on this computer" — on a computer with
+    // WebView2 158.0.4370.26 installed. A packaging bug of ours,
+    // presented as a fault in the user's machine, with a suggested fix
+    // that could not possibly work.
+    expect(
+      src,
+      "the host is installed file-by-file again; a native sibling will be dropped",
+    ).not.toMatch(/Source:\s*"\{#HostDir\}\\[^*"]+"/);
+    expect(src).toMatch(/Source:\s*"\{#HostDir\}\\\*"/);
+    // recursesubdirs, because a publish can emit runtimes\ subfolders.
+    const hostLine = src.match(/^Source:\s*"\{#HostDir\}\\\*".*$/m)?.[0] ?? "";
+    expect(hostLine).toContain("recursesubdirs");
+  });
+
+  it("the workflow checks the native loader was produced", () => {
+    // The .iss copying a whole folder does not help if the folder never
+    // had the DLL in it — a csproj change can stop it being emitted.
+    const wf = readFileSync(
+      join(ROOT, ".github/workflows/installer.yml"),
+      "utf8",
+    );
+    expect(wf).toMatch(/WebView2Loader\.dll/);
+    expect(wf, "a missing loader must fail the build, not warn").toMatch(
+      /WebView2Loader[\s\S]{0,700}exit 1/,
+    );
+  });
+
+  it("the host tells the user when the fault is ours", () => {
+    // The lesson, encoded: a blanket catch turned our missing file into
+    // "install WebView2", which the user had already done. The two
+    // causes are distinguishable exceptions and must stay distinguished.
+    const host = readFileSync(
+      join(ROOT, "installer/host/SeoToolHost.cs"),
+      "utf8",
+    );
+    expect(host).toContain("WebView2RuntimeNotFoundException");
+    expect(host).toContain("DllNotFoundException");
+    expect(
+      host,
+      "the DllNotFoundException branch must not send the user to install WebView2",
+    ).toMatch(/DllNotFoundException\)[\s\S]{0,600}problem with the installer/);
+  });
+
   it("the workflow passes every #define the script needs", () => {
     // A #define with no /D and no fallback makes ISCC fail on an
     // undefined identifier. Each one here has an #ifndef default, so
