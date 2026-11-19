@@ -3,6 +3,53 @@
 Each release has full notes under [docs/releases](docs/releases/). This
 file is the short version.
 
+## v0.10.3 — 2026-11-20
+
+Everything the first real installation found.
+[Full notes](docs/releases/v0.10.3.md)
+
+- **🖱️ The installer told you WebView2 was missing on a computer that
+  had it.** It shipped only the exe; `PublishSingleFile` leaves native
+  libraries beside it, so `WebView2Loader.dll` was left behind and a
+  blanket `catch` turned our packaging bug into an accusation about
+  your machine. A missing file of ours now says so plainly.
+- **It said "Install" over a copy you already had**, and could not
+  close the running app — Inno closes applications by messaging a
+  window, and the `node.exe` server has none. Both fixed; it now reads
+  the installed version, says it is updating, and closes its own app
+  with `taskkill /T`.
+- **The wizard wears the app's mark**, generated from the icon at build
+  time by a hand-written PNG decoder.
+- **🗄️ A first run had no database at all.** The Docker entrypoint
+  always ran migrations; the Windows host did not. Health answered 200
+  while the first page returned 500, because health does not touch the
+  database.
+- **And the database was written inside the program folder** — three
+  files resolve its path and only one honoured `SEO_DATA_DIR`. It now
+  lives in `%LOCALAPPDATA%\SEO Tool`, which the installer always
+  claimed.
+- **Auto-backup ran every scheduler tick**, because it records "when
+  did I last run" inside the database it is backing up.
+- **🖥️ The desktop app thought it was a browser.** The host has set
+  `SEO_LAUNCHED_BY` since it was written and nothing read it — so the
+  installed app offered to install itself as a PWA and to create the
+  shortcut that launched it, and "Stop server" told you to open a
+  second copy of the app you were looking at.
+- **⚡ Faster to a usable screen**, and honest about the rest: the
+  server is up in under a second, the remainder is Next's one-time
+  init, and it is now spent under the branded splash rather than in
+  front of a blank window.
+- **🤖 The agent was writing titles blind.** Nothing populated the
+  current value, and the drafting prompt reads from that field — which
+  is how "Active Dice Codes for Free Rewards" was proposed as a digital
+  agency's home-page title. The planner now reads the live page first.
+- **Fixed:** a CDN made working fixes look like they had not applied; a
+  WordPress static home page could never be resolved; the plugin's key
+  field showed 43 of 48 characters; the dot legend appeared twice; the
+  client page put the client third.
+- **No migrations.** Schema unchanged at 76. WordPress plugin 0.6.1 →
+  **0.6.2** — the home-page fix needs it.
+
 ## v0.10.2 — 2026-11-19
 
 An installer you can double-click, and an agent that finishes what it

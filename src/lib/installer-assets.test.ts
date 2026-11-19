@@ -361,6 +361,37 @@ describe("the installer script references files that exist", () => {
     expect(src).not.toMatch(/procedure InitializeWizard\(\);/);
   });
 
+  it("closes the running app itself rather than asking Inno to", () => {
+    // MEASURED on a real update: CloseApplications=yes listed
+    //
+    //     SEO Tool
+    //     Node.js JavaScript Runtime
+    //
+    // tried to close both, and dead-ended on "Setup was unable to
+    // automatically close all applications" with Try again / Ignore /
+    // Cancel. Inno closes an application by messaging its WINDOW, and
+    // the node.exe server the host spawns has none, so it can never
+    // respond. Ignoring would copy over a locked exe.
+    //
+    // Worse than what it replaced: before, the user simply got a
+    // warning and could continue.
+    expect(src).toMatch(/^CloseApplications=no$/m);
+    expect(src).toContain("function StopRunningApp");
+
+    // /T, or node survives and keeps the exe locked. And by the HOST's
+    // image name — killing node.exe by name would end every unrelated
+    // Node process on the machine.
+    expect(src).toMatch(/taskkill/);
+    expect(src).toMatch(/\/IM "SEO Tool\.exe" \/T/);
+    expect(
+      src,
+      "never kill node.exe by image name — that is not ours to end",
+    ).not.toMatch(/\/IM "?node\.exe/);
+
+    // 128 is "no such process", which is the ordinary case.
+    expect(src).toContain("128");
+  });
+
   it("finds the Install button by caption, not by page id", () => {
     // Which page carries that button depends on which pages are
     // enabled: DisableReadyPage=yes moves it from Ready to Select

@@ -85,7 +85,29 @@ SetupMutex=SeoToolSetup_8E6F2C14
 ; Shut the app down and restart it rather than demanding a reboot.
 ; `RestartApplications=no` because this is a per-user app with no
 ; services or shell extensions — a reboot prompt would be theatre.
-CloseApplications=yes
+; NO. We close our own app, in [Code], with taskkill.
+;
+; CloseApplications=yes was added to make an update seamless and did
+; the opposite. Inno closes an application by sending its WINDOW a
+; message. Our app is two processes: the WinForms host, which has a
+; window, and the node.exe server it spawns, which does not. Inno
+; listed both:
+;
+;     SEO Tool
+;     Node.js JavaScript Runtime
+;
+; …tried to close both, could not close the second, and dead-ended on
+; "Setup was unable to automatically close all applications" with Try
+; again / Ignore / Cancel. Ignoring it would copy files over a locked
+; exe and leave a half-updated install.
+;
+; Worse than what it replaced: before, InitializeSetup simply warned
+; that the app was running and let the user decide.
+;
+; taskkill /T on the HOST ends its whole tree, node included, because
+; the host is the parent. That is the same mechanism the host itself
+; uses when its window closes.
+CloseApplications=no
 RestartApplications=no
 
 OutputDir=..\dist
@@ -272,20 +294,61 @@ begin
   end;
 end;
 
-// Refuse to install over a running copy.
+/// Close a running copy, host and server together.
+///
+/// Returns True when nothing was running OR it was closed.
+///
+/// `/IM "SEO Tool.exe"` names OUR host specifically and `/T` takes its
+/// children with it — which is how node.exe gets closed, since it is
+/// spawned by the host and has no window of its own for anything to
+/// send a message to. Killing node.exe by image name instead would end
+/// every unrelated Node process on the machine, which is not ours to do.
+///
+/// taskkill exits 128 when no such process exists. That is the ordinary
+/// case — most people do not have the app open — and is not an error.
+function StopRunningApp(): Boolean;
+var
+  Code: Integer;
+begin
+  Result := True;
+  if not Exec(
+    ExpandConstant('{sys}\taskkill.exe'),
+    '/IM "SEO Tool.exe" /T /F',
+    '', SW_HIDE, ewWaitUntilTerminated, Code) then
+  begin
+    // taskkill itself could not be run. Say so rather than continuing
+    // into a file copy that will fail on a locked exe.
+    Result := False;
+    exit;
+  end;
+
+  // 0 = something was closed. 128 = nothing matched, which is fine.
+  if (Code <> 0) and (Code <> 128) then
+    Result := False;
+
+  // The process dies asynchronously; the file handles go with it a
+  // moment later. Copying immediately races that.
+  if Code = 0 then
+    Sleep(1200);
+end;
+
+// Close a running copy before touching its files.
 //
 // Overwriting a locked SEO Tool.exe fails halfway and leaves a mixed
-// install: new payload, old host, or the reverse. Checked by looking for
-// the window rather than the process name, because the process is called
-// "SEO Tool" and so is the installer's own window title.
+// install: new payload, old host, or the reverse.
+//
+// Done here rather than through Inno's CloseApplications, which cannot
+// close a process that has no window — see the note on that setting.
 function InitializeSetup(): Boolean;
 begin
   Result := True;
-  if FindWindowByClassName('WindowsForms10.Window.8.app.0.141b42a_r6_ad1') <> 0 then
+  if not StopRunningApp() then
   begin
     if MsgBox(
-      'SEO Tool appears to be running. Close it first, then run this '
-      + 'installer again.' + #13#10#13#10 + 'Continue anyway?',
+      'SEO Tool could not be closed automatically.' + #13#10#13#10
+      + 'Close it from the taskbar, then press Retry. Continuing now '
+      + 'may leave the installation half-updated.' + #13#10#13#10
+      + 'Continue anyway?',
       mbConfirmation, MB_YESNO) = IDNO then
       Result := False;
   end;
