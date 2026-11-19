@@ -1,6 +1,11 @@
 /**
- * A minimal, store-only zip writer — for TEST FIXTURES, not for release
- * artefacts.
+ * A minimal zip writer, deflate with a per-entry fallback to stored.
+ *
+ * It said "store-only — for TEST FIXTURES, not for release artefacts"
+ * and `build-prebuilt-zip.mjs` was using it for the release artefact,
+ * which is how every prebuilt payload came to be uncompressed. The
+ * header disclaiming a use does not prevent the use; see the note on
+ * `deflateRawAsync` below for what it cost.
  *
  * WHY THIS EXISTS: scripts/install-prebuilt-check.sh needs to build
  * archives to feed the installer, and on this machine there is no `zip`.
@@ -15,9 +20,10 @@
  *     "not a zipfile" — the same observation already recorded about
  *     tar's inability to READ zip.
  *
- * Stored (method 0), no compression. Fixtures are a few kilobytes, and
- * deflate would add a dependency and a way to be subtly wrong for no
- * benefit. `unzip` reads stored entries fine.
+ * Deflate (method 8) per entry, falling back to stored (method 0) when
+ * deflating would make that entry larger — which it does, by a few
+ * bytes, on anything already compressed. Readers handle a mix of both
+ * within one archive, which is what the per-entry method field is for.
  *
  *   node scripts/zip-write.mjs <sourceDir> <out.zip>
  *
@@ -27,6 +33,42 @@
 import { createWriteStream } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { deflateRaw } from "node:zlib";
+import { promisify } from "node:util";
+
+/**
+ * `zlib` is built into Node, so deflate costs no dependency.
+ *
+ * The original version of this file said deflate "would add a
+ * dependency and a way to be subtly wrong for no benefit" and wrote
+ * stored entries only. The first half was simply wrong — `node:zlib`
+ * ships with the runtime — and the "no benefit" held only while this
+ * was a fixture writer. It is not: build-prebuilt-zip.mjs uses it for
+ * the payload every macOS and Linux user downloads.
+ *
+ * Measured on the v0.10.2 release: 407 MB stored. GitHub's own
+ * re-zipping of the same file for the Actions artefact was 99 MB, which
+ * is the 4:1 that was being left on the table — of a download the
+ * installer calls "the whole app — a few hundred MB".
+ */
+const deflateRawAsync = promisify(deflateRaw);
+
+/**
+ * General-purpose flag bit 11: "the name in this header is UTF-8".
+ *
+ * Entry names here have always been written as UTF-8 bytes and the flag
+ * was always 0, which tells a reader the opposite — that the name is
+ * CP437. Our own zip-read.mjs decodes as UTF-8 unconditionally, so it
+ * never noticed; `unzip` and Windows Explorer honour the flag, so they
+ * did.
+ *
+ * Caught by extracting an archive containing `café.txt` with real
+ * `unzip`: the file came out under a different name and reading it back
+ * failed with ENOENT. `node_modules` is thousands of files from
+ * thousands of authors, so a non-ASCII name in a payload is a matter of
+ * time rather than a hypothetical.
+ */
+const UTF8_NAME_FLAG = 0x0800;
 
 /** CRC-32, table built once. Required in both headers. */
 const CRC_TABLE = (() => {
@@ -76,36 +118,56 @@ export async function writeZip(sourceDir, outPath) {
   for (const name of names) {
     const data = await readFile(join(sourceDir, name));
     const nameBuf = Buffer.from(name, "utf8");
+    // CRC is always of the ORIGINAL bytes, never of the deflated ones.
     const crc = crc32(data);
+
+    // Deflate, falling back to stored when it does not help.
+    //
+    // A zip entry may be stored (method 0) or deflated (method 8), per
+    // entry, and readers handle both. Picking the smaller means an
+    // already-compressed file — a .png, a .woff2, a .zip inside the
+    // payload — is not made bigger by deflating it, which deflate does
+    // by a few bytes on incompressible input.
+    const deflated = await deflateRawAsync(data, { level: 6 });
+    const useDeflate = deflated.length < data.length;
+    const body = useDeflate ? deflated : data;
+    const method = useDeflate ? 8 : 0;
+    // "version needed": 2.0 for deflate, 1.0 for stored.
+    const versionNeeded = useDeflate ? 20 : 10;
 
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0); // signature
-    local.writeUInt16LE(10, 4); // version needed (1.0 = store)
-    local.writeUInt16LE(0, 6); // flags
-    local.writeUInt16LE(0, 8); // method 0 = stored
+    local.writeUInt16LE(versionNeeded, 4);
+    local.writeUInt16LE(UTF8_NAME_FLAG, 6);
+    local.writeUInt16LE(method, 8);
     local.writeUInt16LE(time, 10);
     local.writeUInt16LE(date, 12);
     local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(data.length, 18); // compressed
-    local.writeUInt32LE(data.length, 22); // uncompressed
+    local.writeUInt32LE(body.length, 18); // compressed size
+    local.writeUInt32LE(data.length, 22); // uncompressed size
     local.writeUInt16LE(nameBuf.length, 26);
     local.writeUInt16LE(0, 28); // extra length
 
     await write(local);
     await write(nameBuf);
-    await write(data);
+    await write(body);
 
     const cd = Buffer.alloc(46);
     cd.writeUInt32LE(0x02014b50, 0);
     cd.writeUInt16LE(20, 4); // version made by
-    cd.writeUInt16LE(10, 6);
-    cd.writeUInt16LE(0, 8);
-    cd.writeUInt16LE(0, 10);
+    cd.writeUInt16LE(versionNeeded, 6);
+    cd.writeUInt16LE(UTF8_NAME_FLAG, 8);
+    // The central directory's method MUST match the local header's.
+    // A reader that trusts the central directory and finds a deflate
+    // stream it was told is stored produces garbage rather than an
+    // error, which is the subtle-wrongness this file's header warns
+    // about — so these two are written from the same variable.
+    cd.writeUInt16LE(method, 10);
     cd.writeUInt16LE(time, 12);
     cd.writeUInt16LE(date, 14);
     cd.writeUInt32LE(crc, 16);
-    cd.writeUInt32LE(data.length, 20);
-    cd.writeUInt32LE(data.length, 24);
+    cd.writeUInt32LE(body.length, 20); // compressed size
+    cd.writeUInt32LE(data.length, 24); // uncompressed size
     cd.writeUInt16LE(nameBuf.length, 28);
     cd.writeUInt16LE(0, 30); // extra
     cd.writeUInt16LE(0, 32); // comment
@@ -118,7 +180,12 @@ export async function writeZip(sourceDir, outPath) {
     cd.writeUInt32LE(offset, 42);
     central.push(Buffer.concat([cd, nameBuf]));
 
-    offset += local.length + nameBuf.length + data.length;
+    // body.length, not data.length — the offset of the next local
+    // header is where THIS entry's bytes end on disk. Using the
+    // uncompressed size here would point every central-directory entry
+    // after the first at the wrong place, and the archive would fail to
+    // open at all rather than quietly.
+    offset += local.length + nameBuf.length + body.length;
   }
 
   const cdStart = offset;

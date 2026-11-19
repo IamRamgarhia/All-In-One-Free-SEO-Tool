@@ -71,7 +71,7 @@ import { describeBackup } from "./backup-label.mjs";
 import { resolveBackupDir } from "./backup-dir.mjs";
 import {
   candidatePorts as portCandidates,
-  healthMatches,
+  findRunningApp as probeRunningApp,
   samePath as pathsEqual,
 } from "./app-port.mjs";
 
@@ -408,33 +408,32 @@ function candidatePorts() {
  * the app predates `installRoot`, and refusing to see it would turn one
  * wrong answer into another.
  */
-async function probeHealth(port) {
-  try {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 1500);
-    const res = await fetch(`http://localhost:${port}/api/v1/health`, {
-      signal: c.signal,
-    });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    const body = await res.json().catch(() => null);
-    return healthMatches(body, ROOT, IS_WINDOWS) ? body : null;
-  } catch {
-    return null;
-  }
-}
+// The probe itself now lives in app-port.mjs, which is the module whose
+// header is about this exact question. It was here, and `bin/STOP.sh`
+// had a different answer — `.seo-port` plus `lsof`, which Git Bash on
+// Windows does not have, so STOP printed "nothing to stop" over a
+// running app. One question, one answer.
 
 /** Two spellings of one path — see scripts/app-port.mjs. */
 function samePath(a, b) {
   return pathsEqual(a, b, IS_WINDOWS);
 }
 
-/** Ask the app itself, rather than trusting a file that may be stale. */
+/**
+ * Ask the app itself, rather than trusting a file that may be stale.
+ *
+ * Returns the port, which is what every caller here wants. The shared
+ * helper returns the whole health body because `bin/STOP.sh` needs the
+ * `pid` out of it.
+ */
 async function findRunningApp() {
-  for (const port of candidatePorts()) {
-    if (await probeHealth(port)) return port;
-  }
-  return null;
+  const found = await probeRunningApp({
+    root: ROOT,
+    remembered: readTextIfPresent(join(ROOT, ".seo-port")),
+    envPort: process.env.PORT,
+    isWindows: IS_WINDOWS,
+  });
+  return found ? found.port : null;
 }
 
 async function readState() {

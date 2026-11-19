@@ -86,3 +86,53 @@ export function healthMatches(body, root, isWindows) {
   // pre-installRoot behaviour, kept deliberately.
   return true;
 }
+
+/**
+ * Ask the app itself where it is and what PID it has.
+ *
+ * WHY THIS MOVED HERE (19 Nov 2026): this probe existed only inside
+ * control-panel.mjs, so `bin/STOP.sh` had its own idea of where the app
+ * is — `.seo-port`, then `lsof`. On Windows, Git Bash has no `lsof`, so
+ * the whole fallback was skipped and the script printed:
+ *
+ *     No running SEO Tool was found (nothing to stop).
+ *
+ * over a running app. Measured: PID 7524 was serving :3000 with this
+ * install's own `installRoot`, and STOP said there was nothing there.
+ *
+ * That is the same bug the control panel already had and the same one
+ * this file's header is about, in a second copy — which is rule 4 of
+ * this project: never a second hardcoded list of something that already
+ * exists. "Where is the app" is one question with one answer.
+ *
+ * The health endpoint reports its own `pid`, so nothing has to map a
+ * port to a process: no netstat parsing, no lsof, no platform branch.
+ *
+ * Returns the health body (with `pid` and `port` added) or null.
+ */
+export async function findRunningApp({
+  root,
+  remembered = null,
+  envPort = undefined,
+  isWindows = process.platform === "win32",
+  timeoutMs = 1500,
+} = {}) {
+  for (const port of candidatePorts(remembered, envPort)) {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), timeoutMs);
+      const res = await fetch(`http://localhost:${port}/api/v1/health`, {
+        signal: c.signal,
+      });
+      clearTimeout(t);
+      if (!res.ok) continue;
+      const body = await res.json().catch(() => null);
+      // healthMatches refuses a stranger on 3000 — another project's dev
+      // server — so Stop is never aimed at somebody else's process.
+      if (healthMatches(body, root, isWindows)) return { ...body, port };
+    } catch {
+      // Nothing listening, or not ours. Try the next candidate.
+    }
+  }
+  return null;
+}
