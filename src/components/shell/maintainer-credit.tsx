@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Code2, Heart, Sparkles, Wallet, X } from "lucide-react";
+import { Code2, Heart, Sparkles, Star, Wallet, X } from "lucide-react";
 import { MAINTAINER } from "@/lib/maintainer";
 import { UpiPanel } from "@/components/support/upi-panel";
 
@@ -84,6 +84,25 @@ export function MaintainerCredit({
           >
             <Code2 className="size-3" />
             Source
+          </a>
+        )}
+        {/* The star ask, where people actually are.
+
+            It already existed on /about under "Help without paying",
+            which is a page nobody opens twice. This is the same link
+            with the same wording, one click from the dashboard — and
+            asking costs nothing, which is the point of it being here
+            rather than behind a donation dialog. */}
+        {MAINTAINER.github && (
+          <a
+            href={MAINTAINER.github}
+            target="_blank"
+            rel="noreferrer noopener"
+            title="A star helps other SEOs find it — it is the one thing that costs nothing"
+            className="inline-flex items-center gap-1 rounded text-amber-300/90 transition-colors hover:text-amber-200"
+          >
+            <Star className="size-3" />
+            Star on GitHub
           </a>
         )}
         <button

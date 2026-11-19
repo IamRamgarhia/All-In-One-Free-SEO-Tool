@@ -384,7 +384,7 @@ export function Sidebar({
               )}
               {(isOpen || collapsed) && (
                 <ul className="mt-0.5">
-                  {group.items.map(({ href, label, icon: Icon, external }: NavItem) => {
+                  {group.items.map(({ href, label, icon: Icon, external, highlight }: NavItem) => {
                     // An external entry is never "the current page", and
                     // opening it in this tab would navigate away from the
                     // app entirely.
@@ -407,7 +407,16 @@ export function Sidebar({
                                 }`
                               : active
                                 ? "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-accent-foreground"
-                                : "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                                : highlight
+                                  ? // The one tinted row. A ring rather
+                                    // than a solid fill, so it reads as
+                                    // an invitation and not as the
+                                    // selected page — the active pill
+                                    // already owns that meaning, and two
+                                    // things that look selected is worse
+                                    // than neither.
+                                    "relative flex items-center gap-2 rounded-md bg-rose-500/[0.07] px-2 py-1.5 text-sm text-rose-100/90 ring-1 ring-inset ring-rose-400/20 transition-colors hover:bg-rose-500/[0.14] hover:text-rose-50"
+                                  : "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                           }
                         >
                           {/* Active background pill — animates between

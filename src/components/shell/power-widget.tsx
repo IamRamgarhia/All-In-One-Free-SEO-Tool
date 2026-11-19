@@ -17,7 +17,16 @@ import { Power, RefreshCw, Square, Settings as Cog, X } from "lucide-react";
 import { safeFetch } from "@/lib/safe-fetch";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 
-export function PowerWidget() {
+export function PowerWidget({
+  isDesktopApp = false,
+}: {
+  /**
+   * True when the UI is inside the native window rather than a browser
+   * tab. Passed from the server layout, which reads SEO_LAUNCHED_BY —
+   * the desktop host has always set it and nothing had ever read it.
+   */
+  isDesktopApp?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<null | "restart" | "stop">(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -106,8 +115,18 @@ export function PowerWidget() {
   async function stop() {
     const ok = await confirmDialog({
       title: "Stop the server?",
-      description:
-        "The app will go offline. Launch it again from your desktop shortcut or by running seo.cmd.",
+      description: isDesktopApp
+        ? // Inside the native window, stopping the server leaves THIS
+          // window showing a page that no longer has anything behind
+          // it — and the old advice, "launch it again from your desktop
+          // shortcut", was telling someone to start a second copy of an
+          // app they are currently looking at. Closing the window stops
+          // the server on its own; that is the normal way to quit.
+          "This window will stop working until you reopen the app. " +
+          "To quit normally, just close the window — that stops the " +
+          "server too."
+        : "The app will go offline. Launch it again from your desktop " +
+          "shortcut or by running seo.cmd.",
       confirmLabel: "Stop server",
       destructive: true,
     });
@@ -124,10 +143,11 @@ export function PowerWidget() {
       setBusy(null);
       return;
     }
-    toast.success("Server stopped", {
-      description: "Launch it again from your desktop shortcut.",
-    });
-    setMsg("Server stopped. Launch it again from your desktop shortcut.");
+    const howToComeBack = isDesktopApp
+      ? "Close this window and open the app again."
+      : "Launch it again from your desktop shortcut.";
+    toast.success("Server stopped", { description: howToComeBack });
+    setMsg(`Server stopped. ${howToComeBack}`);
   }
 
   return (
@@ -169,14 +189,19 @@ export function PowerWidget() {
               <Square className="size-3.5 text-rose-300" />
               <span className="flex-1">Stop server</span>
             </button>
-            <Link
-              href="/settings/install"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 rounded px-2 py-2 text-[13px] text-foreground transition-colors hover:bg-accent"
-            >
-              <Cog className="size-3.5 text-muted-foreground" />
-              <span className="flex-1">Install as app / shortcuts</span>
-            </Link>
+            {/* Browser only. Inside the desktop app this offers to
+                create the shortcut that launched it and to install a
+                PWA that WebView2 cannot install. */}
+            {!isDesktopApp && (
+              <Link
+                href="/settings/install"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded px-2 py-2 text-[13px] text-foreground transition-colors hover:bg-accent"
+              >
+                <Cog className="size-3.5 text-muted-foreground" />
+                <span className="flex-1">Install as app / shortcuts</span>
+              </Link>
+            )}
           </div>
           {msg && (
             <div className="border-t border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">

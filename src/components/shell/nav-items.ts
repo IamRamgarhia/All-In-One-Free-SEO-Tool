@@ -75,6 +75,21 @@ export type NavItem = {
    * where the feature went instead.
    */
   external?: boolean;
+  /**
+   * Give this item a tinted background so it reads as an invitation
+   * rather than another row in a list of eighty.
+   *
+   * Exactly one item uses it. A second would make both ordinary again,
+   * which is the whole mechanism — a highlight that highlights several
+   * things highlights nothing.
+   *
+   * NOT called `accent`: the sidebar already has a local `accent`
+   * holding the group's colour scheme, and destructuring a NavItem
+   * field of that name shadows it. The collision compiles into
+   * `accent.iconActive` resolving against a boolean, which is a
+   * confusing error a long way from its cause.
+   */
+  highlight?: boolean;
 };
 
 export type NavGroup = {
@@ -232,7 +247,13 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/docs", label: "Docs", icon: BookOpen, guided: true },
       { href: "/learn", label: "Learn", icon: GraduationCap, guided: true },
       { href: "/knowledge", label: "Knowledge hub", icon: GraduationCap },
-      { href: "/about", label: "Support & about", icon: Heart, guided: true },
+      {
+        href: "/about",
+        label: "Support & about",
+        icon: Heart,
+        guided: true,
+        highlight: true,
+      },
     ],
   },
 ];

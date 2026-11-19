@@ -10,6 +10,7 @@ import { AIAssistant } from "@/components/shell/ai-assistant";
 import { PowerWidget } from "@/components/shell/power-widget";
 import { ClaudeDock } from "@/components/claude/claude-dock";
 import { FirstRunPrompt } from "@/components/shell/first-run-prompt";
+import { isDesktopApp } from "@/lib/launch-context";
 import { Toaster } from "@/components/shell/toaster";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import { ServiceWorkerRegister } from "@/components/shell/sw-register";
@@ -155,9 +156,14 @@ export default async function RootLayout({
                   </div>
                 </div>
                 <AIAssistant />
-                <PowerWidget />
+                <PowerWidget isDesktopApp={isDesktopApp()} />
                 {isHostAgentEnabled() && <ClaudeDock />}
-                <FirstRunPrompt />
+                {/* Not inside the desktop app. It offers to install as
+                    a PWA (WebView2 has no install prompt, so the button
+                    renders "Not available") and to create the Start
+                    Menu shortcut that was used to launch it. Every line
+                    of it is wrong in the one place it cannot be right. */}
+                {!isDesktopApp() && <FirstRunPrompt />}
               </>
             )}
             <Toaster />
