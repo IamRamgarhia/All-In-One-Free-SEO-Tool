@@ -76,7 +76,22 @@ jobs:
         include:
           - os: macos-latest
             name: macOS arm64
-          - os: macos-13
+          # macos-15-intel, NOT macos-13.
+          #
+          # macos-13 was retired on 4 December 2025 — a year ago. A job
+          # asking for a label that no longer exists does not fail: it
+          # sits in "queued" forever, which is the worst possible
+          # failure mode because it is indistinguishable from waiting
+          # for a busy runner. Measured on the first real run: queued 12
+          # minutes, never started, while the other three jobs finished.
+          #
+          # macos-15-intel is the last x86_64 macOS image GitHub will
+          # publish, supported to August 2027. After that there is no
+          # hosted Intel Mac and this payload has to be cross-compiled
+          # or dropped. Intel Macs still in use in 2027 will be ~5 years
+          # past the architecture transition, so dropping it is the
+          # likely answer — but not while people are running them.
+          - os: macos-15-intel
             name: macOS x86_64
           # 24.04, not latest. GitHub moved ubuntu-latest to 26.04,
           # which Playwright 1.59.1 refuses outright — and more
@@ -314,6 +329,19 @@ jobs:
   # is three files the installer would have to guess between.
   checksums:
     needs: [version, payload]
+    # `!cancelled()` rather than the default, which is "every leg of
+    # `payload` succeeded".
+    #
+    # With fail-fast: false the matrix is explicitly allowed to lose one
+    # platform — but the default `needs` behaviour then SKIPS this job,
+    # so one dead runner label means no SHA256SUMS.txt for the platforms
+    # that built fine, and the one-liner has nothing to verify for any
+    # of them. Measured: the macos-13 leg queued forever, and the Linux
+    # and macOS-arm64 payloads it had already produced got no checksums.
+    #
+    # The step below names which platforms are covered and which are
+    # missing, so a partial file cannot be mistaken for a complete one.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -325,8 +353,33 @@ jobs:
         run: |
           set -euo pipefail
           cd payloads
+          # `sha256sum *.zip` with no matches would checksum the literal
+          # string "*.zip" and exit 1 — a confusing way to learn that
+          # every payload leg failed.
+          count=$(ls -1 *.zip 2>/dev/null | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::no payloads were produced — every platform leg failed"
+            exit 1
+          fi
           sha256sum *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+          # Say when one is MISSING. A SHA256SUMS.txt covering two of
+          # three platforms looks complete until someone on the third
+          # tries to install.
+          #
+          # 3 is the number of legs in the `payload` matrix above, and
+          # NOT a second list of platform names — the names live in
+          # build-prebuilt-zip.mjs, which owns them. workflow-runners.test.ts
+          # asserts this number and the matrix agree, because a fourth
+          # platform added above and not here would make a 3-of-4 run
+          # report itself complete.
+          expected=3
+          if [ "$count" -lt "$expected" ]; then
+            echo "::warning::only ${count} of ${expected} payloads built — the missing platform has no checksum and its one-liner will fall back to building from source"
+          else
+            echo "::notice::all ${expected} payloads checksummed"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: SHA256SUMS
