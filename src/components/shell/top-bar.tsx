@@ -7,7 +7,6 @@ import { AiUsagePill } from "./ai-usage-pill";
 import { ProfileMenu } from "./profile-menu";
 import { NextStep } from "./next-step";
 import { ThemeToggle } from "./theme-toggle";
-import { ToolDotLegend } from "@/components/tool-dot";
 import { getUiMode } from "@/app/settings/ui-actions";
 import type { ThemePreference } from "@/app/settings/theme-actions";
 
@@ -25,16 +24,23 @@ export async function TopBar({
       <SearchPalette />
       <NextStep />
       <div className="ml-auto flex items-center gap-1">
-        {/* What the sidebar's green/amber dots mean. It used to live at
-            the foot of the rail, where a collapsed sidebar hid it; here
-            it is visible either way.
-            xl, not lg: measured at 1024px the legend's ~120px tipped
-            this row into 9px of overflow and the next-step banner and
-            the AI-spend pill drew on top of each other. Below xl the
-            dots still carry the same words as a tooltip. */}
-        <div className="mr-2 hidden shrink-0 xl:block">
-          <ToolDotLegend wrap={false} />
-        </div>
+        {/* NO dot legend here.
+
+            It was moved to the top bar because the foot of the rail hid
+            it when the sidebar collapsed. But the per-client tools panel
+            renders its own ToolDotLegend right above the dots it
+            describes — so the two existed at once, and the top bar was
+            explaining a colour code for dots that are not in the top
+            bar, on every page, including pages with no dots at all.
+
+            That is the same shape as the profile block and the
+            guided/pro toggle that were duplicated between the rail and
+            this bar until 30 Oct: global chrome carrying something that
+            belongs beside the thing it is about. A legend goes next to
+            its dots.
+
+            The nav rail's own dots keep the same words as a tooltip, so
+            nothing here is now unexplained. */}
         <AiUsagePill />
         <AddClientButton />
         <ThemeToggle theme={theme} />

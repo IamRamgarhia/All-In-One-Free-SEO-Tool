@@ -359,24 +359,18 @@ export default async function ClientDetailPage({
         Below md the sidebar collapses to a button + sheet so the main
         content gets full width.
       */}
-      {/* The order to do things in, before the wall of tools. */}
-      <StartHere
-        clientId={client.id}
-        auditDone={Boolean(latestCompleted)}
-        auditFindings={latestCompleted?.issuesCount ?? null}
-        keywordCount={keywordCount}
-        proposalId={approvalDoc?.id ?? null}
-        proposalStatus={approvalDoc?.status ?? null}
-        onboardingDone={client.onboardingStep === "completed"}
-      />
+      {/* "Start here" and the ranked work used to render HERE, above
+          everything, on every tab.
 
-      <NextActionsPanel
-        items={ranked}
-        heading="What's worth doing for this client"
-        emptyNote="Nothing ranked yet — run an audit and this fills in."
-        showClient={false}
-      />
+          So opening a client showed a four-step checklist and three
+          advisory cards, and you scrolled past all of it to reach the
+          client's own name, its health score and the Run audit button.
+          The page about Dice Codes put Dice Codes third.
 
+          They are now inside the Overview tab, directly under the Open
+          issues / Open tasks / Tracked keywords row — which is where
+          they belong, because that is what they are about. The client
+          comes first on its own page. */}
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <ClientToolsPanel
           client={{
@@ -995,6 +989,31 @@ export default async function ClientDetailPage({
                   </div>
                 </section>
               )}
+
+              {/* THE WORK — what to do, directly under the numbers that
+                  say why.
+
+                  Both of these used to sit ABOVE the client's own hero,
+                  on every tab. "Open issues: 34" and "here are the
+                  issues worth doing something about" are the same
+                  subject, and they were separated by the entire client
+                  header and a tab bar. */}
+              <StartHere
+                clientId={client.id}
+                auditDone={Boolean(latestCompleted)}
+                auditFindings={latestCompleted?.issuesCount ?? null}
+                keywordCount={keywordCount}
+                proposalId={approvalDoc?.id ?? null}
+                proposalStatus={approvalDoc?.status ?? null}
+                onboardingDone={client.onboardingStep === "completed"}
+              />
+
+              <NextActionsPanel
+                items={ranked}
+                heading="What's worth doing for this client"
+                emptyNote="Nothing ranked yet — run an audit and this fills in."
+                showClient={false}
+              />
 
               {/* DAILY AUTOMATION ENTRY — schedules + queue, per client */}
               <DailyAutomationCard clientId={client.id} />

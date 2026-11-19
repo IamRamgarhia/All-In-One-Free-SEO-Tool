@@ -50,33 +50,42 @@ test.describe("shell", () => {
     await expect(page.locator("aside").first()).toHaveClass(/w-\[60px\]/);
   });
 
-  test("dot legend, profile and mode toggle live in the top bar, not the rail", async ({
+  test("profile and mode toggle live in the top bar; the dot legend lives with its dots", async ({
     page,
     isMobile,
   }) => {
-    test.skip(isMobile, "No desktop rail below md, and the legend is xl-only.");
+    test.skip(isMobile, "No desktop rail below md.");
 
-    // Explicit, not the project's default: the legend's breakpoint is
-    // xl (1280px) and Desktop Chrome's default viewport is exactly
-    // 1280, which would make this test sit on the knife edge of the
-    // media query it is checking.
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/");
     const header = page.locator("header").first();
     const rail = page.locator("aside").first();
 
-    // The legend moved up here. Asserting it is INSIDE <header> is the
-    // point — asserting it exists on the page would pass with it still
-    // sitting at the foot of the sidebar, which is the thing that was
-    // removed.
-    await expect(header.getByText("Needs setup")).toBeVisible();
+    // Profile and mode are genuinely global: one account, one
+    // preference, same on every page. They belong in global chrome, and
+    // asserting they are INSIDE <header> is the point — asserting they
+    // exist on the page would pass with the old duplicate still sitting
+    // at the foot of the rail.
     await expect(header.getByRole("button", { name: "Profile menu" })).toBeVisible();
     await expect(header.getByRole("button", { name: "Guided" })).toBeVisible();
 
-    // ...and none of the three is duplicated in the rail. Two of them
-    // were in both places at once before this; a second copy is how the
-    // two drift apart with nothing to catch it.
-    await expect(rail.getByText("Needs setup")).toHaveCount(0);
+    // The DOT LEGEND is not, and this assertion reversed on 19 Nov 2026.
+    //
+    // It was moved into the top bar because the foot of a collapsed
+    // rail hid it. But the per-client tools panel renders its own copy
+    // right above the column of dots it describes — so both existed,
+    // and the top bar explained a colour code for dots that are not in
+    // the top bar, on every page, including pages with no dots at all.
+    //
+    // A legend goes next to its dots. "/" has no tools panel, so there
+    // is nothing here for it to explain and it should be absent
+    // entirely — which is a stronger check than "not in the header",
+    // because that would pass with it moved anywhere else on the page.
+    await expect(page.getByText("Needs setup")).toHaveCount(0);
+
+    // ...and neither control is duplicated in the rail. Both were in
+    // two places at once before 30 Oct, with the two copies drifted
+    // into different wording for the same switch.
     await expect(rail.getByText("Local user")).toHaveCount(0);
     await expect(rail.getByText(/Guided mode|Show all tools/)).toHaveCount(0);
 
