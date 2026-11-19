@@ -111,6 +111,47 @@ what cause this.
 > ships its own Node and its own compiled driver, matched to each other.
 > This only affects installs that build from source.
 
+### `pnpm: command not found` / `'pnpm' is not recognized`
+
+Every command in this document starts with `pnpm`, and on a current Node
+there may be no `pnpm` to run.
+
+**Node 25 and later do not ship corepack.** Corepack is the shim that
+turned the `packageManager` field in `package.json` into a working `pnpm`
+command without a separate install. Node's technical steering committee
+voted in March 2025 to stop distributing it, and it is gone from Node 25
+onwards. If pnpm only ever existed on your machine because corepack
+provided it, upgrading Node to 25 or 26 takes pnpm with it — and the
+error you get is about a missing command, which looks nothing like a Node
+upgrade.
+
+Install it directly:
+
+```bash
+npm install -g pnpm@10
+```
+
+Then re-run whatever failed. Nothing else needs changing: the
+`packageManager` field still pins the exact version for anyone whose
+pnpm *is* corepack-provided.
+
+**If you would rather not install pnpm**, `npm install` works, with one
+caveat worth knowing: npm resolves from the registry rather than from
+`pnpm-lock.yaml`, so you may get newer versions of transitive packages
+than this project was tested with. The five security pins are declared in
+both `pnpm.overrides` and the top-level `overrides` precisely so that
+either package manager applies them —
+`src/lib/dependency-overrides.test.ts` fails the build if those two
+blocks ever drift apart.
+
+`install.sh` and `install.ps1` already handle this: they prefer an
+existing `pnpm`, try corepack next, and fall back to `npm` rather than
+stopping.
+
+> **The installer does not have this problem either.** The prebuilt
+> download has its dependencies already installed, so it needs no package
+> manager at all.
+
 ### Installer hangs at "Building production bundle"
 
 The first build takes 1-2 minutes — that's normal. If it hangs for 5+ minutes:
