@@ -222,6 +222,7 @@ namespace SeoTool
         private readonly Panel _splash = new Panel();
         private readonly PictureBox _mark = new PictureBox();
         private readonly Label _wordmark = new Label();
+        private readonly Label _byline = new Label();
         private readonly Label _status = new Label();
         private Process? _server;
         private int _port;
@@ -231,7 +232,16 @@ namespace SeoTool
         {
             _devTools = Array.Exists(args, a => a == "--devtools");
 
-            Text = "SEO Tool";
+            // The maker's name in the title bar, the taskbar hover and
+            // alt-tab. Inside the app it is already on the dashboard,
+            // /about and /settings via MaintainerCredit — the DESKTOP
+            // shell was the one surface that said nothing.
+            //
+            // Deliberately NOT anywhere a client sees. Reports, PDFs,
+            // invoices and the client portal carry the user's own
+            // white-label branding; putting DiceCodes there would put
+            // our name on their deliverable.
+            Text = "SEO Tool — DiceCodes";
             Width = 1360;
             Height = 900;
             MinimumSize = new System.Drawing.Size(900, 600);
@@ -285,6 +295,19 @@ namespace SeoTool
             _wordmark.BackColor = BackColor;
             _wordmark.AutoSize = true;
 
+            // Who made it. The window, the taskbar and the installer all
+            // say "SEO Tool" and nothing said DiceCodes anywhere a user
+            // actually looks — the publisher field in the .iss is only
+            // visible in Add/Remove Programs.
+            //
+            // Quieter than the product name on purpose: it is a byline,
+            // not a second title competing with the first.
+            _byline.Text = "by DiceCodes";
+            _byline.Font = new System.Drawing.Font("Segoe UI", 9F);
+            _byline.ForeColor = System.Drawing.Color.FromArgb(120, 120, 132);
+            _byline.BackColor = BackColor;
+            _byline.AutoSize = true;
+
             _status.Text = "Starting…";
             _status.Font = new System.Drawing.Font("Segoe UI", 9.5F);
             _status.ForeColor = System.Drawing.Color.FromArgb(150, 150, 162);
@@ -293,6 +316,7 @@ namespace SeoTool
 
             _splash.Controls.Add(_mark);
             _splash.Controls.Add(_wordmark);
+            _splash.Controls.Add(_byline);
             _splash.Controls.Add(_status);
             _splash.Resize += (_, _) => LayOutSplash();
             Controls.Add(_splash);
@@ -313,10 +337,13 @@ namespace SeoTool
             if (w <= 0 || h <= 0) return;
 
             const int gapAfterMark = 18;
-            const int gapAfterWord = 10;
+            const int gapAfterWord = 4;
+            const int gapAfterByline = 16;
             var markH = _mark.Image != null ? _mark.Height : 0;
             var total = markH + (markH > 0 ? gapAfterMark : 0)
-                + _wordmark.Height + gapAfterWord + _status.Height;
+                + _wordmark.Height + gapAfterWord
+                + _byline.Height + gapAfterByline
+                + _status.Height;
             var top = (h - total) / 2;
 
             if (markH > 0)
@@ -328,6 +355,10 @@ namespace SeoTool
             _wordmark.Left = (w - _wordmark.Width) / 2;
             _wordmark.Top = top;
             top += _wordmark.Height + gapAfterWord;
+
+            _byline.Left = (w - _byline.Width) / 2;
+            _byline.Top = top;
+            top += _byline.Height + gapAfterByline;
 
             _status.Left = (w - _status.Width) / 2;
             _status.Top = top;
@@ -388,7 +419,32 @@ namespace SeoTool
                     return;
                 }
 
+                // WARM THE FIRST PAGE while the splash is still up.
+                //
+                // Measured on the payload: the server accepts TCP at
+                // 0.9s, but the FIRST request to any route costs
+                // seconds and the second costs milliseconds —
+                //
+                //    first  /api/v1/health   2536 ms
+                //    second /api/v1/health     17 ms
+                //    first  /                1536 ms
+                //    second /                  37 ms
+                //
+                // That is Next's one-time runtime and middleware init,
+                // not this app's code: the health route imports nothing
+                // at all and still pays it.
+                //
+                // It cannot be removed, only moved. Without this, the
+                // host waits for health, hands a cold URL to WebView2,
+                // and the user watches an empty browser control for a
+                // second and a half with the splash already gone —
+                // which is the part that reads as "slow", because by
+                // then nothing is telling them anything is happening.
+                //
+                // Fetching it here spends the same time under the
+                // splash, and the navigation that follows is warm.
                 SetStatus("Opening…");
+                await WarmAsync(url);
                 await browserReady;
 
                 var s = _web.CoreWebView2.Settings;
@@ -659,6 +715,34 @@ namespace SeoTool
                     // profile: this keeps an uninstall complete and
                     // means a portable copy carries its own state.
                     Path.Combine(AppContext.BaseDirectory, "webview-data")));
+        }
+
+        /// <summary>
+        /// Load the first page once so the navigation after it is warm.
+        /// </summary>
+        /// <remarks>
+        /// Best-effort by design. A redirect, a 401 from the password
+        /// gate, or a timeout all still leave the module graph loaded,
+        /// which is the entire point — the response is discarded.
+        /// Failing here must never stop the window opening.
+        /// </remarks>
+        private static async Task WarmAsync(string baseUrl)
+        {
+            try
+            {
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                using var res = await http.GetAsync(
+                    baseUrl + "/",
+                    HttpCompletionOption.ResponseHeadersRead);
+                // Drain it: the server does not finish rendering until
+                // the body is read, and an unread body is a half-warmed
+                // page.
+                await res.Content.CopyToAsync(Stream.Null);
+            }
+            catch (Exception ex)
+            {
+                Program.TryLog("warm: " + ex.Message);
+            }
         }
 
         private async Task<bool> WaitForHealth(string baseUrl, TimeSpan timeout)

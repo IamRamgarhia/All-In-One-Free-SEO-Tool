@@ -43,6 +43,9 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
+; Shown in the installer's own file properties and in Add/Remove
+; Programs. AppPublisher alone only reaches the latter.
+AppCopyright=© {#AppPublisher} — MIT licensed, free to use and modify
 AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
 
