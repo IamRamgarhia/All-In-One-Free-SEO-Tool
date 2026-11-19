@@ -14,7 +14,26 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, NOT ubuntu-latest.
+    #
+    # GitHub moved ubuntu-latest to Ubuntu 26.04, and Playwright 1.59.1
+    # does not support it:
+    #
+    #   BEWARE: your OS is not officially supported by Playwright
+    #   Cannot install dependencies for ubuntu26.04-x64 with Playwright 1.59.1!
+    #   ERROR: Playwright does not support chromium on ubuntu26.04-x64
+    #
+    # So `playwright install --with-deps chromium` fails and the whole
+    # job dies, on every push, for a reason that has nothing to do with
+    # any change.
+    #
+    # 24.04 is "noble", which is exactly what this project's own
+    # Dockerfile runs on (mcr.microsoft.com/playwright:v1.59.1-noble).
+    # Pinning makes CI match the image the app actually ships on, rather
+    # than drifting ahead of it — and docker-playwright-version.test.ts
+    # already exists because that version is written in two places that
+    # must agree.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -446,7 +465,9 @@ jobs:
   # Docker is the documented install path for non-technical users. It
   # needs its own gate.
   docker:
-    runs-on: ubuntu-latest
+    # Pinned for the same reason as the build job above:
+    # ubuntu-latest is now 26.04, which Playwright 1.59.1 refuses.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:

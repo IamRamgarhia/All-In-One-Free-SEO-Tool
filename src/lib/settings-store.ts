@@ -120,6 +120,19 @@ export type SettingKey =
    * none did. See lib/daily-agent.ts.
    */
   | "daily_agent.last_report"
+  /**
+   * The last unattended sweep's failures: `{ at, total, failures }`.
+   *
+   * The scheduler reported "27 of 38 checks ran — 11 could not" and that
+   * count was the only trace. `tool_runs` has no status column, so a
+   * failed check writes no row — the toolId and the error were captured
+   * and thrown away by the summary.
+   *
+   * Measured: those 11 were TWO causes. Nine were one client whose site
+   * no longer resolves; two were a Search Console 403. "11 could not"
+   * cannot be acted on; "9 checks fail on X" can. See lib/tool-sweep.ts.
+   */
+  | "tool_sweep.last_failures"
   | "news_runner.last_run"
   | "news_runner.last_seen_at"
   | "seen.news.last_seen_at"

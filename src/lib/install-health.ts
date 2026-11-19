@@ -150,6 +150,7 @@ export async function runHealthChecks(): Promise<HealthIssue[]> {
     safe(checkClientsNeverAudited),
     safe(checkLatestAuditFailed),
     safe(checkNightlyJobs),
+    safe(checkSweepFailures),
   ]);
   return sortIssues(results.flat());
 }
@@ -571,6 +572,77 @@ async function checkNightlyJobs(): Promise<HealthIssue[]> {
       fixLabel: "See the full job list",
     },
   ];
+}
+
+/**
+ * Unattended checks that failed, grouped by the client they failed on.
+ *
+ * The scheduler says "27 of 38 checks ran — 11 could not", and that
+ * count cannot be acted on. Measured by running the real sweep on this
+ * install, those 11 were TWO causes:
+ *
+ *   9×  one client whose site no longer resolves — ai-robots, freshness,
+ *       mobile-friendly, schema-validate, headers, hreflang, llms-txt,
+ *       wp-hack-scan and health-check all failing with variations of
+ *       "couldn't fetch"
+ *   2×  the Search Console 403 already reported elsewhere
+ *
+ * So this groups by client and leads with the count. One unreachable
+ * site is one thing to fix; nine tool failures read as nine problems
+ * with the tools.
+ */
+async function checkSweepFailures(): Promise<HealthIssue[]> {
+  const { readSweepFailures } = await import("./sweep-failures");
+  const record = await readSweepFailures();
+  // No record means the sweep has not run since this started being kept.
+  // Not an all-clear.
+  if (!record || record.failures.length === 0) return [];
+
+  const byClient = new Map<number, { name: string; tools: string[]; errors: string[] }>();
+  for (const f of record.failures) {
+    const entry = byClient.get(f.clientId) ?? {
+      name: f.clientName,
+      tools: [],
+      errors: [],
+    };
+    entry.tools.push(f.toolId);
+    if (f.error) entry.errors.push(f.error);
+    byClient.set(f.clientId, entry);
+  }
+
+  const out: HealthIssue[] = [];
+  for (const [clientId, g] of byClient) {
+    // One or two failures on a client is noise — a transient timeout, a
+    // single API hiccup. Three or more of a client's checks failing
+    // together is the site, and that is worth a line of its own.
+    const looksUnreachable =
+      g.tools.length >= 3 &&
+      g.errors.filter((e) => /fetch|reach|timeout|ENOTFOUND|ECONNREFUSED/i.test(e))
+        .length >= 3;
+
+    out.push({
+      id: `sweep_failing_${clientId}`,
+      severity: "stalled",
+      clientId,
+      clientName: g.name,
+      title: looksUnreachable
+        ? `${g.name}: the site is unreachable, so ${g.tools.length} nightly checks fail on it`
+        : `${g.name}: ${g.tools.length} nightly check${g.tools.length === 1 ? "" : "s"} failing`,
+      evidence:
+        (looksUnreachable
+          ? `Every check that has to load a page failed. Either the site is ` +
+            `down, the address stored for this client is wrong, or it was a ` +
+            `staging site that no longer exists. `
+          : "") +
+        `Affected: ${[...new Set(g.tools)].join(", ")}. ` +
+        `Reported: ${g.errors[0]?.slice(0, 120) ?? "no reason recorded"}`,
+      fixHref: `/clients/${clientId}`,
+      fixLabel: looksUnreachable ? "Check the site address" : "Open the client",
+    });
+  }
+
+  // Worst first, which here means most checks affected.
+  return out.sort((a, b) => b.title.localeCompare(a.title));
 }
 
 /**

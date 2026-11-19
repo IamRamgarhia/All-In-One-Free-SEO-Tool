@@ -379,10 +379,19 @@ export async function tickToolSweep(
   cadence: "daily" | "weekly" = "daily",
 ): Promise<SweepOutcome[]> {
   const rows = await db
-    .select({ id: clients.id, url: clients.url, gscProperty: clients.gscProperty })
+    .select({
+      id: clients.id,
+      // The name is for the failure record only: "9 checks fail on Dice
+      // Codes (staging)" is actionable where nine rows of client id 38
+      // are not.
+      name: clients.name,
+      url: clients.url,
+      gscProperty: clients.gscProperty,
+    })
     .from(clients);
 
   const out: SweepOutcome[] = [];
+  const names = new Map(rows.map((c) => [c.id, c.name ?? String(c.id)]));
   for (const c of rows) {
     if (!c.url) continue;
     for (const check of checks()) {
@@ -403,8 +412,58 @@ export async function tickToolSweep(
       }
     }
   }
+  await recordSweepFailures(out, names).catch(() => {
+    // Bookkeeping must never fail the sweep that just ran.
+  });
   return out;
 }
+
+/**
+ * Keep which checks failed, and why.
+ *
+ * The scheduler reported "27 of 38 checks ran — 11 could not" and that
+ * count was the only trace of any of it. `tool_runs` has no status
+ * column, so a FAILED check writes no row at all — the toolId and the
+ * error were captured here and then discarded by the summary.
+ *
+ * Measured on this install, running the real sweep: the 11 failures were
+ * two causes, not eleven. NINE were one client whose site no longer
+ * resolves, and two were the Search Console 403 already reported
+ * elsewhere. A user reading "11 could not" has no way to learn that;
+ * a user reading "9 checks fail on X, the site is unreachable" has one
+ * thing to fix.
+ */
+async function recordSweepFailures(
+  out: SweepOutcome[],
+  names: Map<number, string>,
+): Promise<void> {
+  const failures = out
+    .filter((o) => !o.ok)
+    .map((o) => ({
+      clientId: o.clientId,
+      clientName: names.get(o.clientId) ?? String(o.clientId),
+      toolId: o.toolId,
+      // Trimmed: a GSC 403 arrives as a multi-line JSON body, and the
+      // whole thing in a settings row helps nobody.
+      error: (o.error ?? "").replace(/\s+/g, " ").slice(0, 200),
+    }));
+  const { setSetting } = await import("./settings-store");
+  // Written even when empty, so a fixed site does not keep reporting
+  // yesterday's failures.
+  await setSetting("tool_sweep.last_failures", {
+    at: new Date().toISOString(),
+    total: out.length,
+    failures,
+  });
+}
+
+// The record's type and its reader live in sweep-failures.ts, which
+// imports only the settings store. A surface that merely REPORTS what
+// failed was otherwise pulling this whole module — every check,
+// including the ones that call a model — into its graph, and
+// /settings/health duly flipped to `needsAI: required`. Third time this
+// split has been needed today; see that file.
+export { readSweepFailures, type SweepFailureRecord } from "./sweep-failures";
 
 /**
  * The ids this file actually runs.

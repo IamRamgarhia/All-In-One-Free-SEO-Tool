@@ -78,7 +78,13 @@ jobs:
             name: macOS arm64
           - os: macos-13
             name: macOS x86_64
-          - os: ubuntu-latest
+          # 24.04, not latest. GitHub moved ubuntu-latest to 26.04,
+          # which Playwright 1.59.1 refuses outright — and more
+          # importantly for a PAYLOAD, native modules compiled against
+          # 26.04's glibc may not load on an older distro. 24.04 is
+          # "noble", the same base as this project's Docker image, so a
+          # payload built here runs in more places.
+          - os: ubuntu-24.04
             name: Linux x86_64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
