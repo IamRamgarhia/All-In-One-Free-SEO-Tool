@@ -33,7 +33,7 @@
 import { getSetting, setSetting } from "./settings-store";
 // Static, unlike the runners themselves: it is a pure string function
 // with no database or tool imports behind it.
-import { summariseSweep } from "./sweep-summary";
+import { summariseSweep, sweepDegraded } from "./sweep-summary";
 import { summariseGbp } from "./gbp-summary";
 
 type Runner = {
@@ -57,6 +57,21 @@ type Runner = {
    * right answer for most runs of most runners.
    */
   summarise?: (result: unknown) => string | null;
+  /**
+   * Did this run only partly work?
+   *
+   * A runner that does not throw is recorded as a success, and the
+   * Automations view paints the row with a green tick on that basis. For
+   * a runner that performs ONE job that is correct. For one that
+   * performs 38, it is not: `tool_sweep` reported "27 of 38 checks ran —
+   * 11 could not" underneath a green tick, on the same row, which is a
+   * contradiction a reader has to resolve by noticing the sentence.
+   *
+   * Computed here, where the result is still in hand, rather than by
+   * parsing the note string afterwards — a regex over human copy is a
+   * second source of truth about whether something worked.
+   */
+  degraded?: (result: unknown) => boolean;
   /**
    * How long a started-but-unfinished run counts as still running before
    * it may be retried. Defaults to STALE_RUN_MS; the crawling and
@@ -104,6 +119,10 @@ function runners(): Runner[] {
           `${rep.steps.length - failed.length} of ${rep.steps.length} ok, ` +
           `${failed.length} failed: ${failed.map((s) => s.name).join(", ")}`
         );
+      },
+      degraded: (r) => {
+        const rep = r as { steps?: { ok: boolean }[] } | null;
+        return Boolean(rep?.steps?.some((s) => !s.ok));
       },
     },
     {
@@ -230,6 +249,7 @@ function runners(): Runner[] {
       // every night having reached nothing, and said so nowhere. The
       // wording lives with the sweep so it can be tested.
       summarise: (result) => summariseSweep(result),
+      degraded: (result) => sweepDegraded(result),
     },
     {
       // Business Profile. Twice a day, because the thing it looks for is
@@ -328,6 +348,7 @@ const startedKey = (id: string) => `scheduler.${id}.started_at` as const;
 const finishedKey = (id: string) => `scheduler.${id}.finished_at` as const;
 const errorKey = (id: string) => `scheduler.${id}.last_error` as const;
 const noteKey = (id: string) => `scheduler.${id}.last_note` as const;
+const degradedKey = (id: string) => `scheduler.${id}.degraded` as const;
 const failuresKey = (id: string) => `scheduler.${id}.failures` as const;
 
 /**
@@ -387,6 +408,12 @@ async function runOne(r: Runner, now: number): Promise<void> {
     await setSetting(
       noteKey(r.id),
       r.summarise?.(result) ?? null,
+    ).catch(() => undefined);
+    // Same reasoning: a stale "partly failed" flag would be worse than
+    // none, so it is written on every success whatever the answer.
+    await setSetting(
+      degradedKey(r.id),
+      r.degraded?.(result) ?? false,
     ).catch(() => undefined);
   } catch (err) {
     // Record and move on. One failing runner must not stop the others,
@@ -465,6 +492,14 @@ export type SchedulerStatus = {
   lastError: string | null;
   /** What the last successful run did, when that is worth saying. */
   lastNote: string | null;
+  /**
+   * The run completed but did not do all of its work.
+   *
+   * Distinct from `lastError`, which means the runner threw. A sweep
+   * where 11 of 38 checks failed throws nothing and must not read as
+   * healthy.
+   */
+  degraded: boolean;
   running: boolean;
   dueInMs: number | null;
 };
@@ -474,11 +509,12 @@ export async function schedulerStatus(): Promise<SchedulerStatus[]> {
   const now = Date.now();
   return Promise.all(
     runners().map(async (r) => {
-      const [startedAt, finishedAt, lastError, lastNote] = await Promise.all([
+      const [startedAt, finishedAt, lastError, lastNote, degraded] = await Promise.all([
         getSetting<number>(startedKey(r.id)).catch(() => null),
         getSetting<number>(finishedKey(r.id)).catch(() => null),
         getSetting<string>(errorKey(r.id)).catch(() => null),
         getSetting<string>(noteKey(r.id)).catch(() => null),
+        getSetting<boolean>(degradedKey(r.id)).catch(() => null),
       ]);
       const running =
         typeof startedAt === "number" &&
@@ -492,6 +528,7 @@ export async function schedulerStatus(): Promise<SchedulerStatus[]> {
         lastStartedAt: typeof startedAt === "number" ? startedAt : null,
         lastError: typeof lastError === "string" ? lastError : null,
         lastNote: typeof lastNote === "string" ? lastNote : null,
+        degraded: degraded === true,
         running,
         dueInMs:
           typeof finishedAt === "number"

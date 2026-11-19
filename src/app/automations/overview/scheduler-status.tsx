@@ -1,4 +1,10 @@
-import { CheckCircle2, CircleDashed, Loader2, TriangleAlert } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  CircleDashed,
+  Loader2,
+  TriangleAlert,
+} from "lucide-react";
 import { schedulerStatus } from "@/lib/scheduler";
 
 function ago(ts: number | null): string {
@@ -61,6 +67,19 @@ export async function SchedulerStatusPanel() {
                 <TriangleAlert className="size-4 shrink-0 text-rose-300" />
               ) : r.running ? (
                 <Loader2 className="size-4 shrink-0 animate-spin text-cyan-300" />
+              ) : r.degraded ? (
+                // Finished, did not do all of its work.
+                //
+                // The comment below already named this problem — the note
+                // was added because "a green tick against 'finished 4h
+                // ago' is what let the sweep report success for months
+                // while reaching nothing" — and then left the tick green
+                // anyway. Measured on this install: a green CheckCircle2
+                // sat beside "27 of 38 checks ran — 11 could not", on the
+                // same row. Scanning a list of fifteen green ticks, the
+                // reader has to read every subtitle to find the one that
+                // contradicts its own icon.
+                <CircleAlert className="size-4 shrink-0 text-amber-300" />
               ) : r.lastFinishedAt ? (
                 <CheckCircle2 className="size-4 shrink-0 text-emerald-300" />
               ) : (
@@ -77,8 +96,13 @@ export async function SchedulerStatusPanel() {
                     // What the run did, not just that it happened. A
                     // green tick against "finished 4h ago" is what let
                     // the sweep report success for months while reaching
-                    // nothing.
-                    <span className="block truncate text-[11px] text-muted-foreground">
+                    // nothing. The tone follows the icon, so a partly
+                    // failed run does not read as routine.
+                    <span
+                      className={`block truncate text-[11px] ${
+                        r.degraded ? "text-amber-300/90" : "text-muted-foreground"
+                      }`}
+                    >
                       {r.lastNote}
                     </span>
                   )
