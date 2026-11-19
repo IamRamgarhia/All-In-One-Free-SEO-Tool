@@ -123,6 +123,15 @@ const NO_COMPLETION_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * How recent a rank reading has to be to count as current.
+ *
+ * The sweep aims to re-check every keyword at least weekly, so 14 days
+ * is two full rotations — long enough that a keyword mid-rotation is not
+ * reported as missing, short enough that a persistently blocked one is.
+ */
+const RANK_WINDOW_DAYS = 14;
+
+/**
  * Run every check. Hits the network for each client with WordPress
  * configured, so call this from the scheduler, not from a page.
  *
@@ -355,24 +364,60 @@ async function checkRankData(): Promise<HealthIssue[]> {
   const tracked = Number(kw?.n ?? 0);
   if (tracked === 0) return [];
 
-  const since = new Date(Date.now() - 14 * DAY_MS);
-  const [recent] = await db
-    .select({ n: count() })
+  const since = new Date(Date.now() - RANK_WINDOW_DAYS * DAY_MS);
+
+  // COVERAGE, not existence.
+  //
+  // The first version counted rows and returned early if ANY row existed
+  // in the window. Measured on this install: 24 keywords tracked, 16 with
+  // a reading in the last 14 days, and EIGHT that have never been checked
+  // at all — and this check said nothing, because one successful reading
+  // suppressed it. A single keyword succeeding would have hidden
+  // twenty-three failing ones.
+  //
+  // That is the same silent-wrong-answer shape this module exists to
+  // catch, in the module itself. Counting distinct keywords is the
+  // measure a user cares about: how much of my list actually has current
+  // data.
+  const covered = await db
+    .selectDistinct({ keywordId: keywordRankings.keywordId })
     .from(keywordRankings)
     .where(gte(keywordRankings.checkedAt, since));
+  const current = covered.length;
 
-  if (Number(recent?.n ?? 0) > 0) return [];
+  const everChecked = await db
+    .selectDistinct({ keywordId: keywordRankings.keywordId })
+    .from(keywordRankings);
+  const neverChecked = tracked - everChecked.length;
+
+  const pct = Math.round((current / tracked) * 100);
+  // 80% allows for a keyword or two legitimately mid-rotation. Below
+  // that, the rank graphs are mostly empty and nothing else says so.
+  if (pct >= 80 && neverChecked === 0) return [];
+
+  const sourceHelp =
+    "Search Console is the best source and is free for sites you own. " +
+    "Failing that, rank checks need a self-hosted SearXNG (one command: " +
+    "docker compose --profile searxng up -d) or a Brave key — Google and " +
+    "Bing block direct automated requests, so the headless browser " +
+    "fallback returns a CAPTCHA rather than results.";
 
   return [
     {
-      id: "no_rank_data",
+      id: "rank_coverage_low",
       severity: "stalled",
-      title: `${tracked} keyword${tracked === 1 ? "" : "s"} tracked, no positions recorded in 14 days`,
+      title:
+        current === 0
+          ? `${tracked} keyword${tracked === 1 ? "" : "s"} tracked, no positions recorded in ${RANK_WINDOW_DAYS} days`
+          : `Only ${current} of ${tracked} tracked keywords have a recent position`,
       evidence:
-        "Search Console is the best source and is free for sites you own. " +
-        "Failing that, rank checks need a self-hosted SearXNG or a Brave " +
-        "key — Google and Bing block direct automated requests, so the " +
-        "headless browser fallback returns a CAPTCHA rather than results.",
+        (current === 0
+          ? ""
+          : `${pct}% of your list has a reading from the last ${RANK_WINDOW_DAYS} days` +
+            (neverChecked > 0
+              ? `, and ${neverChecked} ${neverChecked === 1 ? "keyword has" : "keywords have"} never been checked at all`
+              : "") +
+            ". The rest show an empty graph rather than an error. ") + sourceHelp,
       fixHref: "/settings",
       fixLabel: "Set up a rank source",
     },

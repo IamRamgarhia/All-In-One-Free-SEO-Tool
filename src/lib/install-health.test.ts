@@ -180,6 +180,53 @@ describe("the report reaches somewhere people look", () => {
   });
 });
 
+describe("partial failure must not read as success", () => {
+  const SRC = readFileSync(
+    join(process.cwd(), "src/lib/install-health.ts"),
+    "utf8",
+  );
+
+  it("the rank check measures COVERAGE, not whether any row exists", () => {
+    /*
+     * The bug this guards, in this module's own code.
+     *
+     * The first version counted rows in the window and returned early if
+     * ANY existed. Measured on the maintainer's install: 24 keywords
+     * tracked, 16 with a recent reading, and EIGHT never checked at all —
+     * and the check said nothing, because one success suppressed it. A
+     * single working keyword would have hidden twenty-three broken ones.
+     *
+     * Exactly the silent-wrong-answer shape this module was built to
+     * catch, inside the catcher.
+     */
+    const fn = SRC.slice(
+      SRC.indexOf("async function checkRankData"),
+      SRC.indexOf("async function checkClientsNeverAudited"),
+    );
+    expect(fn).toContain("selectDistinct");
+    // The early return must depend on a percentage and on the
+    // never-checked count, not on a row existing.
+    expect(fn).toMatch(/pct >= \d+ && neverChecked === 0/);
+    expect(fn).not.toMatch(/Number\(recent\?\.n \?\? 0\) > 0\) return \[\]/);
+  });
+
+  it("it names how many of how many, so the number can be checked", () => {
+    const fn = SRC.slice(
+      SRC.indexOf("async function checkRankData"),
+      SRC.indexOf("async function checkClientsNeverAudited"),
+    );
+    expect(fn).toContain("of ${tracked} tracked keywords");
+    expect(fn).toContain("never been checked");
+  });
+
+  it("and offers the one-command fix rather than just naming the problem", () => {
+    // "Set up a rank source" is useless without saying how. SearXNG is
+    // the answer for anyone without Search Console, and it is one
+    // compose command.
+    expect(SRC).toContain("docker compose --profile searxng up -d");
+  });
+});
+
 describe("evidence is specific enough to act on", () => {
   it("every check in the module builds an evidence string", () => {
     // The difference between this banner and the warning everybody

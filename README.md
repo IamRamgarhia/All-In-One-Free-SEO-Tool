@@ -295,7 +295,8 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Crawl history with diff between two audits
 
 ### 📊 Rank tracking & SERP analysis
-✅ Rank tracking — unlimited keywords; every keyword is re-checked at least weekly, in a rotating daily share (default 30 checks/day, adjustable) so a large list doesn't trip search-engine blocks  
+✅ Rank tracking — unlimited keywords, taken in a rotating daily share (default 30 checks/day, adjustable) so a large list doesn't trip search-engine blocks. The rotation aims for a reading per keyword per week; **whether it gets one depends on having a working source**, and the app tells you when it doesn't — measured on a real install, 16 of 24 keywords had a current position and the other 8 had never been read at all, which now shows up as a problem on the dashboard instead of an empty graph  
+✅ **Four rank sources, tried in order and never mixed** — Search Console (free, official, best for sites you own) → self-hosted SearXNG (`docker compose --profile searxng up -d`) → Brave API (BYO key) → headless browser. The browser is last because it mostly doesn't work: measured, Google serves a JS interstitial, DuckDuckGo a CAPTCHA, Bing and Startpage empty shells. A position from one source is never subtracted from a position on another  
 ✅ Mobile vs desktop tracked separately  
 ✅ City-level tracking (not just country) with map view  
 ✅ Competitor rank tracking on the same dashboard  
