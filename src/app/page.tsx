@@ -32,6 +32,7 @@ import { MorningBriefing } from "./morning-briefing";
 import { AgencyWeekInReview } from "./agency-week";
 import { OnboardingChecklistPanel } from "./onboarding-checklist-panel";
 import { AutonomyPrompt } from "./autonomy-prompt";
+import { InstallHealthBanner } from "./install-health-banner";
 import { SupportNudgeSlot } from "./support-nudge-slot";
 import { startScheduler, tickScheduler } from "@/lib/scheduler";
 import { redirect } from "next/navigation";
@@ -325,6 +326,15 @@ export default async function DashboardPage() {
           />
         </div>
       )}
+
+      {/* Above the autonomy prompt, because asking someone to let the
+          agent write to their site is the wrong question while the
+          connection to that site is broken — which it was here, for 68
+          days, with the app noticing every six hours and telling nobody.
+          Renders nothing when there is nothing wrong. */}
+      <Suspense fallback={null}>
+        <InstallHealthBanner />
+      </Suspense>
 
       {/* Asked once, above everything, because it decides whether the
           rest of the agent's work reaches the site at all. Renders

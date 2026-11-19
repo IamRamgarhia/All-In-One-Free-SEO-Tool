@@ -27,6 +27,7 @@ import {
 } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { getSetting } from "@/lib/settings-store";
+import { InstallHealthSection } from "./install-health-section";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
 import { listGscProperties } from "@/lib/google-oauth";
 import {
@@ -151,6 +152,13 @@ export default async function HealthPage() {
         icon={Activity}
         accent="emerald"
       />
+
+      {/* Above the metric cards, because "the plugin on your live site
+          has not answered for 68 days" matters more than the database
+          size, and this page used to lead with the database size. The
+          same stored result the dashboard banner reads, so the two
+          cannot disagree about whether the install is healthy. */}
+      <InstallHealthSection />
 
       <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         <Card

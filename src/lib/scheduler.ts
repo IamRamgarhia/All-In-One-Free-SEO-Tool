@@ -278,6 +278,35 @@ function runners(): Runner[] {
       everyMs: 24 * HOUR,
       run: async () => (await import("./retention-cleanup")).tickRetentionCleanup(),
     },
+    {
+      // Is this install actually working? Pings each client's WordPress
+      // bridge, checks the Search Console properties the account can
+      // really read, and looks for work that goes in and never comes
+      // out.
+      //
+      // Stored rather than computed on render, because it makes a
+      // network call per client and the dashboard reads it. Every 6h,
+      // matching the autonomous agent: there is no point learning that
+      // the site is unwritable long after the agent has queued another
+      // round of fixes for it.
+      //
+      // This runner is the answer to the measurement that prompted it —
+      // five real problems on the maintainer's own install, every one
+      // known to the app, none of them ever surfaced where anybody
+      // looks. See lib/install-health.ts.
+      id: "install_health",
+      label: "Install health",
+      everyMs: 6 * HOUR,
+      run: async () => (await import("./install-health")).refreshStoredHealth(),
+      summarise: (r) => {
+        const h = r as { issues?: { severity: string }[] } | null;
+        if (!h?.issues) return null;
+        const broken = h.issues.filter((i) => i.severity === "broken").length;
+        const stalled = h.issues.filter((i) => i.severity === "stalled").length;
+        if (broken === 0 && stalled === 0) return "nothing wrong";
+        return `${broken} broken, ${stalled} stalled`;
+      },
+    },
   ];
 }
 

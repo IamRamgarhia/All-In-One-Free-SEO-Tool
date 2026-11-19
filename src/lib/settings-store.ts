@@ -160,6 +160,16 @@ export type SettingKey =
    * endpoint can read every client, run the agent and apply fixes to live
    * websites, so it is closed until a token exists.
    */
+  /**
+   * The last install-health result: `{ at, issues }`.
+   *
+   * Stored rather than computed per render because the checks ping each
+   * client's WordPress site, and a dashboard that waits on the network
+   * is a dashboard people stop opening. The timestamp travels with the
+   * result so a surface can say how old its evidence is instead of
+   * implying it is live. See lib/install-health.ts.
+   */
+  | "install_health.last"
   | "mcp.access_token"
   /**
    * A second bearer token for the same endpoint, allowed to call only the
