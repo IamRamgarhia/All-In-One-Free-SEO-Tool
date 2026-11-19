@@ -115,7 +115,7 @@ Open <http://localhost:3000> and sign in with that password.
 
 Prefer a file to a command, or want to pin a version?
 
-**[⬇️ Download the latest release](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases/latest)** — about 3 MB
+**[⬇️ Download the latest release](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases/latest)** — about 4 MB, **source only**: it needs Node and a package manager to build, and that is what the one-command installers above do for you
  · [every release](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases)
 
 Unzip it and **double-click one file** — `SEO Tool - WINDOWS.hta`,
@@ -291,7 +291,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ Server-log analyzer (Nginx + Apache) — see what Googlebot, GPTBot, ClaudeBot actually crawl  
 ✅ Issue severity classification (critical / high / medium / low) with Google-doc citations  
 ✅ "Ignore" / "mark resolved" / "false positive" workflow  
-✅ Re-crawl single URL or section (no full re-crawl needed)  
+✅ **"I fixed this — check it"** on every finding — re-fetches that one page and marks it resolved **only if the problem is genuinely gone from the live HTML**. Needs no plugin, no API key and no Google account, which makes it the one route to a *verified* fix that every user can reach. If the page still shows the problem it says so and names a page cache as the usual cause, rather than taking your word: "mark resolved" sitting next to it does take your word, and the difference is the point  
 ✅ Crawl history with diff between two audits
 
 ### 📊 Rank tracking & SERP analysis
@@ -424,6 +424,10 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ **Four autonomy levels**, defaulting to the cautious one: off · suggest only · fix the obvious things · full autopilot. "Suggest only" never touches a live site  
 ✅ **Every change is reversible** — the previous value is read from the CMS before writing, and one click puts it back. If the previous value can't be read, the change doesn't happen  
 ✅ **"Applied" and "verified" are different states** — a CMS accepting a change isn't the same as it taking effect, and the UI shows which  
+✅ **It closes the loop** — after applying a fix it re-fetches the live page and resolves the audit finding **only if the problem is actually gone**, then finishes the task that finding created. A page cache serving the old title is reported as "applied but not live yet", not as a success  
+✅ **It tells you whether the work helped** — each confirmed change is compared against that page's Search Console numbers for the 28 days before and after. It refuses to show a figure before 28 full days exist, refuses to read a percentage off a page with under 100 impressions, reports losses as prominently as gains, and says "measured, not attributed" every time, because Google and your competitors moved in those 28 days too  
+✅ **Work is ranked by the traffic the page actually gets**, not by finding type — severity weighted by Search Console impressions, so a missing description on your busiest page outranks the same problem on a page nobody visits. With no Search Console connected it says it is ordering by severity instead of pretending otherwise. Findings that *suppress* their own traffic (noindex, blocked by robots) are never demoted for having none  
+✅ **"Try it on 3"** — instead of asking you to grant a tool permanent authority over a client's live site on day one, it offers to apply three safe changes now and show you each one with its previous value. No setting changes either way  
 ✅ **It can fix 30 of the crawler’s 72 finding types on its own** — page titles · meta descriptions · image alt text (one action per image, not per page) · canonical tags · robots directives · Open Graph and Twitter tags · schema markup · redirects · site hardening · your robots.txt AI-crawler policy · **internal links to orphan pages**. A test holds 30 as a floor, so coverage can't quietly regress  
 ✅ **Any site behind Cloudflare**, not just WordPress — and a page the agent can't edit is reported as a skip, not a failure  
 ✅ **Orphan-page linking** — finds pages nothing on your site links to, picks the most relevant existing page, and links it using a phrase already in that article. No model invents the anchor text, so it can't write words you didn't. Body edits need review unless you turn autonomy all the way up  
