@@ -3,7 +3,7 @@
  * Plugin Name: SEO Tool Bridge
  * Plugin URI: https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool
  * Description: Connects this WordPress site to the self-hosted SEO Tool by DiceCodes. Lets the tool read + write meta titles, descriptions, alt text, schema, internal links, and create posts — with full revision history and one-click undo. Compatible with Yoast / Rank Math / All in One SEO.
- * Version: 0.6.1
+ * Version: 0.6.2
  * Requires at least: 6.0
  * Tested up to: 6.7
  * Requires PHP: 8.0
@@ -266,8 +266,32 @@ function stb_render_admin_page(): void
             <tr>
                 <th scope="row"><label>Connection key</label></th>
                 <td>
-                    <input type="text" readonly value="<?php echo esc_attr($key); ?>" class="regular-text" onclick="this.select()" />
-                    <p class="description">Treat this like a password. Anyone with the key can edit your site's SEO settings.</p>
+                    <?php
+                    // Wide enough to show all 48 characters.
+                    //
+                    // This was class="regular-text" (~25em), which showed
+                    // 43 of the 48 wp_generate_password() produces. The
+                    // field scrolled, so the last five characters were
+                    // simply not on screen — and someone reading the key
+                    // off the page, or off a screenshot of it, copied a
+                    // truncated key and got "WordPress rejected the
+                    // connection key" with nothing to suggest the cause.
+                    // That happened, on the maintainer's own install.
+                    //
+                    // onclick="this.select()" always selected the whole
+                    // value, including the invisible part. That is no help
+                    // to anyone who does not know the value is longer than
+                    // the box.
+                    ?>
+                    <input type="text" readonly id="stb-key" value="<?php echo esc_attr($key); ?>" style="width:100%;max-width:46em;font-family:monospace" onclick="this.select()" />
+                    <button type="button" class="button button-secondary" style="margin-top:6px"
+                            onclick="var f=document.getElementById('stb-key');f.select();document.execCommand('copy');this.textContent='Copied';">
+                        Copy key
+                    </button>
+                    <p class="description">
+                        <?php echo esc_html(sprintf('%d characters — click the field or the button to copy all of it.', strlen($key))); ?>
+                        Treat this like a password. Anyone with the key can edit your site's SEO settings.
+                    </p>
                 </td>
             </tr>
         </table>
@@ -2047,6 +2071,49 @@ function stb_rest_find_by_url(WP_REST_Request $req): WP_REST_Response
     $url = (string)$req->get_param('url');
     if (!$url) {
         return new WP_REST_Response(['error' => 'url required'], 400);
+    }
+
+    // THE FRONT PAGE, before anything else.
+    //
+    // url_to_postid() returns 0 for the site's front page when the site
+    // uses a static page for it — which is how most business sites are
+    // set up. Neither fallback below rescues it: the home-relative path
+    // is the empty string, and the slug fallback does
+    // array_filter(explode('/', trim('/', '/'))), which is an empty
+    // array, so end() returns false and no lookup happens.
+    //
+    // The effect was that the HOMEPAGE could never be resolved. Title,
+    // meta description and og: tags on the single most important page
+    // on the site were unreachable through this bridge, and the API
+    // said only "Post not found" — which reads like a bad URL rather
+    // than a category of page it cannot see.
+    //
+    // Found by running the real round-trip against a real site, which
+    // is the only way it could have been found: every stand-in used a
+    // normal post.
+    $home_parts = parse_url(home_url('/'));
+    $req_parts  = parse_url($url);
+    $home_path  = rtrim((string)($home_parts['path'] ?? ''), '/');
+    $req_path   = rtrim((string)($req_parts['path'] ?? ''), '/');
+    $same_host  = empty($req_parts['host'])
+        || strcasecmp((string)$req_parts['host'], (string)($home_parts['host'] ?? '')) === 0
+        || strcasecmp('www.' . (string)$req_parts['host'], (string)($home_parts['host'] ?? '')) === 0
+        || strcasecmp((string)$req_parts['host'], 'www.' . (string)($home_parts['host'] ?? '')) === 0;
+
+    if ($same_host && $req_path === $home_path && empty($req_parts['query'])) {
+        if (get_option('show_on_front') === 'page') {
+            $front = (int)get_option('page_on_front');
+            if ($front > 0) {
+                return new WP_REST_Response(['id' => $front]);
+            }
+        }
+        // show_on_front = "posts": the front page IS the blog index. It
+        // is generated, not a post, so there is genuinely nothing to
+        // edit — and saying so beats "Post not found", which sends
+        // someone looking for a page that was never going to exist.
+        return new WP_REST_Response([
+            'error' => 'This site shows the blog index on its front page, so the home page has no post or page to edit. Set a static front page in Settings → Reading, or target a specific URL.',
+        ], 404);
     }
 
     // Core resolver — handles permalinks, dates, taxonomies.

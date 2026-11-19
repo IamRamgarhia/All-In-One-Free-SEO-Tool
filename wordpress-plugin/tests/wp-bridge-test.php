@@ -677,6 +677,68 @@ if ($nf === 404) {
 }
 
 // =====================================================================
+section('The front page — the one url_to_postid() cannot resolve');
+// =====================================================================
+//
+// WordPress's url_to_postid() returns 0 for the site's front page when
+// a static page is set for it, which is how most business sites are
+// configured. Neither of the handler's fallbacks rescued it: the
+// home-relative path is the empty string, and the slug fallback does
+// array_filter(explode('/', trim('/', '/'))) — an empty array, so
+// end() is false and no lookup runs.
+//
+// The HOMEPAGE was therefore unreachable. Title, meta description and
+// og: tags on the most important page on the site could not be edited
+// through this bridge, and the API said "Post not found", which reads
+// like a bad URL rather than a whole category of page it cannot see.
+//
+// Found by running the real round-trip against a real site. Every
+// stand-in here used an ordinary post, which is exactly why it
+// survived.
+
+$GLOBALS['wp_options']['show_on_front'] = 'page';
+$GLOBALS['wp_options']['page_on_front'] = 777;
+
+foreach (
+    [
+        'https://example.test/' => 'with a trailing slash',
+        'https://example.test'  => 'without one',
+        'https://www.example.test/' => 'with a www the site does not use',
+    ] as $u => $shape
+) {
+    [$home, $status] = call('stb_rest_find_by_url', req(['url' => $u]));
+    if ($status !== 404 && (int)($home['id'] ?? 0) === 777) {
+        ok("the front page resolves $shape", (string)$u);
+    } else {
+        bad("front page not resolved $shape", json_encode($home));
+    }
+}
+
+// A real post must still resolve with the front-page branch in place —
+// the branch runs FIRST, so a bug in its path matching would swallow
+// every other URL on the site.
+[$still] = call('stb_rest_find_by_url', req(['url' => 'https://example.test/hello-world']));
+if ((int)($still['id'] ?? 0) === 101) {
+    ok('an ordinary post still resolves', 'the front-page branch did not swallow it');
+} else {
+    bad('the front-page branch broke normal lookups', json_encode($still));
+}
+
+// show_on_front = posts: the front page IS the generated blog index,
+// so there is genuinely nothing to edit. Saying that beats "Post not
+// found", which sends someone hunting for a page that never existed.
+$GLOBALS['wp_options']['show_on_front'] = 'posts';
+[$blog, $blogStatus] = call('stb_rest_find_by_url', req(['url' => 'https://example.test/']));
+if ($blogStatus === 404 && str_contains((string)($blog['error'] ?? ''), 'blog index')) {
+    ok('a blog-index front page says so', (string)$blog['error']);
+} else {
+    bad('blog-index front page gave an unhelpful answer', json_encode($blog));
+}
+
+// Restore, so later additions to this file are not affected.
+$GLOBALS['wp_options']['show_on_front'] = 'page';
+
+// =====================================================================
 echo "\n" . str_repeat('=', 72) . "\n";
 echo "$pass passed, $fail failed\n";
 echo "\nRuns the plugin's real handlers against stubbed WordPress functions.\n";
