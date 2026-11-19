@@ -323,6 +323,54 @@ jobs:
             exit 1
           fi
           echo "native loader: $found"
+
+      - name: Ask the host whether it can actually open a window
+        shell: bash
+        run: |
+          # RUN it, do not just look at it.
+          #
+          # The check above this one is still an existence check, and an
+          # existence check is what missed the bug: "SEO Tool.exe" was
+          # present and perfect and could not open a window, because the
+          # installer had left its native loader behind. The only thing
+          # that caught it was a person double-clicking it and being told
+          # their own computer was at fault.
+          #
+          # scripts/build-payload.mjs has always done this properly — it
+          # does not check better-sqlite3 is present, it opens a database
+          # and reads a row back. This is that, for the host.
+          #
+          #   0  fine
+          #   2  OUR files are incomplete — fail the build
+          #   3  this RUNNER has no WebView2 runtime — not our bug
+          set +e
+          "dist/installer-host/SEO Tool.exe" --self-test
+          code=$?
+          set -e
+          reason=$(cat "dist/installer-host/selftest.log" 2>/dev/null || echo "(no log written)")
+
+          case "$code" in
+            0) echo "::notice::host self-test passed — it can open a window" ;;
+            2)
+              echo "::error::The published host cannot open a window because its OWN files are incomplete:"
+              echo "::error::  ${reason}"
+              exit 1
+              ;;
+            3)
+              # A runner without the Edge runtime is a fact about the
+              # runner. Loud, so it is never mistaken for a pass, but not
+              # a failure — the whole point of the exit codes is that
+              # this case is not our bug.
+              echo "::warning::This runner has no WebView2 runtime, so the host self-test could not run. Not a build failure; the loader check above still passed."
+              ;;
+            *)
+              echo "::error::host self-test exited ${code}: ${reason}"
+              exit 1
+              ;;
+          esac
+
+          # The log must not ship to users — it is a build artefact.
+          rm -f "dist/installer-host/selftest.log"
           ls -l "dist/installer-host/SEO Tool.exe"
 
       # ─── Package ────────────────────────────────────────────────────

@@ -39,11 +39,57 @@ namespace SeoTool
 {
     internal static class Program
     {
+        /// <summary>Exit code when the host's own files are incomplete.</summary>
+        private const int ExitOwnInstallBroken = 2;
+
+        /// <summary>Exit code when WebView2 is genuinely not on the machine.</summary>
+        private const int ExitNoWebView2Runtime = 3;
+
         [STAThread]
         private static void Main(string[] args)
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+
+            // --self-test: answer "can this build open a window?" without
+            // opening one, so CI can ask.
+            //
+            // WHY: the workflow's check was `test -f "SEO Tool.exe"`. The
+            // exe existed perfectly and could not open a window, because
+            // the installer had left WebView2Loader.dll behind. An
+            // existence check cannot catch that, and the only thing that
+            // did was a person double-clicking it on their own machine
+            // and being told their computer was at fault.
+            //
+            // The payload builder already does the equivalent — it does
+            // not check that better-sqlite3 is present, it opens a
+            // database and reads a row back. This is that, for the host.
+            //
+            // The exit codes separate OUR fault from the machine's,
+            // because a CI runner without the WebView2 runtime is not a
+            // broken build and must not fail one.
+            //
+            // A WinExe has no console attached, so the reason goes to a
+            // file the caller can read rather than to a stdout nobody
+            // receives.
+            if (Array.IndexOf(args, "--self-test") >= 0)
+            {
+                var selfTest = WebView2Problem();
+                var where = Path.Combine(AppContext.BaseDirectory, "selftest.log");
+                try
+                {
+                    File.WriteAllText(where, selfTest ?? "ok");
+                }
+                catch
+                {
+                    // The exit code still carries the answer.
+                }
+                if (selfTest == null) Environment.Exit(0);
+                Environment.Exit(
+                    selfTest.Contains("problem with the installer")
+                        ? ExitOwnInstallBroken
+                        : ExitNoWebView2Runtime);
+            }
 
             // WebView2 missing is the one failure a user cannot debug
             // from a stack trace, and it has a one-click fix. Checked
