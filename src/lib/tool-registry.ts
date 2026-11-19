@@ -1,0 +1,1096 @@
+/**
+ * Every tool in this product, in one place.
+ *
+ * WHY THIS FILE EXISTS, measured on 19 Nov 2026:
+ *
+ * There were four separate lists of the tools — the sidebar
+ * (components/shell/nav-items.ts), this grid, the global search
+ * (app/search/actions.ts), and the generated capability table. Three
+ * were hand-kept, and all three had drifted:
+ *
+ *   - TEN finished tools with proper page headers appeared in no nav
+ *     group and no grid, so they were reachable only by typing the URL:
+ *     /ask ("Ask the tool", a headline feature in CLAUDE.md Part 14),
+ *     /content-gap (a core Part 7 feature), /bot-logs, /image-audit,
+ *     /brand-serp, /knowledge-panel, /author-authority, /landing-perf,
+ *     /links and /annotations. A tenth of the product, built and
+ *     invisible.
+ *   - Global search kept its own 87-entry copy, of which EIGHT pointed
+ *     at retired tools, steering people to superseded pages while the
+ *     replacement sat one list away.
+ *   - seo-knowledge-base.ts linked to /tools/bot-logs, which has never
+ *     existed.
+ *
+ * That is the fourth standing rule coming true three times over: never
+ * a second hardcoded list of something that already exists.
+ *
+ * The array below was previously module-private inside tools-grid.tsx,
+ * which is why scripts/gen-tool-capabilities.ts parsed it out of the
+ * source line by line with a regex — a parser whose own comment admits
+ * it exists because "a description sits on the same line as its key or
+ * on the next one depending on length". Exporting it deletes that
+ * parser.
+ *
+ * The sidebar stays a curated subset, and that is deliberate: a nav
+ * listing 93 tools helps nobody. What must not happen is a tool being in
+ * NO surface, and tool-registry.test.ts is what enforces that.
+ */
+
+import type { LucideIcon } from "lucide-react";
+import {
+  Activity,
+  Bot,
+  CalendarClock,
+  Camera,
+  Code2,
+  Compass,
+  CornerDownRight,
+  Eye,
+  FileText,
+  Flame,
+  Gauge,
+  GitCompareArrows,
+  GitMerge,
+  Globe,
+  ImageIcon,
+  Layers,
+  Link2,
+  LinkIcon,
+  ListChecks,
+  Lock,
+  MapIcon,
+  MessageCircle,
+  Network,
+  Newspaper,
+  RefreshCw,
+  ScanText,
+  Send,
+  ServerCog,
+  Share2,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Stethoscope,
+  TrendingDown,
+  Video,
+  Wand2,
+  Zap,
+} from "lucide-react";
+import { isRetired } from "./tool-categories";
+
+export type ToolEntry = {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  accent: string;
+  /**
+   * Opens in a new tab and is not a route in this app.
+   *
+   * Exactly one entry: content writing moved out to BlogPilot, and a
+   * card pointing at where it went beats a silent deletion. Surfaces
+   * that only deal in internal routes — global search, the capability
+   * generator — must skip these, which is what `internalTools()` is
+   * for.
+   */
+  external?: boolean;
+  /**
+   * Extra search terms that are not in the title or description.
+   *
+   * Global search used to carry its own subtitle and keyword strings per
+   * tool. The titles and descriptions now come from this list; only the
+   * genuinely additional synonyms live here.
+   */
+  keywords?: string;
+};
+
+export const TOOLS: ToolEntry[] = [
+  {
+    href: "/tools/health-check",
+    icon: Stethoscope,
+    title: "Full SEO health check ⭐",
+    description:
+      "One URL → audit + robots + hreflang + security + Core Web Vitals + image audit + redirect chain in parallel. Save snapshots to compare before / after.",
+    accent: "violet",
+    keywords: "health check audit single page seo full",
+  },
+  {
+    href: "/tools/browser-agent",
+    icon: Bot,
+    title: "Browser agent (goal-driven)",
+    description:
+      "Plain-English goal + a starting URL. Headless Chrome reads the page, decides the next step, and narrates each move with a screenshot. Replaces 'I need an API for that site' with browser automation.",
+    accent: "violet",
+    keywords: "browser agent ai automation",
+  },
+  {
+    href: "/tools/trending",
+    icon: Flame,
+    title: "Trending content ideas",
+    description:
+      "Mines Google Trends rising queries, autocomplete a-z expansion, People Also Ask, related searches, Reddit threads. AI synthesises 10-15 publish-ready ideas.",
+    accent: "amber",
+    keywords: "trending topics trends",
+  },
+  {
+    href: "/tools/traffic-drop",
+    icon: TrendingDown,
+    title: "Why did my traffic drop?",
+    description:
+      "Pulls last 28 vs prev 28 days from GSC. Diffs queries + pages, cross-references curated Google algorithm-update timeline, AI ranks the most likely cause.",
+    accent: "rose",
+    keywords: "traffic drop diagnosis loss",
+  },
+  {
+    href: "/tools/serp-volatility",
+    icon: Activity,
+    title: "SERP volatility tracker",
+    description:
+      "Day-over-day position shifts across every tracked keyword. Volatility score spikes during algorithm updates — pause big content moves when stormy.",
+    accent: "amber",
+  },
+  {
+    href: "/tools/cannibalization",
+    icon: GitMerge,
+    title: "Keyword cannibalization",
+    description:
+      "Finds queries where 2+ of your pages compete in the SERP — Google can't pick a winner, both suffer. GSC-powered, severity-ranked, suggests which page to keep.",
+    accent: "rose",
+  },
+  {
+    href: "/tools/ai-schema",
+    icon: Code2,
+    title: "AI schema generator (from URL)",
+    description:
+      "Paste any URL — AI fetches, classifies content type, emits valid JSON-LD grounded in actual on-page content. Won't invent fields that aren't there.",
+    accent: "cyan",
+    keywords: "ai schema json-ld",
+  },
+  {
+    href: "/tools/outreach-personalize",
+    icon: Send,
+    title: "Outreach personalizer",
+    description:
+      "Paste prospect URL + your generic template. AI mines their site for recent posts and topical signals, rewrites your opener with a specific reference. 2% → 15% reply rates.",
+    accent: "rose",
+    keywords: "outreach personalize email link building",
+  },
+  {
+    href: "/tools/cluster",
+    icon: Layers,
+    title: "Topic cluster builder",
+    description:
+      "Head topic → mine PAA + autocomplete + Reddit → AI assembles 1 pillar + 15-20 spokes with slugs, intent, format, and an interlinking map. The 1-day strategy plan, in 60 seconds.",
+    accent: "cyan",
+    keywords: "cluster keyword topic group",
+  },
+  {
+    href: "/tools/programmatic-seo",
+    icon: Layers,
+    title: "Programmatic SEO toolkit",
+    description:
+      "CSV + four templates → 100s-1000s of landing pages with sitemap + interlinking. Ideal for city × service combos and SaaS comparison pages.",
+    accent: "violet",
+    keywords: "programmatic seo template csv",
+  },
+  {
+    href: "/tools/og-image",
+    icon: ImageIcon,
+    title: "OG image generator",
+    description:
+      "1200×630 PNG cover image from a title + brand. 4 templates rendered in headless Chrome. No paid AI image API.",
+    accent: "rose",
+    keywords: "og open graph image generator social",
+  },
+  {
+    href: "/tools/serp-features",
+    icon: Sparkles,
+    title: "SERP feature tracker (AIO + FS + PAA)",
+    description:
+      "Capture SERP snapshots over time — AI Overview citations, featured snippets, PAA questions. Surfaces snippet-takeover opportunities.",
+    accent: "rose",
+    keywords: "serp features ai overview snippet local pack paa",
+  },
+  {
+    href: "/tools/branded-split",
+    icon: GitMerge,
+    title: "Branded vs non-branded GSC split",
+    description:
+      "28-day clicks split with delta vs prior 28 days, separately for branded and non-branded queries. Different drops, different fixes.",
+    accent: "amber",
+    keywords: "branded non-branded gsc split",
+  },
+  {
+    href: "/tools/robots-history",
+    icon: Activity,
+    title: "robots.txt history + diff",
+    description:
+      "Snapshot any host's robots.txt over time. Catches accidental Disallow: / disasters before they hurt indexing.",
+    accent: "amber",
+    keywords: "robots history changes",
+  },
+  {
+    href: "/tools/uptime",
+    icon: Activity,
+    title: "Uptime + TTFB monitor",
+    description:
+      "Add URLs to ping. Status code, latency, expected-text match. Self-hosted alternative to UptimeRobot.",
+    accent: "emerald",
+    keywords: "uptime monitor status",
+  },
+  {
+    href: "/tools/migration-parity",
+    icon: GitMerge,
+    title: "Migration URL-parity auditor",
+    description:
+      "Pre/post-launch URL parity check. Surfaces 404s, drifted redirects, off-host hops. Companion to the migration map generator.",
+    accent: "amber",
+    keywords: "migration parity diff before after",
+  },
+  {
+    href: "/tools/hreflang-gen",
+    icon: Globe,
+    title: "Hreflang generator",
+    description:
+      "Paste language-region URL pairs, emit HTML / Link-header / sitemap blocks with x-default validation.",
+    accent: "cyan",
+    keywords: "hreflang generator tag international",
+  },
+  {
+    href: "/tools/wayback",
+    icon: Activity,
+    title: "Wayback Machine timeline",
+    description:
+      "How did a URL look 2 years ago? Internet Archive CDX, free, no key.",
+    accent: "violet",
+    keywords: "wayback archive snapshots history",
+  },
+  {
+    href: "/tools/summarizer",
+    icon: FileText,
+    title: "AI content summarizer",
+    description:
+      "Long content → TL;DR + 5-7 takeaways + meta description + tweetable quote. Yoast Premium AI Summarize equivalent.",
+    accent: "cyan",
+    keywords: "summarize content text url",
+  },
+  {
+    href: "/tools/bulk-alt",
+    icon: ImageIcon,
+    title: "Bulk image alt-text generator",
+    description:
+      "Crawl a URL, AI writes SEO alt text for every image based on nearby context. RankMath bulk image SEO equivalent.",
+    accent: "emerald",
+    keywords: "alt text image accessibility bulk",
+  },
+  {
+    href: "/tools/news-headline",
+    icon: Newspaper,
+    title: "News SEO — headline audit",
+    description:
+      "Score journalistic headlines for Top Stories fit, AP-style hook, length. AI suggests 3-5 alternates.",
+    accent: "rose",
+    keywords: "news headline editorial publisher",
+  },
+  {
+    href: "/tools/auto-link",
+    icon: Link2,
+    title: "Auto-link suggester (RankMath-style)",
+    description:
+      "Paste content + your internal page list. AI proposes contextual internal links — exact anchor + target — to add.",
+    accent: "violet",
+    keywords: "auto link internal",
+  },
+  {
+    href: "/tools/youtube-audit",
+    icon: Video,
+    title: "YouTube SEO audit",
+    description:
+      "Paste any YouTube URL → 14-point checklist (title, description, chapters, hashtags, tags, captions, thumbnail, like ratio, freshness) + AI fix steps. Free — uses oEmbed + watch-page scrape.",
+    accent: "rose",
+    keywords: "youtube audit channel seo",
+  },
+  {
+    href: "/tools/soft-404",
+    icon: ScanText,
+    title: "Soft 404 catcher",
+    description:
+      "Crawl + flag pages that return 200 but smell like 404s — thin content, '404' / 'page not found' text patterns, generic error titles. Silent indexation killers.",
+    accent: "rose",
+    keywords: "soft 404 thin content",
+  },
+  {
+    href: "/tools/canonical-audit",
+    icon: GitMerge,
+    title: "Canonical conflict detector",
+    description:
+      "Crawl + flag every page where rel=canonical is missing, multiple, off-host, broken, redirect-target, or conflicts with noindex. Catches the silent indexation killer.",
+    accent: "amber",
+    keywords: "canonical conflict audit",
+  },
+  {
+    href: "/tools/redirects-manager",
+    icon: CornerDownRight,
+    title: "Redirect manager + 404 monitor",
+    description:
+      "CRUD UI for 301/302/307/308/410 rules. 404 log with one-click 'turn this into a redirect'. POST to /api/v1/track-404 to log automatically.",
+    accent: "amber",
+    keywords: "redirect manager 301 302 404",
+  },
+  {
+    href: "/tools/gsc-coverage",
+    icon: ListChecks,
+    title: "GSC index coverage (batch)",
+    description:
+      "Paste 60 URLs, hit GSC URL Inspection for each. See which are indexed, blocked, or excluded — and the reason. Daily indexation check.",
+    accent: "emerald",
+    keywords: "gsc coverage indexing batch google",
+  },
+  {
+    href: "/tools/redirects-bulk",
+    icon: CornerDownRight,
+    title: "Bulk redirect-chain tester",
+    description:
+      "Paste up to 100 URLs. Trace every redirect hop in parallel. Surfaces chains, loops, mixed-scheme jumps, broken 301s. Migration-day staple.",
+    accent: "cyan",
+    keywords: "redirect bulk trace chain",
+  },
+  {
+    href: "/tools/migration-map",
+    icon: GitMerge,
+    title: "Migration redirect-map generator",
+    description:
+      "Old URL list + new URL list → 301 map. Token-overlap + path similarity scoring. Outputs Nginx, Apache .htaccess, and Next.js redirect blocks.",
+    accent: "amber",
+    keywords: "migration redirect mapper 301",
+  },
+  {
+    href: "/tools/schema-validate",
+    icon: ShieldCheck,
+    title: "Schema validator (live URL)",
+    description:
+      "Fetches the URL, extracts every JSON-LD block, validates required fields by type. Complements the AI schema generator.",
+    accent: "emerald",
+    keywords: "schema validator json-ld structured",
+  },
+  {
+    href: "/tools/social-preview",
+    icon: Share2,
+    title: "OG / Twitter card preview",
+    description:
+      "Render OG + Twitter card visually. Catches missing og:image, relative URLs, missing twitter:card — the silent killers of social CTR.",
+    accent: "cyan",
+    keywords: "og open graph twitter facebook social preview",
+  },
+  {
+    href: "/tools/mobile-friendly",
+    icon: Smartphone,
+    title: "Mobile-friendly checker",
+    description:
+      "Google deprecated theirs in 2023; this replaces it. Viewport, charset, responsive images, fixed-width elements, tap-target sizes, intrusive interstitials.",
+    accent: "emerald",
+    keywords: "mobile friendly test responsive",
+  },
+  {
+    href: "/tools/anchor-distribution",
+    icon: Link2,
+    title: "Anchor-text distribution",
+    description:
+      "Per-URL anchor frequency, internal vs external split, exact-match % over-optimization detection, brand variation check.",
+    accent: "violet",
+    keywords: "anchor backlink distribution audit",
+  },
+  {
+    href: "/tools/dns-whois",
+    icon: Globe,
+    title: "DNS + WHOIS / RDAP",
+    description:
+      "A/AAAA/MX/NS/TXT/CAA + registrar + expiry. Catches missing SPF/DMARC/CAA, near-expiry domains, broken nameservers. No paid API — public RDAP.",
+    accent: "cyan",
+    keywords: "dns whois lookup",
+  },
+  {
+    href: "/tools/pagerank",
+    icon: Network,
+    title: "Internal PageRank simulator",
+    description:
+      "Crawls site, builds link graph, runs 30 iterations of PageRank. Surfaces authority hubs and starved pages so you know where to add internal links.",
+    accent: "violet",
+    keywords: "pagerank internal authority",
+  },
+  {
+    href: "/tools/intent-classifier",
+    icon: Compass,
+    title: "Bulk search-intent classifier",
+    description:
+      "Paste 200 queries — AI labels each as info / nav / commercial / transactional / local + suggests content format. Falls back to regex if AI not configured.",
+    accent: "cyan",
+    keywords: "intent classifier serp commercial transactional informational",
+  },
+  {
+    href: "/tools/disavow",
+    icon: ShieldCheck,
+    title: "Disavow file generator",
+    description:
+      "Paste backlink list. Auto-flags toxic domains (spam TLDs, casino/payday/random subdomains) and emits a Google-spec disavow.txt.",
+    accent: "rose",
+    keywords: "disavow toxic backlinks",
+  },
+  {
+    href: "/tools/render",
+    icon: Camera,
+    title: "JS render + screenshot",
+    description:
+      "Render any URL in headless Chrome — post-hydration HTML, full-page screenshot, redirect chain, response headers, console + network errors. Critical for SPAs.",
+    accent: "cyan",
+    keywords: "render browser playwright headless",
+  },
+  {
+    href: "/tools/gbp-reply",
+    icon: MessageCircle,
+    title: "GBP review reply AI ⭐",
+    description:
+      "Pull GBP reviews, AI drafts a reply per review (tone matched to star rating), you approve or edit, post via the GBP API — full loop in one screen.",
+    accent: "emerald",
+  },
+  {
+    href: "/tools/local-cwv",
+    icon: Gauge,
+    title: "Local Core Web Vitals (no PSI key)",
+    description:
+      "Measures LCP / FCP / CLS / TBT directly from PerformanceObserver. Lighthouse-equivalent 0-100 score, resource breakdown, top fixes by impact. No PageSpeed quota.",
+    accent: "amber",
+    keywords: "core web vitals lcp cls inp performance speed",
+  },
+  {
+    href: "/tools/eeat-audit",
+    icon: ShieldCheck,
+    title: "E-E-A-T audit",
+    description:
+      "Score any URL on Experience / Expertise / Authoritativeness / Trust. Detects bylines, schema, citations, trust pages, then AI writes a fix punch list.",
+    accent: "emerald",
+    keywords: "eeat trust authority experience expertise",
+  },
+  {
+    href: "/tools/refresh",
+    icon: RefreshCw,
+    title: "Content refresh detector",
+    description:
+      "Compare your published page to top-10 SERP. Surfaces missing topics, missing sections, plus a concrete refresh plan a writer can execute.",
+    accent: "amber",
+    keywords: "content refresh decay update",
+  },
+  {
+    href: "/tools/link-recommender",
+    icon: Sparkles,
+    title: "AI internal-link recommender",
+    description:
+      "Crawl your site + AI proposes 3-5 internal links with anchor + target + context snippet. Closes the gap on internal-linking opportunities humans miss.",
+    accent: "violet",
+    keywords: "internal link ai recommender",
+  },
+  {
+    href: "/meta-rewrite",
+    icon: Wand2,
+    title: "Meta rewrite batch (low-CTR)",
+    description:
+      "Pulls GSC data, finds your worst CTR vs position. AI rewrites title + meta in 2 variants per page. One-click push to WordPress if connected.",
+    accent: "rose",
+  },
+  {
+    href: "/tools/content-helpers",
+    icon: ImageIcon,
+    title: "Cover-image prompts + category suggester",
+    description:
+      "Two AI helpers: 3 image-gen prompts in distinct visual styles for any post, plus primary category + 5-10 SEO tags scoped to your existing taxonomy.",
+    accent: "rose",
+    keywords: "content helpers categories tags",
+  },
+  {
+    href: "/knowledge",
+    icon: Compass,
+    title: "SEO knowledge hub",
+    description:
+      "Ranking signals, topical authority, blogging rules, page-speed by stack, GBP playbook, knowledge graph, rich snippets, E-E-A-T — the in-app reference.",
+    accent: "violet",
+  },
+  {
+    href: "/tools/bulk-scan",
+    icon: ListChecks,
+    title: "Bulk URL scanner",
+    description:
+      "Paste up to 25 URLs. Run the full health check on each in parallel + save every result as a snapshot. Sortable table.",
+    accent: "violet",
+    keywords: "bulk url scan audit batch",
+  },
+  {
+    href: "/tools/content-score",
+    icon: Gauge,
+    title: "Content scorer",
+    description:
+      "Paste content + target keyword. AI scores readability, density, structure, suggests LSI terms + specific edits.",
+    accent: "emerald",
+    keywords: "content score lsi",
+  },
+  {
+    href: "/tools/headers",
+    icon: ServerCog,
+    title: "HTTP headers + redirect chain",
+    description:
+      "Trace every redirect step + show full HTTP response headers at each hop. Critical for debugging canonicalization, redirects, and CDN config.",
+    accent: "amber",
+    keywords: "http headers redirect chain",
+  },
+  {
+    href: "/tools/pixel-preview",
+    icon: Eye,
+    title: "Pixel preview",
+    description:
+      "See exactly how your title + meta description will look in Google's SERP. Click pre-cut, character counts, mobile + desktop.",
+    accent: "violet",
+    keywords: "serp simulator preview title meta pixel",
+  },
+  {
+    href: "/tools/hreflang",
+    icon: Eye,
+    title: "Hreflang validator",
+    description:
+      "Checks all hreflang tags (HTML + HTTP), validates format, x-default, self-reference, and reciprocal links across language variants.",
+    accent: "cyan",
+    keywords: "hreflang international validator",
+  },
+  {
+    href: "/tools/ai-overview",
+    icon: Eye,
+    title: "AI Overview optimizer",
+    description:
+      "AI scores your page's citation-worthiness for Google's AI Overviews. Specific changes to make ranked by impact.",
+    accent: "rose",
+    keywords: "ai overview aio google sge generative experience",
+  },
+  {
+    // Writing moved out of this app. Five tools used to sit here —
+    // briefs, an expert-panel scorer, an AI-slop detector — and they
+    // competed badly against tools built only for that, while making
+    // this one harder to describe. BlogPilot is the same author, MIT,
+    // self-hosted, and does that job properly.
+    //
+    // A card rather than a silent deletion: someone who used those
+    // tools should find out where they went, not conclude the feature
+    // was quietly dropped.
+    href: "https://github.com/IamRamgarhia/BlogPilot-Open-Source-AI-SEO-Content-Studio",
+    external: true,
+    icon: FileText,
+    title: "Content writing → BlogPilot",
+    description:
+      "Drafting, briefs, content scoring against the top 10, brand voice and CMS export live in BlogPilot — a separate free, self-hosted tool. This one does technical SEO and applies the fixes.",
+    accent: "emerald",
+  },
+  {
+    href: "/tools/schema",
+    icon: Code2,
+    title: "Schema markup generator",
+    description:
+      "AI generates valid JSON-LD for Article, LocalBusiness, FAQ, Product, Recipe, Event. Paste your URL — we extract the rest.",
+    accent: "cyan",
+    keywords: "schema json-ld structured data",
+  },
+  {
+    href: "/tools/robots",
+    icon: FileText,
+    title: "Robots.txt + sitemap validator",
+    description:
+      "Fetch + check robots.txt, sitemap.xml. Find blocked URLs, broken sitemap entries, indexability issues.",
+    accent: "emerald",
+    keywords: "robots sitemap validator",
+  },
+  {
+    href: "/tools/security",
+    icon: ShieldCheck,
+    title: "Security headers + SSL grade",
+    description:
+      "Mozilla Observatory + SSL Labs. Free, no key. Surface fix-it actions for security ranking signals.",
+    accent: "amber",
+    keywords: "security ssl headers https",
+  },
+  {
+    href: "/tools/llms-txt",
+    icon: Sparkles,
+    title: "llms.txt manager",
+    description:
+      "Generate + validate llms.txt — the emerging standard for telling AI crawlers what your site is about.",
+    accent: "rose",
+    keywords: "llms.txt ai bots manifest",
+  },
+  {
+    href: "/tools/domain-overview",
+    icon: Globe,
+    title: "Domain overview",
+    description:
+      "Every signal we can check ourselves — HTTPS, security headers, schema, on-page basics, indexed-pages estimate. Plus links to free external checkers for DA/DR.",
+    accent: "violet",
+    keywords: "domain overview da traffic",
+  },
+  {
+    href: "/tools/link-checker",
+    icon: LinkIcon,
+    title: "Link analyzer",
+    description:
+      "Paste any URL → every <a> link classified internal/external + dofollow/nofollow, with anchor text frequency. Critical pre-publish check.",
+    accent: "cyan",
+    keywords: "link checker bulk broken",
+  },
+  {
+    href: "/tools/keyword-difficulty",
+    icon: Gauge,
+    title: "Keyword difficulty",
+    description:
+      "Heuristic 0-100 score from real SERP signals — big-brand presence, SERP features, title competitiveness. AI summary if your AI key is configured.",
+    accent: "amber",
+    keywords: "keyword difficulty kd da",
+  },
+  {
+    href: "/tools/external",
+    icon: Globe,
+    title: "External tools launchpad",
+    description:
+      "Paste a URL or keyword once → all 28 external tools (Moz DA, Ahrefs, SSL Labs, Wayback, etc.) open with that context pre-filled.",
+    accent: "cyan",
+  },
+  {
+    href: "/tools/internal-linking",
+    icon: Link2,
+    title: "Internal linking suggester",
+    description:
+      "Crawl your site, find pages that mention your target keyword without linking to your target URL. The fastest way to compound on-site authority.",
+    accent: "violet",
+    keywords: "internal links linking opportunities",
+  },
+  {
+    href: "/tools/link-graph",
+    icon: Network,
+    title: "Internal-link analyser",
+    description:
+      "Crawl + build link graph. Surfaces orphan pages and proposes top-3 source pages for each via TF-IDF cosine similarity. CSV / JSON export.",
+    accent: "violet",
+    keywords: "link graph visualization internal",
+  },
+  {
+    href: "/tools/sitemap",
+    icon: MapIcon,
+    title: "Sitemap generator",
+    description:
+      "Crawl any site, generate sitemap.xml + plain-text URL list + human-readable HTML index. Respects robots.txt by default.",
+    accent: "cyan",
+    keywords: "sitemap generator xml",
+  },
+  {
+    href: "/tools/indexnow",
+    icon: Zap,
+    title: "IndexNow submitter",
+    description:
+      "Push fresh URLs to Bing, Yandex, Naver, Seznam in seconds. Free, no API key — one verification file per host.",
+    accent: "cyan",
+    keywords: "indexnow bing yandex indexing",
+  },
+  {
+    href: "/tools/bing",
+    icon: Globe,
+    title: "Bing Webmaster Tools",
+    description:
+      "Free Bing organic data — top queries, top pages, crawl issues, URL submission. Add a free Bing API key once.",
+    accent: "cyan",
+    keywords: "bing webmaster insights",
+  },
+  {
+    href: "/tools/crux",
+    icon: Activity,
+    title: "Real-user CWV (CrUX)",
+    description:
+      // Was "Same data Google uses for page-experience ranking" — which
+      // directly contradicts the CrUX Origin Summary card below it, and
+      // the origin card is the correct one. Google evaluates Core Web
+      // Vitals at ORIGIN level; URL-level CrUX is diagnostic, not the
+      // ranking input. Telling users a URL-level pass means they're fine
+      // is exactly the folklore this project is meant not to repeat.
+      "Real Chrome user data for one URL, last 28 days. Good for finding which page is slow — but Google's ranking signal is origin-level, so check the CrUX Origin Summary before concluding you're fine. Free with a PageSpeed key.",
+    accent: "emerald",
+    keywords: "crux field core web vitals",
+  },
+  {
+    href: "/tools/youtube",
+    icon: Video,
+    title: "YouTube keyword research",
+    description:
+      "Real video data — view counts, channels, recurring tag phrases. Free YouTube Data API tier (100 searches a day).",
+    accent: "rose",
+    keywords: "youtube research video",
+  },
+  {
+    href: "/tools/content-grader",
+    icon: Gauge,
+    title: "Content grader (Surfer / Clearscope replacement)",
+    description:
+      "Pulls top 10 SERP results, builds a TF-IDF corpus, scores your draft on length / term coverage / density. Free, browser-mode.",
+    accent: "emerald",
+    keywords: "content grade score readability",
+  },
+  {
+    href: "/tools/backlink-discovery",
+    icon: LinkIcon,
+    title: "Backlink discovery",
+    description:
+      "Point it at any domain, yours or a rival's. Searches DuckDuckGo, then reads each candidate page to confirm a real link and its anchor text and follow status. Dozens, not thousands — but every one has been read.",
+    accent: "violet",
+    keywords: "backlink discovery find",
+  },
+  {
+    href: "/tools/link-intersect",
+    icon: GitCompareArrows,
+    title: "Link intersect ⭐",
+    description:
+      "Sites that link to your competitors and not to you. Each page is read once and checked against every domain at the same time, so a link you already have is never pitched back to you. Sites linking to two or more rivals rank first.",
+    accent: "violet",
+  },
+  {
+    href: "/tools/search-volume",
+    icon: Gauge,
+    title: "Search-volume estimator",
+    description:
+      "Free directional volume bucket. Combines Google Trends, Google + Bing autocomplete, SERP characteristics. No paid keyword DB.",
+    accent: "cyan",
+    keywords: "search volume bulk estimator keyword",
+  },
+  {
+    href: "/tools/plagiarism",
+    icon: ScanText,
+    title: "Plagiarism + AI detector",
+    description:
+      "AI-likelihood + originality scores on any draft. Flags AI-template phrases. Links to Copyleaks, GPTZero, Originality.ai for definitive web check.",
+    accent: "rose",
+    keywords: "plagiarism ai detection originality",
+  },
+  {
+    href: "/tools/meta-tag-generator",
+    icon: Code2,
+    title: "Meta tag generator",
+    description:
+      "Generates 3 angle-varied title + meta description options for any page, with SERP preview + Open Graph tags. Copy-paste HTML ready.",
+    accent: "violet",
+    keywords: "meta title description og open graph seo",
+  },
+  {
+    href: "/tools/code-generator",
+    icon: Code2,
+    title: "SEO code / plugin generator",
+    description:
+      "AI writes the code you need to apply SEO changes — WordPress plugins, .htaccess rules, Elementor HTML, Shopify Liquid, Next.js routes, schema markup. With install steps + live preview.",
+    accent: "violet",
+    keywords: "wordpress plugin htaccess shopify liquid schema nextjs code ai",
+  },
+  {
+    href: "/tools/reddit-research",
+    icon: Flame,
+    title: "Reddit research",
+    description:
+      "Reddit is in 40% of LLM citations. Mine real questions and pain points your audience asks — perfect FAQ + content brief seeds.",
+    accent: "rose",
+    keywords: "reddit research questions community",
+  },
+  {
+    href: "/algorithm-updates",
+    icon: Lock,
+    title: "Algorithm updates",
+    description:
+      "Timeline of every Google algorithm update with confirmed dates. Correlate against your traffic drops.",
+    accent: "violet",
+  },
+  // 2026 SEO gap-closers
+  {
+    href: "/tools/person-schema",
+    icon: ShieldCheck,
+    title: "Person schema generator (E-E-A-T) ⭐",
+    description:
+      "Person JSON-LD is the top E-E-A-T signal in 2026 — Google's AI Mode uses it for entity verification. Fill in author details, get a copy-paste <script>.",
+    accent: "violet",
+    keywords: "person schema author bio",
+  },
+  {
+    href: "/tools/aio-passage",
+    icon: Sparkles,
+    title: "AI Overview passage optimizer ⭐",
+    description:
+      "AIs cite 134-167 word self-contained passages. Paste a draft OR analyze a live URL — we split it, score each chunk on length / self-containment / Q→A / specifics / citations, and AI-rewrite low scorers in one batch.",
+    accent: "violet",
+    keywords: "aio passage ai overview citation",
+  },
+  {
+    href: "/tools/ai-robots",
+    icon: Bot,
+    title: "AI-bot robots.txt audit ⭐",
+    description:
+      "Which AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) can currently reach this site? Per-bot status + a copy-paste patch you can flip Allow/Disallow per line before pasting into robots.txt.",
+    accent: "violet",
+  },
+  {
+    href: "/tools/freshness",
+    icon: CalendarClock,
+    title: "Freshness audit ⭐",
+    description:
+      "AI-search systems skip undated or stale pages. Fetches every freshness signal (HTTP header, meta tags, JSON-LD dateModified, <time> elements, visible 'Last updated' text) and gives you a ready-to-paste patch.",
+    accent: "emerald",
+  },
+  {
+    href: "/tools/reputation-abuse-risk",
+    icon: ShieldCheck,
+    title: "Site reputation abuse risk scan",
+    description:
+      "Google now algorithmically demotes sections 'starkly different' from the main site. Crawl + group by path + score topical coherence so you don't lose authority.",
+    accent: "rose",
+    keywords: "reputation abuse policy google",
+  },
+  {
+    href: "/tools/ai-citation-tactics",
+    icon: Sparkles,
+    title: "AI citation tactics (per platform)",
+    description:
+      "Only 11% of cited domains overlap between ChatGPT and Perplexity. Niche-specific priority + concrete tactics for each platform: ChatGPT, Perplexity, Claude, Gemini, AI Overviews.",
+    accent: "violet",
+    keywords: "llm citation chatgpt claude perplexity",
+  },
+  // 2026 SEO rules — second wave
+  {
+    href: "/tools/crux-origin",
+    icon: Gauge,
+    title: "CrUX Origin Summary",
+    description:
+      "Google's CWV ranking signal uses 28-day origin-level field data, not URL-level. Compare URL vs origin scopes side-by-side so you don't optimize the wrong thing.",
+    accent: "cyan",
+    keywords: "crux origin field data",
+  },
+  {
+    href: "/tools/perf-budget",
+    icon: Gauge,
+    title: "Performance budget enforcement",
+    description:
+      "Define byte / request / Core Web Vitals budgets. We measure actuals via PageSpeed + CrUX and surface every line item over budget. Catch regressions before prod.",
+    accent: "amber",
+    keywords: "performance budget speed",
+  },
+  {
+    href: "/tools/facet-trap",
+    icon: Network,
+    title: "Faceted-nav crawl-trap detector",
+    description:
+      "Filter / sort / pagination params can balloon a crawl from thousands to millions of near-duplicates. We crawl + group URLs by query shape and flag groups needing canonical/noindex protection.",
+    accent: "rose",
+    keywords: "faceted nav facet trap parameters",
+  },
+  {
+    href: "/tools/screenshot-import",
+    icon: ScanText,
+    title: "Screenshot import — paid-tool data parser",
+    description:
+      "Drag a screenshot from Ahrefs / Semrush / GSC / GA4. AI vision extracts the structured data so you can stop paying for tools you only use occasionally.",
+    accent: "violet",
+    keywords: "screenshot ocr import",
+  },
+  {
+    href: "/tools/github-pr",
+    icon: GitMerge,
+    title: "GitHub PR generator for SEO fixes",
+    description:
+      "For sites without a CMS write-bridge (Next.js / custom code), open a structured PR with a checklist of SEO fixes for your developer to implement.",
+    accent: "cyan",
+    keywords: "github pr pull request fixes",
+  },
+  // GEO + SXO + attack briefs (from open-source SEO-skill repos)
+  {
+    href: "/tools/geo-swot",
+    icon: Sparkles,
+    title: "GEO SWOT",
+    description:
+      "Strengths, weaknesses, opportunities and threats for AI-search visibility, reasoned from the last 30 days of AI visibility checks for a client.",
+    accent: "violet",
+  },
+  {
+    href: "/tools/geo-score",
+    icon: Sparkles,
+    title: "GEO composite score ⭐",
+    description:
+      "Weighted scorecard for AI search visibility — citability, brand authority, content E-E-A-T, technical, schema, platform tactics. Forces you to fix the weakest leg first.",
+    accent: "violet",
+    keywords: "geo aeo generative engine optimization ai",
+  },
+  {
+    href: "/tools/sxo",
+    icon: Eye,
+    title: "SXO — Search Experience Optimization",
+    description:
+      "Audits user-experience signals Google now weights heavily: page promise, time-to-answer, next step, friction, Core Web Vitals. Persona-driven recommendations.",
+    accent: "cyan",
+    keywords: "sxo search experience ux intent",
+  },
+  {
+    href: "/tools/image-gen",
+    icon: ImageIcon,
+    title: "AI image generation (BYO OpenAI key)",
+    description:
+      "DALL·E 3 hero / OG / illustrative images. Aspect + quality + style controls. Output downloaded directly — no server storage.",
+    accent: "violet",
+    keywords: "ai image generation dalle hero",
+  },
+  {
+    href: "/tools/utm-attribution",
+    icon: Network,
+    title: "Multi-touch attribution (UTM)",
+    description:
+      "First-touch, last-touch, assisted, linear, position-based attribution from any UTM-tagged touch CSV. No CRM needed.",
+    accent: "violet",
+    keywords: "utm attribution multi-touch",
+  },
+  {
+    href: "/tools/rank-where",
+    icon: Compass,
+    title: "Where do I rank? (country-aware) ⭐",
+    description:
+      "Find your exact position for any keyword × country in Google's top 100. See who outranks you, AI Overview presence + citation, specific fixes to climb.",
+    accent: "emerald",
+    keywords: "rank tracker position serp google country",
+  },
+  {
+    href: "/tools/wp-hack-scan",
+    icon: ShieldCheck,
+    title: "WordPress hack / malware scan ⭐",
+    description:
+      "Probes a live WP site for compromise indicators: backdoor files, exposed configs, JS injection, hidden iframes, spam injection, cloaking. Returns containment + cleanup + prevention playbook.",
+    accent: "rose",
+    keywords: "wordpress malware hack security backdoor cloudflare",
+  },
+
+  // ===================================================================
+  // The ten that were finished and unreachable.
+  //
+  // Each of these has a working page with its own PageHeader and was in
+  // no nav group and no grid, so the only way in was typing the URL.
+  // Two of them are features CLAUDE.md names as central: /ask is the
+  // "Ask the tool" assistant from Part 14, and /content-gap is content
+  // gap analysis from Part 7 §6.
+  //
+  // The descriptions below are each page's own `description`, copied so
+  // that the card and the page agree rather than being written twice.
+  // ===================================================================
+  {
+    href: "/ask",
+    icon: MessageCircle,
+    title: "Ask the tool ⭐",
+    description:
+      "Plain-English Q&A on top of your real data. Pick a client and ask why traffic dropped, what to fix first, or what's worth refreshing — answered against that client's actual audits, keywords and Search Console history.",
+    accent: "violet",
+    keywords: "ask question chat assistant why traffic dropped help",
+  },
+  {
+    href: "/content-gap",
+    icon: GitCompareArrows,
+    title: "Content gap finder",
+    description:
+      "Pick a client. Find queries where you're being shown but losing the click — the highest-leverage content to refresh.",
+    accent: "cyan",
+    keywords: "content gap queries impressions ctr refresh opportunity",
+  },
+  {
+    href: "/bot-logs",
+    icon: ServerCog,
+    title: "AI bot log analyzer",
+    description:
+      "Upload your Nginx / Apache access log. Counts GPTBot, ClaudeBot, PerplexityBot, Googlebot and other AI and search crawlers by user agent, then verifies each crawler that publishes its IP ranges.",
+    accent: "amber",
+    keywords: "log file access log nginx apache gptbot claudebot crawl budget server",
+  },
+  {
+    href: "/image-audit",
+    icon: ImageIcon,
+    title: "Image SEO audit",
+    description:
+      "Pick a client. Paste any page URL — we extract every image, fetch HEAD requests for size and format, and classify alt-text, dimension and lazy-load issues.",
+    accent: "emerald",
+    keywords: "image alt text webp avif lazy loading size dimensions",
+  },
+  {
+    href: "/brand-serp",
+    icon: Eye,
+    title: "Brand SERP monitor",
+    description:
+      "Capture the full first-page Google SERP for every brand name and score brand-SERP control — what share of the top 10 are properties you actually own.",
+    accent: "violet",
+    keywords: "brand serp reputation own the serp first page control",
+  },
+  {
+    href: "/knowledge-panel",
+    icon: Layers,
+    title: "Knowledge Panel monitor",
+    description:
+      "Capture Google's brand Knowledge Panel for any client and diff it against the prior snapshot — description changes, Wikipedia and Crunchbase edits, social profile shuffles.",
+    accent: "cyan",
+    keywords: "knowledge panel entity brand graph wikipedia crunchbase",
+  },
+  {
+    href: "/author-authority",
+    icon: Network,
+    title: "Author topic-authority tracker",
+    description:
+      "Scan a competitor or partner domain. Crawls /author/ pages, scores each named author on E-E-A-T signals (bio depth, credentials, sameAs profiles, post volume, topic match) and surfaces the strongest.",
+    accent: "amber",
+    keywords: "author eeat authority bio credentials sameas expertise",
+  },
+  {
+    href: "/landing-perf",
+    icon: Gauge,
+    title: "Landing-page performance",
+    description:
+      "Joins Search Console clicks with GA4 conversions per URL. Surfaces the pages that get traffic but don't convert — usually the highest-ROI fixes you can make.",
+    accent: "emerald",
+    keywords: "conversion ga4 clicks landing page roi revenue",
+  },
+  {
+    href: "/links",
+    icon: LinkIcon,
+    title: "Smart links",
+    description:
+      "Self-hosted short links with click tracking and a UTM helper. Drop them into outreach emails, social posts or guest articles — every click logs back into the client report.",
+    accent: "cyan",
+    keywords: "short link utm tracking redirect click outreach",
+  },
+  {
+    href: "/annotations",
+    icon: CalendarClock,
+    title: "Chart annotations",
+    description:
+      "Manual markers that overlay on rank, traffic and Core Web Vitals charts. Correlate ranking changes with algorithm updates, content launches, migrations or outreach milestones.",
+    accent: "violet",
+    keywords: "annotation timeline marker algorithm update launch migration",
+  },
+];
+
+/** Lookup by exact href. */
+const BY_HREF = new Map(TOOLS.map((t) => [t.href, t]));
+
+export function toolByHref(href: string): ToolEntry | null {
+  return BY_HREF.get(href.split(/[?#]/)[0]) ?? null;
+}
+
+/**
+ * What global search should offer: everything except retired tools.
+ *
+ * Search listed all eight retired tools by name. Each has a documented
+ * replacement in tool-categories.ts RETIRED, so the old pages were
+ * winning searches against the tools that superseded them.
+ */
+export function searchableTools(): ToolEntry[] {
+  return internalTools().filter((t) => !isRetired(t.href));
+}
+
+/** Entries that are routes in this app, so external cards are skipped. */
+export function internalTools(): ToolEntry[] {
+  return TOOLS.filter((t) => !t.external && t.href.startsWith("/"));
+}

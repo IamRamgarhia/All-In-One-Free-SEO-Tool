@@ -1279,7 +1279,10 @@ Allow: /
 \`\`\`
 
 Cite: most policies recommend reviewing every 90 days as new bots emerge.`,
-    tools: ["/tools/llms-txt", "/tools/robots", "/tools/bot-logs"],
+    // "/tools/bot-logs" until 19 Nov 2026, which has never existed. The
+    // route is "/bot-logs" — a top-level page, not a /tools/ one. The
+    // link 404'd from the guidance that exists to tell people what to do.
+    tools: ["/tools/llms-txt", "/tools/robots", "/bot-logs"],
   },
 
   {

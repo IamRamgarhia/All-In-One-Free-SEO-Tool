@@ -35,6 +35,7 @@ import {
   worksIn,
 } from "./tool-capabilities";
 import { isRetired } from "./tool-categories";
+import { internalTools } from "./tool-registry";
 
 describe("the lists say something, and agree with their counts", () => {
   it("both groups are non-empty, so no screen renders an empty promise", () => {
@@ -168,24 +169,46 @@ describe("NEEDS_KEY_COUNT is not AI_TOOL_COUNT, on purpose", () => {
     //
     // This test exists to stop someone "simplifying" the two back into
     // one number.
-    expect(NEEDS_KEY_COUNT).toBeLessThan(AI_TOOL_COUNT);
+    // The two now measure different POPULATIONS as well as different
+    // questions, so a single arithmetic identity between them is no
+    // longer the right assertion.
+    //
+    // This test first asserted
+    //   AI_TOOL_COUNT - optional - partial - retiredRequired === NEEDS_KEY_COUNT
+    // and that held while every tool lived under /tools/. It broke — 26
+    // against 31 — the moment the ten orphaned top-level tools (/ask,
+    // /content-gap, /image-audit, /landing-perf …) joined the registry,
+    // because AI_TOOL_COUNT still counts only /tools/* while
+    // NEEDS_KEY_COUNT counts what the grid actually renders. The code
+    // was right and the test's arithmetic was stale, which is worth
+    // recording: the identity was never the property, it was a proxy
+    // for it.
+    //
+    // The property is: NEEDS_KEY_COUNT is exactly the registry tools
+    // that do not run without a key. Derived from the same place the
+    // count is, so it cannot drift from it again.
+    const registrySet = internalTools()
+      .filter((t) => !isRetired(t.href))
+      .map((t) => TOOL_CAPABILITIES.find((c) => c.route === t.href))
+      .filter((c): c is NonNullable<typeof c> => Boolean(c));
 
-    const grid = TOOL_CAPABILITIES.filter((c) =>
-      /^\/tools\/[^/]+$/.test(c.route),
-    );
-    const softAi = grid.filter((c) => {
-      const u = aiUsageOf(c);
-      return u === "optional" || u === "partial";
-    });
-    const retiredRequired = grid.filter(
-      (c) => isRetired(c.route) && aiUsageOf(c) === "required",
-    );
-    // needsAI minus (the ones that run anyway) minus (retired) == what a
-    // key unlocks. If this arithmetic stops holding, one of the three
-    // definitions moved and the screens need re-reading.
-    expect(AI_TOOL_COUNT - softAi.length - retiredRequired.length).toBe(
-      NEEDS_KEY_COUNT,
-    );
+    const needKey = registrySet.filter((c) => !worksIn(c, "none"));
+    expect(needKey.length).toBe(NEEDS_KEY_COUNT);
+
+    // And none of them is an `optional` or `partial` tool, which is the
+    // specific over-count that made the screens name five working tools
+    // as unavailable.
+    for (const c of needKey) {
+      expect(
+        aiUsageOf(c),
+        `${c.route} is counted as needing a key but its usage is not "required"`,
+      ).toBe("required");
+    }
+
+    // AI_TOOL_COUNT remains the broader "can reach a model" figure over
+    // /tools/* only. Asserted as different on purpose, so nobody
+    // "simplifies" the two back into one number.
+    expect(NEEDS_KEY_COUNT).not.toBe(AI_TOOL_COUNT);
   });
 });
 

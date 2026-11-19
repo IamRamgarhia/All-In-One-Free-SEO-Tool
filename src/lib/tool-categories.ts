@@ -235,6 +235,21 @@ const EXPLICIT: Record<string, ToolCategoryId> = {
   "/tools/content-helpers": "occasional",
   "/tools/trending": "occasional",
   "/tools/external": "occasional",
+
+  // The ten that were built and unreachable, now in the registry.
+  // Categorised explicitly rather than left to the default, because the
+  // default is "occasional" — which is collapsed in the grid, so they
+  // would have gone from invisible to nearly invisible.
+  "/ask": "fix",
+  "/content-gap": "improve",
+  "/bot-logs": "ai",
+  "/image-audit": "fix",
+  "/brand-serp": "track",
+  "/knowledge-panel": "track",
+  "/author-authority": "improve",
+  "/landing-perf": "track",
+  "/annotations": "track",
+  "/links": "occasional",
 };
 
 export function categoryOf(href: string): ToolCategoryId {

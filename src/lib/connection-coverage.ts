@@ -32,6 +32,7 @@ import {
   isRetired,
   type ToolCategoryId,
 } from "./tool-categories";
+import { internalTools } from "./tool-registry";
 
 export type CoveredTool = {
   /** "/tools/geo-score" */
@@ -52,9 +53,33 @@ export type CoveredTool = {
  * product is steering people away from.
  */
 function gridTools(): ToolCapability[] {
-  return TOOL_CAPABILITIES.filter(
-    (c) => /^\/tools\/[^/]+$/.test(c.route) && !isRetired(c.route),
+  // Driven by the registry, not by a route-shape regex.
+  //
+  // This matched /^\/tools\/[^/]+$/, which was right while every tool
+  // lived under /tools/. It stopped being right the moment the ten
+  // orphaned top-level tools (/ask, /bot-logs, /content-gap and the
+  // rest) were added to the grid: the grid rendered 93 cards while this
+  // counted 83, so the header under the title disagreed with the cards
+  // beneath it. Counting the same list the grid renders makes that
+  // impossible rather than something to notice.
+  // Key widened to `string` deliberately: the generated table is
+  // `as const`, so `c.route` narrows to a 226-member literal union and
+  // looking up an arbitrary href becomes a type error. Same reason
+  // tool-capabilities.ts widens its own BY_ROUTE map.
+  const byRoute = new Map<string, ToolCapability>(
+    TOOL_CAPABILITIES.map((c) => [c.route, c]),
   );
+  const out: ToolCapability[] = [];
+  for (const t of internalTools()) {
+    if (isRetired(t.href)) continue;
+    const cap = byRoute.get(t.href);
+    // A registry entry with no capability row would mean the generated
+    // table is stale; skipping is correct here because
+    // tool-capabilities.test.ts is what fails on that, and guessing a
+    // capability would hide it.
+    if (cap) out.push(cap);
+  }
+  return out;
 }
 
 function toCovered(cap: ToolCapability): CoveredTool | null {
