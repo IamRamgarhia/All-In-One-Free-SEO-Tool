@@ -60,7 +60,17 @@ DisableDirPage=no
 
 OutputDir=..\dist
 OutputBaseFilename=SEO-Tool-Setup-{#AppVersion}
-SetupIconFile=..\public\favicon.ico
+; public\icon.ico, NOT favicon.ico.
+;
+; This said favicon.ico and there is no such file. The project's icon is
+; public/icon.ico (42 KB, a valid single-image ICO); src/app/favicon.ico
+; is Next's own route convention, not a public asset. ISCC aborts the
+; whole compile on a missing SetupIconFile, and that is what broke the
+; first real run of the installer workflow.
+;
+; Found by that CI run, which is the only way it could have been found:
+; Inno Setup is not installed on the machine this was written on.
+SetupIconFile=..\public\icon.ico
 UninstallDisplayIcon={app}\SEO Tool.exe
 
 ; LZMA2 at max: the payload is a few hundred MB of JavaScript, which
@@ -81,7 +91,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "{#HostDir}\SEO Tool.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\public\favicon.ico"; DestDir: "{app}"; DestName: "app.ico"; Flags: ignoreversion
+Source: "..\public\icon.ico"; DestDir: "{app}"; DestName: "app.ico"; Flags: ignoreversion
 
 ; The app payload. recursesubdirs + createallsubdirs because node_modules
 ; is thousands of files deep.

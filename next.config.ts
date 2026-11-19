@@ -5,6 +5,31 @@ const nextConfig: NextConfig = {
   // Produce a self-contained server build under .next/standalone — the
   // packaging script copies it into dist/ alongside a bundled Node binary
   // so end-users can run the app by double-clicking, no Node install required.
+  //
+  // `next start` PRINTS A WARNING with this set:
+  //
+  //   "next start" does not work with "output: standalone" configuration.
+  //   Use "node .next/standalone/server.js" instead.
+  //
+  // The warning is expected and both paths are correct. Checked by
+  // listing what the build actually produces, 19 Nov 2026:
+  //
+  //   .next/standalone/.next/static   MISSING
+  //   dist/payload/.next/static       4.7 MB, present
+  //
+  // Next does not copy `.next/static` into the standalone directory —
+  // that is the packager's job, and build-payload.mjs does it. So the
+  // two paths divide cleanly:
+  //
+  //   - END USERS run `node server.js` from the PAYLOAD, which is
+  //     complete: server.js, .next/static, public, node_modules.
+  //   - `next start` serves from `.next` directly, where the static
+  //     assets live anyway. That is what bin/START.* and `start:daily`
+  //     use, and it is verified working: 221 pages, 0 broken, styled.
+  //
+  // Changing `start` to the standalone server.js WITHOUT copying static
+  // in first would serve the app with no CSS and no JS. Do not do it on
+  // the strength of the warning alone.
   output: "standalone",
 
   /**
