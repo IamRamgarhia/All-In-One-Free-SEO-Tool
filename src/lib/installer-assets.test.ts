@@ -37,9 +37,23 @@ describe("the installer script references files that exist", () => {
   function referencedPaths(): { key: string; path: string }[] {
     const out: { key: string; path: string }[] = [];
 
-    for (const key of ["SetupIconFile", "LicenseFile"]) {
+    for (const key of [
+      "SetupIconFile",
+      "LicenseFile",
+      "WizardImageFile",
+      "WizardSmallImageFile",
+    ]) {
       const m = src.match(new RegExp(`^${key}=(.+)$`, "m"));
-      if (m) out.push({ key, path: m[1].trim() });
+      if (!m) continue;
+      const p = m[1].trim();
+      // installer/art/ is GENERATED from public/icon-512.png by
+      // scripts/build-installer-art.mjs, so it is absent in a fresh
+      // clone and present in CI. Checking it for existence here would
+      // fail on every clean checkout. The test below asserts the
+      // generator and the CI step instead, which is the thing that
+      // would actually break.
+      if (/(^|[\\/])art[\\/]/.test(p)) continue;
+      out.push({ key, path: p });
     }
 
     for (const m of src.matchAll(/^Source: "([^"]+)"/gm)) {
@@ -246,6 +260,50 @@ describe("the installer script references files that exist", () => {
     const migrate = readFileSync(join(ROOT, "scripts/migrate.cjs"), "utf8");
     expect(client).toContain("SEO_DB_PATH");
     expect(migrate).toContain("SEO_DB_PATH");
+  });
+
+  it("the wizard artwork is generated, and CI generates it", () => {
+    // The .iss references installer/art/*.bmp, which is not committed —
+    // it is built from public/icon-512.png so it cannot drift from the
+    // app's own mark. That only works if something builds it before
+    // ISCC runs, and ISCC's failure for a missing WizardImageFile is
+    // the same abort that cost a full four-runner build over the icon.
+    expect(src).toMatch(/^WizardImageFile=.*art[\\/]/m);
+    expect(src).toMatch(/^WizardSmallImageFile=.*art[\\/]/m);
+
+    expect(
+      existsSync(join(ROOT, "scripts/build-installer-art.mjs")),
+      "the .iss wants generated artwork and the generator is gone",
+    ).toBe(true);
+
+    const wf = readFileSync(
+      join(ROOT, ".github/workflows/installer.yml"),
+      "utf8",
+    );
+    expect(wf, "CI never builds the wizard artwork").toContain(
+      "build-installer-art.mjs",
+    );
+    // Before ISCC, or the compile aborts on a file that does not exist.
+    const art = wf.indexOf("build-installer-art.mjs");
+    const iscc = wf.indexOf("ISCC.exe");
+    expect(art).toBeGreaterThan(-1);
+    expect(art, "the artwork is built after the installer is compiled").toBeLessThan(
+      iscc,
+    );
+  });
+
+  it("the art generator refuses a format it cannot decode", () => {
+    // It hand-decodes PNG because sharp is not a direct dependency.
+    // A decoder that guesses at palette, 16-bit or interlaced data
+    // produces a panel of plausible garbage, and nobody opens a .bmp
+    // to check.
+    const gen = readFileSync(
+      join(ROOT, "scripts/build-installer-art.mjs"),
+      "utf8",
+    );
+    expect(gen).toMatch(/bit depth .*expected 8|bitDepth !== 8/);
+    expect(gen).toMatch(/colorType !== 6/);
+    expect(gen).toMatch(/interlace/);
   });
 
   it("the host tells the user when the fault is ours", () => {

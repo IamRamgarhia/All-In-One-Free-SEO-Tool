@@ -101,6 +101,17 @@ OutputBaseFilename=SEO-Tool-Setup-{#AppVersion}
 ; Found by that CI run, which is the only way it could have been found:
 ; Inno Setup is not installed on the machine this was written on.
 SetupIconFile=..\public\icon.ico
+
+; The wizard's own branding, generated from the same icon by
+; scripts/build-installer-art.mjs so it cannot drift from the app's.
+;
+; Without these the installer wears Inno's stock artwork, which is the
+; first thing anyone sees of this product and says nothing about it.
+; Dark panels, because a dark app whose installer flashes white reads
+; as two different programs.
+WizardImageFile=art\wizard-large.bmp
+WizardSmallImageFile=art\wizard-small.bmp
+WizardImageStretch=no
 UninstallDisplayIcon={app}\SEO Tool.exe
 
 ; LZMA2 at max: the payload is a few hundred MB of JavaScript, which

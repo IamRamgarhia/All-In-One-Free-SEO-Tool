@@ -374,6 +374,20 @@ jobs:
           ls -l "dist/installer-host/SEO Tool.exe"
 
       # ─── Package ────────────────────────────────────────────────────
+      - name: Build the wizard artwork
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Generated from public/icon-512.png rather than committed, so
+          # the installer cannot wear a stale version of the app's mark.
+          # The decoder refuses anything that is not 8-bit RGBA and
+          # non-interlaced, so a replaced icon fails here rather than
+          # producing a panel of garbage nobody would open a .bmp to see.
+          node scripts/build-installer-art.mjs
+          for f in installer/art/wizard-large.bmp installer/art/wizard-small.bmp; do
+            test -s "$f" || { echo "::error::$f was not produced"; exit 1; }
+          done
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
