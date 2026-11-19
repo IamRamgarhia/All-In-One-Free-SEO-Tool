@@ -91,6 +91,20 @@ function runners(): Runner[] {
       everyMs: 24 * HOUR,
       staleMs: 3 * HOUR,
       run: async () => (await import("./daily-agent")).tickDailyAgent(),
+      // This had no summarise, so `scheduler.daily_agent.last_note` was
+      // null while 24 jobs ran nightly inside it. The note is the only
+      // place the scheduler itself reports what a runner did, and the
+      // one runner that does the most work said nothing.
+      summarise: (r) => {
+        const rep = r as { steps?: { name: string; ok: boolean }[] } | null;
+        if (!rep?.steps) return null;
+        const failed = rep.steps.filter((s) => !s.ok);
+        if (failed.length === 0) return `all ${rep.steps.length} jobs ok`;
+        return (
+          `${rep.steps.length - failed.length} of ${rep.steps.length} ok, ` +
+          `${failed.length} failed: ${failed.map((s) => s.name).join(", ")}`
+        );
+      },
     },
     {
       // The autonomous loop: plan work per client, apply what the user's

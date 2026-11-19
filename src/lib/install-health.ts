@@ -149,6 +149,7 @@ export async function runHealthChecks(): Promise<HealthIssue[]> {
     safe(checkRankData),
     safe(checkClientsNeverAudited),
     safe(checkLatestAuditFailed),
+    safe(checkNightlyJobs),
   ]);
   return sortIssues(results.flat());
 }
@@ -517,6 +518,59 @@ async function checkLatestAuditFailed(): Promise<HealthIssue[]> {
     });
   }
   return out;
+}
+
+/**
+ * Nightly jobs that failed.
+ *
+ * The sweep runs 24 of them and used to discard every result: only a
+ * timestamp was stored, the scheduler runner had no `summarise`, and no
+ * screen showed a step. So an install where twenty failed every night
+ * looked exactly like one where none did, and the README's "~20
+ * automated jobs every day" was true and entirely unverifiable by the
+ * person relying on it.
+ *
+ * Reads the stored report rather than running anything: the sweep takes
+ * minutes and happens once a day.
+ */
+async function checkNightlyJobs(): Promise<HealthIssue[]> {
+  const { readDailyReport } = await import("./daily-report");
+  const report = await readDailyReport();
+
+  // No report is NOT "all fine". It means the sweep has not finished
+  // since this was added, and saying nothing would be the same mistake
+  // the whole module exists to correct.
+  if (!report) return [];
+
+  const failed = report.steps.filter((s) => !s.ok);
+  if (failed.length === 0) return [];
+
+  const when = Date.parse(report.at);
+  const ageDays = Number.isFinite(when)
+    ? Math.floor((Date.now() - when) / DAY_MS)
+    : null;
+
+  return [
+    {
+      id: "nightly_jobs_failing",
+      // `stalled`, not `broken`: the jobs ran, and some of them produced
+      // nothing. The site is not unreachable — the automation is just
+      // not delivering, which is a different thing to tell someone.
+      severity: "stalled",
+      title: `${failed.length} of ${report.steps.length} nightly jobs failed`,
+      evidence:
+        `Last sweep ${ageDays === null ? "" : ageDays === 0 ? "today" : `${ageDays} day${ageDays === 1 ? "" : "s"} ago`}: ` +
+        failed
+          .map((s) => `${s.name}${s.detail ? ` — ${s.detail}` : ""}`)
+          .slice(0, 6)
+          .join("; ") +
+        (failed.length > 6 ? `; and ${failed.length - 6} more` : "") +
+        ". These are the jobs that keep rank history, alerts and " +
+        "competitor data current, so anything they feed is going stale.",
+      fixHref: "/settings/health",
+      fixLabel: "See the full job list",
+    },
+  ];
 }
 
 /**

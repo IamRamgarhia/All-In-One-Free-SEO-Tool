@@ -110,6 +110,16 @@ export type SettingKey =
   | "smtp.from_name"
   | "smtp.secure"
   | "daily_agent_runner.last_run"
+  /**
+   * The last nightly sweep's per-step outcome: `{ at, durationMs, steps }`.
+   *
+   * Twenty-four jobs run in that sweep and every one of their results
+   * used to be discarded — only the timestamp above was kept, the
+   * runner had no `summarise`, and no screen showed a step. An install
+   * where twenty failed nightly was indistinguishable from one where
+   * none did. See lib/daily-agent.ts.
+   */
+  | "daily_agent.last_report"
   | "news_runner.last_run"
   | "news_runner.last_seen_at"
   | "seen.news.last_seen_at"

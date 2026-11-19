@@ -28,6 +28,7 @@ import {
 import { PageHeader } from "@/components/shell/page-header";
 import { getSetting } from "@/lib/settings-store";
 import { InstallHealthSection } from "./install-health-section";
+import { NightlyJobs } from "./nightly-jobs";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
 import { listGscProperties } from "@/lib/google-oauth";
 import {
@@ -159,6 +160,12 @@ export default async function HealthPage() {
           same stored result the dashboard banner reads, so the two
           cannot disagree about whether the install is healthy. */}
       <InstallHealthSection />
+
+      {/* Right under the install verdict, because "4 of 22 nightly jobs
+          failed" is the explanation for half the things that verdict
+          reports — stale rank history, missing alerts, competitor data
+          that stopped moving. */}
+      <NightlyJobs />
 
       <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         <Card

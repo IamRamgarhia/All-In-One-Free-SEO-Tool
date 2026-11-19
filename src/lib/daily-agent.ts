@@ -19,6 +19,7 @@ import { desc, eq, lt, lte, gt, and, isNotNull, notExists, sql } from "drizzle-o
 import { db } from "@/db/client";
 import { audits, clients, keywords, keywordRankings } from "@/db/schema";
 import { getSetting, setSetting } from "./settings-store";
+import type { StoredDailyReport } from "./daily-report";
 import { logActivity } from "./activity";
 import { coverageNote, takeTurn } from "./rotation";
 
@@ -71,10 +72,53 @@ export async function tickDailyAgent(): Promise<DailyAgentReport | null> {
     // bought nothing.
     const report = await runDailyAgentBody();
     await setSetting("daily_agent_runner.last_run", Date.now());
+    // Keep the report.
+    //
+    // Twenty-four jobs run here every night, each returning whether it
+    // worked and a line about what it found — and all of it was thrown
+    // away. Only the timestamp was stored, the runner had no
+    // `summarise`, and no screen in the app showed a step result. So an
+    // install where twenty of these failed every night looked
+    // identical to one where they all worked.
+    //
+    // The README's "~20 automated jobs every day" was true and
+    // completely unverifiable by the person relying on it.
+    await persistReport(report).catch(() => {
+      // Never let bookkeeping fail the sweep that just succeeded.
+    });
     return report;
   } finally {
     _tickInFlight = false;
   }
+}
+
+// The report's type, reader and summariser live in daily-report.ts, which
+// imports only the settings store. A page that merely DISPLAYS the job
+// list was otherwise pulling this whole module — audits, the AI pass,
+// rank checks, the browser pool — into its import graph, and
+// /settings/health duly flipped to `needsAI: required`. See that file.
+export {
+  readDailyReport,
+  summariseDailyReport,
+  type StoredDailyReport,
+} from "./daily-report";
+
+async function persistReport(report: DailyAgentReport): Promise<void> {
+  const stored: StoredDailyReport = {
+    at: report.finishedAt.toISOString(),
+    durationMs: report.finishedAt.getTime() - report.startedAt.getTime(),
+    // Details kept as the step wrote them. "checked 12 keywords, 18
+    // could not be read" is the sentence that tells someone what is
+    // actually happening, and reducing it to ok/failed would throw away
+    // the only useful part.
+    steps: report.steps.map((s) => ({
+      name: s.name,
+      ok: s.ok,
+      detail: s.detail,
+      durationMs: s.durationMs,
+    })),
+  };
+  await setSetting("daily_agent.last_report", stored);
 }
 
 async function runDailyAgentBody(): Promise<DailyAgentReport> {
