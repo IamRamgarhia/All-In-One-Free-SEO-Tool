@@ -11,16 +11,53 @@ different for each piece.
 | `install-prebuilt.sh` (macOS/Linux) | **Tested.** `scripts/install-prebuilt-check.sh` runs it against a local fake release over loopback: 14/14. Installs a valid payload, refuses a plugin-shaped zip, refuses a source-only zip, preserves the database on re-install. |
 | `scripts/build-prebuilt-zip.mjs` | **Tested.** Asset names checked against what the shell script computes; both refusal paths (missing `.next`, database inside) exercised. |
 | `scripts/zip-write.mjs` | **Tested.** Output verified against `unzip` and against this project's own `zip-read.mjs`. |
-| `host/SeoToolHost.cs` | **COMPILES.** `dotnet publish` on `windows-latest` produced `SEO Tool.exe`, and the workflow's own existence check confirmed the file rather than trusting the exit code. The pinned WebView2 SDK `1.0.2903.40` restored from NuGet. **Never RUN** — nobody has double-clicked it. |
+| `host/SeoToolHost.cs` | **INSTALLED AND RUN — and it failed.** First real double-click, 19 Nov 2026: "This app needs the Microsoft Edge WebView2 runtime, which is missing on this computer." It was not missing — 158.0.4370.26 was installed. The `.iss` shipped only the exe, leaving `WebView2Loader.dll` (native, not bundled by `PublishSingleFile`) behind, so the P/Invoke threw `DllNotFoundException` and a blanket `catch` reported it as the user's fault. Fixed in three places; see below. |
 | `seo-tool.iss` | **COMPILES.** ISCC 6 built `SEO-Tool-Setup-0.10.1.exe`, 118 MB, inside the 40–600 MB sanity range. Failed on the first attempt (a `SetupIconFile` pointing at a file that never existed); `installer-assets.test.ts` now catches that class in milliseconds. |
 | `.github/workflows/installer.yml` | **RUN, all six jobs green.** Run 44553068011: version, three payloads, windows, checksums. Creates no release on a dispatch; the `release` job needs a tag and makes a draft. |
 | macOS / Linux payload jobs | **RUN.** All three built, 99 MB each. A macOS payload cannot be built anywhere else: `pnpm install --prod` compiles the native modules for whichever platform it runs on. The Intel leg asked for `macos-13` on the first attempt — retired a year ago — and sat in "queued" forever rather than failing; see `workflow-runners.test.ts`. |
 | The asset names | **VERIFIED against the real run.** `SHA256SUMS.txt` lists exactly the three filenames `install-prebuilt.sh` computes for itself. That agreement is the whole install path: the one-liner matches by exact name, so an off-by-one would read as "no prebuilt payload at all". |
 
-So: every piece now compiles, and the artifact names line up end to end.
-**Nothing has been installed on a real machine yet.** A build that
-compiles and a build that works are different claims, and the checklist
-below is the second one.
+So: every piece compiles, the artifact names line up end to end, and
+**the first real install failed** — which is the whole reason this
+document kept insisting a build that compiles and a build that works
+are different claims.
+
+### What the first install taught, 19 Nov 2026
+
+The installer put `SEO Tool.exe` on disk, the user double-clicked it,
+and it said WebView2 was missing from a machine that had WebView2.
+
+`PublishSingleFile` bundles the managed assemblies and the entire .NET
+runtime into the exe. It does **not** bundle native ones, so
+`WebView2Loader.dll` is emitted as a sibling — and `[Files]` named the
+exe alone. Measured in the install directory afterwards: `app.ico`,
+`SEO Tool.exe`, the uninstaller, `app\` with 31,723 files, `node\` with
+one. No loader anywhere under it.
+
+`GetAvailableBrowserVersionString` P/Invokes into that DLL. It threw
+`DllNotFoundException`, and `catch { return false; }` turned a
+packaging bug of ours into an accusation about the user's computer,
+with a suggested fix that could not work because they already had the
+thing it told them to install.
+
+Three changes, because any one alone would have let it back:
+
+- **`[Files]` ships the whole host output**, `recursesubdirs`, since a
+  publish can emit `runtimes\` subfolders.
+- **The workflow asserts `WebView2Loader.dll` is in that output** before
+  packaging, printing what the publish did produce when it is not.
+  Copying a folder does not help if the folder never had the file — a
+  `.csproj` change (`IncludeNativeLibrariesForSelfExtract`, a different
+  RID, a trimming option) stops it being emitted at all, and that is
+  where it would go missing next.
+- **The host separates the two causes.**
+  `WebView2RuntimeNotFoundException` means "go and install it".
+  `DllNotFoundException` means this install is broken and now says
+  exactly that, including that installing anything else will not help.
+
+The general lesson is older than this installer: a blanket `catch` that
+maps every failure onto the most likely cause will eventually map one
+onto the wrong person.
 
 That is why `installer.yml` still attaches nothing to a published
 release. Its `release` job runs only on a tag and produces a **draft** —
