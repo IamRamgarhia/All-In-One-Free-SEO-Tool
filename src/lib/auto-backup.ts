@@ -57,6 +57,16 @@ function dbPath(): string {
  * surface what went wrong.
  */
 let inFlight = false;
+
+/**
+ * When this process last took a backup, independent of the database.
+ *
+ * The persisted `autobackup.last_run_at` is the real record and
+ * survives restarts; this only covers the case where writing it fails,
+ * which on a database with no schema is every time. Without it the
+ * cadence depends on a write to the file being backed up.
+ */
+let lastRunInProcess: number | null = null;
 export async function tickAutoBackup(): Promise<void> {
   if (inFlight) return;
   inFlight = true;
@@ -75,6 +85,26 @@ export async function tickAutoBackup(): Promise<void> {
     if (lastRunIso) {
       const last = new Date(lastRunIso);
       if (Date.now() - last.getTime() < cadenceMs) return;
+    }
+
+    // The in-process guard, for when the DATABASE cannot remember.
+    //
+    // `autobackup.last_run_at` is stored in the settings table, so the
+    // "have I run recently?" answer depends on a write to the very
+    // database being backed up. When that write cannot land, every tick
+    // reads "never" and takes another backup.
+    //
+    // MEASURED on a fresh Windows install whose migrations had not run:
+    // seven backups of a 4 KB empty database in three minutes, one per
+    // scheduler tick, filling the data directory for as long as the app
+    // stayed open. Nothing errored — it is bookkeeping failing silently
+    // and the work repeating because of it.
+    //
+    // Fixing the migrations stops THAT cause. This stops the behaviour:
+    // a backup whose record could not be written must back off rather
+    // than spin, whatever made the write fail.
+    if (lastRunInProcess !== null && Date.now() - lastRunInProcess < cadenceMs) {
+      return;
     }
 
     const src = dbPath();
@@ -115,6 +145,11 @@ export async function tickAutoBackup(): Promise<void> {
     }
 
     const stat = statSync(target);
+
+    // Recorded the moment the file exists, BEFORE the settings write
+    // below — which is the write that cannot land when the schema is
+    // missing, and the whole reason this guard exists.
+    lastRunInProcess = Date.now();
 
     // Prune old backups beyond retention
     const retentionRaw = await getSetting<number>("autobackup.retention");
