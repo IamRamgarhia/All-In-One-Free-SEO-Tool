@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { buildDevTicket } from "@/lib/dev-ticket";
+import { DevTicketButton } from "./dev-ticket-button";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -239,6 +241,23 @@ export default async function AuditDetailPage({
   const pagesCrawled = audit.pagesCrawled;
   const pagesWithIssues = new Set(issues.map((i) => i.url)).size;
 
+  // The developer ticket, assembled from the same issues and the same
+  // explainers this page renders — so the thing you paste into Linear
+  // and the thing on screen cannot disagree.
+  //
+  // Only the findings still open: a ticket that includes work already
+  // done wastes the reader's time and makes them distrust the rest.
+  const openIssues = issues.filter((i) => i.status === "new");
+  const devTicket = buildDevTicket(
+    openIssues.map((i) => ({
+      type: i.type,
+      severity: i.severity,
+      url: i.url,
+      message: i.message,
+    })),
+    { clientName: client.name, siteUrl: client.url },
+  );
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* HERO */}
@@ -289,6 +308,19 @@ export default async function AuditDetailPage({
               <ExternalLink className="size-3" />
               View client
             </Link>
+          </div>
+
+          {/* In the hero, not buried below the issue list.
+              This is the whole point of the page for anyone who does not
+              fix their own code: the audit says what is wrong, and this
+              turns it into something a developer can act on without the
+              user translating severity labels by hand every month. */}
+          <div className="relative z-10 mt-4">
+            <DevTicketButton
+              markdown={devTicket}
+              filename={`seo-fixes-${client.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-audit-${audit.id}.md`}
+              findingCount={openIssues.length}
+            />
           </div>
 
           <div className="relative flex items-center gap-5 rounded-2xl border border-white/10 bg-black/20 p-5 backdrop-blur">

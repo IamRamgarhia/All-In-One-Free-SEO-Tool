@@ -28,6 +28,7 @@
 
 import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
+import { weightForTraffic, buildPerfIndex, type PagePerf } from "@/lib/finding-priority";
 import { agentActions, auditIssues, audits, clients } from "@/db/schema";
 import type { AgentSettings } from "./autonomy";
 import { has, type ClientCapabilities } from "./capabilities";
@@ -46,6 +47,15 @@ export type PlannedAction = {
   weight: number;
   /** The audit issue this came from, when it came from one. */
   issueId?: number;
+  /**
+   * The finding's type, carried alongside its id.
+   *
+   * Needed by the traffic re-weighting, which has to recognise the
+   * findings that suppress their own page's traffic — a noindexed page
+   * has no impressions BECAUSE it is noindexed, and weighting it down
+   * for that would bury the most expensive problems on the site.
+   */
+  issueType?: string;
   currentValue?: string | null;
   /**
    * The CMS's own id for the thing being edited, when it isn't the page.
@@ -532,9 +542,36 @@ export async function planForClient(opts: {
     .limit(1);
 
   if (!latestAudit) {
+    // Distinguish "never audited" from "audited, but only in a way this
+    // planner cannot act on".
+    //
+    // The message was "No audit has been run for this client yet." for
+    // both, and on this install one client had a completed AI audit
+    // holding 27 findings — so the run log said no audit had been run
+    // while the client page showed one. True of crawls, false as
+    // written, and the kind of statement that makes someone distrust
+    // every other number on the screen.
+    const [anyAudit] = await db
+      .select({ kind: audits.kind })
+      .from(audits)
+      .where(
+        and(eq(audits.clientId, opts.clientId), eq(audits.status, "completed")),
+      )
+      .orderBy(desc(audits.id))
+      .limit(1);
+
     return {
       actions: [],
-      skipped: [{ reason: "No audit has been run for this client yet.", count: 1 }],
+      skipped: [
+        {
+          reason: anyAudit
+            ? `Only an AI audit has been run for this client. Its checks are ` +
+              `a different vocabulary the agent cannot apply fixes for — ` +
+              `run a crawl to give it something to work on.`
+            : "No audit has been run for this client yet.",
+          count: 1,
+        },
+      ],
     };
   }
 
@@ -569,6 +606,7 @@ export async function planForClient(opts: {
       risk: spec.risk,
       weight: spec.weight + severityBonus(issue.severity),
       issueId: issue.id,
+      issueType: issue.type,
       // Site-wide kinds need to say WHICH site-wide thing they change.
       // Without it six hardening findings dedup down to one and the
       // executor has no switch to flip.
@@ -716,6 +754,36 @@ export async function planForClient(opts: {
     new Date(now.getTime() - 24 * 60 * 60 * 1000),
   );
   const dailyRemaining = Math.max(0, opts.settings.maxActionsPerDay - usedToday);
+
+  // 4c. Re-weight by how much search traffic each page actually gets.
+  //
+  //     The weights above are static per finding type, so a missing meta
+  //     description on a page nobody visits sorted identically to the
+  //     same problem on the page that earns the money. Across three
+  //     clients on this install that is 789 equally-ranked findings,
+  //     which is a wall rather than a plan — and the usual response to a
+  //     wall is to do none of it.
+  //
+  //     Only ever a re-ORDERING. Nothing is added or dropped here, and
+  //     when there is no Search Console data (every client on this
+  //     install 403s) the order is left exactly as it was rather than
+  //     being presented as impact-ranked. See lib/finding-priority.ts.
+  const perfIndex = await pageTrafficIndex(opts.clientId);
+  if (perfIndex) {
+    for (const a of notPending) {
+      const w = weightForTraffic({
+        base: a.weight,
+        url: a.targetUrl,
+        type: a.issueType ?? "",
+        index: perfIndex,
+        label: "This fix",
+      });
+      a.weight = w.score;
+      // Appended to the reason the user reads in the run log, so the
+      // ordering can be checked rather than taken on trust.
+      a.reason = `${a.reason} ${w.reason}`;
+    }
+  }
 
   // notPending, not cooled. The first version of the dedupe step
   // computed its result and then this block kept reading `cooled`, so
@@ -953,6 +1021,52 @@ async function planInternalLinks(clientId: number): Promise<{
  * it stops blocking when it is applied, rejected or skipped, which are
  * all statuses this excludes.
  */
+/**
+ * Per-page Search Console impressions for a client, or null.
+ *
+ * Null means "could not ask" — no property configured, the account
+ * cannot read it, the API refused — and the caller must leave the order
+ * untouched rather than treat an empty result as "this site has no
+ * traffic". On this install every client returns 403, so the null path
+ * is the common one, not an edge case.
+ *
+ * Deliberately swallows errors: a planner that cannot plan because
+ * Search Console is down would be a worse failure than one that falls
+ * back to severity ordering.
+ */
+async function pageTrafficIndex(
+  clientId: number,
+): Promise<Map<string, PagePerf> | null> {
+  try {
+    const [row] = await db
+      .select({ gscProperty: clients.gscProperty })
+      .from(clients)
+      .where(eq(clients.id, clientId))
+      .limit(1);
+    if (!row?.gscProperty) return null;
+
+    const { getGscPagePerformance } = await import("@/lib/google-data");
+    const end = new Date();
+    // Two days back: Search Console's reporting lag means the most
+    // recent days are incomplete, and a half-reported day makes a busy
+    // page look quiet.
+    end.setUTCDate(end.getUTCDate() - 2);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 28);
+
+    const rows = await getGscPagePerformance({
+      siteUrl: row.gscProperty,
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+      rowLimit: 1000,
+    });
+    if (rows.length === 0) return null;
+    return buildPerfIndex(rows);
+  } catch {
+    return null;
+  }
+}
+
 async function filterAlreadyQueued(
   actions: PlannedAction[],
   clientId: number,

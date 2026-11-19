@@ -26,6 +26,8 @@ import {
   type Client,
 } from "@/db/schema";
 import { logActivity } from "../activity";
+import { taskDescriptionFor } from "@/lib/dev-ticket";
+import { getExplainer } from "@/lib/issue-explainers";
 import { getAgentSettings, willAutoApply, type AgentSettings } from "./autonomy";
 import { HOST_AGENT_OFF_MESSAGE, isHostAgentEnabled } from "@/lib/host-agent";
 import { levelFor, pickEngine, runClaudeAutopilot } from "./claude-autopilot";
@@ -460,11 +462,25 @@ async function createTasksFromUnfixable(
         list.length === 1
           ? `${label} on ${shortUrl(list[0].url)}`
           : `${label} — ${list.length} pages`,
-      description: list
-        .slice(0, 20)
-        .map((i) => `- ${i.url}\n  ${i.message}`)
-        .join("\n"),
-      whyItMatters: list[0].message,
+      // The finding's own written guidance, not a bare URL list.
+      //
+      // This used to be "- url / message" lines, which says what is
+      // wrong and nothing about what to do — and these are precisely the
+      // findings the agent CANNOT fix, so the task is the only thing the
+      // user gets out of them. All 68 crawler finding types already
+      // carry an explainer with steps, a confidence level and sometimes
+      // an exact code snippet, and none of it reached the task.
+      // See lib/dev-ticket.ts.
+      description: taskDescriptionFor(
+        type,
+        list.map((i) => ({
+          type,
+          severity: i.severity,
+          url: i.url,
+          message: i.message,
+        })),
+      ),
+      whyItMatters: getExplainer(type)?.whyItMatters ?? list[0].message,
       priority: list.some((i) => i.severity === "critical") ? "high" : "medium",
       status: "todo",
       source: "agent",
