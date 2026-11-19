@@ -2,12 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { Check, Copy, KeyRound, MessageSquare } from "lucide-react";
+import { type ConnectionMode } from "@/lib/tool-capabilities";
+// Not AI_TOOL_COUNT: that counts every tool that *can* reach a model,
+// including the ones that run fine without one, so it over-stated what a
+// key unlocks by five tools. See connection-coverage.ts.
 import {
-  AI_TOOL_COUNT,
-  FREE_TOOL_COUNT,
-  TOTAL_TOOL_COUNT,
-  type ConnectionMode,
-} from "@/lib/tool-capabilities";
+  LISTED_TOOL_COUNT,
+  NEEDS_KEY_COUNT,
+  WORKS_ANYWAY_COUNT,
+} from "@/lib/connection-coverage";
 import { clientToTab } from "@/lib/mcp-clients";
 import type { AiConnectionStatus, McpStatus } from "./connection-mode-actions";
 import {
@@ -129,8 +132,8 @@ export function ConnectionModePicker({
       <div>
         <h3 className="text-sm font-medium">AI connection</h3>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {FREE_TOOL_COUNT} of the {TOTAL_TOOL_COUNT} tools need no AI and
-          already work. These two cover the other {AI_TOOL_COUNT}. They do
+          {WORKS_ANYWAY_COUNT} of the {LISTED_TOOL_COUNT} tools need no AI and
+          already work. A key covers the other {NEEDS_KEY_COUNT}. They do
           different jobs — you can have either, or both.
         </p>
       </div>
@@ -157,8 +160,8 @@ export function ConnectionModePicker({
             <StatusDot status={status.api} />
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Makes the {AI_TOOL_COUNT} AI tools in this app work — the
-            assistant, executive summaries, content writer — and keeps them
+            Makes the {NEEDS_KEY_COUNT} model-driven tools in this app work —
+            the assistant, executive summaries, content writer — and keeps them
             running overnight. Gemini and Groq have free tiers.
           </p>
           <p className="text-[11px] text-muted-foreground">

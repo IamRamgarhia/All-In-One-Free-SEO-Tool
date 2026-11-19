@@ -10,6 +10,8 @@ import { getBingApiKey } from "@/lib/bing-webmaster";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { getSetting } from "@/lib/settings-store";
 import { INTEGRATIONS, type IntegrationStatus } from "@/lib/integrations";
+import { MCP_TOOL_LIST } from "@/lib/mcp/server";
+import { getConnectionMode } from "../settings/connection-mode-actions";
 import { ConnectList } from "./list";
 
 /**
@@ -22,6 +24,12 @@ import { ConnectList } from "./list";
  */
 export default async function ConnectPage() {
   const status = await currentStatus();
+  // The AI card is where someone decides between a key and a chat
+  // subscription, and until now it said nothing about the difference —
+  // that lived only in Settings, which is not where /welcome sends you.
+  // Deciding without it means finding out later that the tool you wanted
+  // needs the other one.
+  const mode = await getConnectionMode().catch(() => "none" as const);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -31,7 +39,13 @@ export default async function ConnectPage() {
         icon={Plug}
         accent="cyan"
       />
-      <ConnectList integrations={INTEGRATIONS} status={status} />
+      <ConnectList
+        integrations={INTEGRATIONS}
+        status={status}
+        mode={mode}
+        mcpToolCount={MCP_TOOL_LIST.length}
+        mcpToolNames={MCP_TOOL_LIST.map((t) => t.name)}
+      />
     </div>
   );
 }

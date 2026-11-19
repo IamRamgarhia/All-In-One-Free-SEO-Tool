@@ -132,10 +132,26 @@ export type SettingKey =
   // ON keeps token use under ~500/answer for cheap providers like Gemini /
   // Groq free tiers. OFF gives full-quality long-form answers (defaults OFF).
   | "ai.credit_saver.enabled"
-  // How the user supplies AI: "none" | "mcp" | "api" | "both". Drives which
-  // badge each tool shows and whether the tools grid filters itself. This
-  // records what they *told* us; what is actually configured is read from
-  // the keys. See lib/tool-capabilities.ts.
+  /**
+   * DEAD KEY — never read, never written. Kept declared only so that a
+   * value left behind by an older install still typechecks if anything
+   * ever enumerates stored settings.
+   *
+   * It described a design that was deliberately abandoned: the user
+   * picking "mcp" or "api" from a radio group, stored here. That was
+   * wrong twice over — the two are not alternatives, and a stored answer
+   * drifts, so someone could select "API key", never add one, and every
+   * screen would describe a state that did not exist. ConnectionMode is
+   * now DERIVED from what is actually configured, by
+   * getConnectionMode() in app/settings/connection-mode-actions.ts.
+   *
+   * The comment that used to sit here said this key "drives which badge
+   * each tool shows and whether the tools grid filters itself", in the
+   * present tense, which was never true of this key — badgeFor() and
+   * worksIn() take the derived mode. Left as a warning: a plausible
+   * comment on an unused key is worse than no comment, because it sends
+   * the next reader looking for behaviour that is not there.
+   */
   | "ai.connection_mode"
   /**
    * Bearer token for the remote MCP endpoint at /api/mcp.

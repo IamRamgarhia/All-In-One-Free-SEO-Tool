@@ -162,6 +162,27 @@ const KNOWN_FREE_PAGES = new Set([
   "/local-grid",
   "/local-rank",
   "/clients/[id]/onboarding",
+  /**
+   * The page you go to IN ORDER TO add a key.
+   *
+   * It started coming back `needsAI: required` the moment it imported
+   * MCP_TOOL_LIST, to name the MCP tools in its setup breakdown: that
+   * one import pulls in src/lib/mcp/server.ts, and through run_agent the
+   * whole agent executor and ai-call behind it. Reachability-based
+   * derivation is right to notice; what it cannot see is that the page
+   * reads a static array of tool names off that module and never calls a
+   * handler.
+   *
+   * Left unlisted, "Connect your accounts" renders with an amber
+   * needs-a-key dot — the setup page telling you it needs the thing it
+   * exists to help you set up. A dynamic import does not help; the
+   * derivation follows those too (see derive.ts, "dynamic import(x)").
+   *
+   * Verified by hand: nothing under src/app/connect calls a model. It
+   * reads connection state (configuredProviders, getGoogleConnectionStatus,
+   * getSetting) and renders copy.
+   */
+  "/connect",
 ]);
 
 /** The route folders KNOWN_FREE_PAGES claims are AI-free, for the test. */

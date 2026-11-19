@@ -17,6 +17,8 @@ import {
   type Integration,
   type IntegrationStatus,
 } from "@/lib/integrations";
+import { type ConnectionMode } from "@/lib/tool-capabilities";
+import { ModePreview } from "../settings/mode-preview";
 
 const GROUP_ORDER: Integration["group"][] = [
   "start",
@@ -28,9 +30,15 @@ const GROUP_ORDER: Integration["group"][] = [
 export function ConnectList({
   integrations,
   status,
+  mode,
+  mcpToolCount,
+  mcpToolNames,
 }: {
   integrations: Integration[];
   status: Record<string, IntegrationStatus>;
+  mode: ConnectionMode;
+  mcpToolCount: number;
+  mcpToolNames: string[];
 }) {
   const connected = integrations.filter(
     (i) => status[i.id] === "connected",
@@ -67,6 +75,19 @@ export function ConnectList({
                   key={i.id}
                   integration={i}
                   status={status[i.id] ?? "unknown"}
+                  // Only the AI card gets this. The other integrations
+                  // are one thing you either connected or did not; AI is
+                  // two different things that sound like alternatives,
+                  // which is the whole reason the breakdown exists.
+                  extra={
+                    i.id === "ai" ? (
+                      <ModePreview
+                        mode={mode}
+                        mcpToolCount={mcpToolCount}
+                        mcpToolNames={mcpToolNames}
+                      />
+                    ) : null
+                  }
                 />
               ))}
             </div>
@@ -80,9 +101,11 @@ export function ConnectList({
 function Card({
   integration: i,
   status,
+  extra,
 }: {
   integration: Integration;
   status: IntegrationStatus;
+  extra?: React.ReactNode;
 }) {
   // Collapsed by default once connected — a done thing shouldn't take up
   // as much room as a thing you still need to do.
@@ -158,6 +181,11 @@ function Card({
               ))}
             </ul>
           </div>
+
+          {/* Right under "what you get", because the next question is
+              always "which ones, exactly" — and for AI the answer
+              depends on which of the two things you connect. */}
+          {extra}
 
           {/* Stated plainly rather than implied. Someone deciding whether
               to spend five minutes deserves to know what they lose by

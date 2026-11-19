@@ -64,6 +64,11 @@ import {
   type ConnectionMode,
   type ToolBadge,
 } from "@/lib/tool-capabilities";
+// The header used to claim "100+ SEO utilities" in hardcoded text while
+// a computed count sat one import away, and the real number is 83
+// current tools. Rule 4: never a second hardcoded copy of something that
+// already exists — least of all a number, which drifts in silence.
+import { LISTED_TOOL_COUNT } from "@/lib/connection-coverage";
 
 const tools = [
   {
@@ -939,11 +944,19 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
     );
   }, [q]);
 
-  // Only ever hides tools that genuinely cannot run, which — given how
-  // worksIn() is defined — means the AI tools, and only while nothing at
-  // all is connected. Connect a subscription OR a key and nothing hides,
-  // because nothing is unavailable. The count below keeps that honest
-  // instead of letting the grid quietly look smaller than the product is.
+  // Only ever hides tools that genuinely cannot run — the ones that call
+  // a model directly, with no key and no Ollama to call.
+  //
+  // This comment used to say "connect a subscription OR a key and nothing
+  // hides". That was true of an earlier worksIn(), which returned true
+  // for mode "mcp". It was wrong: MCP runs the other way round — your
+  // chat app calls into this one — so a subscription gives these pages
+  // nothing to call. worksIn() was fixed and this comment was not, so it
+  // sat here describing the bug as if it were the behaviour. A key (or
+  // Ollama) is the only thing that unhides them.
+  //
+  // The count below keeps it honest instead of letting the grid quietly
+  // look smaller than the product is.
   const unusableCount = useMemo(
     () =>
       tools.filter(
@@ -985,7 +998,7 @@ export function ToolsGrid({ mode = "none" }: { mode?: ConnectionMode }) {
     <div className="space-y-6">
       <PageHeader
         title="Tools"
-        description="100+ SEO utilities. Pin the ones you use daily and they'll stick to the top."
+        description={`${LISTED_TOOL_COUNT} SEO utilities. Pin the ones you use daily and they'll stick to the top.`}
         icon={Wrench}
         accent="violet"
       />
