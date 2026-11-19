@@ -461,3 +461,172 @@ export async function closeFinishedAgentTasks(): Promise<number> {
 
   return closed;
 }
+
+export type VerifyFindingResult = {
+  issueId: number;
+  result: "resolved" | "still_present" | "unreachable" | "no_url" | "gone";
+  /** One line the user reads. Never claims more than was observed. */
+  note: string;
+  /** Tasks closed as a consequence. */
+  tasksClosed: number;
+};
+
+/**
+ * "I fixed this — check it for me."
+ *
+ * THE GAP THIS CLOSES, measured 19 Nov 2026. A finding could be resolved
+ * two ways, and both were broken in opposite directions:
+ *
+ *   - The AGENT path verifies properly: it applies the change, re-fetches
+ *     the live page, and only then resolves. But every fix route runs
+ *     through the WordPress plugin, and the planner skips the rest
+ *     outright — "11 fixes we know how to make but can't apply, no CMS
+ *     connection for this client". So for anyone without the plugin it
+ *     never runs. On this install: 14 queued, 0 applied, in 68 days.
+ *
+ *   - The MANUAL path, setIssueStatus, is available to everyone and
+ *     verifies NOTHING. The 155 resolved findings on this install are
+ *     someone clicking a button. "Resolved" meant "somebody said so",
+ *     which makes the health score, the task list and the client report
+ *     all rest on an unchecked claim.
+ *
+ * So the loop was either rigorous and unreachable, or reachable and
+ * meaningless. This is the third path: the user makes the change by
+ * whatever means they like — their CMS, their editor, their developer —
+ * and the tool checks the live page the same way it checks its own work.
+ *
+ * It needs no CMS connection, no API key and no plugin, which is the
+ * whole point: it is the only version of "finish the job" that is
+ * available to every user of this product.
+ *
+ * `gone` rather than an error when the finding no longer exists: a
+ * re-crawl may already have removed the row, and that is not a failure.
+ */
+export async function verifyFindingFixed(
+  issueId: number,
+): Promise<VerifyFindingResult> {
+  const [row] = await db
+    .select({
+      id: auditIssues.id,
+      type: auditIssues.type,
+      url: auditIssues.url,
+      status: auditIssues.status,
+      clientId: audits.clientId,
+    })
+    .from(auditIssues)
+    .innerJoin(audits, eq(auditIssues.auditId, audits.id))
+    .where(eq(auditIssues.id, issueId))
+    .limit(1);
+
+  if (!row) {
+    return {
+      issueId,
+      result: "gone",
+      note: "That finding no longer exists — a later crawl has replaced it.",
+      tasksClosed: 0,
+    };
+  }
+
+  if (row.status === "resolved") {
+    return {
+      issueId,
+      result: "resolved",
+      note: "Already confirmed fixed.",
+      tasksClosed: 0,
+    };
+  }
+
+  if (!row.url) {
+    // Site-wide findings (a missing sitemap, robots.txt) have no page to
+    // re-fetch. Said plainly rather than resolved on no evidence, which
+    // is the behaviour this function exists to replace.
+    return {
+      issueId,
+      result: "no_url",
+      note:
+        "This finding is about the site as a whole, not one page, so there " +
+        "is no single URL to re-check. Run a fresh crawl to confirm it.",
+      tasksClosed: 0,
+    };
+  }
+
+  const recheck = await recheckUrl(row.url, {
+    allowPrivateHosts: process.env.SEO_ALLOW_PRIVATE_WP_ENDPOINT === "1",
+  });
+
+  if (!recheck) {
+    return {
+      issueId,
+      result: "unreachable",
+      note:
+        `${row.url} could not be fetched, so there is no evidence either ` +
+        `way. The finding stays open.`,
+      tasksClosed: 0,
+    };
+  }
+
+  const stillThere = recheck.findings.some(
+    (f) => f.type === row.type && sameUrl(f.url, row.url),
+  );
+
+  if (stillThere) {
+    await logActivity({
+      kind: "agent.fix_not_live",
+      clientId: row.clientId,
+      level: "warning",
+      entityType: "audit_issue",
+      entityId: issueId,
+      message:
+        `Checked ${row.url} on request and "${row.type}" is still there. ` +
+        `If the change was made, a page cache or a theme override may be ` +
+        `serving the old version.`,
+    });
+    return {
+      issueId,
+      result: "still_present",
+      note:
+        `Checked the live page and "${humanType(row.type)}" is still there. ` +
+        `If you have made the change, a page cache may be serving the old ` +
+        `version — clear it and check again.`,
+      tasksClosed: 0,
+    };
+  }
+
+  await db
+    .update(auditIssues)
+    .set({ status: "resolved", updatedAt: new Date() })
+    .where(eq(auditIssues.id, issueId));
+
+  await logActivity({
+    kind: "agent.fix_confirmed",
+    clientId: row.clientId,
+    level: "success",
+    entityType: "audit_issue",
+    entityId: issueId,
+    message:
+      `Confirmed fixed by re-fetching ${row.url}: "${row.type}" is gone ` +
+      `from the live HTML. Marked resolved on evidence rather than on a ` +
+      `claim.`,
+  });
+
+  // The findings drive the tasks, so a confirmed fix may finish one.
+  // This is also why tasks had never closed: nothing compared the two
+  // unless an agent-applied change triggered it, and none ever had.
+  const tasksClosed = await closeFinishedAgentTasks();
+
+  return {
+    issueId,
+    result: "resolved",
+    note:
+      `Confirmed — "${humanType(row.type)}" is gone from the live page.` +
+      (tasksClosed > 0
+        ? ` That also finished ${tasksClosed} task${tasksClosed === 1 ? "" : "s"}.`
+        : ""),
+    tasksClosed,
+  };
+}
+
+/** A finding type as a reader would say it. */
+function humanType(type: string): string {
+  return type.replace(/_/g, " ");
+}

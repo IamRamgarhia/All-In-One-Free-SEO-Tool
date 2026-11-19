@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { buildDevTicket } from "@/lib/dev-ticket";
 import { DevTicketButton } from "./dev-ticket-button";
+import { VerifyFixedButton } from "./verify-fixed-button";
 import { eq, asc, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -542,6 +543,22 @@ export default async function AuditDetailPage({
                       )}
 
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                        {/* Before "Mark resolved", deliberately.
+                            That button takes the user's word — 155
+                            findings on this install were resolved that
+                            way, so the health score and every client
+                            report rested on an unchecked claim. This one
+                            re-fetches the page and resolves only if the
+                            problem is actually gone, which is the same
+                            check the agent runs on its own work and the
+                            only verified route available without the
+                            WordPress plugin. */}
+                        {g.issueIds[0] !== undefined && (
+                          <VerifyFixedButton
+                            issueId={g.issueIds[0]}
+                            auditId={auditId}
+                          />
+                        )}
                         <form
                           action={setStatusForType.bind(
                             null,

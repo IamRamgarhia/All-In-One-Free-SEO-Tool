@@ -298,7 +298,57 @@ async function main() {
   check("the task is now closed", (await taskStatus()) === "done", await taskStatus());
   check("and it reports closing one", closedNow === 1, closedNow);
 
+  // ── The manual path: "I fixed this — check it" ──────────────────────
+  //
+  // The route available to every user, including the large majority with
+  // no CMS connection for the agent to write through. It must verify as
+  // strictly as the agent's own path — resolving a finding on a user's
+  // word is what made the 155 resolved findings on this install
+  // meaningless.
+  console.log("A user says they fixed it, and we check rather than believe");
+  const { verifyFindingFixed } = await import("../src/lib/agent/close-loop");
+
+  const manualIssue = await seedIssue();
+
+  titleIsLong = true;
+  const vStill = await verifyFindingFixed(manualIssue);
+  check("refuses while the problem is still on the page", vStill.result === "still_present", vStill.result);
+  check("leaves the finding open", (await issueStatus(manualIssue)) === "new", await issueStatus(manualIssue));
+  check("and suggests a cache, which is the usual cause", /cache/i.test(vStill.note), vStill.note);
+
+  titleIsLong = false;
+  const vOk = await verifyFindingFixed(manualIssue);
+  check("resolves once the live page agrees", vOk.result === "resolved", vOk.result);
+  check("the finding is marked resolved", (await issueStatus(manualIssue)) === "resolved", await issueStatus(manualIssue));
+
+  const vAgain = await verifyFindingFixed(manualIssue);
+  check("running it again is harmless", vAgain.result === "resolved", vAgain.result);
+  check("and says it was already confirmed", /already/i.test(vAgain.note), vAgain.note);
+
+  // A site-wide finding has no page to re-fetch, and must not be
+  // resolved on no evidence just because the user asked.
+  const [siteWide] = await db
+    .insert(auditIssues)
+    .values({
+      auditId: audit.id,
+      severity: "high",
+      type: "missing_sitemap",
+      url: "",
+      message: "No sitemap.xml found.",
+      status: "new",
+    })
+    .returning({ id: auditIssues.id });
+  const vNoUrl = await verifyFindingFixed(siteWide.id);
+  check("a site-wide finding is not resolved on no evidence", vNoUrl.result === "no_url", vNoUrl.result);
+  check("it stays open", (await issueStatus(siteWide.id)) === "new", await issueStatus(siteWide.id));
+
+  const vMissing = await verifyFindingFixed(999999);
+  check("a finding that no longer exists is reported, not crashed on", vMissing.result === "gone", vMissing.result);
+
+  console.log();
+
   server.close();
+
 
   console.log(`\n${pass} passed, ${fail} failed`);
   console.log(

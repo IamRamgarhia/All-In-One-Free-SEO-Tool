@@ -3,7 +3,7 @@
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
-// 226 routes · 100 need AI · 72 use a browser.
+// 226 routes · 100 need AI · 73 use a browser.
 // 91 are /tools/* · 33 need AI · 91 carry copy.
 
 export const TOOL_CAPABILITIES = [
@@ -19,7 +19,7 @@ export const TOOL_CAPABILITIES = [
   { route: "/annotations", needsAI: false, aiUsage: "none", usesBrowser: false, title: "Chart annotations", description: "Manual markers that overlay on rank, traffic and Core Web Vitals charts. Correlate ranking changes with algorithm updates, content launches, migrations or outreach milestones." },
   { route: "/ask", needsAI: true, aiUsage: "required", usesBrowser: false, title: "Ask the tool ⭐", description: "Plain-English Q&A on top of your real data. Pick a client and ask why traffic dropped, what to fix first, or what's worth refreshing — answered against that client's actual audits, keywords and Search Console history." },
   { route: "/audits", needsAI: true, aiUsage: "required", usesBrowser: true },
-  { route: "/audits/[id]", needsAI: false, aiUsage: "none", usesBrowser: false },
+  { route: "/audits/[id]", needsAI: false, aiUsage: "none", usesBrowser: true },
   { route: "/audits/c/[clientId]", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/audits/diff", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/author-authority", needsAI: false, aiUsage: "none", usesBrowser: false, title: "Author topic-authority tracker", description: "Scan a competitor or partner domain. Crawls /author/ pages, scores each named author on E-E-A-T signals (bio depth, credentials, sameAs profiles, post volume, topic match) and surfaces the strongest." },
