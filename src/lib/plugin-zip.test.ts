@@ -144,8 +144,42 @@ describe("zip-read", () => {
     );
   });
 
-  it("round-trips a deflated entry byte for byte", () => {
-    const readme = readZipEntry(zip(), "seo-tool-bridge/readme.txt");
-    expect(readme.length).toBe(statSync(join(ROOT, "wordpress-plugin/readme.txt")).size);
+  it("round-trips a deflated entry, content for content", () => {
+    /*
+     * THIS TEST HELD CI RED ON main FOR THREE WEEKS, from 30 Oct 2026.
+     *
+     * It compared the inflated entry's BYTE LENGTH against the on-disk
+     * file's size, and those cannot agree on both platforms:
+     *
+     *   $ git ls-files --eol wordpress-plugin/readme.txt
+     *   i/lf  w/crlf  attr/text=auto
+     *
+     *   index (what Linux checks out):  14591 bytes
+     *   working tree on Windows:        14837 bytes
+     *
+     * `* text=auto` in .gitattributes converts on checkout. The zip is a
+     * committed BINARY, so it keeps whatever endings it was built with —
+     * Windows CRLF, 14837. On a developer's Windows box both sides read
+     * 14837 and the test passed; on an ubuntu runner the file is 14591
+     * and it failed with "expected 14837 to be 14591", every push, while
+     * every local run was green.
+     *
+     * So the project lost its CI signal entirely for three weeks, and
+     * the only symptom was a red tick nobody could reproduce.
+     *
+     * The test's own name says what it is for: proving the inflate
+     * round-trip is correct. Line endings are not the subject. Comparing
+     * normalised CONTENT is both platform-independent and strictly
+     * stronger than comparing two numbers — it would catch a corrupt
+     * inflate that happened to produce the right length.
+     */
+    const inflated = readZipEntry(zip(), "seo-tool-bridge/readme.txt").toString("utf8");
+    const onDisk = readFileSync(join(ROOT, "wordpress-plugin/readme.txt"), "utf8");
+    const normalise = (s: string) => s.replace(/\r\n/g, "\n");
+
+    expect(normalise(inflated)).toBe(normalise(onDisk));
+    // And it really did inflate something, rather than both sides being
+    // empty for the same reason.
+    expect(inflated.length).toBeGreaterThan(1000);
   });
 });
