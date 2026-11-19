@@ -25,6 +25,8 @@ import { levelFor } from "@/lib/agent/claude-autopilot";
 import { revertAction } from "@/lib/agent/executor";
 import { runAgentForAllClients, runAgentForClient } from "@/lib/agent/run";
 import { guardAction } from "@/lib/action-guard";
+import { logActivity } from "@/lib/activity";
+import type { TrialResult } from "@/lib/agent/trial";
 
 /**
  * Every mutating action here re-checks that the caller may see the
@@ -366,4 +368,55 @@ export async function setClientAutopilot(
   safeRevalidatePath("/agent/autopilot");
   safeRevalidatePath(`/clients/${clientId}`);
   return { ok: true };
+}
+
+/**
+ * Apply a handful of queued safe changes, now, without granting the
+ * agent anything.
+ *
+ * The autonomy prompt asks someone to decide permanently how much
+ * authority this tool has over a client's live site. Measured on this
+ * install, nobody answered: the level stayed on the cautious default
+ * and 42 changes queued, the oldest for 68 days. "Not yet" is a
+ * reasonable answer that never expires.
+ *
+ * So this is the smaller question — three changes, visible, each with
+ * its previous value and a one-click undo, and no setting altered. See
+ * lib/agent/trial.ts for the guarantees and why each one matters.
+ */
+export async function runTrialAction(opts?: {
+  limit?: number;
+  clientId?: number;
+}): Promise<TrialResult> {
+  await guardAction("edit");
+  const { runTrial } = await import("@/lib/agent/trial");
+  const result = await runTrial({
+    // The real approve path, so the risk gate, the CMS write, the
+    // read-back verification and the undo record are the same ones every
+    // other applied change goes through.
+    approve: approveAction,
+    limit: opts?.limit,
+    clientId: opts?.clientId,
+  });
+
+  await logActivity({
+    kind: "agent.trial_run",
+    level: result.failed > 0 ? "warning" : "success",
+    clientId: opts?.clientId ?? null,
+    message: result.summary,
+  });
+
+  safeRevalidatePath("/agent/autopilot");
+  safeRevalidatePath("/");
+  return result;
+}
+
+/** What to offer, and how long it has been waiting. */
+export async function trialOfferAction(): Promise<{
+  waiting: number;
+  oldestDays: number | null;
+} | null> {
+  await guardAction("edit");
+  const { trialOffer } = await import("@/lib/agent/trial");
+  return trialOffer();
 }

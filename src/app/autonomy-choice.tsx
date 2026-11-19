@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { Bot, Check, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { LEVEL_DESCRIPTIONS, type AutonomyLevel } from "@/lib/agent/autonomy-levels";
+// trial-shared, not trial: the latter imports the database, and this
+// is a client component. The build caught it.
+import { TRIAL_SIZE, type TrialResult } from "@/lib/agent/trial-shared";
+import { runTrialAction } from "./agent/autopilot/actions";
 import { chooseAutonomyAction } from "./autonomy-actions";
 
 /**
@@ -36,8 +41,18 @@ const OPTIONS: { level: AutonomyLevel; label: string; hint: string }[] = [
 export function AutonomyChoice({
   current,
   waiting = null,
+  trialWaiting = null,
+  trialOldestDays = null,
 }: {
   current: AutonomyLevel;
+  /**
+   * How many SAFE changes are queued, and how long the oldest has
+   * waited — the numbers that make the trial offer concrete. Null when
+   * there is nothing queued, in which case no offer is shown: "try it
+   * on 3" with nothing to apply would be a dead button.
+   */
+  trialWaiting?: number | null;
+  trialOldestDays?: number | null;
   /**
    * One sentence naming how much the agent is holding, when it is
    * holding anything. Null on a fresh install, where "0 changes are
@@ -123,9 +138,92 @@ export function AutonomyChoice({
         ))}
       </div>
 
+      {/* The smaller question, offered under the big one.
+          Measured on this install: 42 changes queued, 3 applied, the
+          oldest waiting 68 days, because the question above asks
+          somebody to decide permanently how much authority a tool they
+          just installed has over a client's live website. "Not yet" is
+          a reasonable answer and it never expires.
+          This asks for three changes instead of a standing permission. */}
+      {trialWaiting !== null && trialWaiting > 0 && !picked && (
+        <TrialOffer waiting={trialWaiting} oldestDays={trialOldestDays} />
+      )}
+
       {error && (
         <p className="px-5 pb-4 text-xs text-destructive">{error}</p>
       )}
     </section>
+  );
+}
+
+/**
+ * "Try it on three" — a bounded trial that grants nothing.
+ *
+ * Deliberately not a fourth autonomy option. An option in that row
+ * would read as another permanent setting, which is exactly the
+ * commitment people are declining to make.
+ */
+function TrialOffer({
+  waiting,
+  oldestDays,
+}: {
+  waiting: number;
+  oldestDays: number | null;
+}) {
+  const [state, setState] = useState<"idle" | "running" | "done">("idle");
+  const [result, setResult] = useState<TrialResult | null>(null);
+  const [, start] = useTransition();
+
+  const run = () => {
+    setState("running");
+    start(async () => {
+      const r = await runTrialAction({ limit: TRIAL_SIZE });
+      setResult(r);
+      setState("done");
+    });
+  };
+
+  if (state === "done" && result) {
+    return (
+      <div className="mx-4 mb-4 rounded-xl border border-border bg-card/40 p-3">
+        <p className="text-xs font-medium">
+          {result.applied > 0 ? "Done — have a look" : "Nothing changed"}
+        </p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+          {result.summary}
+        </p>
+        <Link
+          href="/agent/autopilot"
+          className="mt-1.5 inline-block rounded text-[11px] font-medium text-foreground underline decoration-dotted underline-offset-2 hover:decoration-solid"
+        >
+          See every change, with its previous value →
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-4 mb-4 rounded-xl border border-border bg-card/40 p-3">
+      <p className="text-xs font-medium">Not sure? Try it on {TRIAL_SIZE}.</p>
+      <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+        {waiting} change{waiting === 1 ? "" : "s"} are waiting
+        {oldestDays !== null && oldestDays > 0
+          ? `, the oldest for ${oldestDays} day${oldestDays === 1 ? "" : "s"}`
+          : ""}
+        . I&apos;ll apply {TRIAL_SIZE} of the safe ones now — the kind that are
+        wrong by a measurable rule, never a rewrite of your wording — and show
+        you exactly what changed. No setting changes, and every one can be
+        undone in a click.
+      </p>
+      <button
+        type="button"
+        onClick={run}
+        disabled={state === "running"}
+        className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-violet-500/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-60"
+      >
+        {state === "running" && <Loader2 className="size-3 animate-spin" />}
+        {state === "running" ? "Applying…" : `Apply ${TRIAL_SIZE} and show me`}
+      </button>
+    </div>
   );
 }

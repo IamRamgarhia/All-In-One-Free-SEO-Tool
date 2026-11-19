@@ -24,6 +24,13 @@ export type ActivityKind =
   | "google.service_account_cleared"
   | "agent.level_chosen"
   /**
+   * A bounded trial was run: a few queued safe changes applied on
+   * request, granting the agent nothing. Logged so the activity trail
+   * distinguishes "the user pressed try it" from the agent acting on a
+   * standing permission.
+   */
+  | "agent.trial_run"
+  /**
    * A fix was applied AND confirmed gone from the live page.
    *
    * Distinct from the action's own `verified` status, which only means

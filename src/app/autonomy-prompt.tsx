@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { agentActions, clients } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { describeWaitingWork } from "@/lib/agent/waiting-work";
+import { trialOffer } from "@/lib/agent/trial";
 import { AutonomyChoice } from "./autonomy-choice";
 
 /**
@@ -63,5 +64,18 @@ export async function AutonomyPrompt() {
     oldest: oldestRaw ? new Date(Number(oldestRaw) * 1000) : null,
   });
 
-  return <AutonomyChoice current={settings.level} waiting={waiting} />;
+  // The numbers behind the trial offer. Queried here rather than in the
+  // client component so the offer is either concrete ("14 waiting, the
+  // oldest 68 days") or absent — a "try it on 3" button with nothing to
+  // apply would be a dead end.
+  const offer = await trialOffer().catch(() => null);
+
+  return (
+    <AutonomyChoice
+      current={settings.level}
+      waiting={waiting}
+      trialWaiting={offer?.waiting ?? null}
+      trialOldestDays={offer?.oldestDays ?? null}
+    />
+  );
 }
