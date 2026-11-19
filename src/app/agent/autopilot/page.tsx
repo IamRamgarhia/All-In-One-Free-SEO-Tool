@@ -4,7 +4,9 @@ import { and, desc, inArray, isNull, or } from "drizzle-orm";
 import { Bot } from "lucide-react";
 import { db } from "@/db/client";
 import { agentActions, agentRuns, clients } from "@/db/schema";
+import { Suspense } from "react";
 import { PageHeader } from "@/components/shell/page-header";
+import { OutcomesPanel } from "./outcomes-panel";
 import { getAgentSettings } from "@/lib/agent/autonomy";
 import { clientScope } from "@/lib/client-scope";
 import { AutopilotPanel } from "./panel";
@@ -108,6 +110,16 @@ export default async function AutopilotPage() {
         accent="violet"
         crumbs={[{ href: "/agent", label: "Agent" }, { label: "Autopilot" }]}
       />
+      {/* Above the approval queue, because "did the last batch help?"
+          is the question that decides whether someone approves the next
+          one — and until now the page could only say what had been
+          changed, never what changed as a result. */}
+      <Suspense fallback={null}>
+        <OutcomesPanel
+          clients={visibleClients.map((c) => ({ id: c.id, name: c.name }))}
+        />
+      </Suspense>
+
       {bulkByClient.map(({ client, groups }) => (
         <div key={client.id} className="space-y-2">
           <p className="px-1 text-xs text-muted-foreground">{client.name}</p>
