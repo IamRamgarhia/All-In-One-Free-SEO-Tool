@@ -1,4 +1,4 @@
-; Windows installer for the SEO tool.
+﻿; Windows installer for the SEO tool.
 ;
 ; Built only in CI — see .github/workflows/installer.yml. ISCC is not on
 ; a typical developer machine and this script has never been compiled
@@ -183,6 +183,95 @@ Type: filesandordirs; Name: "{app}\webview-data"
 ; people do.
 
 [Code]
+// SAY "UPDATE" WHEN IT IS AN UPDATE.
+//
+// Inno has no idea it is upgrading. DisableDirPage=auto and
+// DisableReadyPage=yes skip the PAGES on a second run, but every word
+// on the remaining ones still says install — "This will install SEO
+// Tool version 0.10.2 on your computer" — over a copy the user already
+// has. That reads as "this is going to replace what I have", which is
+// the question they asked, and the honest answer is that it keeps
+// their data and only swaps the program.
+//
+// Detected from the uninstall key Inno itself writes. PrivilegesRequired
+// is lowest, so it lands in HKCU; HKLM is checked too in case an older
+// build was installed for all users.
+
+const
+  AppGuid = '8E6F2C14-7B3A-4D95-9E2F-5A1C3B7D8042';
+
+function UninstallKey(): String;
+begin
+  // Assembled rather than written as a literal: a '{' in an .iss string
+  // is the start of a constant, and escaping it here is less readable
+  // than concatenating it.
+  Result := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\'
+    + '{' + AppGuid + '}_is1';
+end;
+
+/// The version already installed, or '' when this is a first install.
+function InstalledVersion(): String;
+begin
+  Result := '';
+  if not RegQueryStringValue(HKCU, UninstallKey(), 'DisplayVersion', Result) then
+    if not RegQueryStringValue(HKLM, UninstallKey(), 'DisplayVersion', Result) then
+      Result := '';
+end;
+
+procedure InitializeWizard;
+var
+  Previous: String;
+begin
+  Previous := InstalledVersion();
+  if Previous = '' then
+    exit;
+
+  WizardForm.WelcomeLabel1.Caption := 'Update {#AppName}';
+
+  if Previous = '{#AppVersion}' then
+    // Reinstalling the same version is a repair, and calling it an
+    // update to 0.10.2 when 0.10.2 is already there is just wrong.
+    WizardForm.WelcomeLabel2.Caption :=
+      'Version {#AppVersion} is already installed. This will reinstall it.'
+      + #13#10#13#10
+      + 'Your clients, audits, keywords and settings are not touched — '
+      + 'they live outside the program folder.'
+  else
+    WizardForm.WelcomeLabel2.Caption :=
+      'This will update {#AppName} from version ' + Previous
+      + ' to {#AppVersion}.'
+      + #13#10#13#10
+      + 'Your clients, audits, keywords and settings are kept. Only the '
+      + 'program itself is replaced.';
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if InstalledVersion() = '' then
+    exit;
+
+  // The button says "Install" right up to the moment it runs, and the
+  // finished page congratulates you on an installation you did not do.
+  //
+  // Matched on the CAPTION rather than on a page id, because which page
+  // carries the Install button depends on which pages are enabled —
+  // DisableReadyPage=yes moves it to Select Tasks, and keying off
+  // wpReady would silently never fire.
+  if WizardForm.NextButton.Caption = SetupMessage(msgButtonInstall) then
+    WizardForm.NextButton.Caption := '&Update';
+
+  if CurPageID = wpInstalling then
+    WizardForm.PageNameLabel.Caption := 'Updating {#AppName}';
+
+  if CurPageID = wpFinished then
+  begin
+    WizardForm.FinishedHeadingLabel.Caption := '{#AppName} has been updated';
+    WizardForm.FinishedLabel.Caption :=
+      '{#AppName} is now at version {#AppVersion}. Your data was left '
+      + 'exactly as it was.';
+  end;
+end;
+
 // Refuse to install over a running copy.
 //
 // Overwriting a locked SEO Tool.exe fails halfway and leaves a mixed

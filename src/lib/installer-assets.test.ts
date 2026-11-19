@@ -306,6 +306,72 @@ describe("the installer script references files that exist", () => {
     expect(gen).toMatch(/interlace/);
   });
 
+  it("says 'update' when there is already a copy installed", () => {
+    // Inno has no idea it is upgrading. DisableDirPage=auto and
+    // DisableReadyPage=yes skip the PAGES on a second run, but every
+    // word on the ones that remain still says install — "This will
+    // install SEO Tool version 0.10.2 on your computer" — over a copy
+    // the user already has.
+    //
+    // Reported as "all the time install software it never show me
+    // update it always show install why", which is the right question:
+    // the wording was the only thing saying it would replace rather
+    // than update, and it was saying the wrong one.
+    expect(src).toContain("function InstalledVersion");
+    expect(src).toMatch(/WelcomeLabel1\.Caption\s*:=\s*'Update/);
+    expect(src).toMatch(/FinishedHeadingLabel\.Caption\s*:=.*has been updated/);
+
+    // Both registry hives: PrivilegesRequired=lowest writes to HKCU,
+    // but an older build installed for all users leaves it in HKLM.
+    expect(src).toContain("HKCU");
+    expect(src).toContain("HKLM");
+
+    // The promise the wording makes has to be the true one.
+    expect(src).toMatch(/settings are kept|are not touched/);
+  });
+
+  it("is UTF-8 with a BOM, because the wizard text is not ASCII", () => {
+    // Inno Setup 6 is Unicode, but WITHOUT a byte-order mark it reads
+    // the .iss in the system codepage. The wizard now displays strings
+    // containing an em-dash, and the copyright line contains ©; read as
+    // CP1252 those become "â€”" and "Â©" in front of the user.
+    //
+    // An encoding bug is invisible on the machine that wrote the file
+    // and appears on everyone else's, which is why it gets an assertion
+    // rather than a convention.
+    const bytes = readFileSync(ISS);
+    const hasBom = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+    const nonAscii = [...src].some((c) => c.charCodeAt(0) > 127);
+    if (nonAscii) {
+      expect(
+        hasBom,
+        "the .iss contains non-ASCII text and has no UTF-8 BOM, so Inno will " +
+          "read it in the system codepage and show mojibake",
+      ).toBe(true);
+    }
+  });
+
+  it("uses Inno's documented event signature", () => {
+    // `procedure InitializeWizard();` with parentheses may compile and
+    // simply never be called — the wizard then shows the install
+    // wording with no error anywhere. The documented form has no
+    // parentheses, and a silent no-fire is the failure this whole file
+    // keeps running into.
+    expect(src).toMatch(/procedure InitializeWizard;/);
+    expect(src).not.toMatch(/procedure InitializeWizard\(\);/);
+  });
+
+  it("finds the Install button by caption, not by page id", () => {
+    // Which page carries that button depends on which pages are
+    // enabled: DisableReadyPage=yes moves it from Ready to Select
+    // Tasks. Keying off wpReady would compile, run, and silently never
+    // fire — the failure mode that is indistinguishable from not having
+    // written it.
+    expect(src).toMatch(
+      /NextButton\.Caption\s*=\s*SetupMessage\(msgButtonInstall\)/,
+    );
+  });
+
   it("the host tells the user when the fault is ours", () => {
     // The lesson, encoded: a blanket catch turned our missing file into
     // "install WebView2", which the user had already done. The two
