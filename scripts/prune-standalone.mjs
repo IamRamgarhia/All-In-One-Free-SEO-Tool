@@ -46,10 +46,32 @@ const FORBIDDEN = [
   "dist", // previously built release archives and payloads
   "test-results",
   "playwright-report",
+  // Agent instructions and local agent settings. `.claude/` can hold
+  // `settings.local.json`, which is on this project's own list of files
+  // that must never be committed. The file loop below skips
+  // directories, so this has to be here rather than in FORBIDDEN_FILE.
+  ".claude",
 ];
 
-/** Loose database / secret files sitting at the top level. */
-const FORBIDDEN_FILE = /^(data\.db($|[-.])|\.env($|\..+))/;
+/**
+ * Loose files at the top level that must not ship.
+ *
+ * `CLAUDE.md` / `AGENTS.md` were added 19 Nov 2026 after finding an
+ * 81 KB `CLAUDE.md` sitting in `.next/standalone`. It is gitignored
+ * precisely because it is not for distribution: this one holds the
+ * maintainer's Windows paths, their clients' domain names and a running
+ * list of what is and is not working on their install. The Dockerfile
+ * copies this directory wholesale, so `docker compose up --build` on
+ * any machine with one produces an image carrying it.
+ *
+ * Not a credential leak, which is why it survived the first pass of
+ * this script — but a contributor's notes about their own employer's
+ * sites have no business inside somebody else's download, and the
+ * reason the file is gitignored applies with more force to a build
+ * artefact than to a repository.
+ */
+const FORBIDDEN_FILE =
+  /^(data\.db($|[-.])|\.env($|\..+)|CLAUDE\.md$|AGENTS\.md$)/;
 
 if (!existsSync(STANDALONE)) {
   // Not a standalone build. Nothing to do, and not an error: `next build`

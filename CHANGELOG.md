@@ -3,6 +3,105 @@
 Each release has full notes under [docs/releases](docs/releases/). This
 file is the short version.
 
+## v0.10.2 — 2026-11-19
+
+An installer you can double-click, and an agent that finishes what it
+starts. [Full notes](docs/releases/v0.10.2.md)
+
+- **🖱️ A Windows `.exe` and a macOS/Linux one-liner.** Neither existed
+  before — the only install was `git clone` plus a build, which asks
+  for pnpm, a C++ toolchain and a working `main`. The prebuilt payload
+  ships `node_modules` and `.next` already built, one per platform
+  **and per Node major**, because the native modules work against
+  exactly one ABI. Honest limit: every piece compiles and the filenames
+  line up end to end, but **nothing has been installed on a fresh
+  machine yet**.
+- **🤖 The agent closes the loop.** After applying a change it re-reads
+  the live page, resolves the finding when the change took, reverts
+  when it did not, closes the task, and reports the traffic outcome 28
+  days later — labelled `measured`, `thin` or `too early` so four
+  clicks does not read like a result.
+- **New: "I fixed this — check it"** — the same verification with no
+  WordPress plugin, no key and no Google account. The only closing path
+  available to a Wix, Squarespace or custom-stack site, which is most
+  sites.
+- **Work is ranked by the traffic a page actually gets**, not by
+  severity, and says `severity only` when there is no traffic data
+  rather than implying the order means something.
+- **Findings the agent cannot fix become a developer ticket.** 30 of
+  the crawler's 72 finding types are auto-fixable; 25 are out of reach
+  with a stated reason; 17 are real gaps and the file names them.
+- **🩺 System health says out loud when the install has stopped
+  working** — eight checks, and "we have not looked" never renders the
+  same as "nothing is wrong".
+- **Fixed: nightly failures did not say why.** On the development
+  install, 9 of 11 were one client whose domain had stopped resolving,
+  and no stored error mentioned it. A dead domain has two spellings
+  (`ENOTFOUND` and `net::ERR_NAME_NOT_RESOLVED`) and both classifiers
+  knew only one, so a mistyped client URL produced "Something went
+  wrong" and a link to file a bug report. 67 days of a one-minute fix
+  being invisible.
+- **🧰 Ten finished tools were absent from every menu.** They are in
+  the navigation, behind one tool registry instead of several
+  hand-maintained lists that had already drifted.
+- **Connections name the tools they unlock**, and how much works with
+  no key at all — "free" has to mean something you can check.
+- **🔎 Rank checking works on a fresh install** with no key: SearXNG
+  ships as an optional Docker profile. Four sources, headless browser
+  last. A tracking redirect was also stealing a position and reporting
+  a rank of 3 where there was none.
+- **Fixed: a third of the keyword list had no data** and rendered as if
+  the rank were merely unknown.
+- **Fixed:** the nightly sweep's result was computed and thrown away;
+  and a run that half failed painted a green tick.
+- **Every critical and high advisory cleared**, with the pins where
+  `npm` can see them as well as `pnpm` — the two had already drifted.
+- **The paid-ads tooling is gone.** A free-first SEO tool; ads were
+  neither. `google-ads-api` is optional and a normal install never
+  fetches it.
+- **No migrations.** Schema unchanged at 76. WordPress plugin
+  unchanged. No new required dependencies.
+
+## v0.10.1 — 2026-10-30
+
+A one-line fix to the thing v0.10.0 introduced, found twenty minutes
+after publishing it. [Full notes](docs/releases/v0.10.1.md)
+
+- **Update downloaded the WordPress plugin instead of the app.** The new
+  self-updater took the first attached file ending in `.zip`; a release
+  has two, and the 30 KB plugin sorts first. Found by running the real
+  download against the real release — it refused with "does not look
+  like this app" rather than replacing an install with a plugin.
+  `releaseAssetName()` is now the single owner of that filename, called
+  by both the packaging script and the updater.
+
+## v0.10.0 — 2026-10-30
+
+Most AI features were quietly failing, several numbers were quietly
+wrong, and the WordPress plugin could not be downloaded at all.
+[Full notes](docs/releases/v0.10.0.md)
+
+- **🤖 Four of five AI features were failing — and falling back
+  silently.** Not crashing: *degrading*. The executive summary returned
+  its deterministic template, the content summariser and review drafter
+  returned "the AI provider did not respond", sentiment returned
+  nothing. `callAI` returned `null` for no-key, retired-model,
+  spend-cap and network errors alike, so all 68 call sites rendered the
+  same empty box.
+- **📉 Numbers that were wrong and said so with confidence.** The
+  DuckDuckGo rank fallback always returned "not ranking"; Google
+  positions counted anchors instead of results; the audit health score
+  got *worse* the more pages you crawled.
+- **🔌 The WordPress plugin is a download** — it could not be obtained
+  at all before.
+- **🔎 Rank checking no longer depends on a browser that keeps getting
+  blocked.** Four sources in order: Search Console → SearXNG → Brave →
+  headless browser. Measured the same day: Google served a JS
+  interstitial, DuckDuckGo a CAPTCHA, Bing and Startpage empty shells.
+- **🖱️ The launcher, and the Update button that never worked.**
+- **💾 Backups moved out of the app folder**, which on a native install
+  is the folder people delete, move or re-download.
+
 ## v0.9.0 — 2026-10-29
 
 Claude Code works your tasks; Support & about; a licence correction.

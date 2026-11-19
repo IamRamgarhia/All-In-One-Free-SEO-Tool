@@ -35,10 +35,29 @@ const FORBIDDEN: { path: string; why: string }[] = [
   { path: ".git", why: "repository history" },
   { path: "dist", why: "previously built release archives" },
   { path: ".e2e", why: "the end-to-end test database" },
+  {
+    path: ".claude",
+    why: "local agent settings, which can include settings.local.json",
+  },
 ];
 
-/** File names that must never appear anywhere inside the artefact. */
-const FORBIDDEN_FILES = /(^|\/)(data\.db($|[-.])|\.env($|\.)|.*\.db(-wal|-shm)?$)/;
+/**
+ * File names that must never appear anywhere inside the artefact.
+ *
+ * `CLAUDE.md` was added 19 Nov 2026, found by grepping the build output
+ * for the old version number: an 81 KB copy was sitting at the top of
+ * `.next/standalone`. It is gitignored because it is not for
+ * distribution — this one holds the maintainer's Windows paths, their
+ * clients' domains and a running account of what works on their
+ * install — and the Dockerfile copies this directory wholesale.
+ *
+ * It is not a credential leak, which is why the first pass of this
+ * guard did not catch it. It is still somebody's private notes inside
+ * a public download, and "gitignored" is a weaker promise than "not in
+ * the artefact".
+ */
+const FORBIDDEN_FILES =
+  /(^|\/)(data\.db($|[-.])|\.env($|\.)|CLAUDE\.md$|AGENTS\.md$|.*\.db(-wal|-shm)?$)/;
 
 describe("the standalone build carries nothing private", () => {
   const built = existsSync(STANDALONE);
