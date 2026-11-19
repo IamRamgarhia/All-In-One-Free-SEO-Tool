@@ -191,6 +191,62 @@ it hosted and effortless, a $5 VPS is the shortest path.
 
 ---
 
+## Rank checking that works out of the box
+
+Rank checking tries four sources, in this order:
+
+1. **Google Search Console** — best by a distance for a site you own.
+   Google's own figure, free, official, cannot be rate-limited. If you
+   have this connected for a client, you do not need anything below.
+2. **SearXNG** — a self-hosted meta-search instance. Free, fast, and
+   works for competitors' sites too.
+3. **Brave Search API** — needs a key, and searches *Brave's* index, not
+   Google's. A page can be #3 there and #30 on Google, so the tool never
+   subtracts a position from one source against another.
+4. **A headless browser** — last, because it mostly does not work.
+   Measured from a developer machine on 30 Oct 2026: Google served a JS
+   interstitial, DuckDuckGo a CAPTCHA, and Bing and Startpage empty page
+   shells.
+
+So on a fresh install with no Search Console property and no Brave key,
+**nothing in that list answers**. Hence the bundled SearXNG:
+
+```bash
+# One-time: generate a secret (SearXNG will not start on a placeholder)
+echo "SEARXNG_SECRET=$(openssl rand -hex 32)" >> .env
+
+docker compose --profile searxng up -d
+```
+
+That is all. The app's `SEARXNG_URL` already points at the service, so
+rank checks start using it on the next run. Verified end to end on
+19 Nov 2026 from a machine that Google and DuckDuckGo both block:
+`position 1 of 31 scanned, via brave, duckduckgo, google cse`.
+
+**It is behind a profile, not on by default**, because it is a second
+container and an install that only uses Search Console does not need
+it. Plain `docker compose up -d` is unaffected.
+
+**It is not published to the host, deliberately.** An open SearXNG is an
+open proxy, and this one runs with its rate limiter off because the only
+client is the app on the same network. Do not add a `ports:` entry.
+
+Two things that are easy to get wrong, both already handled in
+`docker/searxng/settings.yml`:
+
+- **`json` must be in `search.formats`.** It is not there by default, and
+  a stock instance answers every API request with a 403 and an HTML
+  body — which from the app's side looks exactly like a blocked scrape
+  rather than a config gap. This is also why pointing at a public
+  instance usually fails: of six tried on 30 Oct 2026, every one either
+  had JSON disabled or returned 429.
+- **Wikipedia, Wikidata and OpenStreetMap refuse to load without a
+  contact URL.** They are not rank sources so rank checking works
+  regardless, but three startup errors on every boot teach you to ignore
+  this log. Set `SEARXNG_CONTACT_URL` in `.env` if you want them.
+
+---
+
 ## When to migrate to PostgreSQL
 
 Stay on SQLite while:

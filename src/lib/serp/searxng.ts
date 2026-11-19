@@ -52,6 +52,19 @@ const TIMEOUT_MS = 20_000;
 export function normaliseInstanceUrl(raw: string): string | null {
   const trimmed = String(raw ?? "").trim();
   if (!trimmed) return null;
+
+  // A scheme that is not http(s) is refused, not overwritten.
+  //
+  // This only tested for http(s) and prepended "https://" otherwise, so
+  // "ftp://x.example" became "https://ftp://x.example" — which parses,
+  // as https://ftp//x.example, and is then stored as the user's
+  // instance URL. They would get connection failures against an address
+  // they never typed, with nothing saying the input was rejected.
+  // Refusing lets the caller say "that is not a URL I can use".
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) {
+    return null;
+  }
+
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   try {
     const u = new URL(withScheme);
@@ -92,6 +105,22 @@ export function parseSearxResults(body: unknown): {
     let key: string;
     try {
       const u = new URL(r.url);
+      // A hostname with no dot is not a site anyone can rank on, and
+      // letting one through shifts every position below it by one.
+      //
+      // Observed, not hypothesised: a live SearXNG instance on
+      // 19 Nov 2026 returned `http:///go/v1/AeGaCYwI5Bxhav7…` among 52
+      // results for "wordpress seo" — a tracking redirect from one of
+      // its engines with the host segment missing. `new URL()` does not
+      // throw on that; it parses the first path segment as the
+      // hostname, so the row arrived looking like a result for the site
+      // "go" and occupied rank 3. Every genuine result after it would
+      // have been reported one position lower than it really was.
+      //
+      // The try/catch above cannot catch this, because nothing throws.
+      // That is the whole shape of the bug class this project keeps
+      // finding: a confident, specific, wrong number.
+      if (!u.hostname.includes(".")) continue;
       key = `${u.hostname.replace(/^www\./i, "").toLowerCase()}${u.pathname.replace(/\/+$/, "")}`;
     } catch {
       continue;

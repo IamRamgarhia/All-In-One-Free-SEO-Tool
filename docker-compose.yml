@@ -64,8 +64,55 @@ services:
       # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
       # OLLAMA_URL: http://ollama:11434
+      #
+      # Rank checking via the searxng profile below. Set unconditionally
+      # rather than commented out: if the profile is not running, the
+      # app's provider gets a connection error and falls through to the
+      # next source, which is the same thing that happens with no URL
+      # set at all. Pointing at a service that may not exist costs
+      # nothing; making the user edit two files to turn rank checking on
+      # is what made it a dead end.
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
     volumes:
       - seo-data:/data
+
+  # Rank checking that works on a fresh install.
+  #
+  #   docker compose --profile searxng up -d
+  #
+  # Behind a profile rather than always-on: it is a second container on a
+  # box this project promises will run on a $5 VPS, and an install that
+  # only ever uses Search Console does not need it.
+  #
+  # Why it is here at all: of the four rank sources, Search Console needs
+  # a verified property, Brave needs a key, and the headless browser is
+  # blocked — measured 30 Oct 2026, Google returned a JS interstitial,
+  # DuckDuckGo a CAPTCHA, Bing and Startpage empty shells. So without
+  # this, a new user with no Google property has no working rank source
+  # and nothing tells them why.
+  #
+  # NOT published to the host. An open SearXNG is an open proxy, and this
+  # one runs with its rate limiter off because the only client is the app
+  # on the same compose network.
+  searxng:
+    image: searxng/searxng:latest
+    profiles: ["searxng"]
+    restart: unless-stopped
+    environment:
+      # SearXNG refuses to start on the default placeholder secret.
+      # Generate one: openssl rand -hex 32   (see docs/HOSTING.md)
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+      SEARXNG_BASE_URL: http://searxng:8080/
+      # See the comment on general.contact_url in docker/searxng/settings.yml.
+      SEARXNG_CONTACT_URL: ${SEARXNG_CONTACT_URL:-false}
+    volumes:
+      # Read-only: the app never needs to write SearXNG's config, and the
+      # one line that matters (json in search.formats) should not be
+      # editable by the container.
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    # No `ports:` on purpose — see above.
+    expose:
+      - "8080"
 
   # Optional sidecar — local LLM for fully offline AI features.
   # Uncomment + run `docker compose up ollama` to use.

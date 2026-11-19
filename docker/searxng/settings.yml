@@ -1,0 +1,81 @@
+# SearXNG configuration for this app's rank checking.
+#
+# WHY THIS FILE EXISTS: rank checking has four sources, in order —
+# Search Console, SearXNG, Brave, then a headless browser. The browser
+# is last because, measured from a developer machine on 30 Oct 2026,
+# Google served a JS interstitial, DuckDuckGo a CAPTCHA, and Bing and
+# Startpage empty shells. So on a fresh install with no Search Console
+# and no Brave key, rank checking has nothing that works.
+#
+# SearXNG fixes that and is free, but it has to be self-hosted AND it
+# has to be told to serve JSON — `json` is NOT in `search.formats` by
+# default, so a stock instance answers every API request with an error.
+# Six public instances were tried on 30 Oct 2026; every one either had
+# JSON disabled or returned 429. That is why this is a config file and
+# not a URL in the docs.
+#
+# Used by the `searxng` compose profile:
+#   docker compose --profile searxng up -d
+
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "SEO Tool rank checking"
+  # No public instance list, no donation link, no metrics endpoint: this
+  # instance exists to answer one app on a private network.
+  enable_metrics: false
+  # Wikipedia, Wikidata and OpenStreetMap REFUSE TO LOAD without this —
+  # their usage policies require a contact address, and SearXNG enforces
+  # it at startup. Measured on 19 Nov 2026: three "engine setup was not
+  # successful" errors in the container log on first boot.
+  #
+  # Those three are not rank sources, so rank checking worked anyway,
+  # which is exactly why this is worth setting rather than ignoring: an
+  # install whose logs are full of errors on every boot teaches its
+  # owner that errors in this log are normal.
+  #
+  # Set SEARXNG_CONTACT_URL in .env to your own address if you intend to
+  # use those engines; the placeholder keeps them off without the noise.
+  contact_url: "${SEARXNG_CONTACT_URL:-false}"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+  # The whole reason for this file. Without `json` here the app's rank
+  # provider gets an HTTP 403 with an HTML body, which looks exactly
+  # like a blocked scrape rather than a configuration gap.
+  formats:
+    - html
+    - json
+
+server:
+  # Read from the environment so no secret is committed. docker-compose
+  # generates one into .env on first run; see docs/HOSTING.md.
+  secret_key: "${SEARXNG_SECRET}"
+  limiter: false
+  image_proxy: false
+  # Bound inside the compose network only. Not published to the host:
+  # an open SearXNG is an open proxy, and this one has its rate limiter
+  # off because the only client is a single app on the same network.
+  bind_address: "0.0.0.0"
+  port: 8080
+
+ui:
+  static_use_hash: true
+
+# Engines are left at SearXNG's defaults deliberately.
+#
+# The app never claims a position from one engine as a position on
+# another — comparePositions refuses to subtract across sources, and the
+# rank badge names the source it came from. Narrowing this list to
+# "google only" would make the results look more authoritative while
+# making them more fragile, since a single blocked engine would then
+# mean no answer at all.
+
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 12.0
+  pool_connections: 20
+  pool_maxsize: 10
