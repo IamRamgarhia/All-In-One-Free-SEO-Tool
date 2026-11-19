@@ -30,6 +30,7 @@ import { getAgentSettings, willAutoApply, type AgentSettings } from "./autonomy"
 import { HOST_AGENT_OFF_MESSAGE, isHostAgentEnabled } from "@/lib/host-agent";
 import { levelFor, pickEngine, runClaudeAutopilot } from "./claude-autopilot";
 import { detectCapabilities, has } from "./capabilities";
+import { closeLoopForRun } from "./close-loop";
 import {
   planForClient,
   type PlanOutcome,
@@ -297,6 +298,26 @@ export async function runAgentForClient(opts: {
       else failed++;
     }
 
+    // Close the loop on whatever actually reached the site.
+    //
+    // Until 19 Nov 2026 the run stopped at the counter above. Even the
+    // three changes this install had applied left their audit finding at
+    // `new` and their task at `todo` — 115 tasks open, none ever
+    // completed, because nothing compared the findings to the work. The
+    // audit score never moved, so the product found work forever and
+    // finished none of it.
+    //
+    // This re-fetches each fixed page and only resolves the finding if
+    // the problem is gone from the live HTML. The CMS read-back the
+    // executor already does proves the field was stored; it does not
+    // prove a crawler sees it, and a page cache between the two is what
+    // makes "verified" and "actually fixed" different things.
+    //
+    // Runs before task creation on purpose: resolving findings first
+    // means createTasksFromUnfixable does not re-raise a task for work
+    // just confirmed done.
+    const loop = await closeLoopForRun(run.id);
+
     // Everything we couldn't act on becomes a task. This is the bit that
     // makes the agent useful on a site it has no write access to at all:
     // it still turns a wall of audit findings into a prioritised list of
@@ -313,6 +334,9 @@ export async function runAgentForClient(opts: {
       skipped,
       tasksCreated,
       capabilities: capabilities.gaps,
+      confirmed: loop.resolved,
+      notLive: loop.stillPresent,
+      tasksClosed: loop.tasksClosed,
     });
 
     await db
@@ -521,12 +545,40 @@ function writeSummary(a: {
   skipped: number;
   tasksCreated: number;
   capabilities: string[];
+  /**
+   * What the loop-closing step confirmed. Reported separately from
+   * `applied` because "written to the CMS" and "gone from the live
+   * page" are different claims, and a user whose host caches
+   * aggressively needs to be told which one happened.
+   */
+  confirmed?: number;
+  notLive?: number;
+  tasksClosed?: number;
 }): string {
   const parts: string[] = [];
 
   if (a.applied > 0) {
     parts.push(
       `Fixed ${a.applied} thing${a.applied === 1 ? "" : "s"} on ${trimTrailingPeriod(a.client.name)}`,
+    );
+  }
+  // Said out loud, because it is the difference between a tool that
+  // reports work and one that finishes it. Before this step existed the
+  // run could only say "fixed N things", which was true of the CMS and
+  // not necessarily of the page Google fetches.
+  if (a.confirmed && a.confirmed > 0) {
+    parts.push(
+      `confirmed ${a.confirmed} fix${a.confirmed === 1 ? "" : "es"} gone from the live pages`,
+    );
+  }
+  if (a.notLive && a.notLive > 0) {
+    parts.push(
+      `${a.notLive} applied but still showing on the live page (usually a cache)`,
+    );
+  }
+  if (a.tasksClosed && a.tasksClosed > 0) {
+    parts.push(
+      `closed ${a.tasksClosed} task${a.tasksClosed === 1 ? "" : "s"}`,
     );
   }
   if (a.queued > 0) {

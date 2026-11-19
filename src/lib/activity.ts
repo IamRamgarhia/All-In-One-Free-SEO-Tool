@@ -23,6 +23,23 @@ export type ActivityKind =
   | "google.service_account_saved"
   | "google.service_account_cleared"
   | "agent.level_chosen"
+  /**
+   * A fix was applied AND confirmed gone from the live page.
+   *
+   * Distinct from the action's own `verified` status, which only means
+   * the CMS stored the value. These two were the same thing until
+   * 19 Nov 2026, and the gap between them is a page cache — so a change
+   * could be "verified" while a crawler still saw the old title.
+   */
+  | "agent.fix_confirmed"
+  /**
+   * Applied, read back from the CMS, and still visible on the live page.
+   *
+   * Logged rather than retried, because the cause is almost always a
+   * cache or a theme override on the user's side and silently retrying
+   * would hide it.
+   */
+  | "agent.fix_not_live"
   | "edge.token_rotated"
   | "system.update_available"
   | "system.updated";

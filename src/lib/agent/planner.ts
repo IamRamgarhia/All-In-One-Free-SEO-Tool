@@ -699,6 +699,17 @@ export async function planForClient(opts: {
     deduped.length - cooled.length,
   );
 
+  // 4b. Already waiting for approval. Not time-boxed, unlike the
+  //     cooldown above: a queued change has not happened, so there is
+  //     nothing to settle, and proposing it again just makes the user
+  //     approve the same edit twice. Five of the fourteen actions queued
+  //     on this install were exact duplicates twelve days apart.
+  const notPending = await filterAlreadyQueued(cooled, opts.clientId);
+  note(
+    "Already queued and waiting for your approval.",
+    cooled.length - notPending.length,
+  );
+
   // 5. Daily cap across all runs, then the per-run cap.
   const usedToday = await countActionsSince(
     opts.clientId,
@@ -706,14 +717,19 @@ export async function planForClient(opts: {
   );
   const dailyRemaining = Math.max(0, opts.settings.maxActionsPerDay - usedToday);
 
-  cooled.sort((a, b) => b.weight - a.weight);
+  // notPending, not cooled. The first version of the dedupe step
+  // computed its result and then this block kept reading `cooled`, so
+  // the filter ran, reported a number in the skip notes, and changed
+  // nothing — dead code that reads as coverage, which is the shape of
+  // half the bugs in this repo's history.
+  notPending.sort((a, b) => b.weight - a.weight);
   const limit = Math.min(opts.settings.maxActionsPerRun, dailyRemaining);
-  const actions = cooled.slice(0, limit);
+  const actions = notPending.slice(0, limit);
   note(
     dailyRemaining === 0
       ? `Daily limit of ${opts.settings.maxActionsPerDay} changes already reached.`
       : `Over this run's limit of ${opts.settings.maxActionsPerRun} changes — they'll be picked up next time.`,
-    cooled.length - actions.length,
+    notPending.length - actions.length,
   );
 
   return { actions, skipped };
@@ -917,6 +933,70 @@ async function planInternalLinks(clientId: number): Promise<{
   return { actions, skipped };
 }
 
+/**
+ * Never plan a change that is ALREADY waiting for approval.
+ *
+ * Separate from the cooldown below, and the separation is the fix for a
+ * measured bug. The cooldown is time-boxed — 7 days by default — and
+ * answers "has this settled yet?", which is the right question about a
+ * change that was applied. It is the wrong question about a change
+ * nobody has approved: that one has not happened at all, and a week
+ * later the planner proposes it again.
+ *
+ * Measured on the maintainer's install on 19 Nov 2026: of 14 queued
+ * actions, FIVE were exact duplicates — same kind, same URL — queued on
+ * 12 September and again on 24 September, twelve days apart and so
+ * outside the window. The approval queue grows on its own, and the
+ * user is asked to approve the same title rewrite twice.
+ *
+ * No time limit here on purpose. A queued action is a standing request;
+ * it stops blocking when it is applied, rejected or skipped, which are
+ * all statuses this excludes.
+ */
+async function filterAlreadyQueued(
+  actions: PlannedAction[],
+  clientId: number,
+): Promise<PlannedAction[]> {
+  if (actions.length === 0) return actions;
+
+  const queued = await db
+    .select({
+      kind: agentActions.kind,
+      targetUrl: agentActions.targetUrl,
+      targetRef: agentActions.targetRef,
+    })
+    .from(agentActions)
+    .where(
+      and(
+        eq(agentActions.clientId, clientId),
+        eq(agentActions.status, "queued"),
+      ),
+    );
+
+  if (queued.length === 0) return actions;
+
+  const pending = new Set(
+    queued.map((r) => actionKey(r.kind, r.targetUrl, r.targetRef)),
+  );
+  return actions.filter(
+    (a) => !pending.has(actionKey(a.kind, a.targetUrl, a.targetRef)),
+  );
+}
+
+/**
+ * Identity of a change: what it does, and to what.
+ *
+ * `targetRef` wins when present because site-wide actions share a URL —
+ * without it one hardening toggle would mask the other five.
+ */
+function actionKey(
+  kind: string,
+  url: string | null,
+  ref: string | null | undefined,
+): string {
+  return ref ? `${kind}::${ref}` : `${kind}::${url ?? ""}`;
+}
+
 async function filterCooldown(
   actions: PlannedAction[],
   clientId: number,
@@ -946,13 +1026,13 @@ async function filterCooldown(
       ),
     );
 
-  const key = (kind: string, url: string | null, ref: string | null | undefined) =>
-    ref ? `${kind}::${ref}` : `${kind}::${url ?? ""}`;
+  // Shared with filterAlreadyQueued, so the two filters agree on what
+  // counts as "the same change".
   const blocked = new Set(
-    recent.map((r) => key(r.kind, r.targetUrl, r.targetRef)),
+    recent.map((r) => actionKey(r.kind, r.targetUrl, r.targetRef)),
   );
   return actions.filter(
-    (a) => !blocked.has(key(a.kind, a.targetUrl, a.targetRef)),
+    (a) => !blocked.has(actionKey(a.kind, a.targetUrl, a.targetRef)),
   );
 }
 

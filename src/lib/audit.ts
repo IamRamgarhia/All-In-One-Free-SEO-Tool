@@ -263,6 +263,46 @@ async function fetchText(
   }
 }
 
+/**
+ * Re-run the per-page checks on ONE live URL.
+ *
+ * Exists for the agent's loop-closing step, and the distinction it
+ * serves is the whole point of it. When the agent writes a title, the
+ * executor reads the field back out of the CMS and records the action
+ * `verified`. That proves the CMS stored the value. It does NOT prove
+ * the page a crawler fetches has changed — a full-page cache, a CDN, a
+ * theme that overrides the field, or an SEO plugin that templates the
+ * title will all keep serving the old one.
+ *
+ * Marking the finding resolved on the strength of the CMS read-back
+ * alone would be a confident wrong answer of the worst kind: the audit
+ * score improves, the task closes, the report says it was fixed, and
+ * Google still sees the old title. So the finding is only resolved once
+ * the live page agrees.
+ *
+ * Deliberately NOT runAudit with maxPages 1: that writes an audit row,
+ * fetches robots.txt and the sitemap, and would pollute the audit
+ * history with a row per fix.
+ *
+ * Returns null when the page could not be fetched at all — which is not
+ * the same as "the finding is gone", and callers must not treat it as
+ * such.
+ */
+export async function recheckUrl(
+  url: string,
+  options: { allowPrivateHosts?: boolean } = {},
+): Promise<{ findings: AuditFinding[]; meta: { title: string | null; description: string | null } } | null> {
+  const page = await fetchPage(url, 15_000, options.allowPrivateHosts ?? false);
+  if (!page) return null;
+  // Raw HTML, no headless browser — unlike the crawler, which renders by
+  // default. The fields the agent writes (title, meta description,
+  // canonical, alt text) are server-rendered on every CMS it can write
+  // to, so a browser per applied fix would cost more than making the
+  // change and buy nothing. If a JS-rendered recheck is ever needed it
+  // should go through withBrowserPage, the way runAudit does.
+  return checkPage(page);
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Per-page checks
 // ───────────────────────────────────────────────────────────────────────────
