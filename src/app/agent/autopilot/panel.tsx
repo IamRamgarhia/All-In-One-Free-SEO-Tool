@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { expectsBeforeValue } from "@/lib/agent/before-value-kinds";
 import {
   AlertCircle,
   Check,
@@ -324,6 +325,13 @@ function ActionCard({
             "could not read" and "the page has nothing here" are also
             different answers and must not share a rendering. Not
             knowing is not the same as knowing it is blank. */}
+        {/* A fourth state, found by running the planner and reading
+            what it printed: a robots-meta or robots.txt change has no
+            page-level "before" at all, and saying "couldn't read the
+            live page" over one is both untrue and alarming — nothing
+            was ever going to read it. Only kinds that HAVE a before
+            get the warning; the rest show no row, as before. */}
+        {(action.beforeValue != null || expectsBeforeValue(action.kind)) && (
         <div className="flex gap-2">
           <span className="w-12 shrink-0 text-muted-foreground">Before</span>
           {action.beforeValue == null ? (
@@ -344,6 +352,7 @@ function ActionCard({
             </span>
           )}
         </div>
+        )}
         {action.afterValue && (
           <div className="flex gap-2">
             <span className="w-12 shrink-0 text-muted-foreground">After</span>

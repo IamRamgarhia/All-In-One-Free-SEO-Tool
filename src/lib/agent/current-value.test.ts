@@ -58,12 +58,61 @@ describe("the planner reads the page before proposing a replacement", () => {
     expect(call).toBeGreaterThan(slice);
   });
 
+  it("the kind list lives in ONE place", () => {
+    // The planner fetches these values and the panel decides, from the
+    // same list, whether a missing one means "could not read" or "this
+    // kind never had one". A second copy would drift the first time a
+    // kind is added, and the symptom is a wrong sentence on an approval
+    // screen — the last place to have one.
+    const shared = readFileSync(
+      join(ROOT, "src/lib/agent/before-value-kinds.ts"),
+      "utf8",
+    );
+    expect(shared).toContain("BEFORE_VALUE_FIELD");
+    expect(shared).toContain("expectsBeforeValue");
+    expect(PLANNER).toContain("before-value-kinds");
+
+    const panel = readFileSync(
+      join(ROOT, "src/app/agent/autopilot/panel.tsx"),
+      "utf8",
+    );
+    expect(panel).toContain("expectsBeforeValue");
+    // Neither may hardcode the kinds again.
+    expect(
+      panel.replace(/expectsBeforeValue/g, ""),
+      "the panel has its own copy of the kind list",
+      // [\s\S] rather than the `s` flag: this project's tsconfig target
+      // predates it, and `tsc` rejects the flag outright.
+    ).not.toMatch(
+      /write_meta_description[\s\S]*write_title|write_title[\s\S]*write_meta_description/,
+    );
+  });
+
+  it("a kind with no page-level before shows no warning", () => {
+    // Found by running the planner for real: robots-meta and
+    // robots.txt actions have no "before" in the HTML, and the panel
+    // said "couldn't read the live page" over them — untrue, and
+    // alarming, since nothing was ever going to read one.
+    const panel = readFileSync(
+      join(ROOT, "src/app/agent/autopilot/panel.tsx"),
+      "utf8",
+    );
+    expect(panel).toMatch(
+      /action\.beforeValue != null \|\| expectsBeforeValue\(action\.kind\)/,
+    );
+  });
+
   it("covers exactly the kinds whose draft prompt asks for it", () => {
     // run.ts feeds pageTitle from currentValue, and the description
     // prompt prints "Current description". Any kind named in those
     // prompts needs enriching, or the model is told "(unknown)".
-    expect(PLANNER).toMatch(/write_title:\s*"title"/);
-    expect(PLANNER).toMatch(/write_meta_description:\s*"description"/);
+    // The kinds live in the shared module now, not in the planner.
+    const shared = readFileSync(
+      join(ROOT, "src/lib/agent/before-value-kinds.ts"),
+      "utf8",
+    );
+    expect(shared).toMatch(/write_title:\s*"title"/);
+    expect(shared).toMatch(/write_meta_description:\s*"description"/);
     expect(RUN).toContain("pageTitle: action.currentValue");
   });
 

@@ -36,6 +36,7 @@ import { analyseInternalLinks } from "../internal-link-graph";
 import { loadActionableToolFindings } from "./tool-finding-map";
 import { withoutInfrastructure } from "../infrastructure-urls";
 import { pickAnchor } from "./anchor-text";
+import { BEFORE_VALUE_FIELD } from "./before-value-kinds";
 
 export type PlannedAction = {
   kind: PlannableKind;
@@ -825,16 +826,6 @@ export async function planForClient(opts: {
  * one always does.
  */
 /**
- * Kinds whose preview AND whose drafting both need the current value.
- *
- * Maps the action kind to the field on the fetched page's meta.
- */
-const NEEDS_CURRENT_VALUE: Record<string, "title" | "description"> = {
-  write_title: "title",
-  write_meta_description: "description",
-};
-
-/**
  * Fill in what each page says today, by reading the live page.
  *
  * WHY THIS EXISTS: `currentValue` was only ever set for redirect
@@ -876,7 +867,7 @@ const NEEDS_CURRENT_VALUE: Record<string, "title" | "description"> = {
 async function attachCurrentValues(actions: PlannedAction[]): Promise<void> {
   const byUrl = new Map<string, PlannedAction[]>();
   for (const a of actions) {
-    if (!NEEDS_CURRENT_VALUE[a.kind]) continue;
+    if (!BEFORE_VALUE_FIELD[a.kind]) continue;
     // A redirect action already carries one; never overwrite it.
     if (a.currentValue != null) continue;
     if (!a.targetUrl) continue;
@@ -910,7 +901,7 @@ async function attachCurrentValues(actions: PlannedAction[]): Promise<void> {
     if (!page) continue;
     for (const a of group) {
       a.currentValue =
-        NEEDS_CURRENT_VALUE[a.kind] === "title"
+        BEFORE_VALUE_FIELD[a.kind] === "title"
           ? page.meta.title
           : page.meta.description;
     }
