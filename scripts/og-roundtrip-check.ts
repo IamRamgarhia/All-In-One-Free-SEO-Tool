@@ -13,19 +13,50 @@
  */
 
 import {
+  findPostIdByUrl,
   getClientWpCreds,
+  getPostSeo,
   setPostSeo,
   undoRevision,
 } from "@/lib/wp-bridge";
 
 const CLIENT = Number(process.argv[2] ?? 4);
-const POST = Number(process.argv[3] ?? 10591);
-const PAGE = "https://dicecodes.com/test/";
+/**
+ * Which post, and which page to read the tags back from.
+ *
+ * Both used to be hardcoded — post 10591 and
+ * https://dicecodes.com/test/ — and INDEPENDENTLY, so the script
+ * accepted a post id argument while still verifying a fixed, unrelated
+ * URL. Point it at any other post and it would write to one page and
+ * check another, then report that the tags did not land.
+ *
+ * Neither default existed on the site any more, so the run failed at
+ * the write with "Post not found" and never reached the mismatch.
+ *
+ * The page is now the post's OWN permalink, read back from the bridge,
+ * so the two cannot disagree. With no post id given it uses the
+ * client's home page — which is the page most worth checking and, until
+ * the plugin's front-page fix, the one page this could never resolve.
+ */
+const POST_ARG = process.argv[3] ? Number(process.argv[3]) : null;
 
-/** The social tags as a browser or a crawler would see them. */
-async function rendered(): Promise<Record<string, string>> {
+/**
+ * The social tags as a browser or a crawler would see them.
+ *
+ * CACHE-BUSTED with a query parameter, which is not decoration.
+ * `cache: "no-store"` only tells THIS client not to cache — a CDN in
+ * front of the site serves whatever it already has regardless. Measured
+ * on a site behind Hostinger's CDN: without the parameter this reported
+ * "og:title landed false" for a write that had landed perfectly, and
+ * the obvious reading of that was "the write silently did nothing" —
+ * the exact conclusion this script exists to support, reached for the
+ * wrong reason.
+ */
+async function rendered(page: string): Promise<Record<string, string>> {
+  const u = new URL(page);
+  u.searchParams.set("_stb", String(Date.now()));
   const html = await (
-    await fetch(PAGE, { cache: "no-store" as RequestCache })
+    await fetch(u.toString(), { cache: "no-store" as RequestCache })
   ).text();
   const out: Record<string, string> = {};
   // property= for Open Graph, name= for Twitter, and both orders of
@@ -58,11 +89,50 @@ async function main() {
     return;
   }
 
-  const before = await rendered();
+  // Resolve the post and its permalink together, so the page we read
+  // back is always the page we wrote to.
+  let post = POST_ARG;
+  if (post === null) {
+    const [{ clients }, { db }, { eq }] = await Promise.all([
+      import("@/db/schema"),
+      import("@/db/client"),
+      import("drizzle-orm"),
+    ]);
+    const [row] = await db
+      .select({ url: clients.url })
+      .from(clients)
+      .where(eq(clients.id, CLIENT));
+    if (!row?.url) {
+      console.log("That client has no URL, and no post id was given.");
+      return;
+    }
+    post = await findPostIdByUrl(creds, row.url);
+    if (!post) {
+      console.log(
+        `Could not resolve ${row.url} to a post. If this is the home page ` +
+          `and the site uses a static front page, the plugin needs 0.6.2 ` +
+          `or newer — older versions could not resolve it at all.`,
+      );
+      return;
+    }
+    console.log(`Resolved ${row.url} -> post ${post}`);
+  }
+
+  const seo = await getPostSeo(creds, post);
+  // `url` on PostSeo is the WordPress permalink, mapped from the
+  // wire's `permalink`.
+  const PAGE = seo.ok && seo.seo.url ? seo.seo.url : null;
+  if (!PAGE) {
+    console.log(`Could not read post ${post} back from the bridge.`);
+    return;
+  }
+  console.log(`Checking ${PAGE}\n`);
+
+  const before = await rendered(PAGE);
   line("BEFORE", before);
 
   const stamp = `OG round-trip ${Date.now()}`;
-  const wrote = await setPostSeo(creds, POST, {
+  const wrote = await setPostSeo(creds, post, {
     ogTitle: stamp,
     twitterTitle: stamp,
   });
@@ -74,7 +144,7 @@ async function main() {
   }
 
   await new Promise((r) => setTimeout(r, 3000));
-  const after = await rendered();
+  const after = await rendered(PAGE);
   line("AFTER", after);
   console.log(
     `  og:title landed       ${after["og:title"] === stamp}`,
@@ -90,7 +160,7 @@ async function main() {
   }
 
   await new Promise((r) => setTimeout(r, 3000));
-  const back = await rendered();
+  const back = await rendered(PAGE);
   line("AFTER UNDO", back);
 
   const restored =
