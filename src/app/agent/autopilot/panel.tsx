@@ -312,14 +312,38 @@ function ActionCard({
       )}
 
       <div className="mt-2 space-y-1 text-xs">
-        {action.beforeValue != null && (
-          <div className="flex gap-2">
-            <span className="w-12 shrink-0 text-muted-foreground">Before</span>
-            <span className="min-w-0 break-words text-rose-200/80 line-through decoration-rose-400/40">
-              {action.beforeValue || "(empty)"}
+        {/* THREE states, not two.
+
+            `null` used to hide this row completely, so a reviewer saw
+            only the new value with nothing to say a title already
+            existed — and every title and description the agent
+            proposed had a null here, because the planner never read
+            the page. Approving felt like filling a gap when it was a
+            replacement.
+
+            "could not read" and "the page has nothing here" are also
+            different answers and must not share a rendering. Not
+            knowing is not the same as knowing it is blank. */}
+        <div className="flex gap-2">
+          <span className="w-12 shrink-0 text-muted-foreground">Before</span>
+          {action.beforeValue == null ? (
+            <span className="min-w-0 break-words text-amber-200/80">
+              couldn&apos;t read the live page — this may be replacing
+              something
             </span>
-          </div>
-        )}
+          ) : action.beforeValue === "" ? (
+            <span className="min-w-0 break-words text-muted-foreground">
+              nothing there yet
+            </span>
+          ) : (
+            <span className="min-w-0 break-words text-rose-200/80 line-through decoration-rose-400/40">
+              {action.beforeValue}
+              <span className="ml-1 text-[10px] no-underline opacity-70">
+                ({action.beforeValue.length} chars)
+              </span>
+            </span>
+          )}
+        </div>
         {action.afterValue && (
           <div className="flex gap-2">
             <span className="w-12 shrink-0 text-muted-foreground">After</span>

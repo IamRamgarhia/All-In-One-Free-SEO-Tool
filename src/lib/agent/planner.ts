@@ -793,6 +793,10 @@ export async function planForClient(opts: {
   notPending.sort((a, b) => b.weight - a.weight);
   const limit = Math.min(opts.settings.maxActionsPerRun, dailyRemaining);
   const actions = notPending.slice(0, limit);
+
+  // Read what the page says NOW, after the limit is applied so nothing
+  // is fetched for an action that is not going to be planned.
+  await attachCurrentValues(actions);
   note(
     dailyRemaining === 0
       ? `Daily limit of ${opts.settings.maxActionsPerDay} changes already reached.`
@@ -820,6 +824,99 @@ export async function planForClient(opts: {
  * it will correct it if it is wrong. Every redirect is needs_review, so
  * one always does.
  */
+/**
+ * Kinds whose preview AND whose drafting both need the current value.
+ *
+ * Maps the action kind to the field on the fetched page's meta.
+ */
+const NEEDS_CURRENT_VALUE: Record<string, "title" | "description"> = {
+  write_title: "title",
+  write_meta_description: "description",
+};
+
+/**
+ * Fill in what each page says today, by reading the live page.
+ *
+ * WHY THIS EXISTS: `currentValue` was only ever set for redirect
+ * findings. For a title or a meta description it stayed null, and two
+ * separate things depended on it.
+ *
+ * The first is the approval preview, which showed:
+ *
+ *     was: (empty)
+ *     new: Dice Codes: Web Design, SEO & Digital Marketing
+ *
+ * for a home page that has had a title all along. A REPLACEMENT read as
+ * filling a gap — so the one question a reviewer needs answered ("what
+ * am I overwriting?") was answered wrongly, on every title and
+ * description the agent has ever proposed.
+ *
+ * The second is worse. `run.ts` builds the drafting context's
+ * `pageTitle` FROM this field, so the model writing the replacement was
+ * told `Page title: (unknown)` and `Current description: (none)`. It
+ * was writing blind, with the URL and the finding text and nothing
+ * else.
+ *
+ * On a real site that produced "Active Dice Codes for Free Rewards" as
+ * a proposed home-page title for a digital agency — the model took the
+ * brand name for dice-game promo codes, which is a perfectly reasonable
+ * guess when you have never been shown the page. It sat in the queue
+ * marked `risk: safe` for 68 days.
+ *
+ * READ-ONLY. One GET per unique URL, serving every action on that page.
+ * recheckUrl is reused rather than a new fetch path because it already
+ * defeats a CDN cache — and a cached read here would record a stale
+ * "before" value, which is the same class of wrong this is fixing.
+ *
+ * A page that cannot be read leaves `currentValue` null, which the
+ * preview must render as "could not read the page" rather than as
+ * "empty". Not knowing and knowing it is blank are different, and
+ * conflating them is how this started.
+ */
+async function attachCurrentValues(actions: PlannedAction[]): Promise<void> {
+  const byUrl = new Map<string, PlannedAction[]>();
+  for (const a of actions) {
+    if (!NEEDS_CURRENT_VALUE[a.kind]) continue;
+    // A redirect action already carries one; never overwrite it.
+    if (a.currentValue != null) continue;
+    if (!a.targetUrl) continue;
+    const group = byUrl.get(a.targetUrl) ?? [];
+    group.push(a);
+    byUrl.set(a.targetUrl, group);
+  }
+  if (byUrl.size === 0) return;
+
+  // Imported dynamically, and it still costs one route a badge.
+  //
+  // recheckUrl does a plain HTTP GET — no Chromium, no Playwright. But
+  // the capability derivation works at MODULE level, and audit.ts also
+  // holds runAudit, which does use the browser pool. So anything
+  // reaching this file now reaches browser-pool.ts on paper:
+  // /morning flipped to usesBrowser: true, which is not true of what
+  // it does.
+  //
+  // Accepted rather than worked around, because the alternative is a
+  // second fetch path. audit.ts's fetchPage carries the SSRF guard,
+  // the timeout, the redirect handling and the cache-busting; copying
+  // those into a lighter module to save one badge would be trading a
+  // cosmetic over-statement for a security-relevant duplicate. The
+  // derivation is documented as over-approximating and this is what
+  // that looks like in practice.
+  const { recheckUrl } = await import("@/lib/audit");
+  for (const [url, group] of byUrl) {
+    const page = await recheckUrl(url, {
+      allowPrivateHosts: process.env.SEO_ALLOW_PRIVATE_WP_ENDPOINT === "1",
+    }).catch(() => null);
+    if (!page) continue;
+    for (const a of group) {
+      a.currentValue =
+        NEEDS_CURRENT_VALUE[a.kind] === "title"
+          ? page.meta.title
+          : page.meta.description;
+    }
+  }
+}
+
 function siteWideTarget(
   findingType: string,
   url: string,
