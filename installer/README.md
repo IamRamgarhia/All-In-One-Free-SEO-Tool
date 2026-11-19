@@ -11,19 +11,21 @@ different for each piece.
 | `install-prebuilt.sh` (macOS/Linux) | **Tested.** `scripts/install-prebuilt-check.sh` runs it against a local fake release over loopback: 14/14. Installs a valid payload, refuses a plugin-shaped zip, refuses a source-only zip, preserves the database on re-install. |
 | `scripts/build-prebuilt-zip.mjs` | **Tested.** Asset names checked against what the shell script computes; both refusal paths (missing `.next`, database inside) exercised. |
 | `scripts/zip-write.mjs` | **Tested.** Output verified against `unzip` and against this project's own `zip-read.mjs`. |
-| `host/SeoToolHost.cs` | **NEVER COMPILED.** No .NET SDK on the machine it was written on. |
-| `seo-tool.iss` | **NEVER COMPILED.** No Inno Setup on that machine either. |
-| `.github/workflows/installer.yml` | **NEVER RUN.** Valid YAML, four jobs, verified to create no release — but no job has ever executed. |
-| macOS / Linux payload jobs | **NEVER RUN.** A macOS payload cannot be built anywhere else: `pnpm install --prod` compiles the native modules for whichever platform it runs on. |
+| `host/SeoToolHost.cs` | **COMPILES.** `dotnet publish` on `windows-latest` produced `SEO Tool.exe`, and the workflow's own existence check confirmed the file rather than trusting the exit code. The pinned WebView2 SDK `1.0.2903.40` restored from NuGet. **Never RUN** — nobody has double-clicked it. |
+| `seo-tool.iss` | **COMPILES.** ISCC 6 built `SEO-Tool-Setup-0.10.1.exe`, 118 MB, inside the 40–600 MB sanity range. Failed on the first attempt (a `SetupIconFile` pointing at a file that never existed); `installer-assets.test.ts` now catches that class in milliseconds. |
+| `.github/workflows/installer.yml` | **RUN, all six jobs green.** Run 44553068011: version, three payloads, windows, checksums. Creates no release on a dispatch; the `release` job needs a tag and makes a draft. |
+| macOS / Linux payload jobs | **RUN.** All three built, 99 MB each. A macOS payload cannot be built anywhere else: `pnpm install --prod` compiles the native modules for whichever platform it runs on. The Intel leg asked for `macos-13` on the first attempt — retired a year ago — and sat in "queued" forever rather than failing; see `workflow-runners.test.ts`. |
+| The asset names | **VERIFIED against the real run.** `SHA256SUMS.txt` lists exactly the three filenames `install-prebuilt.sh` computes for itself. That agreement is the whole install path: the one-liner matches by exact name, so an off-by-one would read as "no prebuilt payload at all". |
 
-So: the Mac/Linux one-liner is real and tested. **The Windows `.exe` is
-written and unproven.** Its first CI run is the first evidence any of it
-works, and there is no reason to expect a three-part build — C# host,
-portable Node, Inno Setup — to work first time.
+So: every piece now compiles, and the artifact names line up end to end.
+**Nothing has been installed on a real machine yet.** A build that
+compiles and a build that works are different claims, and the checklist
+below is the second one.
 
-That is also why `installer.yml` is deliberately **not** wired into the
-release workflow. Attaching an unverified installer to a release puts it
-in front of users before anybody has double-clicked it once.
+That is why `installer.yml` still attaches nothing to a published
+release. Its `release` job runs only on a tag and produces a **draft** —
+`/releases/latest` excludes drafts, so no user and not even
+`install-prebuilt.sh` can reach it until a human presses Publish.
 
 ## Running it the first time
 
@@ -31,15 +33,16 @@ in front of users before anybody has double-clicked it once.
 Actions → "Installers" → Run workflow
 ```
 
-Four jobs. Nothing is released — every one ends in `upload-artifact`, so
-the results are private builds on the Actions tab:
+On a dispatch, nothing is released — every job ends in
+`upload-artifact`, so the results are private builds on the Actions tab
+(the `release` job is skipped: it needs a tag):
 
 | Artifact | What it is |
 |---|---|
 | `SEO-Tool-Setup-<version>` | the Windows `.exe` |
 | `prebuilt-macos-latest` | payload for Apple Silicon |
-| `prebuilt-macos-13` | payload for Intel Macs |
-| `prebuilt-ubuntu-latest` | payload for Linux x86_64 |
+| `prebuilt-macos-15-intel` | payload for Intel Macs |
+| `prebuilt-ubuntu-24.04` | payload for Linux x86_64 |
 | `SHA256SUMS` | the checksums `install-prebuilt.sh` verifies |
 
 `fail-fast` is off on the payload matrix, so on a first run one platform
@@ -127,14 +130,53 @@ and anyone running unreleased code. It builds from source, which needs
 pnpm and a compiler, and on Node 25+ pnpm is frequently absent because
 those versions ship no corepack.
 
-**The prebuilt asset does not exist on any release yet.** Until one is
-published the script says so and stops, rather than falling back to
-something it did not promise. To publish one:
+**The prebuilt asset does not exist on any release yet** — v0.10.1 and
+everything before it carry only the source zip. Until one is published
+the script says so and stops, rather than falling back to something it
+did not promise.
+
+### Publishing one
+
+The `release` job in `installer.yml` does it, and only on a tag:
+
+```bash
+# package.json's version must already BE the tag's version — the payload
+# asset is named from package.json while the workflow's version comes
+# from the tag, and the one-liner matches by exact name, so a mismatch
+# reads as "no prebuilt payload at all". The payload job checks this.
+git tag v0.10.2 && git push origin v0.10.2
+```
+
+That builds all four downloads and attaches them to a **draft** release
+with its install instructions. A draft is the point: `/releases/latest`
+excludes drafts, so `install-prebuilt.sh` cannot see it and no user can
+reach it until someone presses Publish. Publish *means* the checklist
+above has been run on a machine that is not the development one.
+
+The job also:
+
+- **refuses a tag whose release is already published.** `gh release
+  upload --clobber` against a live release swaps the bytes behind a link
+  people already have, with no version change to notice.
+- **re-verifies `SHA256SUMS.txt`** after downloading the artifacts, so
+  the file the installer trusts is checked against the bytes actually
+  being attached.
+- **says what is missing in the draft body.** If the Windows leg failed,
+  the draft still carries the payloads and its body says the `.exe` is
+  not there — because one dead runner should not block three platforms,
+  and because a release missing an advertised download is the kind of
+  thing a reader finds before a maintainer does.
+- **is the only job in the repository with `contents: write`.**
+  `release-draft-gate.test.ts` asserts every one of these, including
+  that no second job escalates.
+
+To do it by hand instead:
 
 ```bash
 node scripts/build-payload.mjs --out dist/payload
-node scripts/build-prebuilt-zip.mjs --payload dist/payload
-# attach dist/seo-tool-prebuilt-<version>-<os>-<arch>.zip to the release
+node scripts/build-prebuilt-zip.mjs --payload dist/payload --out dist
+# one per platform — this only builds for the machine it runs on
+gh release upload v0.10.2 dist/seo-tool-prebuilt-*.zip
 ```
 
 One asset per platform **and per Node major**, because the payload

@@ -149,6 +149,32 @@ describe("workflow runner labels", () => {
     ]);
   });
 
+  it("installer/README.md names the artifacts the workflow actually uploads", () => {
+    // The artifact is `prebuilt-${{ matrix.os }}`, so its name IS the
+    // runner label. The README lists those names in a table people use
+    // to find their download — and it already drifted: it said
+    // `prebuilt-ubuntu-latest` and `prebuilt-macos-13` while the
+    // workflow uploaded `prebuilt-ubuntu-24.04` and, after the
+    // retirement fix, `prebuilt-macos-15-intel`.
+    //
+    // Pointing someone at an artifact name that is not on the page is
+    // the kind of small wrongness that makes a reader stop trusting the
+    // rest of the document.
+    const iw = readFileSync(join(WORKFLOW_DIR, "installer.yml"), "utf8");
+    const readme = readFileSync(join(process.cwd(), "installer/README.md"), "utf8");
+
+    const labels = [...iw.matchAll(/^\s+- os:\s*(\S+)\s*$/gm)].map((m) => m[1]);
+    expect(labels.length).toBeGreaterThanOrEqual(3);
+
+    const missing = labels.filter((l) => !readme.includes(`prebuilt-${l}`));
+    expect(
+      missing,
+      `installer/README.md does not mention ${missing
+        .map((l) => `prebuilt-${l}`)
+        .join(", ")} — the artifact the workflow uploads for that platform.`,
+    ).toEqual([]);
+  });
+
   it("the checksums job expects as many payloads as the matrix builds", () => {
     // The checksums step warns when fewer payloads arrived than the
     // matrix should have produced, using a literal count. A fourth

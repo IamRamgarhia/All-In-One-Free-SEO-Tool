@@ -88,7 +88,12 @@ export async function runHealthCheck(
     ]);
 
   if (!meta || !meta.reachable) {
-    return { ok: false, error: "Couldn't reach the site." };
+    return {
+      ok: false,
+      error: meta?.unreachableReason
+        ? `Couldn't reach the site: ${meta.unreachableReason}`
+        : "Couldn't reach the site.",
+    };
   }
 
   const findings: HealthFinding[] = [];

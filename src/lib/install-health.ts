@@ -610,15 +610,33 @@ async function checkSweepFailures(): Promise<HealthIssue[]> {
     byClient.set(f.clientId, entry);
   }
 
+  const { classifyNetworkError, describeNetworkFailure, leadingFailureKind } =
+    await import("./network-error");
+
   const out: HealthIssue[] = [];
   for (const [clientId, g] of byClient) {
     // One or two failures on a client is noise — a transient timeout, a
     // single API hiccup. Three or more of a client's checks failing
     // together is the site, and that is worth a line of its own.
-    const looksUnreachable =
-      g.tools.length >= 3 &&
-      g.errors.filter((e) => /fetch|reach|timeout|ENOTFOUND|ECONNREFUSED/i.test(e))
-        .length >= 3;
+    //
+    // The classification used to be an inline regex here, and it knew
+    // only undici's spelling: /fetch|reach|timeout|ENOTFOUND|
+    // ECONNREFUSED/. Every browser-sourced failure says
+    // `net::ERR_NAME_NOT_RESOLVED`, which matches none of it — so on
+    // this install, where one client's domain had stopped resolving and
+    // was the cause of 13 of 15 nightly failures, the line that said
+    // "check the site address" never appeared. network-error.ts is the
+    // one table now.
+    const kinds = g.errors
+      .map((e) => classifyNetworkError(e))
+      .filter((k): k is NonNullable<typeof k> => k !== null);
+    const looksUnreachable = g.tools.length >= 3 && kinds.length >= 3;
+
+    // The most specific kind among them, not the commonest: most of
+    // these tools strip the cause out of their own error messages, so
+    // "I do not know why" is usually the majority view even when one
+    // check kept the answer. See leadingFailureKind.
+    const leading = leadingFailureKind(g.errors);
 
     out.push({
       id: `sweep_failing_${clientId}`,
@@ -629,10 +647,9 @@ async function checkSweepFailures(): Promise<HealthIssue[]> {
         ? `${g.name}: the site is unreachable, so ${g.tools.length} nightly checks fail on it`
         : `${g.name}: ${g.tools.length} nightly check${g.tools.length === 1 ? "" : "s"} failing`,
       evidence:
-        (looksUnreachable
-          ? `Every check that has to load a page failed. Either the site is ` +
-            `down, the address stored for this client is wrong, or it was a ` +
-            `staging site that no longer exists. `
+        (looksUnreachable && leading
+          ? `Every check that has to load a page failed: ` +
+            `${describeNetworkFailure(leading)}. `
           : "") +
         `Affected: ${[...new Set(g.tools)].join(", ")}. ` +
         `Reported: ${g.errors[0]?.slice(0, 120) ?? "no reason recorded"}`,

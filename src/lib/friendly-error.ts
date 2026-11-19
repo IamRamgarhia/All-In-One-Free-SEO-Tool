@@ -10,6 +10,7 @@
  */
 
 import { REPO_SLUG } from "./repo";
+import { NETWORK_PATTERN } from "./network-error";
 
 export type FriendlyError = {
   title: string;
@@ -96,8 +97,22 @@ const rules: Rule[] = [
   },
 
   // --- Network / connectivity --------------------------------------------
+  //
+  // These three rules each knew only ONE of the two spellings the app
+  // produces. A domain that does not resolve says `ENOTFOUND` through
+  // fetch and `net::ERR_NAME_NOT_RESOLVED` through Playwright, and the
+  // DNS rule below matched the first and not the second — so a browser
+  // check against a misspelled client URL fell all the way through to
+  // "unknown error" with a prefilled GitHub issue link. Inviting a bug
+  // report for a typo.
+  //
+  // The patterns now come from network-error.ts, which owns the table
+  // and is tested against error strings captured from both stacks. The
+  // ORDER still lives here: first match wins, and these rules are
+  // deliberately after the AI-provider ones, because a provider outage
+  // and an unreachable client site want different advice.
   {
-    match: /ECONNREFUSED|connection refused/i,
+    match: NETWORK_PATTERN.refused,
     translate: () => ({
       title: "Couldn't reach the server",
       explanation:
@@ -110,7 +125,10 @@ const rules: Rule[] = [
     }),
   },
   {
-    match: /ETIMEDOUT|timeout|aborted.*signal/i,
+    // `aborted.*signal` is kept: it is this app's own AbortSignal
+    // timeouts, not a transport error, so it does not belong in the
+    // shared table.
+    match: new RegExp(`${NETWORK_PATTERN.timeout.source}|aborted.*signal`, "i"),
     translate: () => ({
       title: "Request timed out",
       explanation:
@@ -123,7 +141,7 @@ const rules: Rule[] = [
     }),
   },
   {
-    match: /ENOTFOUND|getaddrinfo|DNS/i,
+    match: NETWORK_PATTERN.dns,
     translate: () => ({
       title: "DNS lookup failed",
       explanation:

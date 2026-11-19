@@ -135,6 +135,32 @@ jobs:
       - name: Package it
         run: node scripts/build-prebuilt-zip.mjs --payload dist/payload --out dist
 
+      - name: Check the asset name carries THIS run's version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # build-prebuilt-zip.mjs names the asset from package.json.
+          # This workflow's version comes from the tag or a dispatch
+          # input. When those disagree — tag v0.10.2 pushed while
+          # package.json still says 0.10.1 — the release carries
+          # `...-0.10.1-...` while install-prebuilt.sh asks the release
+          # API for `...-0.10.2-...` and reports "no prebuilt payload at
+          # all", which sounds like the build failed rather than like
+          # two version numbers drifting apart.
+          #
+          # The one-liner matches by EXACT name on purpose (taking the
+          # first .zip is the bug that shipped in v0.10.0's updater), so
+          # an off-by-one version is a total failure, not a warning.
+          want="${{ needs.version.outputs.version }}"
+          zip=$(ls dist/seo-tool-prebuilt-*.zip)
+          case "$(basename "$zip")" in
+            seo-tool-prebuilt-"${want}"-*) echo "::notice::asset is $(basename "$zip")" ;;
+            *)
+              echo "::error::this run builds ${want} but the asset is named $(basename "$zip") — package.json and the tag disagree, and install-prebuilt.sh matches by exact name"
+              exit 1
+              ;;
+          esac
+
       - name: Check the manifest describes this runner
         shell: bash
         run: |
@@ -386,3 +412,157 @@ jobs:
           path: payloads/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+
+  # ───────────────────────────────────────────────────────────────────
+  # Attach everything to a DRAFT release. Only on a tag.
+  #
+  # WHY A DRAFT, AND WHY THIS JOB EXISTS AT ALL
+  #
+  # install-prebuilt.sh — the macOS/Linux one-liner — asks the GitHub
+  # API for the LATEST RELEASE and then matches an asset by exact name.
+  # Artifacts on the Actions tab are invisible to it: they need a token
+  # and a different API. So for as long as nothing attached a payload to
+  # a release, the documented one-liner could not work for anybody, and
+  # it said so honestly ("carries no prebuilt payload at all") — an
+  # honest message about a feature that did not exist.
+  #
+  # A DRAFT is the resolution. `/releases/latest` excludes drafts and
+  # prereleases, so nothing here reaches a user until a human presses
+  # Publish — which keeps the rule this workflow was written around:
+  # "attaching an unverified installer to a release puts it in front of
+  # users before anybody has double-clicked it once". The checklist in
+  # installer/README.md is what Publish means.
+  #
+  # Partial is allowed and is REPORTED. If the Windows leg failed, the
+  # draft still carries the payloads, and its body says the .exe is
+  # missing — a draft nobody can see is the right place for an
+  # incomplete set, and refusing to make one would mean a single dead
+  # runner label blocks every platform again.
+  # ───────────────────────────────────────────────────────────────────
+  release:
+    needs: [version, payload, windows, checksums]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      # The only job in this workflow that can write to the repository.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: in
+
+      - name: Assemble, and re-verify the checksums
+        id: assemble
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # download-artifact without merge-multiple puts each artifact
+          # in its own directory, so flatten by find rather than by
+          # guessing the layout.
+          find in -type f \( -name 'seo-tool-prebuilt-*.zip' -o -name 'SEO-Tool-Setup-*.exe' -o -name 'SHA256SUMS.txt' \) \
+            -exec cp {} out/ \;
+          ls -l out/
+
+          payloads=$(ls -1 out/seo-tool-prebuilt-*.zip 2>/dev/null | wc -l)
+          exes=$(ls -1 out/SEO-Tool-Setup-*.exe 2>/dev/null | wc -l)
+
+          if [ "$payloads" -eq 0 ] && [ "$exes" -eq 0 ]; then
+            echo "::error::nothing was built — refusing to create an empty draft"
+            exit 1
+          fi
+
+          # The checksums were computed in the `checksums` job over its
+          # own download. Re-verifying here proves the artifacts
+          # round-tripped through the artifact store unchanged — which
+          # matters because this file is what the one-liner trusts
+          # instead of the bytes it just downloaded.
+          if [ -f out/SHA256SUMS.txt ]; then
+            ( cd out && sha256sum -c SHA256SUMS.txt ) \
+              || { echo "::error::a payload does not match SHA256SUMS.txt"; exit 1; }
+            echo "checksums verified"
+          elif [ "$payloads" -gt 0 ]; then
+            echo "::error::payloads exist but SHA256SUMS.txt does not — the one-liner verifies it"
+            exit 1
+          fi
+
+          {
+            echo "payloads=${payloads}"
+            echo "exes=${exes}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Write the draft body
+        shell: bash
+        run: |
+          set -euo pipefail
+          v="${{ needs.version.outputs.version }}"
+          {
+            echo "## Install"
+            echo
+            echo '**Windows** — download `SEO-Tool-Setup-'"${v}"'.exe` below and run it.'
+            echo
+            echo '**macOS / Linux** — one line, no toolchain:'
+            echo
+            echo '```bash'
+            echo "curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install-prebuilt.sh | bash"
+            echo '```'
+            echo
+            echo "Needs Node 20–26. The payload carries compiled native modules, so there is one"
+            echo "asset per platform and per Node major; the script picks its own and refuses a"
+            echo "mismatch rather than failing later with \`ERR_DLOPEN_FAILED\`."
+            echo
+            echo '`SHA256SUMS.txt` is verified by the installer automatically.'
+            echo
+            # Say what is NOT here, in the draft, before anyone publishes
+            # it. A release missing an advertised download is the kind of
+            # thing a reader finds before a maintainer does.
+            if [ "${{ steps.assemble.outputs.exes }}" -eq 0 ]; then
+              echo '> **The Windows installer is missing from this draft** — its build job did not'
+              echo '> produce one. Do not publish while the Install section above offers it.'
+              echo
+            fi
+            if [ "${{ steps.assemble.outputs.payloads }}" -lt 3 ]; then
+              echo '> **Only '"${{ steps.assemble.outputs.payloads }}"' of 3 prebuilt payloads are here.** On the missing platform the'
+              echo '> one-liner will stop and say so. Check which leg failed before publishing.'
+              echo
+            fi
+            echo '---'
+            echo
+            echo 'Built by `.github/workflows/installer.yml`. Before publishing, run the'
+            echo 'checklist in `installer/README.md` on a machine that is not the development one.'
+          } > body.md
+          cat body.md
+
+      - name: Create or update the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+
+          # A published release must never be turned back into a draft or
+          # have its assets swapped underneath users. If the tag already
+          # has a published release, refuse — uploading to it is exactly
+          # the "unverified installer in front of users" this avoids.
+          if gh release view "$tag" --json isDraft --jq .isDraft > state.txt 2>/dev/null; then
+            if [ "$(cat state.txt)" = "false" ]; then
+              echo "::error::${tag} is already PUBLISHED. Refusing to attach assets to a live release — cut a new tag."
+              exit 1
+            fi
+            echo "Updating the existing draft for ${tag}"
+            gh release edit "$tag" --draft --notes-file body.md
+            gh release upload "$tag" out/* --clobber
+          else
+            echo "Creating a draft for ${tag}"
+            gh release create "$tag" out/* \
+              --draft \
+              --title "$tag" \
+              --notes-file body.md
+          fi
+
+          echo "::notice::Draft ${tag} ready — review it, run the checklist, then Publish."
+          gh release view "$tag" --json isDraft,assets \
+            --jq '"draft=\(.isDraft) assets=\(.assets | length)"'

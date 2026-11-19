@@ -3,6 +3,7 @@
 import { recordToolRun, type FindingDraft } from "@/lib/tool-findings";
 import { guardedFetch } from "@/lib/url-guard";
 import { guardAction } from "@/lib/action-guard";
+import { errorText } from "@/lib/network-error";
 
 export type HreflangEntry = {
   lang: string;
@@ -63,7 +64,9 @@ async function fetchHtml(url: string, timeoutMs = 12_000) {
       finalUrl: url,
       body: "",
       headers: new Headers(),
-      error: (err as Error).message,
+      // errorText, not `.message`: undici's failed fetch has the bare
+      // message "fetch failed" and the real code on `err.cause`.
+      error: errorText(err),
     };
   } finally {
     clearTimeout(t);
@@ -112,7 +115,16 @@ export async function checkHreflang(rawUrl: string): Promise<HreflangResult> {
 
   const res = await fetchHtml(url);
   if (!res.ok) {
-    return { ok: false, error: `Couldn't fetch ${url} (${res.status})` };
+    // `(0)` is the status when nothing answered at all, which told the
+    // reader nothing — fetchHtml had the reason in hand and this line
+    // discarded it. On a client whose domain had stopped resolving this
+    // printed "Couldn't fetch https://… (0)" every night for 67 days.
+    return {
+      ok: false,
+      error: res.error
+        ? `Couldn't fetch ${url}: ${res.error}`
+        : `Couldn't fetch ${url} (HTTP ${res.status})`,
+    };
   }
 
   const htmlLinks = parseHtmlLinks(res.body);

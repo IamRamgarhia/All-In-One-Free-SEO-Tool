@@ -1,5 +1,6 @@
 import type { ClientSocialLinks } from "@/db/schema";
 import { guardedFetch } from "./url-guard";
+import { errorText } from "./network-error";
 
 export type SiteMetadata = {
   /** Final URL after redirects (origin-normalized). */
@@ -18,6 +19,17 @@ export type SiteMetadata = {
   gbpUrl: string | null;
   /** Whether we managed to fetch the site at all. */
   reachable: boolean;
+  /**
+   * Why not, when `reachable` is false. Absent when it is true.
+   *
+   * This used to be a bare `catch {}`, so every caller could say only
+   * "couldn't reach the site" — and the health report inherited that:
+   * measured on 19 Nov 2026, nine nightly checks failed on one client
+   * whose domain had stopped resolving, and not one stored error said
+   * so. The fix is actionable in a minute ("that address does not
+   * exist") and was invisible for 67 days.
+   */
+  unreachableReason?: string;
 };
 
 const SOCIAL_PATTERNS: Array<{
@@ -70,18 +82,34 @@ export async function fetchSiteMetadata(rawUrl: string): Promise<SiteMetadata> {
         accept: "text/html,application/xhtml+xml",
       },
     });
-  } catch {
-    return empty;
+  } catch (err) {
+    // errorText, not `.message`: a failed fetch's message is the bare
+    // string "fetch failed" and the code naming the cause is on
+    // `err.cause`.
+    return { ...empty, unreachableReason: errorText(err) };
   } finally {
     clearTimeout(timeout);
   }
 
-  if (!res.ok) return empty;
+  // An HTTP error is NOT the same as unreachable, and saying which is
+  // the difference between "check the address" and "the site is
+  // blocking us". 403 from a WAF is the common one.
+  if (!res.ok) {
+    return {
+      ...empty,
+      unreachableReason: `the site answered HTTP ${res.status}`,
+    };
+  }
 
   // Guard against pathological responses (huge SPAs, accidental binary
   // downloads). Cap at 2 MB before reading the body fully.
   const cl = parseInt(res.headers.get("content-length") ?? "0", 10);
-  if (cl > 2 * 1024 * 1024) return empty;
+  if (cl > 2 * 1024 * 1024) {
+    return {
+      ...empty,
+      unreachableReason: `the page is ${Math.round(cl / 1048576)} MB, larger than the 2 MB this reads`,
+    };
+  }
 
   const finalUrl = res.url || url;
   const html = (await res.text()).slice(0, 600_000);

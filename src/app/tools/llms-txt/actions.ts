@@ -65,7 +65,16 @@ export async function generateLlmsTxt(opts: {
 
   const meta = await fetchSiteMetadata(opts.url).catch(() => null);
   if (!meta || !meta.reachable) {
-    return { ok: false, error: "Couldn't reach the site to extract metadata." };
+    // The reason, when there is one. This read "Couldn't reach the site
+    // to extract metadata." full stop — which, when it ran nightly
+    // against a client whose domain had expired, said nothing anyone
+    // could act on for 67 days.
+    return {
+      ok: false,
+      error: meta?.unreachableReason
+        ? `Couldn't reach the site to extract metadata: ${meta.unreachableReason}`
+        : "Couldn't reach the site to extract metadata.",
+    };
   }
 
   const lines: string[] = [];

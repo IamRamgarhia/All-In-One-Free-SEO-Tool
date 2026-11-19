@@ -29,6 +29,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { withClientContext } from "./client-context";
+import { errorText } from "./network-error";
 
 /**
  * One sweepable check.
@@ -407,7 +408,20 @@ export async function tickToolSweep(
           clientId: c.id,
           toolId: check.toolId,
           ok: false,
-          error: (err as Error).message,
+          // errorText, NOT `.message`.
+          //
+          // undici's failed fetch throws a TypeError whose message is
+          // the bare string "fetch failed"; the code that says WHY —
+          // ENOTFOUND, ECONNREFUSED, an expired certificate — is on
+          // `err.cause`. Measured on this machine against a domain that
+          // had stopped resolving: message "fetch failed", cause
+          // "getaddrinfo ENOTFOUND d.dicecodes.com".
+          //
+          // So every stored failure read "fetch failed" and the record
+          // could not diagnose itself even with a perfect classifier.
+          // 13 of 15 nightly failures on this install were one dead
+          // domain, and nothing said so.
+          error: errorText(err),
         });
       }
     }
@@ -495,7 +509,9 @@ export async function sweepClient(clientId: number): Promise<SweepOutcome[]> {
         clientId: c.id,
         toolId: check.toolId,
         ok: false,
-        error: (err as Error).message,
+        // Same reason as the nightly sweep above: `.message` on a failed
+        // fetch is "fetch failed" and nothing else.
+        error: errorText(err),
       });
     }
   }
