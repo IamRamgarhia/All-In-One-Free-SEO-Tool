@@ -13,6 +13,7 @@ import {
   Users2,
 } from "lucide-react";
 import { REPO_URL } from "@/lib/repo";
+import { ModeToggle } from "./mode-toggle";
 
 type AuthStatus = {
   enabled: boolean;
@@ -31,8 +32,31 @@ const ROLE_LABEL: Record<string, string> = {
  * Profile dropdown — replaces the previous static "P" avatar that did
  * nothing on click. Hosts Settings, About, Update, Help, Team, and (when
  * there is anything to sign out of) Sign out.
+ *
+ * It also now hosts the two things that used to sit in the top bar as
+ * permanent chrome: the guided/pro toggle and the AI spend figure.
+ * Both are about YOU and YOUR INSTALL rather than about whatever page
+ * you are on, and neither is touched often — a preference set once and
+ * a number you glance at. They were taking fixed width above every
+ * screen, including a client page where the heading underneath is about
+ * one specific client.
  */
-export function ProfileMenu() {
+export function ProfileMenu({
+  mode,
+  aiUsage,
+}: {
+  /** Current UI mode, for the toggle moved in from the top bar. */
+  mode?: "guided" | "pro";
+  /**
+   * The AI spend pill, passed as a rendered node.
+   *
+   * It is an async SERVER component and this is a client component, so
+   * it cannot be imported here — but a server parent can render it and
+   * hand it down. That keeps one implementation of the figure instead
+   * of a second copy that formats the same number differently.
+   */
+  aiUsage?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -109,6 +133,26 @@ export function ProfileMenu() {
                   : "Local · single-user"}
             </p>
           </div>
+          {(mode || aiUsage) && (
+            <div className="space-y-2 border-b border-white/[0.06] px-3 py-3">
+              {mode && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    Detail level
+                  </span>
+                  <ModeToggle mode={mode} />
+                </div>
+              )}
+              {aiUsage && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    AI spend this month
+                  </span>
+                  {aiUsage}
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex flex-col py-1">
             <Link
               href="/settings/team"

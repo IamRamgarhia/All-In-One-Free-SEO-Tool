@@ -50,7 +50,7 @@ test.describe("shell", () => {
     await expect(page.locator("aside").first()).toHaveClass(/w-\[60px\]/);
   });
 
-  test("profile and mode toggle live in the top bar; the dot legend lives with its dots", async ({
+  test("the top bar keeps only what every page needs; the rest moved to where it belongs", async ({
     page,
     isMobile,
   }) => {
@@ -61,13 +61,37 @@ test.describe("shell", () => {
     const header = page.locator("header").first();
     const rail = page.locator("aside").first();
 
-    // Profile and mode are genuinely global: one account, one
-    // preference, same on every page. They belong in global chrome, and
-    // asserting they are INSIDE <header> is the point — asserting they
-    // exist on the page would pass with the old duplicate still sitting
-    // at the foot of the rail.
+    // The profile menu is the one piece of per-user chrome that stays
+    // in the bar, because it is the way into everything else. Asserting
+    // it is INSIDE <header> is the point — asserting it exists on the
+    // page would pass with the old duplicate still at the foot of the
+    // rail.
     await expect(header.getByRole("button", { name: "Profile menu" })).toBeVisible();
-    await expect(header.getByRole("button", { name: "Guided" })).toBeVisible();
+
+    // The MODE TOGGLE is no longer in the bar, and the AI spend pill is
+    // not either. Both are about you and your install rather than the
+    // page beneath them, and neither is touched often: a preference set
+    // once, and a number you glance at. They were holding fixed width
+    // above every screen.
+    //
+    // They moved INTO the profile menu, so this checks both halves —
+    // absent from the bar, present once opened. Checking only the first
+    // would pass if they had been deleted outright.
+    await expect(header.getByRole("button", { name: "Guided" })).toHaveCount(0);
+    await expect(header.getByText(/^\$\d/)).toHaveCount(0);
+
+    await header.getByRole("button", { name: "Profile menu" }).click();
+    await expect(page.getByText("Detail level")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Guided" })).toBeVisible();
+    await expect(page.getByText("AI spend this month")).toBeVisible();
+
+    // "+ Add client" left too. It is still on /clients, which had its
+    // own button all along — the bar held the second copy, and the one
+    // further from where anyone looks for it.
+    await page.keyboard.press("Escape");
+    await expect(header.getByRole("link", { name: /Add client/i })).toHaveCount(0);
+    await page.goto("/clients");
+    await expect(page.getByRole("link", { name: /Add client/i }).first()).toBeVisible();
 
     // The DOT LEGEND is not, and this assertion reversed on 19 Nov 2026.
     //
