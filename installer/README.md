@@ -59,6 +59,53 @@ The general lesson is older than this installer: a blanket `catch` that
 maps every failure onto the most likely cause will eventually map one
 onto the wrong person.
 
+### And three more underneath it
+
+Fixing the window let the app actually run, which is when the rest
+appeared. Each one was hidden by the one above it.
+
+**A first run had no database.** The Docker entrypoint has always run
+`migrate.cjs && server.js`; this host ran `server.js` alone, so nothing
+created the schema. Timed on a throwaway data directory: the server
+answered `/api/v1/health` with 200 at 5.1s and the first page returned
+**500** at 7.1s. Health is what hid it — that endpoint does not touch
+the database, so the readiness check passed over an app that could not
+serve a page. The same mistake as `test -f` on the exe, one layer down.
+With migrations first the first page is 200, and the whole boot is
+*faster*, because the 500s were being retried.
+
+**The database was being written into the program folder.** Three files
+resolve it and they disagree:
+
+| file | reads |
+|---|---|
+| `src/db/client.ts` | `SEO_DB_PATH ?? cwd()/data.db` |
+| `scripts/migrate.cjs` | `SEO_DB_PATH \|\| cwd()/data.db` |
+| `src/lib/data-dir.ts` | `SEO_DATA_DIR` first |
+
+The host set only `SEO_DATA_DIR`, so backups and the session secret
+went to `%LOCALAPPDATA%\SEO Tool` while the database was created in the
+working directory — inside the installed program folder. Measured:
+`{app}\app\data.db` at 667 KB with its `-wal`, and a 663 KB backup of
+it in the data directory beside no database at all. That makes this
+installer's own promise untrue, and leaves the one irreplaceable file
+in the folder an update overwrites. The host now sets `SEO_DB_PATH`
+too, for both commands, from one helper.
+
+**Auto-backup ran every scheduler tick.** Seven backups of a 4 KB empty
+database in three minutes on the running install. `tickAutoBackup`
+decides whether it is due by reading `autobackup.last_run_at` — a row
+in the settings table, inside the database it is backing up. No schema,
+so the write could not land, so every tick read "never". Nothing
+errored; the work simply repeated because the record of having done it
+could not be kept.
+
+The pattern across all four: **a check that does not exercise the thing
+it gates.** `test -f` on an exe that cannot run, a health endpoint that
+does not touch the database, a cadence that depends on a write to the
+file being copied. Each passed while the thing it was guarding was
+broken.
+
 That is why `installer.yml` still attaches nothing to a published
 release. Its `release` job runs only on a tag and produces a **draft** —
 `/releases/latest` excludes drafts, so no user and not even
