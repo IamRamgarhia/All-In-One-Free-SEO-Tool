@@ -182,6 +182,72 @@ describe("the installer script references files that exist", () => {
     expect(wf).toMatch(/rm -f "dist\/installer-host\/selftest\.log"/);
   });
 
+  it("the host migrates before it starts the server", () => {
+    // MEASURED on a throwaway data directory, which is what a first
+    // install is: the server booted, /api/v1/health answered 200, and
+    // the first real page returned 500. Nothing had ever created the
+    // schema, because this host ran `node server.js` while the Docker
+    // entrypoint has always run `migrate.cjs && server.js`.
+    //
+    // Health answering 200 is what hid it — that endpoint does not
+    // touch the database, so the readiness check passed over an app
+    // that could not serve a page.
+    const host = readFileSync(
+      join(ROOT, "installer/host/SeoToolHost.cs"),
+      "utf8",
+    );
+    expect(host).toContain("migrate.cjs");
+    const migrateAt = host.indexOf("await RunMigrationsAsync()");
+    const startAt = host.indexOf("StartServer(_port)");
+    expect(migrateAt, "the host never runs migrations").toBeGreaterThan(-1);
+    expect(
+      migrateAt,
+      "the server is started before the schema exists",
+    ).toBeLessThan(startAt);
+  });
+
+  it("sets SEO_DB_PATH, not just SEO_DATA_DIR", () => {
+    // These resolve DIFFERENTLY and that is the whole point:
+    //
+    //   src/db/client.ts     SEO_DB_PATH ?? cwd()/data.db   (no SEO_DATA_DIR)
+    //   scripts/migrate.cjs  SEO_DB_PATH || cwd()/data.db   (no SEO_DATA_DIR)
+    //   src/lib/data-dir.ts  SEO_DATA_DIR first
+    //
+    // So setting only SEO_DATA_DIR split the install in two: backups
+    // and the session secret went to %LOCALAPPDATA%\SEO Tool while the
+    // DATABASE was created in the working directory, inside the
+    // installed program folder. Measured: {app}\app\data.db at 667 KB,
+    // and a 663 KB backup of it sitting in the data directory next to
+    // no database at all.
+    //
+    // That makes seo-tool.iss's promise untrue — "NOT the database. It
+    // lives in %LOCALAPPDATA%\SEO Tool" — and leaves the one
+    // irreplaceable file inside the folder an update overwrites.
+    const host = readFileSync(
+      join(ROOT, "installer/host/SeoToolHost.cs"),
+      "utf8",
+    );
+    const sets = [...host.matchAll(/EnvironmentVariables\["SEO_DB_PATH"\]/g)];
+    expect(
+      sets.length,
+      "SEO_DB_PATH must be set for BOTH the migration and the server, or they use different databases",
+    ).toBe(2);
+    expect(host).toMatch(/static string DbPath\(\)/);
+
+    // And the two paths must come from the same place.
+    expect(host).toMatch(/DbPath\(\)\s*=>\s*Path\.Combine\(DataDir\(\)/);
+  });
+
+  it("the db client and the migration runner agree on the variable", () => {
+    // If either stops reading SEO_DB_PATH, the host's two env vars stop
+    // pointing at one database and both commands still succeed — which
+    // is worse than a failure, because the migration appears to work.
+    const client = readFileSync(join(ROOT, "src/db/client.ts"), "utf8");
+    const migrate = readFileSync(join(ROOT, "scripts/migrate.cjs"), "utf8");
+    expect(client).toContain("SEO_DB_PATH");
+    expect(migrate).toContain("SEO_DB_PATH");
+  });
+
   it("the host tells the user when the fault is ours", () => {
     // The lesson, encoded: a blanket catch turned our missing file into
     // "install WebView2", which the user had already done. The two

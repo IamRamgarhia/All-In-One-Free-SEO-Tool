@@ -219,6 +219,9 @@ namespace SeoTool
     internal sealed class MainWindow : Form
     {
         private readonly WebView2 _web = new WebView2();
+        private readonly Panel _splash = new Panel();
+        private readonly PictureBox _mark = new PictureBox();
+        private readonly Label _wordmark = new Label();
         private readonly Label _status = new Label();
         private Process? _server;
         private int _port;
@@ -240,22 +243,94 @@ namespace SeoTool
             var icon = Path.Combine(AppContext.BaseDirectory, "app.ico");
             if (File.Exists(icon))
             {
-                try { Icon = new System.Drawing.Icon(icon); } catch { }
+                try
+                {
+                    Icon = new System.Drawing.Icon(icon);
+                    // The same mark on the splash. Drawn at 64 so Windows
+                    // picks the largest frame in the .ico rather than
+                    // upscaling the 32px one into mush.
+                    using var big = new System.Drawing.Icon(
+                        icon, new System.Drawing.Size(64, 64));
+                    _mark.Image = big.ToBitmap();
+                }
+                catch
+                {
+                    // No mark is survivable; a crash on startup is not.
+                }
             }
 
+            // THE SPLASH.
+            //
+            // This was one grey Label reading "Starting the SEO tool…"
+            // on black, filling the window. For the fifteen seconds the
+            // server takes to come up, that is the entire product: no
+            // name, no mark, nothing to say the thing you double-clicked
+            // is the thing that opened. It reads as a console window
+            // that forgot to close.
+            //
+            // A panel rather than three docked labels, because WinForms
+            // docking stacks in reverse and the arithmetic to centre a
+            // group vertically is clearer done once, on resize.
+            _splash.BackColor = BackColor;
+            _splash.Dock = DockStyle.Fill;
+
+            _mark.Size = new System.Drawing.Size(72, 72);
+            _mark.SizeMode = PictureBoxSizeMode.Zoom;
+            _mark.BackColor = BackColor;
+
+            _wordmark.Text = "SEO Tool";
+            _wordmark.Font = new System.Drawing.Font(
+                "Segoe UI", 20F, System.Drawing.FontStyle.Regular);
+            _wordmark.ForeColor = System.Drawing.Color.FromArgb(236, 236, 241);
+            _wordmark.BackColor = BackColor;
+            _wordmark.AutoSize = true;
+
             _status.Text = "Starting…";
-            _status.ForeColor = System.Drawing.Color.FromArgb(180, 180, 190);
+            _status.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            _status.ForeColor = System.Drawing.Color.FromArgb(150, 150, 162);
             _status.BackColor = BackColor;
-            _status.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            _status.Dock = DockStyle.Fill;
-            Controls.Add(_status);
+            _status.AutoSize = true;
+
+            _splash.Controls.Add(_mark);
+            _splash.Controls.Add(_wordmark);
+            _splash.Controls.Add(_status);
+            _splash.Resize += (_, _) => LayOutSplash();
+            Controls.Add(_splash);
 
             _web.Dock = DockStyle.Fill;
             _web.Visible = false;
             Controls.Add(_web);
 
-            Shown += async (_, _) => await StartAsync();
+            Shown += async (_, _) => { LayOutSplash(); await StartAsync(); };
             FormClosing += (_, _) => StopServer();
+        }
+
+        /// <summary>Centre the mark, the wordmark and the status as a group.</summary>
+        private void LayOutSplash()
+        {
+            var w = _splash.ClientSize.Width;
+            var h = _splash.ClientSize.Height;
+            if (w <= 0 || h <= 0) return;
+
+            const int gapAfterMark = 18;
+            const int gapAfterWord = 10;
+            var markH = _mark.Image != null ? _mark.Height : 0;
+            var total = markH + (markH > 0 ? gapAfterMark : 0)
+                + _wordmark.Height + gapAfterWord + _status.Height;
+            var top = (h - total) / 2;
+
+            if (markH > 0)
+            {
+                _mark.Left = (w - _mark.Width) / 2;
+                _mark.Top = top;
+                top += markH + gapAfterMark;
+            }
+            _wordmark.Left = (w - _wordmark.Width) / 2;
+            _wordmark.Top = top;
+            top += _wordmark.Height + gapAfterWord;
+
+            _status.Left = (w - _status.Width) / 2;
+            _status.Top = top;
         }
 
         private async Task StartAsync()
@@ -263,8 +338,45 @@ namespace SeoTool
             try
             {
                 _port = FreePort();
+
+                // MIGRATE FIRST. The Docker entrypoint has always done
+                // this — `node scripts/migrate.cjs && node server.js` —
+                // and this host ran server.js alone.
+                //
+                // Measured on a throwaway data directory, which is what
+                // a first install is: the server booted, answered
+                // /api/v1/health with 200, and the first real page
+                // returned 500. No data.db had been created at all,
+                // because nothing had ever created the schema.
+                //
+                // Health answering 200 is what made it survivable-looking
+                // — that endpoint does not touch the database, so the
+                // host's readiness check passed over an app that could
+                // not serve a page.
+                SetStatus("Preparing the database…");
+                var migrated = await RunMigrationsAsync();
+                if (migrated != null)
+                {
+                    SetStatus("Could not prepare the database: " + migrated);
+                    return;
+                }
+
                 SetStatus("Starting the SEO tool…");
                 StartServer(_port);
+
+                // WebView2 initialises WHILE the server boots, not after.
+                //
+                // These were sequential: wait for the server to answer
+                // health, and only then create the browser environment
+                // and the control. Both take seconds and neither needs
+                // the other — the environment is a Chromium user-data
+                // directory and a child process, and it does not care
+                // whether anything is listening yet.
+                //
+                // Measured start to window was about fifteen seconds. The
+                // server dominates that, but the browser init was being
+                // paid on top of it for no reason instead of alongside.
+                var browserReady = InitBrowserAsync();
 
                 var url = $"http://127.0.0.1:{_port}";
                 var ready = await WaitForHealth(url, TimeSpan.FromSeconds(120));
@@ -276,13 +388,8 @@ namespace SeoTool
                     return;
                 }
 
-                await _web.EnsureCoreWebView2Async(
-                    await CoreWebView2Environment.CreateAsync(
-                        null,
-                        // Profile beside the app, not in the user's roaming
-                        // profile: this keeps an uninstall complete and
-                        // means a portable copy carries its own state.
-                        Path.Combine(AppContext.BaseDirectory, "webview-data")));
+                SetStatus("Opening…");
+                await browserReady;
 
                 var s = _web.CoreWebView2.Settings;
                 s.AreDefaultContextMenusEnabled = true;
@@ -312,7 +419,10 @@ namespace SeoTool
 
                 _web.Source = new Uri(url);
                 _web.Visible = true;
-                _status.Visible = false;
+                // The whole splash, not just its status line. Hiding the
+                // label alone used to leave the mark and wordmark painted
+                // behind a transparent-looking WebView2 for a frame.
+                _splash.Visible = false;
             }
             catch (Exception ex)
             {
@@ -349,7 +459,12 @@ namespace SeoTool
         {
             if (InvokeRequired) { BeginInvoke(new Action(() => SetStatus(text))); return; }
             _status.Text = text;
+            _splash.Visible = true;
             _status.Visible = true;
+            // AutoSize means the width changed with the text, so the
+            // centring has to be redone or the line drifts left as it
+            // gets longer.
+            LayOutSplash();
         }
 
         /// <summary>Ask the OS for a port nobody is using.</summary>
@@ -397,6 +512,25 @@ namespace SeoTool
             // Per-user data, so two accounts on one PC do not share a
             // database and an uninstall does not delete someone's work.
             psi.EnvironmentVariables["SEO_DATA_DIR"] = DataDir();
+            // SEO_DB_PATH TOO, and this is not belt-and-braces.
+            //
+            // src/db/client.ts reads `SEO_DB_PATH ?? cwd()/data.db` and
+            // does NOT look at SEO_DATA_DIR. src/lib/data-dir.ts reads
+            // SEO_DATA_DIR first. So setting only SEO_DATA_DIR split the
+            // install in two: backups and the session secret went to
+            // %LOCALAPPDATA%\SEO Tool, while the DATABASE was created in
+            // the working directory — inside the installed program
+            // folder.
+            //
+            // Measured: a first run produced {app}\app\data.db at 667 KB
+            // with its -wal and -shm, and a 663 KB backup of it sitting
+            // in the data directory next to no database at all.
+            //
+            // Which makes seo-tool.iss's promise untrue as shipped —
+            // "NOT the database. It lives in %LOCALAPPDATA%\SEO Tool and
+            // is the user's own work" — and puts the one irreplaceable
+            // file inside the folder an update overwrites.
+            psi.EnvironmentVariables["SEO_DB_PATH"] = DbPath();
             psi.EnvironmentVariables["SEO_LAUNCHED_BY"] = "windows-host";
 
             var log = Path.Combine(dir, "server.log");
@@ -409,6 +543,9 @@ namespace SeoTool
             _server.BeginOutputReadLine();
             _server.BeginErrorReadLine();
         }
+
+        /// <summary>The one database, under the per-user data directory.</summary>
+        private static string DbPath() => Path.Combine(DataDir(), "data.db");
 
         private static string DataDir()
         {
@@ -428,6 +565,100 @@ namespace SeoTool
         {
             if (string.IsNullOrEmpty(line)) return;
             try { File.AppendAllText(path, line + Environment.NewLine); } catch { }
+        }
+
+        /// <summary>
+        /// Apply database migrations. Returns null on success, or the
+        /// reason it failed.
+        /// </summary>
+        /// <remarks>
+        /// The same command the Docker entrypoint runs, for the same
+        /// reason: the schema has to exist before anything serves a
+        /// page. migrate.cjs is idempotent and tracks what it has
+        /// applied, so this costs a few milliseconds on every run after
+        /// the first.
+        /// </remarks>
+        private async Task<string?> RunMigrationsAsync()
+        {
+            var dir = AppContext.BaseDirectory;
+            var node = Path.Combine(dir, "node", "node.exe");
+            var app = Path.Combine(dir, "app");
+            var script = Path.Combine(app, "scripts", "migrate.cjs");
+
+            if (!File.Exists(script))
+            {
+                // An older payload without the script is not a reason to
+                // refuse to start — it is a reason to say so and carry
+                // on, because the server may still work against an
+                // already-migrated database.
+                Program.TryLog("migrate: " + script + " not found, skipping");
+                return null;
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = node,
+                WorkingDirectory = app,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            psi.ArgumentList.Add(script);
+            psi.EnvironmentVariables["NODE_ENV"] = "production";
+            psi.EnvironmentVariables["SEO_DATA_DIR"] = DataDir();
+            // migrate.cjs resolves `SEO_DB_PATH || cwd()/data.db` and
+            // ignores SEO_DATA_DIR entirely. Without this it would
+            // migrate a DIFFERENT database from the one the server then
+            // opens — which is worse than not migrating at all, because
+            // both commands succeed.
+            psi.EnvironmentVariables["SEO_DB_PATH"] = DbPath();
+
+            var log = Path.Combine(dir, "server.log");
+            try
+            {
+                using var p = Process.Start(psi);
+                if (p == null) return "could not run node";
+
+                var stdout = await p.StandardOutput.ReadToEndAsync();
+                var stderr = await p.StandardError.ReadToEndAsync();
+                await p.WaitForExitAsync();
+
+                Append(log, "[migrate] " + stdout.Trim());
+                if (!string.IsNullOrWhiteSpace(stderr)) Append(log, "[migrate] " + stderr.Trim());
+
+                if (p.ExitCode != 0)
+                {
+                    var tail = (stderr + "\n" + stdout).Trim();
+                    if (tail.Length > 300) tail = tail.Substring(tail.Length - 300);
+                    return $"migrations exited {p.ExitCode}. {tail}";
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Program.TryLog("migrate: " + ex);
+                return ex.Message;
+            }
+        }
+
+        /// <summary>
+        /// Create the WebView2 environment and attach the control.
+        /// </summary>
+        /// <remarks>
+        /// Split out so it can be started concurrently with the server.
+        /// It touches only the control and its own environment, so there
+        /// is nothing here that needs a listening port.
+        /// </remarks>
+        private async Task InitBrowserAsync()
+        {
+            await _web.EnsureCoreWebView2Async(
+                await CoreWebView2Environment.CreateAsync(
+                    null,
+                    // Profile beside the app, not in the user's roaming
+                    // profile: this keeps an uninstall complete and
+                    // means a portable copy carries its own state.
+                    Path.Combine(AppContext.BaseDirectory, "webview-data")));
         }
 
         private async Task<bool> WaitForHealth(string baseUrl, TimeSpan timeout)

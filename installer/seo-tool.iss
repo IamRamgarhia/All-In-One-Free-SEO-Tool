@@ -56,7 +56,34 @@ PrivilegesRequired=lowest
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
-DisableDirPage=no
+
+; UPDATING AN EXISTING INSTALL MUST FEEL LIKE AN UPDATE.
+;
+; This was DisableDirPage=no, so every run asked where to install —
+; including a run over an existing copy, which then read as "replacing
+; my installation" rather than "updating it". Inno does reuse the
+; previous directory (UsePreviousAppDir defaults to yes), so nothing
+; moved and no data was lost; it simply asked a question it already
+; knew the answer to, and asking it is what made it look like a fresh
+; install.
+;
+; `auto` is the setting for exactly this: ask on a first install, skip
+; it when a previous install of this AppId is found.
+DisableDirPage=auto
+
+; Same reasoning. "Ready to install" exists to summarise choices, and
+; on an update there are none to summarise.
+DisableReadyPage=yes
+
+; Only one installer at a time. Without this, two copies can write the
+; same files at once and the loser leaves a half-install behind.
+SetupMutex=SeoToolSetup_8E6F2C14
+
+; Shut the app down and restart it rather than demanding a reboot.
+; `RestartApplications=no` because this is a per-user app with no
+; services or shell extensions — a reboot prompt would be theatre.
+CloseApplications=yes
+RestartApplications=no
 
 OutputDir=..\dist
 OutputBaseFilename=SEO-Tool-Setup-{#AppVersion}
