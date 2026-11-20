@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { docsUrlFor, DOCS_BASE, DOCS_PAGES } from "./docs-links";
 import { TOOL_CAPABILITIES } from "./tool-capabilities.generated";
+import { TOOLS } from "./tool-registry";
+import { RETIRED } from "./tool-categories";
 
 /**
  * The help button, and where it actually lands.
@@ -13,9 +15,9 @@ import { TOOL_CAPABILITIES } from "./tool-capabilities.generated";
  *
  *   - the wrong page, which an e2e test already covers for five screens
  *   - the right page and the wrong place on it, which is what this
- *     covers. All ~92 tools live on one generated reference page, so a
- *     link to the page alone drops the reader at the top of a table of
- *     ninety-odd rows to find their own.
+ *     covers. Every tool lives on one generated reference page — 96 of
+ *     them — so a link to the page alone drops the reader at the top of
+ *     a table of ninety-odd rows to find their own.
  *
  * The anchors come from toolsPage() in docs-site/reference.mjs, built
  * from the same routes. These tests check the two agree rather than
@@ -140,11 +142,27 @@ describe("the anchors exist on the built docs page", () => {
     // The other direction: a removed tool leaving a stale row is a
     // documented feature that no longer exists, which is worse than a
     // missing one.
+    //
+    // Keyed off the registry, not off a /tools/ route shape. The page
+    // documents every tool the app's grid lists, and thirteen of those
+    // are top-level routes (/ask, /bot-logs, /content-gap …). Checking
+    // the route shape instead reported all thirteen as "documented but
+    // not in the app" the moment they were documented — the guard
+    // failing on the fix.
     const anchors = [...built!.matchAll(/id="(tool-[a-z0-9-]+)"/g)].map((m) =>
       m[1].replace(/^tool-/, ""),
     );
-    const routes = new Set(TOOL_ROUTES.map((r) => r.replace("/tools/", "")));
-    const orphans = anchors.filter((a) => !routes.has(a));
+    //
+    // Retired routes count as present: they still answer, the page has
+    // a "use this instead" row for each, and `/tools/content-attack-brief`
+    // is in RETIRED while having been dropped from the registry
+    // entirely — so the registry alone would call its row stale.
+    const slugs = new Set(
+      [...TOOLS.map((t) => t.href), ...Object.keys(RETIRED)].map((href) =>
+        href.replace(/^\/tools\//, "").replace(/^\//, ""),
+      ),
+    );
+    const orphans = anchors.filter((a) => !slugs.has(a));
     expect(orphans, `documented but not in the app: ${orphans.join(", ")}`).toEqual(
       [],
     );

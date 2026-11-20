@@ -59,6 +59,53 @@ describe("the skills reference real tools", () => {
     }
   });
 
+  it("the README names them all", () => {
+    /**
+     * The floor above is not a count, and a floor is exactly what goes
+     * stale: the README said "Four Claude Code skills" and listed four
+     * by name while a fifth — seo-task-runner, the one that edits a
+     * client's own repo — had shipped. `>= 4` passed throughout. The
+     * same thing happened to planner-coverage's floor while it sat at
+     * 18, which CLAUDE.md records.
+     *
+     * So the number is held to the directory, and each skill has to be
+     * findable by name. A skill nobody is told about is a skill nobody
+     * invokes.
+     */
+    const readme = readFileSync(join(process.cwd(), "README.md"), "utf8");
+    const words = [
+      "",
+      "One",
+      "Two",
+      "Three",
+      "Four",
+      "Five",
+      "Six",
+      "Seven",
+      "Eight",
+      "Nine",
+      "Ten",
+    ];
+    const claimed = readme.match(/\*\*(\w+) Claude Code skills\*\*/);
+    expect(
+      claimed,
+      "README no longer says '**<N> Claude Code skills**' — update this " +
+        "test rather than dropping it",
+    ).toBeTruthy();
+    expect(claimed?.[1], `there are ${SKILLS.length} skills`).toBe(
+      words[SKILLS.length] ?? String(SKILLS.length),
+    );
+    // Named, not just counted. "Five skills" followed by four names is
+    // the same failure with the number corrected.
+    for (const s of SKILLS) {
+      const topic = s.name.replace(/^seo-/, "").replace(/-/g, " ");
+      expect(
+        readme.toLowerCase(),
+        `README does not mention the ${s.name} skill`,
+      ).toContain(topic);
+    }
+  });
+
   it("names no tool that does not exist", () => {
     const broken: string[] = [];
     for (const s of SKILLS) {

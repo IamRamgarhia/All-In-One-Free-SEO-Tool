@@ -63,6 +63,30 @@ const ROUTE_DOCS: Record<string, string> = {
   "/tools": "tools.html",
   "/docs": "index.html",
   "/learn": "index.html",
+
+  // Tools that do not live under /tools/.
+  //
+  // The grid lists 96 tools and thirteen of them are top-level routes —
+  // /ask ("Ask the tool") among them. The rule below only builds an
+  // anchor for /tools/<slug>, so each of these fell through every
+  // prefix and the help button opened the documentation FRONT PAGE: a
+  // button whose entire promise is "the page for this screen", landing
+  // somewhere else, on a tenth of the tools. The generated reference
+  // now has a row for each, and docs-links.test.ts checks every anchor
+  // here exists on the built page, so a renamed row fails the build
+  // rather than quietly going back to the front page.
+  "/ask": "tools.html#tool-ask",
+  "/bot-logs": "tools.html#tool-bot-logs",
+  "/content-gap": "tools.html#tool-content-gap",
+  "/image-audit": "tools.html#tool-image-audit",
+  "/brand-serp": "tools.html#tool-brand-serp",
+  "/knowledge-panel": "tools.html#tool-knowledge-panel",
+  "/author-authority": "tools.html#tool-author-authority",
+  "/landing-perf": "tools.html#tool-landing-perf",
+  "/links": "tools.html#tool-links",
+  "/knowledge": "tools.html#tool-knowledge",
+  "/algorithm-updates": "tools.html#tool-algorithm-updates",
+  "/annotations": "tools.html#tool-annotations",
 };
 
 /** The docs page for a screen, or the front page when nothing matches. */

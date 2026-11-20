@@ -81,6 +81,39 @@ describe("release notes", () => {
     expect(first).toBe(packageVersion());
   });
 
+  it("the release body is built from the notes, not written again", () => {
+    /**
+     * WHY: v0.10.2 and v0.10.3 were published with a body that held
+     * install instructions and nothing else — no changelog, and a
+     * trailing line telling the maintainer to run a pre-publish
+     * checklist, addressed to one person and shown to everybody. The
+     * notes existed the whole time: `docs/releases/v0.10.3.md`, 146
+     * lines of exactly what changed, in the repo, unpublished.
+     *
+     * The release page is where almost everyone meets a version. A
+     * body that cannot say what changed makes every release look
+     * identical, and the fix is not to write the notes twice — it is
+     * to assemble the body from the file the tests already require to
+     * exist.
+     */
+    const wf = readFileSync(
+      join(ROOT, ".github/workflows/installer.yml"),
+      "utf8",
+    );
+    const step = wf.slice(wf.indexOf("Write the draft body"));
+    expect(
+      step,
+      "the release body no longer reads docs/releases/v<version>.md, so " +
+        "published releases will have install instructions and no changelog",
+    ).toContain("docs/releases/v${v}.md");
+    // Addressed to the maintainer, so it belongs in the job log, not on
+    // the page users read.
+    expect(
+      wf.slice(wf.indexOf("Write the draft body"), wf.indexOf("Create or update the draft")),
+      "the pre-publish checklist instruction is back in the public body",
+    ).not.toContain("Before publishing, run the");
+  });
+
   it("the notes link to the diff for the right version", () => {
     // Copying the previous release's notes and editing the prose is the
     // normal way to write these, and the compare link is what gets

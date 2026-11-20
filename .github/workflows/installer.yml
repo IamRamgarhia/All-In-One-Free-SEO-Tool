@@ -615,8 +615,32 @@ jobs:
             fi
             echo '---'
             echo
-            echo 'Built by `.github/workflows/installer.yml`. Before publishing, run the'
-            echo 'checklist in `installer/README.md` on a machine that is not the development one.'
+            # ─── the changelog ────────────────────────────────────────
+            #
+            # The release page had install instructions and nothing
+            # else. Someone looking at v0.10.3 could see how to get it
+            # and not one word about what it changed, while
+            # docs/releases/v0.10.3.md — 146 lines of exactly that —
+            # sat in the repo. The notes are written as part of every
+            # release already (release-notes.test.ts fails the build if
+            # the version in package.json has no notes file and no
+            # CHANGELOG entry), so the body is assembled from them
+            # rather than written twice and left to drift.
+            #
+            # The H1 and the date line are dropped: GitHub renders the
+            # tag and the publish date itself, and a second copy of
+            # both at the top of the body reads like a mistake.
+            notes="docs/releases/v${v}.md"
+            if [ -f "$notes" ]; then
+              sed -e '1{/^# /d;}' -e '/^\*\*Release date:\*\*/d' "$notes"
+            else
+              echo "::warning::${notes} is missing, so this release body has no changelog."
+              echo "No written notes for this version — see [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)."
+            fi
+            echo
+            echo '---'
+            echo
+            echo 'Built by `.github/workflows/installer.yml`.'
           } > body.md
           cat body.md
 

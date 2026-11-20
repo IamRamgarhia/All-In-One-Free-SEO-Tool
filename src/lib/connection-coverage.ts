@@ -181,12 +181,19 @@ export function modeCoverage(): ModeCoverage {
 export const WORKS_ANYWAY_COUNT = modeCoverage().worksAnyway.length;
 export const NEEDS_KEY_COUNT = modeCoverage().needsKey.length;
 /**
- * Everything these screens list: current, carded /tools/<name> routes.
+ * Everything these screens list, and the number the README advertises:
+ * every tool the grid renders, retired ones left out.
  *
- * Smaller than TOTAL_TOOL_COUNT (91) because retired tools are left out.
- * They still answer on their routes so old links and saved reports keep
- * working, but a "here is what you get" list should not be padded with
- * tools the product is steering people away from.
+ * Retired tools still answer on their routes so old links and saved
+ * reports keep working, but a "here is what you get" list should not be
+ * padded with tools the product is steering people away from.
+ *
+ * Not the same as TOTAL_TOOL_COUNT, and LARGER than it, which this
+ * comment had backwards: that one counts `/tools/<name>` routes in the
+ * generated capability table, while the grid also carries the top-level
+ * tools that never lived under /tools/ (/ask, /bot-logs, /content-gap
+ * and the rest). Counting the list the grid renders is what makes the
+ * header and the cards beneath it unable to disagree — see gridTools().
  */
 export const LISTED_TOOL_COUNT = WORKS_ANYWAY_COUNT + NEEDS_KEY_COUNT;
 

@@ -135,14 +135,98 @@ function badges(t) {
 /** Strip the decorative star the product uses to mark its favourites. */
 const clean = (s) => s.replace(/\s*⭐\s*$/, "").trim();
 
+/**
+ * The tools the app's own grid lists, by href.
+ *
+ * WHY NOT A ROUTE-SHAPE TEST: this page filtered on
+ * `route.startsWith("/tools/")`, which was right while every tool lived
+ * under /tools/ and stopped being right the moment the ten top-level
+ * ones (/ask, /bot-logs, /content-gap and the rest) joined the grid. The
+ * app said 96 tools and this page said 91 — five documented nowhere,
+ * including "Ask the tool", which CLAUDE.md Part 14 calls a headline
+ * feature. connection-coverage.ts had already learnt the same lesson for
+ * the in-app count; the published reference had not.
+ *
+ * Read line-wise out of the registry rather than imported, for the same
+ * reason readRoutes() is: this file is plain .mjs run by the docs build,
+ * with no TypeScript loader.
+ */
+function gridHrefs() {
+  const registry = readFileSync(join(APP, "src/lib/tool-registry.ts"), "utf8");
+  const hrefs = [...registry.matchAll(/href:\s*"([^"]+)"/g)].map((m) => m[1]);
+  if (hrefs.length < 80) {
+    throw new Error(`Only ${hrefs.length} tools parsed — tool-registry.ts changed shape.`);
+  }
+  const retired = readRetired();
+  return new Set(hrefs.filter((h) => !retired.has(h)));
+}
+
+/**
+ * Superseded tools, with what replaced each and why.
+ *
+ * Left out of the count and the main table — a "here is what you get"
+ * list should not be padded with tools the product is steering people
+ * away from — but NOT left out of the page. Their routes still answer,
+ * so old links, saved reports and bookmarks keep working, and the help
+ * button on one of those pages has to land somewhere that explains
+ * itself. Dropping the rows sent eight of them to the top of a table of
+ * ninety-six, which docs-links.test.ts caught.
+ */
+function readRetired() {
+  const src = readFileSync(join(APP, "src/lib/tool-categories.ts"), "utf8");
+  const block = src.slice(
+    src.indexOf("export const RETIRED"),
+    src.indexOf("export function isRetired"),
+  );
+  const out = new Map();
+  let href = null;
+  for (const line of block.split(/\r?\n/)) {
+    const key = /^\s*"(\/[^"]+)":\s*\{/.exec(line);
+    if (key) {
+      href = key[1];
+      out.set(href, { useInstead: null, why: null });
+      continue;
+    }
+    if (!href) continue;
+    const use = /useInstead:\s*"((?:[^"\\]|\\.)*)"/.exec(line);
+    if (use) out.get(href).useInstead = unq(use[1]);
+    const why = /why:\s*"((?:[^"\\]|\\.)*)"/.exec(line);
+    if (why) out.get(href).why = unq(why[1]);
+  }
+  if (!out.size) throw new Error("No retired tools parsed — RETIRED changed shape.");
+  for (const [k, v] of out) {
+    if (!v.useInstead || !v.why) {
+      throw new Error(`RETIRED["${k}"] parsed without useInstead/why — shape changed.`);
+    }
+  }
+  return out;
+}
+
+/**
+ * The row id for a tool, and the anchor the app's help button uses.
+ *
+ * This was `route.replace("/tools/", "")`, which silently produced
+ * `id="tool-/ask"` for the thirteen tools that do not live under
+ * /tools/ — a slash inside an id, so the fragment link could never
+ * resolve. It only became reachable when this page started listing
+ * them; the string replace had always been a prefix strip pretending to
+ * be one.
+ *
+ * Kept identical for /tools/<slug> so existing links and
+ * src/lib/docs-links.ts both still resolve.
+ */
+export const toolAnchor = (route) =>
+  `tool-${route.replace(/^\/tools\//, "").replace(/^\//, "")}`;
+
 export function toolsPage() {
+  const grid = gridHrefs();
   const tools = readRoutes()
-    .filter((r) => r.route.startsWith("/tools/") && r.title && r.description)
+    .filter((r) => grid.has(r.route) && r.title && r.description)
     .sort((a, b) => clean(a.title).localeCompare(clean(b.title)));
 
   const rows = tools
     .map(
-      (t) => `<tr id="tool-${esc(t.route.replace("/tools/", ""))}">
+      (t) => `<tr id="${esc(toolAnchor(t.route))}">
   <td><strong>${esc(clean(t.title))}</strong><br><span style="color:var(--fg-dim);font-size:12.5px">${esc(t.route)}</span></td>
   <td>${esc(t.description)}<div style="margin-top:6px">${badges(t)}</div></td>
 </tr>`,
@@ -151,6 +235,22 @@ export function toolsPage() {
 
   const needAi = tools.filter((t) => t.needsAI).length;
   const browser = tools.filter((t) => t.usesBrowser).length;
+
+  // Titles come from the capability table, which still has a row for a
+  // retired route — the page is still served. Falling back to the slug
+  // keeps a row rather than printing "undefined" if that ever changes.
+  const titleOf = new Map(readRoutes().map((r) => [r.route, r.title]));
+  const name = (href) => clean(titleOf.get(href) || href.replace(/^.*\//, ""));
+  const retiredRows = [...readRetired().entries()]
+    .sort((a, b) => name(a[0]).localeCompare(name(b[0])))
+    .map(
+      ([href, r]) => `<tr id="${esc(toolAnchor(href))}">
+  <td><strong>${esc(name(href))}</strong><br><span style="color:var(--fg-dim);font-size:12.5px">${esc(href)}</span></td>
+  <td><a href="#${esc(toolAnchor(r.useInstead))}"><strong>${esc(name(r.useInstead))}</strong></a>
+  <div style="margin-top:6px;color:var(--fg-dim)">${esc(r.why)}</div></td>
+</tr>`,
+    )
+    .join("\n");
 
   return {
     slug: "tools.html",
@@ -179,11 +279,21 @@ so this page cannot drift out of date the way a hand-written list would.</p></di
         html: `<table><thead><tr><th style="width:34%">Tool</th><th>What it does</th></tr></thead>
 <tbody>\n${rows}\n</tbody></table>`,
       },
+      {
+        id: "retired",
+        h2: "Retired, and what replaced them",
+        html: `
+<p>These still work, so old links and saved reports are not broken, but each one was
+superseded by a tool that does the job better or does it as part of a larger one. If you
+landed here from one of them, this is where to go instead.</p>
+<table><thead><tr><th style="width:34%">Retired</th><th>Use instead</th></tr></thead>
+<tbody>\n${retiredRows}\n</tbody></table>`,
+      },
     ],
     // Every tool name becomes a search term.
     searchExtra: tools.map((t) => ({
       title: clean(t.title),
-      url: `tools.html#tool-${t.route.replace("/tools/", "")}`,
+      url: `tools.html#${toolAnchor(t.route)}`,
       text: `${t.description} ${t.route}`,
     })),
   };

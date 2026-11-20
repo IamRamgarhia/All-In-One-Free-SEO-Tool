@@ -2,7 +2,7 @@
 
 # All-In-One Free SEO Tool — Open-Source Alternative to Ahrefs, Semrush, Moz &amp; SE Ranking
 
-### 🚀 The complete free SEO platform. 92 dedicated tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
+### 🚀 The complete free SEO platform. 96 dedicated tools: site audits, rank tracking, keyword research, AI search visibility (ChatGPT · Perplexity · Gemini · AI Overviews), content briefs, backlinks, local SEO, white-label client reports, automations — all in one self-hosted app.
 
 ### Built for agencies and freelancers, specifically
 **Team accounts** with per-client access · **generate every client's report in one run**, then review before anything goes out · an **autonomous agent** that fixes what it finds and can undo any of it · an **embeddable audit widget** that turns your site into a lead source · **proposals** built from real audit findings.
@@ -81,17 +81,33 @@ A typical SEO professional pays **₹25,000-₹45,000 per month** ($300-$540) fo
 
 ## ⚡ Install in one command
 
-No Git. No Node knowledge. No setup wizard. The installer auto-detects Docker / Node, finds a free port, runs migrations, builds for production, and opens your browser.
+No Git. No Node knowledge. No terminal, on Windows.
 
-### 🪟 Windows (PowerShell)
-```powershell
-iwr -useb https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.ps1 | iex
+### 🪟 Windows — download the installer
+
+**[⬇️ SEO-Tool-Setup.exe](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases/latest)** — double-click, next, done. It carries its own Node and a finished production build, so there is nothing to install first and nothing to compile; that is why it is ~128 MB. It puts one **SEO Tool** icon on your Desktop, runs the database migrations itself, and opens the app in its own window.
+
+Windows will say **"Windows protected your PC"** — it says that about every program without a code-signing certificate, which costs about $300 a year and would rather defeat the word *free*. Click **More info → Run anyway**.
+
+**Updating keeps your data.** Run the newer installer over the top: it reads the installed version, tells you it is updating from one to the other, and closes the running app itself. Your clients, audits, keywords, rankings and settings live in `%LOCALAPPDATA%\SEO Tool`, outside the program folder, so an update cannot touch them.
+
+### 🍎🐧 macOS / Linux — one line, no toolchain
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install-prebuilt.sh | bash
 ```
 
-### 🐧🍎 macOS / Linux
+Downloads a finished build — nothing to compile. Needs **Node 20–26** already on the machine. The payload carries compiled native modules, so there is one per platform and per Node major: the script picks its own, verifies it against the release's `SHA256SUMS.txt`, and refuses a mismatch rather than failing later with `ERR_DLOPEN_FAILED`.
+
+### 🛠️ Build from source instead (any OS)
+
+Slower, needs a toolchain, and the right choice if you want to read and change the code:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/IamRamgarhia/All-In-One-Free-SEO-Tool/main/install.sh | bash
 ```
+
+This one clones, installs dependencies, finds a free port, runs migrations, builds for production and opens your browser. On Windows, `install.ps1` does the same from PowerShell — but it installs into `$HOME\seo` rather than the folder you run it from, so use the `.exe` above unless you specifically want a source checkout.
 
 ### 🐳 Docker manually
 ```bash
@@ -111,18 +127,21 @@ Open <http://localhost:3000> and sign in with that password.
 > Running it on a laptop, reachable from nowhere else, and you accept
 > the risk? `SEO_ALLOW_NO_PASSWORD=1 docker compose up -d`.
 
-### 📦 Or download a release
+### 📦 What's actually in a release
 
-Prefer a file to a command, or want to pin a version?
+Prefer to pick the file yourself, or pin a version?
+**[⬇️ Latest release](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases/latest)** · [every release](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases)
 
-**[⬇️ Download the latest release](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases/latest)** — about 4 MB, **source only**: it needs Node and a package manager to build, and that is what the one-command installers above do for you
- · [every release](https://github.com/IamRamgarhia/All-In-One-Free-SEO-Tool/releases)
+| Asset | What it is |
+|---|---|
+| `SEO-Tool-Setup-<version>.exe` | The Windows installer above. Everything included, nothing to install first |
+| `seo-tool-prebuilt-<version>-<os>-<arch>-node22.zip` | A finished build for macOS Intel, macOS Apple Silicon and Linux x86-64. What the one-liner downloads; needs Node 20–26 on the machine |
+| `SHA256SUMS.txt` | Checksums for the payloads above, verified by the installer automatically |
+| **Source code (zip)** | GitHub's own source snapshot. Needs Node and a build — that's what `install.sh` does for you |
 
-Unzip it and **double-click one file** — `SEO Tool - WINDOWS.hta`,
-`SEO Tool - MAC.command` or `SEO Tool - LINUX.sh`. It installs Node for
-you if the machine hasn't got it, and nothing is added to your system
-PATH. No Git, no terminal. (`docker compose up -d` still works if you'd
-rather, and so does `npm install && npm run build && npm start`.)
+Each release also has full written notes under
+[docs/releases](docs/releases/), and [CHANGELOG.md](CHANGELOG.md) is the
+short version of all of them.
 
 ### 🔌 WordPress plugin — a separate download
 
@@ -142,13 +161,16 @@ You only need it for sites you want the tool to *change*. Everything
 else — crawling, rankings, Search Console, reports, the AI tools —
 works without it, on any platform.
 
-Each release lists its zip's SHA-256 in the release notes if you want to
-verify the download.
-
 ### 🖱️ After installing: one icon does everything
 
-The installer puts a single **SEO Tool** icon on your Desktop. Double-click
-it and a control panel opens in your browser:
+**Installed with the Windows `.exe`?** The **SEO Tool** icon on your
+Desktop *is* the app — it opens in its own window, starts the server for
+you, and closing the window shuts it down. Backups run automatically to
+`%LOCALAPPDATA%\SEO Tool\Backups`, and Settings → Backup inside the app
+handles the rest. To update, run the newer installer.
+
+**Installed from source or a prebuilt payload?** You get a single
+**SEO Tool** icon that opens a control panel in your browser:
 
 | Button | What it does |
 |---|---|
@@ -220,7 +242,7 @@ they can't drift away from the code.
 |---|---|
 | [Install](https://dicecodes.com/seo-tool/install.html) | Windows, macOS, Linux, Docker, VPS — and what to do when it won't start |
 | [First run](https://dicecodes.com/seo-tool/first-run.html) | Your first client, first audit, first report |
-| [Every tool](https://dicecodes.com/seo-tool/tools.html) | All 92, what each one reads, and what it gives you back |
+| [Every tool](https://dicecodes.com/seo-tool/tools.html) | All 96, what each one reads, and what it gives you back |
 | [Every screen](https://dicecodes.com/seo-tool/screens.html) | What each page in the app is for |
 | [Clients](https://dicecodes.com/seo-tool/clients.html) · [Audits](https://dicecodes.com/seo-tool/audits.html) · [Keywords](https://dicecodes.com/seo-tool/keywords.html) · [Content](https://dicecodes.com/seo-tool/content.html) | The day-to-day modules |
 | [AI visibility](https://dicecodes.com/seo-tool/ai-visibility.html) | Tracking whether ChatGPT, Perplexity, Gemini and AI Overviews cite you |
@@ -230,8 +252,11 @@ they can't drift away from the code.
 | [Backup & restore](https://dicecodes.com/seo-tool/backup.html) · [Troubleshooting](https://dicecodes.com/seo-tool/troubleshooting.html) · [FAQ](https://dicecodes.com/seo-tool/faq.html) | When something needs fixing |
 
 **You don't have to go looking for it.** Every screen in the app has a
-**?** button in its header that opens the page for *that* screen — 192
-of them, each pointed at the right place.
+**?** button in its header that opens the documentation for *that*
+screen — and every tool page lands on its own row of the reference, not
+at the top of a table of ninety-odd. The anchors are generated from the
+same routes the app uses, so they can't point at a heading that isn't
+there; a test fails the build if one does.
 
 ---
 
@@ -244,7 +269,7 @@ of them, each pointed at the right place.
 
 Every client opens on the same question: what should happen next, and who has to do it. Work the agent can finish on its own is separated from work that needs a decision, and each item says what it changes and how long it takes.
 
-### 92 dedicated tools, organized by SEO discipline
+### 96 dedicated tools, organized by what you came to do
 ![All Tools page showing 13 category filters — Audits & scoring, Reports, On-page, Schema, Indexing, Speed, Keywords & content, Backlinks & outreach, Local SEO, Competitors & brand, AI visibility, Imports & integrations — and a grid of tool cards including Full SEO health check, SERP feature tracker, Content attack brief, Meta tag generator, SEO code generator](docs/screenshots/03-all-tools.png)
 
 Filter by category or pin your favorites. Each tool is single-purpose and chainable — output of one feeds the next.
@@ -275,7 +300,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 
 ## 📦 Full feature list
 
-> **92 dedicated tools across 14 SEO disciplines.** Every category an SEO professional needs, all in one self-hosted app.
+> **96 dedicated tools across every SEO discipline.** Everything an SEO professional needs, all in one self-hosted app.
 
 ### 🔍 Site audits & technical SEO
 ✅ Full-site crawler with 30+ on-page checks  
@@ -449,7 +474,7 @@ The home view when you log in. Multi-client overview, today's priorities, and wh
 ✅ **Numbers arrive with their provenance.** A Search Console average and a browser scrape are different measurements, so movement between them is reported as *not comparable* rather than as a confident "up 6 places" that never happened  
 ✅ **stdio by default** — no port, nothing listening, runs as whoever owns the database file. A remote endpoint (`/api/mcp`, Streamable HTTP) exists for connectors and stays off until you generate a token  
 ✅ **Read-only tokens for chat apps** — the remote endpoint issues a token that can read everything and change nothing, so a connector cannot edit a live site. Requests are capped per token
-✅ **Four Claude Code skills** ([`plugins/seo-tool`](plugins/seo-tool/)) — audit report, client setup, fix pass and keyword plan, written as multi-step workflows over the MCP tools rather than one call each. A test fails the build if a skill names a tool the server does not serve  
+✅ **Five Claude Code skills** ([`plugins/seo-tool`](plugins/seo-tool/)) — audit report, client setup, fix pass, keyword plan, and a task runner that picks a task off the list and finishes it inside the client's own repo (Astro, Next.js, plain HTML). Written as multi-step workflows over the MCP tools rather than one call each. A test fails the build if a skill names a tool the server does not serve  
 
 ### 🔌 Integrations
 ✅ **One setup page** (`/connect`) — every connection in one place, with what each one gets you, what you lose without it, how long it takes, and step-by-step instructions written for someone who's never seen that vendor's console  
@@ -711,7 +736,7 @@ If this tool saves you a ₹10,000+/month Ahrefs subscription, the cheapest way 
 
 **DiceCodes builds full-stack web apps end-to-end — solo, no agency overhead.**
 
-This entire SEO platform (92 dedicated tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
+This entire SEO platform (96 dedicated tools, AI daily agent, headless browser pool, white-label reports) was built by one person. If you have a startup idea, an internal tool you wish existed, or a SaaS product to launch — we can build it.
 
 | What we build | Typical timeline |
 |---|---|

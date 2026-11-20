@@ -46,6 +46,12 @@ describe("the documented Docker install matches what the container requires", ()
   it.each([
     ["README.md", "README.md"],
     ["docs/HOSTING.md", "docs/HOSTING.md"],
+    // The third place it is published, and the one most people read:
+    // docs-site/ builds the public documentation at dicecodes.com. It
+    // carried the bare command for as long as the README did and was
+    // not on this list, so fixing the README left the published page
+    // telling everyone a command that cannot succeed.
+    ["docs-site/content.mjs", "docs-site/content.mjs"],
   ])("%s tells the reader to set it before composing up", (_label, file) => {
     const text = read(file);
     const idx = text.indexOf("docker compose up -d");

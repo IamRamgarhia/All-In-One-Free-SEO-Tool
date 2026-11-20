@@ -111,8 +111,8 @@ free. See <a href="faq.html#limits">the limits</a> before you plan around it.</p
         h2: "Get started",
         html: `
 <ol class="steps">
-  <li><strong>Install it</strong> Download the ZIP, extract, double-click the launcher for
-  your computer. <a href="install.html">Full instructions &rarr;</a></li>
+  <li><strong>Install it</strong> On Windows, download the installer and run it. On macOS or
+  Linux, one line in a terminal. <a href="install.html">Full instructions &rarr;</a></li>
   <li><strong>Add your first site</strong> Paste a URL. It detects the platform and niche and
   builds a plan. <a href="first-run.html">What to do first &rarr;</a></li>
   <li><strong>Connect Search Console</strong> Free, about five minutes, and the single change
@@ -123,9 +123,14 @@ free. See <a href="faq.html#limits">the limits</a> before you plan around it.</p
         id: "privacy",
         h2: "Where your data lives",
         html: `
-<p>One file: <code>_system/data.db</code> inside the folder you extracted. Every client,
-audit, keyword, ranking, report and setting is in it. Copy that file and you have copied
-your whole install.</p>
+<p>One file, <code>data.db</code>. Every client, audit, keyword, ranking, report and setting
+is in it — copy that file and you have copied your whole install. Where it sits depends on
+how you installed:</p>
+<table>
+  <tr><th>Windows installer</th><td><code>%LOCALAPPDATA%\\SEO Tool\\data.db</code>, with automatic backups in <code>Backups</code> beside it. Deliberately not in the program folder, so updating or uninstalling the app cannot touch it</td></tr>
+  <tr><th>From source</th><td><code>data.db</code> in the app folder</td></tr>
+  <tr><th>Docker</th><td>Inside the named volume, at <code>/data/data.db</code> in the container</td></tr>
+</table>
 <p>Nothing is uploaded anywhere. The software talks to the internet only to crawl the sites
 you ask it to, call the APIs you connect, and check for its own updates.</p>
 <p><a href="backup.html">Backing up and restoring &rarr;</a></p>`,
@@ -139,44 +144,45 @@ you ask it to, call the APIs you connect, and check for its own updates.</p>
     group: "Start here",
     title: "Install",
     lede:
-      "One download, one launcher, nothing to configure. It works on Windows, macOS and Linux, " +
-      "and it installs Node.js for you if you do not have it.",
+      "On Windows, one download and a Next button. On macOS and Linux, one line in a " +
+      "terminal. Nothing to configure either way, and nothing to compile.",
     sections: [
       {
         id: "download",
-        h2: "Download and run",
+        h2: "Windows: download the installer",
         html: `
 <ol class="steps">
-  <li><strong>Download the ZIP</strong>
-    <p><a class="btn btn-primary" href="${SITE.download}" rel="noopener">Get the latest release</a></p></li>
-  <li><strong>Extract it</strong>
-    <p>Right-click the ZIP &rarr; <em>Extract All</em>. The app cannot run from inside a ZIP —
-    it needs the <code>_system</code> folder next to the launcher.</p></li>
-  <li><strong>Double-click the launcher for your computer</strong>
-    <table>
-      <tr><th>Windows</th><td><code>SEO Tool - WINDOWS</code></td></tr>
-      <tr><th>macOS</th><td><code>SEO Tool - MAC</code></td></tr>
-      <tr><th>Linux</th><td><code>SEO Tool - LINUX</code></td></tr>
-    </table>
-    <p>A small window opens with one button.</p></li>
-  <li><strong>Click &ldquo;Set up the SEO Tool&rdquo; and wait</strong>
-    <p>There is nothing to fill in. It fetches what it needs and builds the app, then opens
-    in your browser by itself.</p></li>
+  <li><strong>Download <code>SEO-Tool-Setup-&lt;version&gt;.exe</code></strong>
+    <p><a class="btn btn-primary" href="${SITE.download}" rel="noopener">Get the latest release</a></p>
+    <p>About 128 MB. It carries its own copy of Node and a finished build of the app, which
+    is why there is nothing to install first and nothing to wait for while it compiles.</p></li>
+  <li><strong>Run it</strong>
+    <p>There is nothing to fill in. It installs, runs the database migrations itself, puts one
+    <strong>SEO Tool</strong> icon on your Desktop and in the Start Menu, and opens.</p></li>
+  <li><strong>Updating later: run the newer installer over the top</strong>
+    <p>It reads the version you already have, tells you it is updating from one to the other,
+    and closes the running app itself. Your data is not in the program folder, so an update
+    cannot touch it.</p></li>
 </ol>
-<div class="warn"><strong>Be realistic about the first run</strong>
-<p>This is a full web application, so setup takes roughly 3&ndash;10 minutes and downloads a
-few hundred MB. Every run after that starts in seconds. A black window appears while it
-works — leave it alone, it closes on its own.</p></div>`,
+<div class="note"><strong>Where your data lives</strong>
+<p><code>%LOCALAPPDATA%\\SEO Tool</code> — the database, and automatic backups in a
+<code>Backups</code> folder beside it. Deliberately outside the program folder, so
+uninstalling, moving or re-downloading the app leaves your clients, audits, keywords and
+settings alone.</p></div>`,
       },
       {
-        id: "node",
-        h2: "You do not need to install Node.js",
+        id: "mac-linux",
+        h2: "macOS and Linux: one line",
         html: `
-<p>If Node is not on your computer, the setup downloads the official portable copy and keeps
-it <em>inside the app folder</em>. No administrator rights, nothing added to your system,
-and a Node you already have is left alone.</p>
-<p>If you would rather use your own, install Node 20.11 or newer from
-<a href="https://nodejs.org" rel="noopener">nodejs.org</a> before running the launcher.</p>`,
+<pre><code>curl -fsSL ${REPO.replace("github.com", "raw.githubusercontent.com")}/main/install-prebuilt.sh | bash</code></pre>
+<p>This downloads a finished build rather than compiling one. It needs <strong>Node 20 to
+26</strong> already on the machine — <a href="https://nodejs.org" rel="noopener">nodejs.org</a>
+if you have not got it.</p>
+<p>The download carries compiled native modules, so there is one per platform and per Node
+major version. The script works out which one it needs, checks it against the release's
+<code>SHA256SUMS.txt</code>, and stops with an explanation if they do not match — rather
+than installing something that fails later with an unreadable
+<code>ERR_DLOPEN_FAILED</code>.</p>`,
       },
       {
         id: "windows-warning",
@@ -186,19 +192,24 @@ and a Node you already have is left alone.</p>
 around $300 a year, which would rather defeat the word &ldquo;free&rdquo;.</p>
 <p>Click <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
 <p>If double-clicking does nothing at all, Windows may have blocked the file as
-internet-sourced: right-click the launcher &rarr; <em>Properties</em> &rarr; tick
+internet-sourced: right-click it &rarr; <em>Properties</em> &rarr; tick
 <strong>Unblock</strong> at the bottom &rarr; OK.</p>`,
       },
       {
         id: "one-line",
-        h2: "One-line install (for developers)",
+        h2: "Building from source instead",
         html: `
-<p>If you are comfortable in a terminal, this does the same thing and puts the app in
-<code>~/seo</code>:</p>
-<h3>Windows (PowerShell)</h3>
-<pre><code>iwr -useb ${REPO.replace("github.com", "raw.githubusercontent.com")}/main/install.ps1 | iex</code></pre>
+<p>Slower, needs a build toolchain, and the right choice if you want to read and change the
+code. This clones the repository, installs everything, builds, and starts it:</p>
 <h3>macOS / Linux</h3>
 <pre><code>curl -fsSL ${REPO.replace("github.com", "raw.githubusercontent.com")}/main/install.sh | bash</code></pre>
+<h3>Windows (PowerShell)</h3>
+<pre><code>iwr -useb ${REPO.replace("github.com", "raw.githubusercontent.com")}/main/install.ps1 | iex</code></pre>
+<p>Both install Node for you if it is missing, keeping it inside the app folder — no
+administrator rights, nothing added to your system PATH, and a Node you already have is
+left alone. Note that the PowerShell one installs into <code>~\\seo</code> rather than the
+folder you run it from; on Windows the installer above is the easier path unless you
+specifically want a source checkout.</p>
 <p>The installer asks whether to start the app when you log in. Say yes if you want the
 nightly work to happen on its own — see <a href="automation.html#always-on">why that
 matters</a>.</p>`,
@@ -209,8 +220,17 @@ matters</a>.</p>`,
         html: `
 <pre><code>git clone ${REPO}.git
 cd All-In-One-Free-SEO-Tool
+echo "APP_PASSWORD=pick-something-long" &gt; .env
 docker compose up -d</code></pre>
-<p>Then open <a href="http://localhost:3000">http://localhost:3000</a>.</p>
+<p>Then open <a href="http://localhost:3000">http://localhost:3000</a> and sign in with that
+password.</p>
+<div class="warn"><strong>The password line is not optional</strong>
+<p>The container has no other way to sign you in, and it cannot see whether Docker published
+its port to your machine only or to the whole internet — so it refuses to start without a
+password rather than guess. Leave <code>.env</code> out and the container restarts in a
+loop; <code>docker compose logs</code> says exactly this.</p>
+<p>Running it on a laptop, reachable from nowhere else, and happy with the risk?
+<code>SEO_ALLOW_NO_PASSWORD=1 docker compose up -d</code>.</p></div>
 <div class="note"><strong>Docker installs work differently</strong>
 <p>Your data lives in a Docker volume rather than a folder, so the desktop launcher's
 backup buttons cannot reach it. Use <em>Settings &rarr; Backup</em> inside the app, and
@@ -889,8 +909,8 @@ Search Console and reports work on any platform without it.</p>
 <ol class="steps">
   <li><strong>Download the plugin</strong><p>
   <a href="${REPO}/raw/main/wordpress-plugin/seo-tool-bridge.zip"><strong>seo-tool-bridge.zip</strong></a>
-  — about 30&nbsp;KB. It is also in the app folder at
-  <code>_system/wordpress-plugin/</code>.</p>
+  — about 30&nbsp;KB. It is also in the app folder, under
+  <code>wordpress-plugin/</code>.</p>
   <p class="note-inline">It must be the <strong>.zip</strong>. WordPress&rsquo;s upload form
   rejects a bare <code>.php</code> file, and these instructions used to point at one.</p></li>
   <li><strong>Upload it to the site</strong><p>WordPress admin &rarr; Plugins &rarr; Add New
@@ -918,6 +938,29 @@ content help and report summaries.</p>
   <tr><th>Paid</th><td>OpenAI, Anthropic — your key, billed to you directly</td></tr>
 </table>
 <p>Each tool says what it costs before you run it, and there is a monthly spend cap.</p>`,
+      },
+      {
+        id: "keyword-planner",
+        h2: "Google Keyword Planner (real search volumes)",
+        html: `
+<p><span class="pill pill-free">Free</span> <span class="pill pill-key">Approval needed</span>
+Optional, and the only source of <em>real</em> monthly search volumes and competition — there
+is no keyless one. Without it the tool gives a directional estimate from Trends, autocomplete
+and SERP signals, and shows you the inputs so you can judge it rather than inventing a number
+and presenting it as fact.</p>
+<div class="warn"><strong>Read this before you start, because the wall is at the end</strong>
+<p>It needs a Google Ads account <strong>and</strong> a Google Cloud project approved for
+<strong>Basic</strong> API access, which requires brand verification. The tier Google approves
+automatically — <strong>Explorer</strong> — does not include the Keyword Planner services at
+all, and a test-level project answers with placeholder data rather than an error. There is no
+charge at any point; it is approval, not money.</p></div>
+<p>On a prebuilt download the client library is not included: <code>pnpm add
+google-ads-api</code> once, in the app folder. Its protobuf bundle is 120&nbsp;MB and most
+installs never connect Ads, so it is fetched on demand instead of sitting in everyone's
+download.</p>
+<p>When Ads is not connected, anything that would have used it says so — <em>"Google Ads is
+not connected (Settings &rarr; Google)"</em> — rather than failing obscurely or quietly
+returning nothing.</p>`,
       },
       {
         id: "other",
@@ -1083,10 +1126,15 @@ different sources is reported as not comparable rather than as a confident figur
         id: "backup",
         h2: "Backing up",
         html: `
-<p>Open the launcher and click <strong>Back up now</strong>. It writes a complete, consistent
-snapshot next to your database — taken properly with SQLite rather than copying the file,
-which would miss recent changes still in the write-ahead log.</p>
-<p>The app also takes one automatically every day and keeps the last several.</p>
+<p>Inside the app: <strong>Settings &rarr; Backup &rarr; Back up now</strong>. From a source
+install you can also open the control panel and click <strong>Back up now</strong> there.
+Either way it writes a complete, consistent snapshot — taken properly with SQLite rather
+than copying the file, which would miss recent changes still sitting in the write-ahead
+log.</p>
+<p>The app also takes one automatically every day and keeps the last several. On Windows
+they go to <code>%LOCALAPPDATA%\\SEO Tool\\Backups</code>, outside the app folder on
+purpose: a backup stored inside the folder people delete, move or install over is not a
+backup.</p>
 <div class="tip"><strong>Before anything risky</strong>
 <p>Take a backup before an update, before a big agent run, and before anything you would
 regret. It takes a second.</p></div>`,
@@ -1095,24 +1143,30 @@ regret. It takes a second.</p></div>`,
         id: "restore",
         h2: "Restoring",
         html: `
-<p>Pick a backup in the launcher and click <strong>Restore</strong>. It stops the app, copies
-your current database aside first so a wrong choice is undoable, swaps the file, and tells you
-to start again.</p>`,
+<p>Pick a backup and click <strong>Restore</strong>. It stops the app, copies your current
+database aside first so a wrong choice is undoable, swaps the file, and tells you to start
+again. It asks before doing any of that.</p>`,
       },
       {
         id: "moving",
         h2: "Moving to another computer",
         html: `
-<p>Copy the whole folder across and run the launcher there. Your clients, audits and settings
-come with it. Nothing is tied to the machine.</p>`,
+<p>Install the app on the new machine, then copy your <code>data.db</code> across — on
+Windows that is <code>%LOCALAPPDATA%\\SEO Tool</code>, from a source install it is the app
+folder. Your clients, audits, keywords and settings come with it. Nothing is tied to the
+machine.</p>`,
       },
       {
         id: "updating",
         h2: "Updating",
         html: `
-<p><strong>Update to latest</strong> in the control panel pulls the newest version and
-rebuilds. Your data is never touched by an update, and database changes are applied
-automatically on the next start.</p>`,
+<p><strong>Windows installer:</strong> download the newer
+<code>SEO-Tool-Setup-&lt;version&gt;.exe</code> and run it. It recognises the version you
+have, says it is updating rather than installing, and closes the running app itself.</p>
+<p><strong>From source or a prebuilt payload:</strong> <strong>Update to latest</strong> in
+the control panel fetches the newest release and rebuilds.</p>
+<p>Either way your data is never touched by an update — it is not in the program folder —
+and any database changes are applied automatically on the next start.</p>`,
       },
     ],
   },
@@ -1128,12 +1182,18 @@ automatically on the next start.</p>`,
         id: "install",
         h2: "It will not install or start",
         html: `
-<h3>&ldquo;Some files are missing&rdquo;</h3>
-<p>The ZIP was only half extracted. Extract it again, keeping every file together, and open
-the launcher from the extracted folder — not from inside the ZIP.</p>
+<h3>&ldquo;Windows protected your PC&rdquo;</h3>
+<p>Windows says this about every program without a code-signing certificate, which costs
+around $300 a year. Click <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
 
-<h3>Nothing happens when I double-click the launcher</h3>
-<p>Windows blocks files downloaded from the internet. Right-click the launcher &rarr;
+<h3>&ldquo;This app needs the Microsoft Edge WebView2 runtime&rdquo;</h3>
+<p>If you are on an up-to-date Windows 10 or 11 you already have WebView2, and seeing this
+message meant our installer was incomplete — fixed in 0.10.3. Update to the current version
+rather than installing anything else. If the message says the problem is with the installer
+rather than with your computer, that is this case and it is ours.</p>
+
+<h3>Nothing happens when I double-click it</h3>
+<p>Windows blocks files downloaded from the internet. Right-click it &rarr;
 <em>Properties</em> &rarr; tick <strong>Unblock</strong> &rarr; OK.</p>
 
 <h3>Setup failed part-way</h3>

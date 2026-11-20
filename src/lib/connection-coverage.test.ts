@@ -273,6 +273,44 @@ describe("the screens use the derived counts, not the old ones", () => {
     expect(code("src/app/tools/tools-grid.tsx")).toContain("LISTED_TOOL_COUNT");
   });
 
+  it("the README advertises the real number of tools", () => {
+    /**
+     * The number people decide on before they install anything.
+     *
+     * WHY THIS EXISTS: README.md said "92 dedicated tools" in five
+     * places, the GitHub repo description said 99, CLAUDE.md said 94,
+     * and the app's own /tools header — the only one computed — said
+     * 96. Four published numbers for one list, none of them agreeing,
+     * all of them written down by hand at different times.
+     *
+     * A reader who counts the cards and gets a different answer than
+     * the README has no way to tell which other claim in it is also
+     * stale, which is the real cost. So the prose is held to the
+     * computed figure here rather than trusted to track it.
+     */
+    const readme = readFileSync(join(process.cwd(), "README.md"), "utf8");
+    const claims = [...readme.matchAll(/(\d+)\s+dedicated tools/g)].map((m) =>
+      Number(m[1]),
+    );
+    // A vacuous pass is the risk — if the wording changes, every
+    // assertion below holds over an empty list and this guard quietly
+    // stops guarding. Same reason release-notes.test.ts checks it found
+    // notes files at all.
+    expect(
+      claims.length,
+      "README no longer says '<N> dedicated tools'. If that phrasing is " +
+        "gone on purpose, update this test; do not delete it, or the " +
+        "next number to go in will be a guess again.",
+    ).toBeGreaterThanOrEqual(3);
+    for (const n of claims) {
+      expect(n, `README says ${n} dedicated tools`).toBe(LISTED_TOOL_COUNT);
+    }
+    // And the documentation table that links to the generated reference.
+    expect(readme, "the docs link still names a stale count").toContain(
+      `All ${LISTED_TOOL_COUNT},`,
+    );
+  });
+
   it("the setup flow shows the breakdown, not only settings", () => {
     // /welcome sends people to /connect#ai, so a breakdown that lives
     // only in Settings is not in the path anyone actually walks.
