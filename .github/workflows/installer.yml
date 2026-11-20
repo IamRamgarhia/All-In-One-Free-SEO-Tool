@@ -439,7 +439,7 @@ jobs:
   # Written here rather than per-job because a SHA256SUMS.txt per platform
   # is three files the installer would have to guess between.
   checksums:
-    needs: [version, payload]
+    needs: [version, payload, windows]
     # `!cancelled()` rather than the default, which is "every leg of
     # `payload` succeeded".
     #
@@ -460,6 +460,21 @@ jobs:
           pattern: prebuilt-*
           merge-multiple: true
           path: payloads
+      # The Windows installer, checksummed into the same file.
+      #
+      # It had none. It is the headline download, 128 MB, unsigned —
+      # Windows itself warns about it — and it was the one asset a user
+      # had no way to check, while the two that ship with a verifying
+      # installer script both did. A separate step rather than a second
+      # pattern on the one above, because a missing exe must not fail
+      # this job: the matrix is explicitly allowed to lose a leg, and
+      # the payloads' checksums are still worth writing without it.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: SEO-Tool-Setup-*
+          merge-multiple: true
+          path: payloads
       - shell: bash
         run: |
           set -euo pipefail
@@ -473,6 +488,15 @@ jobs:
             exit 1
           fi
           sha256sum *.zip > SHA256SUMS.txt
+          # Appended, not globbed in above, so that a run which lost the
+          # Windows leg still writes the payload lines rather than
+          # exiting 1 on an unmatched "*.exe".
+          exes=$(ls -1 SEO-Tool-Setup-*.exe 2>/dev/null | wc -l)
+          if [ "$exes" -gt 0 ]; then
+            sha256sum SEO-Tool-Setup-*.exe >> SHA256SUMS.txt
+          else
+            echo "::warning::no Windows installer in this run, so SHA256SUMS.txt covers the payloads only"
+          fi
           cat SHA256SUMS.txt
 
           # Say when one is MISSING. A SHA256SUMS.txt covering two of

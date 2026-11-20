@@ -136,7 +136,7 @@ Prefer to pick the file yourself, or pin a version?
 |---|---|
 | `SEO-Tool-Setup-<version>.exe` | The Windows installer above. Everything included, nothing to install first |
 | `seo-tool-prebuilt-<version>-<os>-<arch>-node22.zip` | A finished build for macOS Intel, macOS Apple Silicon and Linux x86-64. What the one-liner downloads; needs Node 20–26 on the machine |
-| `SHA256SUMS.txt` | Checksums for the payloads above, verified by the installer automatically |
+| `SHA256SUMS.txt` | Checksums for the installer and the payloads. The macOS/Linux one-liner checks its own automatically; on Windows, `certutil -hashfile SEO-Tool-Setup-<version>.exe SHA256` compares by hand — worth doing, since the installer is unsigned |
 | **Source code (zip)** | GitHub's own source snapshot. Needs Node and a build — that's what `install.sh` does for you |
 
 Each release also has full written notes under

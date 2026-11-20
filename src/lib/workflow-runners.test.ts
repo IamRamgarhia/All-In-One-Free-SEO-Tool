@@ -187,4 +187,42 @@ describe("workflow runner labels", () => {
     expect(expected, "no `expected=<n>` line in the checksums job").toBeTruthy();
     expect(Number(expected), `matrix has ${legs} legs`).toBe(legs);
   });
+
+  it("SHA256SUMS.txt covers the Windows installer too", () => {
+    /**
+     * The exe had no checksum line for two releases. It is the headline
+     * download, 128 MB, and unsigned — Windows shows a scare dialog
+     * about it — so a checksum is the only integrity check a Windows
+     * user has, and it was the one asset that had none, while the two
+     * that ship with a script that verifies for you both did.
+     *
+     * Asserted on the job's inputs and its command, because the
+     * ordinary failure here is silent: the checksums job downloaded
+     * `prebuilt-*` only, so a correct-looking SHA256SUMS.txt was
+     * written with the exe simply absent from it. Nothing errors. The
+     * file just does not mention it.
+     */
+    const iw = readFileSync(join(WORKFLOW_DIR, "installer.yml"), "utf8");
+    const job = iw.slice(iw.indexOf("\n  checksums:"), iw.indexOf("\n  release:"));
+    expect(
+      job,
+      "the checksums job no longer needs `windows`, so the exe's artifact " +
+        "may not exist yet when it runs",
+    ).toMatch(/needs:.*\bwindows\b/);
+    expect(job, "it does not fetch the installer artifact").toContain(
+      "pattern: SEO-Tool-Setup-*",
+    );
+    expect(job, "it does not checksum the installer").toMatch(
+      /sha256sum SEO-Tool-Setup-\*\.exe/,
+    );
+    // A lost Windows leg must not take the payloads' checksums with it:
+    // the matrix is deliberately allowed to lose a platform, and
+    // `set -euo pipefail` plus an unmatched glob is how that becomes a
+    // failed job instead of a warning.
+    expect(
+      job,
+      "a missing installer would fail the job rather than warn",
+    ).toContain("continue-on-error: true");
+    expect(job).toMatch(/SHA256SUMS\.txt covers the payloads only/);
+  });
 });
