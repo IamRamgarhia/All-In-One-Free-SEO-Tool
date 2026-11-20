@@ -64,7 +64,18 @@ services:
       # OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
+      # DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
+      # TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
+      # GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       # OLLAMA_URL: http://ollama:11434
+      #
+      # Every provider in PROVIDER_CATALOG (src/lib/api-providers.ts) is
+      # above, and ai-provider-env.test.ts fails the build if one is
+      # missing. Mistral support landed on 11 May 2026 and was absent
+      # from this file for the sixteen releases after it, while the app
+      # read MISTRAL_API_KEY the whole time. A community PR is how it
+      # was found — two hand-kept lists against one declared source.
       #
       # Rank checking via the searxng profile below. Set unconditionally
       # rather than commented out: if the profile is not running, the
