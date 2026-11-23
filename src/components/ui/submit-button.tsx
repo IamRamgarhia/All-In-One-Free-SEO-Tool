@@ -74,6 +74,18 @@ export function SubmitButton({
     }
   }, [pending, pendingToast, pendingToastDescription]);
 
+  // An action that ends with a redirect (the full audit opens its result
+  // page) unmounts this button while it is still pending: "pending" never
+  // flips back, and the loading toast stayed on screen for good. Dismiss it
+  // when the button goes away too.
+  useEffect(() => {
+    if (!pendingToast) return;
+    const id = `submit-${pendingToast}`;
+    return () => {
+      toast.dismiss(id);
+    };
+  }, [pendingToast]);
+
   return (
     <Button
       type="submit"
