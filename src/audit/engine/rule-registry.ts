@@ -7,6 +7,13 @@ export function registerRule(rule: AuditRule): void {
   // The same object again is a module evaluated twice (dev reloads), not a
   // clash. Two different rules sharing an id is a bug worth stopping on.
   if (existing === rule) return;
+  // A rule file edited while 'next dev' runs is evaluated again and hands in a
+  // new object with the same id and name: the edited version replaces the old
+  // one. Only in development; a real clash still stops the build and the app.
+  if (existing && process.env.NODE_ENV !== "production" && existing.name === rule.name) {
+    rules.set(rule.id, rule);
+    return;
+  }
   if (existing) {
     throw new Error(
       `Duplicate rule ID: "${rule.id}" is already registered. Each rule must have a unique identifier.`,

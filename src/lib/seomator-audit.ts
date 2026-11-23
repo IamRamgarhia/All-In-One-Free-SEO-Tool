@@ -18,6 +18,10 @@ import { engineTitleFr, engineWhyFr, placeFr } from "./audit-to-task.fr";
 import { ruleNamesFr } from "./rule-names.fr";
 import type { AuditFinding, Severity } from "./audit";
 import { runEngine, type AuditMode } from "@/lib/audit-engine";
+import { isAdvisoryRule } from "./advisory-rules";
+import { seoScoreOf } from "./seo-score";
+
+export { seoScoreOf };
 import {
   effortForPriority,
   priorityForIssue,
@@ -155,6 +159,9 @@ export function mapSeomatorResult(
 
   for (const category of result.categoryResults) {
     for (const rule of category.results) {
+      // Good practice, not ranking: shown on the audit page, not a problem
+      // here (lib/advisory-rules.ts).
+      if (isAdvisoryRule(rule.ruleId)) continue;
       const severity = severityFor(rule.status, category.categoryId);
       if (!severity) continue;
 
@@ -219,7 +226,7 @@ export function mapSeomatorResult(
 
   return {
     url: result.url,
-    score: result.overallScore,
+    score: seoScoreOf(result),
     pagesCrawled: result.crawledPages,
     findings,
     summary: lines.join("\n"),

@@ -2,6 +2,8 @@ import { getCategoryById, getFixSuggestion, getRuleById } from "@/audit/catalog"
 import { isNotMeasured } from "@/audit/engine/define-rule";
 import { collectFindings, type Finding } from "@/audit/report/findings";
 import type { AuditResult, PageSnapshot, RuleStatus } from "@/audit/types";
+import { isAdvisoryRule } from "./advisory-rules";
+import { seoScoreOf } from "./seo-score";
 
 /**
  * The audit page's reading of a stored engine report, laid out the way
@@ -23,6 +25,8 @@ export type RuleRow = {
   findings: Pick<Finding, "message" | "status" | "pages" | "pageCount">[];
   priority: number;
   fix: string;
+  /** Good practice, not ranking: outside the SEO score (lib/advisory-rules.ts) */
+  advisory: boolean;
 };
 
 export type CategoryRow = {
@@ -101,6 +105,7 @@ export function buildEngineReport(result: AuditResult, topCount = 10): EngineRep
         })),
         priority: Math.max(0, ...findings.map((f) => f.priority)),
         fix: getFixSuggestion(ruleId),
+        advisory: isAdvisoryRule(ruleId),
       };
     });
 
@@ -121,8 +126,10 @@ export function buildEngineReport(result: AuditResult, topCount = 10): EngineRep
   }
   totals.total = totals.fail + totals.warn + totals.pass + totals["not-measured"];
 
+  // What to fix first: SEO problems only, good practice stays in its category.
   const top = categories
     .flatMap((c) => c.issues)
+    .filter((r) => !r.advisory)
     .sort(
       (a, b) =>
         WORST.indexOf(a.status) - WORST.indexOf(b.status) ||
@@ -133,7 +140,7 @@ export function buildEngineReport(result: AuditResult, topCount = 10): EngineRep
 
   return {
     url: result.url,
-    score: result.overallScore,
+    score: seoScoreOf(result),
     totals,
     categories,
     top,

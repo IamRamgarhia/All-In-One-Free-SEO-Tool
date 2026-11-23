@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collapseSiteWide,
+  seoScoreOf,
   mapSeomatorResult,
   seomatorFindingsToTasks,
 } from "./seomator-audit";
@@ -89,21 +90,21 @@ describe("mapSeomatorResult", () => {
       stubResult({
         categoryResults: [
           {
-            categoryId: "social",
+            categoryId: "content",
             score: 40,
             passCount: 0,
             warnCount: 1,
             failCount: 1,
             results: [
               {
-                ruleId: "social-og-title",
+                ruleId: "content-word-count",
                 status: "fail",
                 message: "Missing og:title",
                 score: 0,
                 details: { pageUrl: "https://example.com/" },
               },
               {
-                ruleId: "social-twitter-card",
+                ruleId: "content-heading-length",
                 status: "warn",
                 message: "Missing twitter:card",
                 score: 50,
@@ -206,14 +207,14 @@ describe("seomatorFindingsToTasks", () => {
             ],
           },
           {
-            categoryId: "social",
+            categoryId: "url",
             score: 0,
             passCount: 0,
             warnCount: 0,
             failCount: 1,
             results: [
               {
-                ruleId: "social-og-title",
+                ruleId: "url-slug-keywords",
                 status: "fail",
                 message: "Missing og:title",
                 score: 0,
@@ -259,5 +260,74 @@ describe("collapseSiteWide", () => {
   it("does not touch a finding seen on a single page", () => {
     const input = [f("seomator:content-word-count", "Thin content detected: 141 words", "https://example.com/a")];
     expect(collapseSiteWide(input, site)).toEqual(input);
+  });
+});
+
+describe("seoScoreOf", () => {
+  const r = (ruleId: string, status: "pass" | "warn" | "fail", weight = 5) => ({ ruleId, status, weight, message: "" });
+  const cat = (categoryId: string, results: ReturnType<typeof r>[]) => ({ categoryId, score: 0, results });
+
+  it("is the engine's formula when no good-practice rule is involved", () => {
+    const result = {
+      overallScore: 75,
+      categoryResults: [cat("core", [r("core-title-present", "pass"), r("core-description-present", "fail")])],
+    };
+    expect(seoScoreOf(result as never)).toBe(50);
+  });
+
+  it("good-practice rules do not pull the SEO score down", () => {
+    const result = {
+      overallScore: 60,
+      categoryResults: [
+        cat("core", [r("core-title-present", "pass")]),
+        cat("security", [r("security-https", "pass"), r("security-csp", "fail"), r("security-hsts", "fail")]),
+      ],
+    };
+    expect(seoScoreOf(result as never)).toBe(100);
+  });
+
+  it("a category with only good-practice rules drops out instead of counting", () => {
+    const result = {
+      overallScore: 70,
+      categoryResults: [cat("core", [r("core-title-present", "pass")]), cat("social", [r("social-og-image", "fail")])],
+    };
+    expect(seoScoreOf(result as never)).toBe(100);
+  });
+
+  it("an engine score cap still applies", () => {
+    const result = {
+      overallScore: 30,
+      scoreCap: { uncappedScore: 95, reasons: ["noindex"] },
+      categoryResults: [cat("core", [r("core-title-present", "pass")])],
+    };
+    expect(seoScoreOf(result as never)).toBe(30);
+  });
+});
+
+describe("good-practice rules in the findings", () => {
+  it("a failing good-practice rule is not a finding", () => {
+    const mapped = mapSeomatorResult(
+      stubResult({
+        categoryResults: [
+          {
+            categoryId: "security",
+            score: 0,
+            passCount: 0,
+            warnCount: 0,
+            failCount: 1,
+            results: [
+              {
+                ruleId: "security-csp",
+                status: "fail",
+                message: "Content-Security-Policy header is missing.",
+                score: 0,
+                details: { pageUrl: "https://example.com/" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(mapped.findings).toEqual([]);
   });
 });

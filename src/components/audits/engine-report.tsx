@@ -780,6 +780,14 @@ function RuleItem({
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="font-semibold">{r.name}</span>
             <span className="font-mono text-[11px] text-muted-foreground">{r.ruleId}</span>
+            {r.advisory ? (
+              <span
+                title={t("advisoryHint")}
+                className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              >
+                {t("advisoryBadge")}
+              </span>
+            ) : null}
           </div>
           {r.findings.map((f, i) => (
             <div key={i} className="text-sm text-foreground/80">
