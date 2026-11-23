@@ -1,6 +1,8 @@
 "use server";
 
 import { actionTx } from "@/lib/action-tx";
+import { inferTargeting, isDefaultTargeting } from "@/lib/infer-targeting";
+import { rankByRelevance } from "@/lib/keyword-relevance";
 import { requireSignedIn } from "@/lib/action-guard";
 
 import { revalidatePath } from "next/cache";
@@ -114,6 +116,24 @@ export async function saveTargetingStep(
     })
     .where(eq(clients.id, parsed.data.clientId));
 
+  // The keywords picked at the previous step were saved with the targeting
+  // the client had then. The ones never checked yet follow the targeting
+  // chosen now; a keyword with a ranking history keeps its own, so its
+  // positions stay comparable.
+  await db
+    .update(keywords)
+    .set({
+      country: parsed.data.country.toUpperCase(),
+      language: parsed.data.language,
+      city: parsed.data.city ?? null,
+    })
+    .where(
+      and(
+        eq(keywords.clientId, parsed.data.clientId),
+        sql`not exists (select 1 from keyword_rankings kr where kr.keyword_id = ${keywords.id})`,
+      ),
+    );
+
   revalidatePath(`/clients/${parsed.data.clientId}`);
   revalidatePath(`/clients/${parsed.data.clientId}/onboarding`);
   return { ok: true };
@@ -184,8 +204,21 @@ export async function runKeywordDiscovery(
   if (!Number.isFinite(id) || id <= 0)
     return { ok: false, error: tx("invalidClient2") };
 
-  const [c] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
-  if (!c) return { ok: false, error: tx("clientNotFound") };
+  const [found] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
+  if (!found) return { ok: false, error: tx("clientNotFound") };
+
+  // A client still on the United States / English defaults has never had
+  // its targeting chosen: guess it from its address, phone and domain
+  // before researching keywords, and keep it (lib/infer-targeting.ts). A
+  // targeting someone set by hand is left alone.
+  let c = found;
+  if (isDefaultTargeting(found)) {
+    const guess = inferTargeting({ url: found.url, address: found.address, phone: found.phone });
+    if (guess && (guess.country !== "US" || guess.language !== "en")) {
+      await db.update(clients).set({ ...guess, updatedAt: new Date() }).where(eq(clients.id, id));
+      c = { ...found, ...guess };
+    }
+  }
 
   let domain = "";
   try {
@@ -231,7 +264,14 @@ export async function runKeywordDiscovery(
 
   return {
     ok: true,
-    keywords: result.keywords,
+    // Most relevant to what the business does first: the wizard pre-ticks
+    // the top 12 (lib/keyword-relevance.ts).
+    keywords: rankByRelevance(result.keywords, {
+      name: c.name,
+      description: c.description,
+      businessType: c.businessType,
+      city: c.city,
+    }),
     gscRowsUsed: result.gscRowsUsed,
     seedsUsed: result.seedsUsed,
     siteRead: result.siteRead,

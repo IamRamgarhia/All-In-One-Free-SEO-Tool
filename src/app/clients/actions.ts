@@ -1,6 +1,7 @@
 "use server";
 
 import { requireSignedIn } from "@/lib/action-guard";
+import { inferTargeting } from "@/lib/infer-targeting";
 
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -188,6 +189,10 @@ export async function createClient(
       gbpUrl: parsed.data.gbpUrl ?? null,
       socialLinks: Object.keys(socialLinks).length > 0 ? socialLinks : null,
       accountId,
+      // Country and language from the address, phone and domain the form
+      // found, instead of the United States / English column defaults
+      // (lib/infer-targeting.ts). Nothing found: the defaults stay.
+      ...(inferTargeting({ url: parsed.data.url, address: parsed.data.address, phone: parsed.data.phone }) ?? {}),
     })
     .returning({ id: clients.id });
 
@@ -539,6 +544,7 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
       email: meta.email ?? null,
       gbpUrl: meta.gbpUrl ?? null,
       socialLinks: Object.keys(social).length > 0 ? social : null,
+      ...(inferTargeting({ url: meta.url, address: meta.address, phone: meta.phone }) ?? {}),
     })
     .returning({ id: clients.id });
 
