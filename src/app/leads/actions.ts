@@ -79,21 +79,35 @@ export async function convertLeadToClient(
     .limit(1);
   if (!lead) return { ok: false, error: tx("noSuchLead") };
 
-  let name: string;
-  try {
-    name = new URL(lead.url).hostname.replace(/^www\./i, "");
-  } catch {
-    name = lead.url;
+  // @ai-optional: adding the client may ask a model for a description;
+  // the leads page, its prospecting and its audits work without one.
+  // The same path as the "Add a client" button: site details read,
+  // targeting inferred, templates seeded, the creation audit started.
+  // This used to insert a bare row named after the domain, with no audit,
+  // so the onboarding opened on nothing.
+  const { quickAddClient } = await import("@/app/clients/actions");
+  const added = await quickAddClient(lead.url, { name: lead.name, email: lead.email });
+  let clientId: number;
+  if (added.ok) {
+    clientId = added.id;
+  } else if (added.existingClientId) {
+    clientId = added.existingClientId;
+  } else {
+    // The site did not answer: still a client, named as the lead was.
+    let name = lead.name ?? lead.url;
+    if (!lead.name) {
+      try {
+        name = new URL(lead.url).hostname.replace(/^www\./i, "");
+      } catch {
+        // keep the URL as the name
+      }
+    }
+    const [created] = await db
+      .insert(clients)
+      .values({ name, url: lead.url, email: lead.email })
+      .returning({ id: clients.id });
+    clientId = created.id;
   }
-
-  const [created] = await db
-    .insert(clients)
-    .values({
-      name,
-      url: lead.url,
-      email: lead.email,
-    })
-    .returning({ id: clients.id });
 
   await db
     .update(graderLeads)
@@ -102,7 +116,7 @@ export async function convertLeadToClient(
 
   revalidatePath("/leads");
   revalidatePath("/clients");
-  return { ok: true, clientId: created.id };
+  return { ok: true, clientId };
 }
 
 export async function deleteLead(

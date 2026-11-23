@@ -24,6 +24,7 @@ import { generateCalendar, summariseTopIssues, type TopIssue } from "@/lib/seo-c
 import { OPEN_ISSUE_STATUS, pickReferenceAudits } from "@/lib/reference-audit";
 import { isAdvisoryFor, isAdvisoryGeoFinding, isSiteKind } from "@/lib/advisory-rules";
 import { getReportLocale } from "@/lib/report-i18n";
+import { ENGINE_MAX_PAGES } from "@/lib/audit-engine";
 import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { getGscQuickWins } from "@/lib/google-data";
 import { logActivity } from "@/lib/activity";
@@ -629,6 +630,7 @@ export async function getAuditProgress(
       pagesCrawled: audits.pagesCrawled,
       score: audits.score,
       issuesCount: audits.issuesCount,
+      mode: audits.mode,
     })
     .from(audits)
     .where(and(eq(audits.clientId, clientId), eq(audits.kind, "crawler")))
@@ -639,7 +641,7 @@ export async function getAuditProgress(
     return {
       status: "none",
       pagesCrawled: 0,
-      maxPages: 25,
+      maxPages: ENGINE_MAX_PAGES.quick,
       score: null,
       issuesCount: 0,
       auditId: null,
@@ -649,9 +651,10 @@ export async function getAuditProgress(
   return {
     status: row.status,
     pagesCrawled: row.pagesCrawled ?? 0,
-    // Mirrors runAudit's default. Shown as "of 25", never as a promise
-    // that 25 pages exist — small sites finish early and that is fine.
-    maxPages: 25,
+    // The engine's cap for the audit's mode (8 quick, 20 full). It said
+    // 25 for every audit, so the bar of the 8-page creation audit stopped
+    // a third of the way and looked stuck.
+    maxPages: ENGINE_MAX_PAGES[row.mode === "full" ? "full" : "quick"],
     score: row.score,
     issuesCount: row.issuesCount,
     auditId: row.id,

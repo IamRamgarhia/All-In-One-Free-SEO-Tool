@@ -216,6 +216,23 @@ export async function createClient(
   revalidatePath("/");
   revalidatePath("/clients");
 
+  startCreationAudit(row.id);
+
+  // First-add: drop into the smart-onboarding wizard so they get a 30-day
+  // plan generated end-to-end. Existing clients still go straight to the
+  // detail page (their wizard is reachable via the "Re-plan" button).
+  redirect(`/clients/${row.id}/onboarding`);
+}
+
+/**
+ * The one audit a new client gets on its own: the quick crawl.
+ *
+ * It ran only from the full "add client" form. The quick-add dialog (the
+ * header's "Add a client" button, the usual path) and turning a lead into
+ * a client created the project without it, so the wizard showed no audit
+ * and the suggested mission had nothing to rest on.
+ */
+function startCreationAudit(clientId: number): void {
   // One audit starts here, while the user works through the onboarding
   // wizard: the quick crawl. It judges the state of the site, and the
   // mission it suggests rests on it (lib/missions.ts, suggestMission).
@@ -231,16 +248,11 @@ export async function createClient(
   void (async () => {
     try {
       const { runAuditForClient } = await import("@/app/audits/actions");
-      await runAuditForClient(row.id, "quick");
+      await runAuditForClient(clientId, "quick");
     } catch {
       // Best-effort — re-runnable from the client page.
     }
   })();
-
-  // First-add: drop into the smart-onboarding wizard so they get a 30-day
-  // plan generated end-to-end. Existing clients still go straight to the
-  // detail page (their wizard is reachable via the "Re-plan" button).
-  redirect(`/clients/${row.id}/onboarding`);
 }
 export async function applyStackTemplates(clientId: number) {
   await requireSignedIn();
@@ -474,7 +486,11 @@ export type QuickAddResult =
  *
  * Used by the global "Add client" modal so onboarding is ~3 seconds.
  */
-export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
+export async function quickAddClient(
+  rawUrl: string,
+  /** What a lead already knows: the business name and email beat the site's guess. */
+  known: { name?: string | null; email?: string | null } = {},
+): Promise<QuickAddResult> {
   await requireSignedIn();
   const t = await getTranslations("serverMessages.quickAdd");
   const url = rawUrl?.trim();
@@ -533,7 +549,7 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
   const [row] = await db
     .insert(clients)
     .values({
-      name: meta.name ?? fallbackName,
+      name: known.name?.trim() || meta.name || fallbackName,
       url: meta.url,
       niche,
       techStack,
@@ -541,7 +557,7 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
       description: meta.description ?? null,
       address: meta.address ?? null,
       phone: meta.phone ?? null,
-      email: meta.email ?? null,
+      email: known.email?.trim() || meta.email || null,
       gbpUrl: meta.gbpUrl ?? null,
       socialLinks: Object.keys(social).length > 0 ? social : null,
       ...(inferTargeting({ url: meta.url, address: meta.address, phone: meta.phone }) ?? {}),
@@ -577,6 +593,8 @@ export async function quickAddClient(rawUrl: string): Promise<QuickAddResult> {
     entityType: "client",
     entityId: row.id,
   });
+
+  startCreationAudit(row.id);
 
   revalidatePath("/");
   revalidatePath("/clients");
