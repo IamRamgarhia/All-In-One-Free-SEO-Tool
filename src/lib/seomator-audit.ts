@@ -16,6 +16,9 @@ import type {
 import { fetchPageWithPlaywright } from "@/audit/crawler/playwright-fetcher";
 import { engineTitleFr, engineWhyFr, placeFr } from "./audit-to-task.fr";
 import { ruleNamesFr } from "./rule-names.fr";
+import { translateEngineMessage } from "@/audit/engine/translate-message";
+import { FIX_SUGGESTIONS_FR } from "@/audit/engine/fix-suggestions.fr";
+import { getReportLocale } from "./report-i18n";
 
 /** Effort sizes in French (cabinet/priority.ts: S, M, L). */
 const EFFORT_FR: Record<string, string> = { S: "faible", M: "moyen", L: "important" };
@@ -160,7 +163,10 @@ export function mapSeomatorResult(
   result: SeomatorAuditResult,
   /** The client's niche: rules written for other kinds of site are not problems here. */
   kind?: SiteKind | null,
+  /** Workspace language: French messages and fixes are stored as such. */
+  locale: string = "en",
 ): Omit<SeomatorBridgeResult, "raw"> {
+  const fr = locale === "fr";
   const findings: SeomatorFinding[] = [];
   const seen = new Set<string>();
 
@@ -181,10 +187,10 @@ export function mapSeomatorResult(
       findings.push({
         type: `seomator:${rule.ruleId}`,
         severity,
-        message: rule.message,
+        message: fr ? translateEngineMessage(rule.ruleId, rule.message) : rule.message,
         url,
         category: category.categoryId,
-        fixSteps: fixStepsOf(rule, rule.ruleId),
+        fixSteps: (fr ? FIX_SUGGESTIONS_FR[rule.ruleId] : undefined) ?? fixStepsOf(rule, rule.ruleId),
         confidence: rule.status === "fail" ? "definitely" : "probably",
         ruleName: ruleDisplayName(rule.ruleId),
       });
@@ -386,6 +392,6 @@ export async function runSeomatorAudit(
       : undefined,
   });
 
-  const mapped = mapSeomatorResult(raw, options.siteKind);
+  const mapped = mapSeomatorResult(raw, options.siteKind, await getReportLocale());
   return { ...mapped, raw };
 }

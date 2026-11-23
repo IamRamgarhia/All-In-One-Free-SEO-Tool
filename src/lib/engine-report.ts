@@ -6,6 +6,7 @@ import { isAdvisoryFor, type SiteKind } from "./advisory-rules";
 import { seoScoreOf } from "./seo-score";
 import { ruleNamesFr } from "./rule-names.fr";
 import { FIX_SUGGESTIONS_FR } from "@/audit/engine/fix-suggestions.fr";
+import { translateEngineMessage } from "@/audit/engine/translate-message";
 
 /**
  * The audit page's reading of a stored engine report, laid out the way
@@ -107,7 +108,7 @@ export function buildEngineReport(
         categoryName: name,
         status,
         findings: findings.map(({ message, status, pages, pageCount }) => ({
-          message,
+          message: fr ? translateEngineMessage(ruleId, message) : message,
           status,
           pages,
           pageCount,
