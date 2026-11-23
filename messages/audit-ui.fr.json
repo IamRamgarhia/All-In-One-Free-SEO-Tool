@@ -147,7 +147,17 @@
       "deleteTitle": "Supprimer ce rapport archivé ?",
       "deleteDescription": "Le PDF et l’enregistrement associé seront supprimés. Action irréversible.",
       "deleteConfirm": "Supprimer le rapport",
-      "entryTitle": "{client} — rapport {template} — {date}"
+      "entryTitle": "{client} — rapport {template} — {date}",
+      "templateNames": {
+        "executive": "synthèse",
+        "detailed": "détaillé",
+        "technical": "technique",
+        "ceo": "direction",
+        "cmo": "marketing",
+        "cto": "technique (CTO)",
+        "junior": "suivi d’équipe"
+      },
+      "fileWord": "rapport"
     },
     "batch": {
       "clientsHeading": "Clients ({selected} sur {total})",

@@ -95,23 +95,17 @@ export async function emailPortalLink(input: {
   const portalUrl = `${input.baseUrl.replace(/\/$/, "")}/portal/${client.shareToken}`;
 
   const subject = tx("yourSeoProgressLiveLink", { name: client.name });
-  const text = `Hi,
+  const hello = tx("inviteHello");
+  const intro = tx("inviteIntro", { name: client.name });
+  const what = tx("inviteWhat");
+  const bookmark = tx("inviteBookmark");
+  const text = [hello, "", intro, "", portalUrl, "", what, "", bookmark, "", `— ${brandName}`].join("\n");
 
-Here's your live SEO progress portal for ${client.name}:
-
-${portalUrl}
-
-You'll see the latest audit score, recent work completed, and what's coming next. The link is read-only and updates automatically — no login required.
-
-Bookmark it and check back any time.
-
-— ${brandName}`;
-
-  const html = `<p>Hi,</p>
-<p>Here&rsquo;s your live SEO progress portal for <strong>${escapeHtml(client.name)}</strong>:</p>
+  const html = `<p>${escapeHtml(hello)}</p>
+<p>${escapeHtml(intro)}</p>
 <p><a href="${escapeAttr(portalUrl)}">${escapeHtml(portalUrl)}</a></p>
-<p>You&rsquo;ll see the latest audit score, recent work completed, and what&rsquo;s coming next. The link is read-only and updates automatically &mdash; no login required.</p>
-<p>Bookmark it and check back any time.</p>
+<p>${escapeHtml(what)}</p>
+<p>${escapeHtml(bookmark)}</p>
 <p>&mdash; ${escapeHtml(brandName)}</p>`;
 
   const sendResult = await sendMail({

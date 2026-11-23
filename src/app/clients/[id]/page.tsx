@@ -78,7 +78,7 @@ import { inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { getDisabledTools } from "@/lib/tool-activation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 type T = Awaited<ReturnType<typeof getTranslations<"clientPage">>>;
 
@@ -163,6 +163,7 @@ export default async function ClientDetailPage({
   const tx = await getTranslations("ui.app_clients_id_page");
   const { id } = await params;
   const t = await getTranslations("clientPage");
+  const locale = await getLocale();
   const clientId = Number(id);
   if (!Number.isFinite(clientId)) notFound();
   const sp = (await searchParams) ?? {};
@@ -1263,7 +1264,7 @@ export default async function ClientDetailPage({
                       {t("audits.issues", { count: a.issuesCount ?? 0 })}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {(a.completedAt ?? a.createdAt).toLocaleDateString()}
+                      {(a.completedAt ?? a.createdAt).toLocaleDateString(locale)}
                     </span>
                     <ScoreBadge score={a.score ?? null} />
                   </div>

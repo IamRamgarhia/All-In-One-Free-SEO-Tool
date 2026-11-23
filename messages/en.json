@@ -6760,7 +6760,10 @@
       "healthScore": "Health score",
       "trendOverTime": "Trend over time",
       "otherCapturedEarliest": "{length} {length, plural, one {snapshot} other {snapshots}} captured · earliest {v}",
-      "noDataYet": "no data yet"
+      "noDataYet": "no data yet",
+      "ga4Sessions28d": "GA4 sessions (28d)",
+      "top10Keywords": "Top-10 keywords",
+      "googleUpdate": "Google update"
     },
     "components_ui_ai-failure-notice": {
       "openSettings": "Open settings"
@@ -8004,7 +8007,11 @@
       "generateAShareLinkFirst": "Generate a share link first.",
       "needARecipientEmailSet": "Need a recipient email — set one on the client, or pass it explicitly.",
       "yourSeoTeam": "Your SEO team",
-      "yourSeoProgressLiveLink": "Your {name} SEO progress — live link"
+      "yourSeoProgressLiveLink": "Your {name} SEO progress — live link",
+      "inviteHello": "Hi,",
+      "inviteIntro": "Here’s your live SEO progress portal for {name}:",
+      "inviteWhat": "You’ll see the latest audit score, recent work completed, and what’s coming next. The link is read-only and updates automatically — no login required.",
+      "inviteBookmark": "Bookmark it and check back any time."
     },
     "app_compare_actions": {
       "auditFailed": "Audit failed",

@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients, reportArchives } from "@/db/schema";
 import { getSetting } from "@/lib/settings-store";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,11 @@ const ALLOWED: ReportTemplate[] = [
   "cto",
   "junior",
 ];
+
+/** Accents off, for a file name: "détaillé" → "detaille". */
+function fold(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
 
 function safeFilename(name: string): string {
   return name.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "client";
@@ -80,8 +85,15 @@ export async function GET(
     );
   }
 
+  // Named in the reader's language: archive titles read "rapport detailed
+  // — 2026-11-23", the raw template id and an ISO date, in the client's
+  // portal.
   const today = new Date().toISOString().split("T")[0];
-  const filename = `${safeFilename(client.name)}-${template}-${today}.pdf`;
+  const names = await getTranslations("auditUi.reports.archive");
+  const locale = await getLocale();
+  const templateName = names.has(`templateNames.${template}`) ? names(`templateNames.${template}`) : template;
+  const filename = `${safeFilename(client.name)}-${safeFilename(fold(`${names("fileWord")}-${templateName}`))}-${today}.pdf`;
+  const dateLabel = new Date().toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
 
   // Archive — fire-and-forget, never block the download on a DB error.
   // A read-only client viewer still gets the PDF, but a download is not
@@ -94,12 +106,17 @@ export async function GET(
       .insert(reportArchives)
       .values({
         clientId: id,
-        title: t("entryTitle", { client: client.name, template, date: today }),
+        title: t("entryTitle", { client: client.name, template: templateName, date: dateLabel }),
         periodStart,
         periodEnd,
         template,
         pdfBase64: pdf.toString("base64"),
         pdfBytes: pdf.length,
+        // A download is a copy to read, not a delivery. The column
+        // defaults to "approved", which the client's portal lists, so a
+        // PDF fetched to check it reached the client at once. As a
+        // draft it waits in the review queue (Reports → To review).
+        status: "draft",
       })
       .catch(() => undefined);
   }

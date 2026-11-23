@@ -6760,7 +6760,10 @@
       "healthScore": "Score de santé",
       "trendOverTime": "Évolution dans le temps",
       "otherCapturedEarliest": "{length, plural, one {# relevé enregistré} other {# relevés enregistrés}} · le plus ancien : {v}",
-      "noDataYet": "pas encore de données"
+      "noDataYet": "pas encore de données",
+      "ga4Sessions28d": "Sessions GA4 (28 j)",
+      "top10Keywords": "Mots-clés dans le top 10",
+      "googleUpdate": "Mise à jour Google"
     },
     "components_ui_ai-failure-notice": {
       "openSettings": "Ouvrir les paramètres"
@@ -8004,7 +8007,11 @@
       "generateAShareLinkFirst": "Générez d’abord un lien de partage.",
       "needARecipientEmailSet": "Il faut une adresse de destinataire : renseignez-la sur le projet ou indiquez-la ici.",
       "yourSeoTeam": "Votre équipe SEO",
-      "yourSeoProgressLiveLink": "L’avancement SEO de {name} : lien en direct"
+      "yourSeoProgressLiveLink": "L’avancement SEO de {name} : lien en direct",
+      "inviteHello": "Bonjour,",
+      "inviteIntro": "Voici votre espace de suivi SEO pour {name} :",
+      "inviteWhat": "Vous y trouvez le dernier score d’audit, le travail réalisé récemment et les prochaines étapes. Le lien est en lecture seule et se met à jour tout seul, sans identifiant à saisir.",
+      "inviteBookmark": "Ajoutez-le à vos favoris pour le consulter quand vous le souhaitez."
     },
     "app_compare_actions": {
       "auditFailed": "L’audit a échoué",

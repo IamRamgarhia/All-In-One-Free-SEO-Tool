@@ -16,7 +16,8 @@ import { PageHeader } from "@/components/shell/page-header";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
 import { MAINTAINER } from "@/lib/maintainer";
 
-export const dynamic = "force-static";
+// Not force-static: rendered without the session cookie, the root
+// layout's sign-in guard found no user and sent everyone to /login.
 
 export default function AboutPage() {
   return (

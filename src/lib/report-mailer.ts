@@ -6,6 +6,7 @@ import { sendMail } from "./mailer";
 import { getSetting } from "./settings-store";
 import { logActivity } from "./activity";
 import { isWhiteLabelled, loadBrand } from "./brand";
+import { getReportLocale } from "./report-i18n";
 
 /**
  * Compute the next time this schedule should fire. We store it on the row
@@ -224,7 +225,9 @@ export async function sendReportEmail(opts: {
     }
   }
 
-  const periodLabel = new Date().toLocaleDateString("en-US", {
+  // The workspace language, the one the attached PDF is written in.
+  const fr = (await getReportLocale()) === "fr";
+  const periodLabel = new Date().toLocaleDateString(fr ? "fr-FR" : "en-US", {
     month: "long",
     year: "numeric",
   });
@@ -237,9 +240,13 @@ export async function sendReportEmail(opts: {
   const brand = await loadBrand();
   const agency = isWhiteLabelled(brand) ? brand.name!.trim() : null;
 
-  const subject = agency
-    ? `${client.name} — SEO report, ${periodLabel} (${agency})`
-    : `${client.name} — SEO Report (${periodLabel})`;
+  const subject = fr
+    ? agency
+      ? `${client.name} — Rapport SEO, ${periodLabel} (${agency})`
+      : `${client.name} — Rapport SEO (${periodLabel})`
+    : agency
+      ? `${client.name} — SEO report, ${periodLabel} (${agency})`
+      : `${client.name} — SEO Report (${periodLabel})`;
 
   const signOff: string[] = [];
   if (agency) {
@@ -252,22 +259,43 @@ export async function sendReportEmail(opts: {
   }
   if (brand.footerText) signOff.push(``, brand.footerText);
 
-  const text = [
-    `Hi,`,
-    ``,
-    agency
-      ? `Attached is your SEO report for ${client.name} (${periodLabel}), from ${agency}.`
-      : `Attached is your SEO report for ${client.name} (${periodLabel}).`,
-    ``,
-    `Highlights inside:`,
-    `· Health score with WoW delta`,
-    `· Top organic keywords from Search Console`,
-    `· Quick-win opportunities (positions 4-15)`,
-    `· Tasks completed and recommendations for next month`,
-    ``,
-    `Reply to this email if anything's unclear.`,
-    ...signOff,
-  ].join("\n");
+  // The contents list used to promise "Top organic keywords from Search
+  // Console" and a week-on-week delta to every client, with or without
+  // Search Console, in a monthly report. It now names what every report
+  // has.
+  const text = (
+    fr
+      ? [
+          `Bonjour,`,
+          ``,
+          agency
+            ? `Vous trouverez ci-joint votre rapport SEO pour ${client.name} (${periodLabel}), de la part de ${agency}.`
+            : `Vous trouverez ci-joint votre rapport SEO pour ${client.name} (${periodLabel}).`,
+          ``,
+          `Au sommaire :`,
+          `· l’état du site et son évolution depuis le rapport précédent ;`,
+          `· les positions des mots-clés suivis ;`,
+          `· le travail réalisé et les prochaines étapes.`,
+          ``,
+          `N’hésitez pas à répondre à cet e-mail si un point n’est pas clair.`,
+          ...signOff,
+        ]
+      : [
+          `Hi,`,
+          ``,
+          agency
+            ? `Attached is your SEO report for ${client.name} (${periodLabel}), from ${agency}.`
+            : `Attached is your SEO report for ${client.name} (${periodLabel}).`,
+          ``,
+          `Inside:`,
+          `· the site's health and how it changed since the last report;`,
+          `· the positions of the tracked keywords;`,
+          `· the work done and the next steps.`,
+          ``,
+          `Reply to this email if anything's unclear.`,
+          ...signOff,
+        ]
+  ).join("\n");
 
   const result = await sendMail({
     to: opts.recipients,
@@ -275,7 +303,7 @@ export async function sendReportEmail(opts: {
     text,
     attachments: [
       {
-        filename: `${slugify(client.name)}-seo-report-${periodLabel.toLowerCase().replace(/\s/g, "-")}.pdf`,
+        filename: `${slugify(client.name)}-${fr ? "rapport-seo" : "seo-report"}-${slugify(periodLabel)}.pdf`,
         content: pdf,
         contentType: "application/pdf",
       },
@@ -286,7 +314,10 @@ export async function sendReportEmail(opts: {
 }
 
 function slugify(s: string): string {
+  // Accents folded first: "décembre" became "d-cembre".
   return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");

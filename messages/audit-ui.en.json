@@ -147,7 +147,17 @@
       "deleteTitle": "Delete this archived report?",
       "deleteDescription": "The PDF and its associated record will be removed. Can't be undone.",
       "deleteConfirm": "Delete report",
-      "entryTitle": "{client} — {template} report — {date}"
+      "entryTitle": "{client} — {template} report — {date}",
+      "templateNames": {
+        "executive": "executive",
+        "detailed": "detailed",
+        "technical": "technical",
+        "ceo": "CEO",
+        "cmo": "CMO",
+        "cto": "CTO",
+        "junior": "team stand-up"
+      },
+      "fileWord": "report"
     },
     "batch": {
       "clientsHeading": "Clients ({selected} of {total})",

@@ -1,5 +1,5 @@
-import { getTranslations } from "next-intl/server";
-import { useTranslations } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
+import { useLocale, useTranslations } from "next-intl";
 import { db } from "@/db/client";
 import { clientMetricSnapshots } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
@@ -15,6 +15,7 @@ import { getRankingUpdates } from "@/lib/google-updates-store";
  */
 export async function SnapshotSparklines({ clientId }: { clientId: number }) {
   const tx = await getTranslations("ui.components_snapshot-sparklines");
+  const locale = await getLocale();
   const snapshots = await db
     .select()
     .from(clientMetricSnapshots)
@@ -33,12 +34,12 @@ export async function SnapshotSparklines({ clientId }: { clientId: number }) {
       tone: "#34d399",
     },
     {
-      label: "GA4 sessions (28d)",
+      label: tx("ga4Sessions28d"),
       values: snapshots.map((s) => s.ga4Sessions),
       tone: "#a78bfa",
     },
     {
-      label: "Top-10 keywords",
+      label: tx("top10Keywords"),
       values: snapshots.map((s) => s.top10Count),
       tone: "#22d3ee",
     },
@@ -64,7 +65,7 @@ export async function SnapshotSparklines({ clientId }: { clientId: number }) {
       <header className="border-b border-white/[0.06] px-5 py-3">
         <h2 className="text-sm font-semibold">{tx("trendOverTime")}</h2>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
-          {tx("otherCapturedEarliest", { length: snapshots.length, v: snapshots[0].capturedAt.toLocaleDateString() })}
+          {tx("otherCapturedEarliest", { length: snapshots.length, v: snapshots[0].capturedAt.toLocaleDateString(locale) })}
         </p>
       </header>
       <div className="grid gap-3 p-5 sm:grid-cols-2">
@@ -90,6 +91,8 @@ function Sparkline({
   algoOverlaps: { date: string; endDate?: string; name: string; type: string }[];
 }) {
   const tx = useTranslations("ui.components_snapshot-sparklines");
+  const locale = useLocale();
+  const day = (iso: string) => new Date(iso).toLocaleDateString(locale);
   const present = values
     .map((v, i) => ({ v, i }))
     .filter((p): p is { v: number; i: number } => typeof p.v === "number");
@@ -144,7 +147,7 @@ function Sparkline({
         </div>
       </div>
       <div className="mt-1 flex items-center justify-between gap-2">
-        <div className="text-base font-semibold tabular-nums">{last.toLocaleString()}</div>
+        <div className="text-base font-semibold tabular-nums">{last.toLocaleString(locale)}</div>
         <svg
           width={W}
           height={H}
@@ -178,7 +181,7 @@ function Sparkline({
                   fill={tone}
                   opacity={0.18}
                 >
-                  <title>{`${u.name} (${u.date}${u.endDate ? ` → ${u.endDate}` : ""})`}</title>
+                  <title>{`${tx("googleUpdate")} : ${u.name} (${day(u.date)}${u.endDate ? ` → ${day(u.endDate)}` : ""})`}</title>
                 </rect>
               );
             });

@@ -327,6 +327,7 @@ function KeywordsStep({
   onNext: () => void;
 }) {
   const tx = useTranslations("ui.app_clients_id_onboarding_wizard");
+  const tIntent = useTranslations("keywordsTab.keywords.research.intents");
   const [state, formAction, discovering] = useActionState<
     DiscoverState | null,
     FormData
@@ -430,7 +431,7 @@ function KeywordsStep({
                     <div className="truncate font-medium">{k.query}</div>
                     <div className="mt-0.5 flex flex-wrap gap-1.5 text-[9px] text-muted-foreground">
                       <span className="rounded bg-white/5 px-1.5 py-0.5">
-                        {k.intent}
+                        {tIntent.has(k.intent) ? tIntent(k.intent) : k.intent}
                       </span>
                       <span
                         className={`rounded px-1.5 py-0.5 ${tone(k.score)}`}
