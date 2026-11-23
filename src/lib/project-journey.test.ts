@@ -6,7 +6,7 @@ import { JOURNEY_STEPS, JOURNEY_VARIANTS, projectJourney, type JourneyFacts } fr
 const NEW: JourneyFacts = {
   projectId: 7,
   anyAuditDone: false,
-  fullAuditDone: false,
+  siteAuditDone: false,
   onboardingDone: false,
   proposalId: null,
   proposalStatus: null,
@@ -32,13 +32,13 @@ describe("projectJourney", () => {
   });
 
   it("the first step not done is the current one, even when later ones are done", () => {
-    const j = projectJourney({ ...NEW, anyAuditDone: true, fullAuditDone: true, reportCount: 2 });
+    const j = projectJourney({ ...NEW, anyAuditDone: true, siteAuditDone: true, reportCount: 2 });
     expect(j.current).toBe("setup");
     expect(j.steps.find((s) => s.key === "delivery")?.done).toBe(true);
   });
 
   it("a draft proposal is to be sent, a refused one rewritten", () => {
-    const base = { ...NEW, anyAuditDone: true, fullAuditDone: true, onboardingDone: true, proposalId: 3 };
+    const base = { ...NEW, anyAuditDone: true, siteAuditDone: true, onboardingDone: true, proposalId: 3 };
     const draft = projectJourney({ ...base, proposalStatus: "draft" });
     expect(draft.current).toBe("strategy");
     expect(draft.variant).toBe("strategyDraft");
@@ -53,7 +53,7 @@ describe("projectJourney", () => {
     const base = {
       ...NEW,
       anyAuditDone: true,
-      fullAuditDone: true,
+      siteAuditDone: true,
       onboardingDone: true,
       proposalId: 3,
       proposalStatus: "accepted" as const,
@@ -70,7 +70,7 @@ describe("projectJourney", () => {
     const base = {
       ...NEW,
       anyAuditDone: true,
-      fullAuditDone: true,
+      siteAuditDone: true,
       onboardingDone: true,
       proposalId: 3,
       proposalStatus: "accepted" as const,

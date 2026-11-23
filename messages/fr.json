@@ -3443,7 +3443,7 @@
       "stage_to_audit_hint": "Tout projet commence par un audit. C'est lui qui permet de bâtir une stratégie, un suivi ou un cahier des charges. Aucune mission ne peut être créée avant.",
       "stage_auditing": "Audit rapide fait, audit complet à lancer",
       "stage_auditing_hint": "L'audit rapide donne un premier score. L'audit complet est la base de décision : lancez-le pour pouvoir proposer une mission.",
-      "stage_audited": "Audit complet terminé",
+      "stage_audited": "Site audité",
       "stage_audited_hint": "Le projet est audité : vous pouvez proposer une mission au client.",
       "facts": "Score {score}/100 · {critical} critiques · {high} élevés",
       "runAudit": "Lancer l'audit",
@@ -3457,7 +3457,7 @@
       "listTitle": "Missions de ce projet",
       "add": "Ajouter une mission",
       "empty": "Aucune mission pour l'instant. Proposez-en une à partir de l'audit.",
-      "needsAudit": "Terminez d'abord l'audit complet du projet.",
+      "needsAudit": "Lancez d'abord l'audit du projet.",
       "invalid": "Vérifiez le titre de la mission.",
       "since": "depuis le {date}",
       "status": "État",
@@ -3516,8 +3516,8 @@
           "cta": "Faire la mise en place"
         },
         "audit": {
-          "status": "Il manque l'audit complet du site, sur lequel reposent la stratégie et le devis.",
-          "cta": "Lancer l'audit complet"
+          "status": "Il manque l'audit du site, sur lequel reposent la stratégie et le devis.",
+          "cta": "Lancer l'audit"
         },
         "strategy": {
           "status": "Le plan et le devis ne sont pas encore rédigés.",

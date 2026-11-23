@@ -12,24 +12,32 @@ const facts = (over: Partial<AuditFacts> = {}): AuditFacts => ({
 });
 
 describe("projectStage", () => {
-  it("starts at to_audit, and a quick audit alone is not enough", () => {
+  it("starts at to_audit; the quick audit run when the project is added is enough", () => {
     expect(projectStage({ fullAuditDone: false, quickAuditDone: false })).toBe("to_audit");
-    expect(projectStage({ fullAuditDone: false, quickAuditDone: true })).toBe("auditing");
+    expect(projectStage({ fullAuditDone: false, quickAuditDone: true })).toBe("audited");
     expect(projectStage({ fullAuditDone: true, quickAuditDone: false })).toBe("audited");
   });
 });
 
 describe("canCreateMission", () => {
-  it("needs the full audit", () => {
-    expect(canCreateMission({ fullAuditDone: false })).toBe(false);
-    expect(canCreateMission({ fullAuditDone: true })).toBe(true);
+  it("needs an audit, quick or full", () => {
+    expect(canCreateMission({ fullAuditDone: false, quickAuditDone: false })).toBe(false);
+    expect(canCreateMission({ fullAuditDone: false, quickAuditDone: true })).toBe(true);
+    expect(canCreateMission({ fullAuditDone: true, quickAuditDone: false })).toBe(true);
   });
 });
 
 describe("suggestMission", () => {
-  it("suggests nothing before the full audit", () => {
-    expect(suggestMission(facts({ fullAuditDone: false }))).toBeNull();
+  it("suggests nothing before any audit", () => {
+    expect(suggestMission(facts({ fullAuditDone: false, quickAuditDone: false }))).toBeNull();
     expect(suggestMission(facts({ score: null }))).toBeNull();
+  });
+
+  it("suggests from the quick audit alone", () => {
+    expect(suggestMission(facts({ fullAuditDone: false, quickAuditDone: true }))).toEqual({
+      kind: "monitoring",
+      reason: "healthy",
+    });
   });
 
   it("a healthy site gets monthly monitoring", () => {

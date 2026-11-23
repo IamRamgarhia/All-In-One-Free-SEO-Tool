@@ -409,7 +409,7 @@ export default async function ClientDetailPage({
         <ProjectJourney
           projectId={client.id}
           anyAuditDone={Boolean(latestCompleted)}
-          fullAuditDone={journeyAudit.fullAuditDone && journeyAudit.pagesCrawled !== 0}
+          siteAuditDone={(journeyAudit.fullAuditDone || journeyAudit.quickAuditDone) && journeyAudit.pagesCrawled !== 0}
           onboardingDone={client.onboardingStep === "completed"}
           proposalId={approvalDoc?.id ?? null}
           proposalStatus={approvalDoc?.status ?? null}

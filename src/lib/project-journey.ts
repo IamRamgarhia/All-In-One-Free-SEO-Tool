@@ -28,8 +28,12 @@ export type JourneyFacts = {
   projectId: number;
   /** Any completed audit, quick or full: the first score shown to a prospect. */
   anyAuditDone: boolean;
-  /** A completed full audit that read at least one page. */
-  fullAuditDone: boolean;
+  /**
+   * A completed crawl of the site, quick or full, that read at least one
+   * page. The quick audit run when the project is added counts: it is what
+   * the mission is chosen on. The AI audit does not.
+   */
+  siteAuditDone: boolean;
   /** The onboarding (scope, accesses, keywords) was gone through. */
   onboardingDone: boolean;
   /** The latest proposal, if one was built. */
@@ -68,7 +72,7 @@ export function projectJourney(f: JourneyFacts): JourneyState {
     // its first audit was deleted since.
     prospection: f.anyAuditDone || f.proposalId !== null || f.missions.length > 0,
     setup: f.onboardingDone,
-    audit: f.fullAuditDone,
+    audit: f.siteAuditDone,
     strategy: proposalOut,
     missions: sold.length > 0,
     delivery: f.reportCount > 0,

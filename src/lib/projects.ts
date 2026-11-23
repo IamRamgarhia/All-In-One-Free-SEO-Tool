@@ -167,15 +167,15 @@ export async function auditFacts(projectId: number): Promise<AuditFacts> {
 
 export class MissionNeedsAuditError extends Error {
   constructor() {
-    super("A mission needs a completed full audit of the project first.");
+    super("A mission needs a completed audit of the project first.");
     this.name = "MissionNeedsAuditError";
   }
 }
 
 /**
- * Create a mission on a project. Refused until the project's full audit
- * is done: the audit is what the strategy, the follow-up or the redesign
- * specification is built on.
+ * Create a mission on a project. Refused until the project has been
+ * audited (the quick audit run when it was added is enough): the audit is
+ * what the strategy, the follow-up or the redesign specification is built on.
  */
 export async function createMission(input: {
   projectId: number;

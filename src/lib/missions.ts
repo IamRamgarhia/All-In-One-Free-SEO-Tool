@@ -10,11 +10,17 @@ import type { MissionKind } from "./mission-kinds";
 
 /** What the rules need to know about a project's audits. */
 export type AuditFacts = {
-  /** A completed full audit exists: the one a decision can rest on. */
+  /** A completed full audit exists: the deeper crawl, started by hand. */
   fullAuditDone: boolean;
-  /** A completed quick audit exists: a first score, not a basis. */
+  /**
+   * A completed quick audit exists: the one every project gets when it is
+   * added. It is enough to judge the site and choose a mission.
+   */
   quickAuditDone: boolean;
-  /** Score of the latest completed audit, 0 to 100. */
+  /**
+   * Score of the reference audit, 0 to 100: the latest full audit when
+   * there is one, otherwise the latest quick audit. Never the AI audit.
+   */
   score: number | null;
   /** Open findings of the latest completed audit, by severity. */
   critical: number;
@@ -26,17 +32,22 @@ export type AuditFacts = {
 export type ProjectStage = "to_audit" | "auditing" | "audited";
 
 /**
- * Every project starts with an audit. Until the full audit is done there
- * is nothing to build a strategy, a follow-up or a specification on, so no
- * mission can be created.
+ * Every project starts with an audit: the quick crawl run when the project
+ * is added. Once it is done the site has been judged and a mission can be
+ * proposed; the full audit goes deeper later, when the work calls for it.
+ * ("auditing" is kept for stored labels; no audit state returns it now.)
  */
 export function projectStage(a: Pick<AuditFacts, "fullAuditDone" | "quickAuditDone">): ProjectStage {
-  if (a.fullAuditDone) return "audited";
-  return a.quickAuditDone ? "auditing" : "to_audit";
+  return auditDone(a) ? "audited" : "to_audit";
 }
 
-export function canCreateMission(a: Pick<AuditFacts, "fullAuditDone">): boolean {
-  return a.fullAuditDone;
+/** A quick or full audit is done: the site has been judged. */
+export function auditDone(a: Pick<AuditFacts, "fullAuditDone" | "quickAuditDone">): boolean {
+  return a.fullAuditDone || a.quickAuditDone;
+}
+
+export function canCreateMission(a: Pick<AuditFacts, "fullAuditDone" | "quickAuditDone">): boolean {
+  return auditDone(a);
 }
 
 export type MissionSuggestion = {
@@ -48,7 +59,8 @@ export type MissionSuggestion = {
 };
 
 /**
- * The mission the full audit points to. A suggestion: the agency decides,
+ * The mission the reference audit points to (the quick audit of a new
+ * project, the full audit once there is one). A suggestion: the agency decides,
  * and "audit only" is always available when the client wants nothing more.
  *
  *   the site could not be crawled                     -> no suggestion
@@ -60,7 +72,7 @@ export type MissionSuggestion = {
  * amber), so the suggestion never contradicts what the client reads.
  */
 export function suggestMission(a: AuditFacts): MissionSuggestion | null {
-  if (!a.fullAuditDone || a.score === null) return null;
+  if (!auditDone(a) || a.score === null) return null;
   // Nothing was read: there is nothing to base a suggestion on. The site
   // may only be refusing the crawler (firewall, bot protection).
   if (a.pagesCrawled === 0) return null;

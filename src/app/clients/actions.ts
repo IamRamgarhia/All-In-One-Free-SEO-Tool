@@ -211,38 +211,24 @@ export async function createClient(
   revalidatePath("/");
   revalidatePath("/clients");
 
-  // Two audits start here, in order, while the user works through the
-  // onboarding wizard.
+  // One audit starts here, while the user works through the onboarding
+  // wizard: the quick crawl. It judges the state of the site, and the
+  // mission it suggests rests on it (lib/missions.ts, suggestMission).
   //
-  // The crawl goes first and it is the important one. Until this was
-  // wired up, a brand-new client's only audit was runAiSiteAudit, which
-  // sets pagesCrawled: 1 — so the first thing anyone saw about their
-  // site, and anything built on top of it, described the homepage and
-  // nothing else. The full crawler was already sitting here unused.
+  // Nothing else runs on its own. The full audit is started from the
+  // project page when the work calls for it, and the AI audit stays a
+  // manual tool. Running all three here filled a new project with three
+  // audits of the same site, three scores and the same findings twice,
+  // before anyone had looked at it.
   //
   // Progress is written to audits.pagesCrawled as it goes, and the
   // wizard reads it, so this is visible rather than silent.
   void (async () => {
     try {
       const { runAuditForClient } = await import("@/app/audits/actions");
-      await runAuditForClient(row.id);
+      await runAuditForClient(row.id, "quick");
     } catch {
       // Best-effort — re-runnable from the client page.
-    }
-    // Then the full audit, in the background: the quick one gives a first
-    // score within a minute or two, the full one is what a mission can be
-    // built on (lib/missions.ts, canCreateMission).
-    try {
-      const { runAuditForClient } = await import("@/app/audits/actions");
-      await runAuditForClient(row.id, "full");
-    } catch {
-      // Best-effort — re-runnable from the project's Missions tab.
-    }
-    try {
-      const { runAiSiteAudit } = await import("@/lib/ai-site-audit");
-      await runAiSiteAudit({ clientId: row.id, url: parsed.data.url });
-    } catch {
-      // Silent — user can re-run from the AI audit page if it failed.
     }
   })();
 

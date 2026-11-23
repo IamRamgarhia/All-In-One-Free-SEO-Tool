@@ -180,14 +180,31 @@ export async function captureClientSnapshot(opts: {
   return row;
 }
 
-async function latestAuditScore(clientId: number): Promise<number | null> {
-  const [row] = await db
-    .select({ score: audits.score })
+/**
+ * The audit a snapshot describes: the latest full crawl when there is one,
+ * otherwise the latest quick crawl. Never the AI audit, whose score and
+ * findings measure something else; and never "whichever ran last", which
+ * made consecutive snapshots compare a quick crawl with a full one, or a
+ * crawl with an AI checklist, and report movement the site never made.
+ * Same rule as auditFacts (lib/projects.ts).
+ */
+async function referenceAudit(
+  clientId: number,
+): Promise<{ id: number; score: number | null } | null> {
+  const done = await db
+    .select({ id: audits.id, mode: audits.mode, score: audits.score })
     .from(audits)
-    .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
-    .orderBy(desc(audits.completedAt))
-    .limit(1);
-  return row?.score ?? null;
+    .where(
+      and(eq(audits.clientId, clientId), eq(audits.status, "completed"), eq(audits.kind, "crawler")),
+    )
+    .orderBy(desc(audits.completedAt));
+  // Rows written before the mode column existed have no mode: full crawls.
+  const ref = done.find((a) => a.mode !== "quick") ?? done[0] ?? null;
+  return ref ? { id: ref.id, score: ref.score } : null;
+}
+
+async function latestAuditScore(clientId: number): Promise<number | null> {
+  return (await referenceAudit(clientId))?.score ?? null;
 }
 
 async function rankAggregate(
@@ -236,12 +253,7 @@ async function rankAggregate(
 async function issueCounts(
   clientId: number,
 ): Promise<{ critical: number; high: number }> {
-  const [latest] = await db
-    .select({ id: audits.id })
-    .from(audits)
-    .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
-    .orderBy(desc(audits.completedAt))
-    .limit(1);
+  const latest = await referenceAudit(clientId);
   if (!latest) return { critical: 0, high: 0 };
 
   const rows = await db

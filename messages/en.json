@@ -3443,7 +3443,7 @@
       "stage_to_audit_hint": "Every project starts with an audit. It is what a strategy, a follow-up or a specification is built on. No mission can be created before it.",
       "stage_auditing": "Quick audit done, full audit to run",
       "stage_auditing_hint": "The quick audit gives a first score. The full audit is the basis for a decision: run it to be able to propose a mission.",
-      "stage_audited": "Full audit done",
+      "stage_audited": "Site audited",
       "stage_audited_hint": "The project is audited: you can propose a mission to the client.",
       "facts": "Score {score}/100 · {critical} critical · {high} high",
       "runAudit": "Run the audit",
@@ -3457,7 +3457,7 @@
       "listTitle": "Missions on this project",
       "add": "Add a mission",
       "empty": "No mission yet. Propose one from the audit.",
-      "needsAudit": "Finish the project's full audit first.",
+      "needsAudit": "Run the project's audit first.",
       "invalid": "Check the mission title.",
       "since": "since {date}",
       "status": "Status",
@@ -3516,8 +3516,8 @@
           "cta": "Do the setup"
         },
         "audit": {
-          "status": "The full site audit is missing; the strategy and the quote rest on it.",
-          "cta": "Run the full audit"
+          "status": "The site audit is missing; the strategy and the quote rest on it.",
+          "cta": "Run the audit"
         },
         "strategy": {
           "status": "The plan and the quote are not written yet.",
