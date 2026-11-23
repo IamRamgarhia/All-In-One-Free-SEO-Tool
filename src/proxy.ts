@@ -3,6 +3,7 @@ import { timingSafeEqual } from "@/lib/secure-compare";
 import { SESSION_COOKIE, verifySession } from "@/lib/session-token";
 import { PATHNAME_HEADER, RETURN_TO_HEADER } from "@/lib/auth-routes";
 import { routeDecision } from "@/lib/permissions";
+import { ensureSessionSecret } from "@/lib/session-secret";
 
 /**
  * The auth gate. Three modes, in order of precedence:
@@ -221,7 +222,7 @@ function applyEmbedHeader(req: NextRequest): Headers {
   return requestHeaders;
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const requestHeaders = applyEmbedHeader(req);
   const passthrough = () =>
     NextResponse.next({ request: { headers: requestHeaders } });
@@ -250,7 +251,12 @@ export async function middleware(req: NextRequest) {
   }
 
   if (accountsEnabled) {
-    const secret = process.env.SEO_SESSION_SECRET;
+    // Next 16 runs proxy.ts on the Node runtime, in the server's process: the
+    // secret instrumentation put in process.env is visible here, and if it is
+    // not there yet this reads (or creates) the same .seo-session-secret file.
+    // As middleware.ts on the Edge runtime it saw neither, and a local install
+    // without SEO_SESSION_SECRET refused every session right after sign-in.
+    const secret = process.env.SEO_SESSION_SECRET ?? ensureSessionSecret();
     // The secret is written by instrumentation before the first request.
     // If it somehow isn't there, fail closed rather than waving everyone
     // through — an auth gate that opens on a misconfiguration is worse

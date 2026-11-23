@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "@/lib/secure-compare";
-import { expectedToken } from "@/middleware";
+import { expectedToken } from "@/proxy";
 import { accountsEnabled, authenticate, issueSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";

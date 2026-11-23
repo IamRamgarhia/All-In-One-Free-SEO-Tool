@@ -207,7 +207,7 @@ export function NewClientForm({
             <Input
               id="url"
               name="url"
-              placeholder="acmecoffee.com"
+              placeholder={t("urlPlaceholder")}
               value={fields.url}
               onChange={(e) => update("url", e.target.value)}
               onBlur={onUrlBlur}
@@ -269,7 +269,7 @@ export function NewClientForm({
             <Input
               id="name"
               name="name"
-              placeholder="Acme Coffee Co."
+              placeholder={t("namePlaceholder")}
               value={fields.name}
               onChange={(e) => update("name", e.target.value)}
               required
@@ -339,7 +339,7 @@ export function NewClientForm({
             type="email"
             value={fields.email}
             onChange={(v) => update("email", v)}
-            placeholder="hello@acme.com"
+            placeholder={t("emailPlaceholder")}
           />
           <Field
             label={t("gbp")}
@@ -363,42 +363,42 @@ export function NewClientForm({
             name="facebook"
             value={fields.facebook}
             onChange={(v) => update("facebook", v)}
-            placeholder="facebook.com/acmecoffee"
+            placeholder={t("facebookPlaceholder")}
           />
           <Field
             label="Instagram"
             name="instagram"
             value={fields.instagram}
             onChange={(v) => update("instagram", v)}
-            placeholder="instagram.com/acmecoffee"
+            placeholder={t("instagramPlaceholder")}
           />
           <Field
             label="X / Twitter"
             name="twitter"
             value={fields.twitter}
             onChange={(v) => update("twitter", v)}
-            placeholder="x.com/acmecoffee"
+            placeholder={t("xPlaceholder")}
           />
           <Field
             label="LinkedIn"
             name="linkedin"
             value={fields.linkedin}
             onChange={(v) => update("linkedin", v)}
-            placeholder="linkedin.com/company/acme"
+            placeholder={t("linkedinPlaceholder")}
           />
           <Field
             label="YouTube"
             name="youtube"
             value={fields.youtube}
             onChange={(v) => update("youtube", v)}
-            placeholder="youtube.com/@acme"
+            placeholder={t("youtubePlaceholder")}
           />
           <Field
             label="TikTok"
             name="tiktok"
             value={fields.tiktok}
             onChange={(v) => update("tiktok", v)}
-            placeholder="tiktok.com/@acme"
+            placeholder={t("tiktokPlaceholder")}
           />
         </div>
       </Section>
