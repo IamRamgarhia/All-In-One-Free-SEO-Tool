@@ -35,7 +35,7 @@ import {
   ruleDisplayName,
   verdictForScore,
 } from "@/lib/seomator-meta";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { setStatusForType } from "../issue-actions";
 import { SeomatorAuditProgressLive } from "@/components/audits/seomator-audit-progress";
 import { SeomatorGeoPanel } from "@/components/audits/seomator-geo-panel";
@@ -190,7 +190,7 @@ export default async function AuditDetailPage({
     (audit.kind === "seomator" || audit.rawReport != null) &&
     audit.status === "completed" &&
     isEngineReport(audit.rawReport)
-      ? buildEngineReport(audit.rawReport, 10, isSiteKind(client?.niche) ? client.niche : null)
+      ? buildEngineReport(audit.rawReport, 10, isSiteKind(client?.niche) ? client.niche : null, await getLocale())
       : null;
   const listed = report
     ? issues.filter((i) => !i.type.startsWith("seomator:"))

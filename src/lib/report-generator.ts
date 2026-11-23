@@ -1,4 +1,6 @@
 import PDFDocument from "pdfkit";
+import { ruleNamesFr } from "./rule-names.fr";
+import { CRAWLER_ISSUE_NAMES_FR } from "./crawler-issue-names.fr";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { OPEN_ISSUE_STATUS, pickReferenceAudits } from "@/lib/reference-audit";
 import { db } from "@/db/client";
@@ -65,12 +67,20 @@ let palette = { ...defaultPalette };
 let L = reportStrings("en");
 let F = reportFormat("en");
 
-/** Readable name of an issue type: the audit rule's name, not its id. */
+/**
+ * Readable name of an issue type: the audit rule's name, not its id, in
+ * the report's language. A French report printed "Author byline" and
+ * "missing meta description".
+ */
 function issueTitle(type: string): string {
+  const fr = L === reportStrings("fr");
   if (type.startsWith("seomator:")) {
-    const rule = getRuleById(type.slice("seomator:".length));
+    const id = type.slice("seomator:".length);
+    if (fr && ruleNamesFr[id]) return ruleNamesFr[id];
+    const rule = getRuleById(id);
     if (rule?.name) return rule.name;
   }
+  if (fr && CRAWLER_ISSUE_NAMES_FR[type]) return CRAWLER_ISSUE_NAMES_FR[type];
   return type.replace(/_/g, " ");
 }
 

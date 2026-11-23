@@ -4,6 +4,8 @@ import { collectFindings, type Finding } from "@/audit/report/findings";
 import type { AuditResult, PageSnapshot, RuleStatus } from "@/audit/types";
 import { isAdvisoryFor, type SiteKind } from "./advisory-rules";
 import { seoScoreOf } from "./seo-score";
+import { ruleNamesFr } from "./rule-names.fr";
+import { FIX_SUGGESTIONS_FR } from "@/audit/engine/fix-suggestions.fr";
 
 /**
  * The audit page's reading of a stored engine report, laid out the way
@@ -64,7 +66,14 @@ export function isEngineReport(raw: unknown): raw is AuditResult {
   );
 }
 
-export function buildEngineReport(result: AuditResult, topCount = 10, kind?: SiteKind | null): EngineReport {
+export function buildEngineReport(
+  result: AuditResult,
+  topCount = 10,
+  kind?: SiteKind | null,
+  /** Reader's language: French rule names and fixes. */
+  locale: string = "en",
+): EngineReport {
+  const fr = locale === "fr";
   const findingsByRule = new Map<string, Finding[]>();
   for (const f of collectFindings(result)) {
     const list = findingsByRule.get(f.ruleId) ?? [];
@@ -93,7 +102,7 @@ export function buildEngineReport(result: AuditResult, topCount = 10, kind?: Sit
       );
       return {
         ruleId,
-        name: getRuleById(ruleId)?.name ?? ruleId,
+        name: (fr ? ruleNamesFr[ruleId] : undefined) ?? getRuleById(ruleId)?.name ?? ruleId,
         categoryId: category.categoryId,
         categoryName: name,
         status,
@@ -104,7 +113,7 @@ export function buildEngineReport(result: AuditResult, topCount = 10, kind?: Sit
           pageCount,
         })),
         priority: Math.max(0, ...findings.map((f) => f.priority)),
-        fix: getFixSuggestion(ruleId),
+        fix: (fr ? FIX_SUGGESTIONS_FR[ruleId] : undefined) ?? getFixSuggestion(ruleId),
         advisory: isAdvisoryFor(ruleId, kind),
       };
     });

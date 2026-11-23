@@ -9,6 +9,7 @@
  * keep working.
  */
 
+import { getReportLocale } from "./report-i18n";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, auditIssues, type NewAuditIssue } from "@/db/schema";
@@ -67,10 +68,19 @@ const FETCH_TIMEOUT = 12_000;
  * Main entry point. Creates an audit row, runs all checks, populates
  * audit_issues with AI-written fix steps, returns the audit ID.
  */
+/**
+ * Language of the checks' titles and messages, set once per run from the
+ * workspace language: they are stored as written and reach tasks, the
+ * report and the client's portal ("Fix: No author byline" did).
+ */
+let FR = false;
+const tr = (en: string, fr: string): string => (FR ? fr : en);
+
 export async function runAiSiteAudit(opts: {
   clientId: number;
   url: string;
 }): Promise<AiAuditResult> {
+  FR = (await getReportLocale()) === "fr";
   const url = /^https?:\/\//i.test(opts.url) ? opts.url : `https://${opts.url}`;
 
   // Create the audit shell
@@ -141,7 +151,7 @@ export async function runAiSiteAudit(opts: {
     const failingChecks = checks.filter((c) => !c.pass);
     const aiPrompt = buildAiPrompt(url, failingChecks, pageData.title ?? "");
     const aiText = await callAI({
-      system: AI_SYSTEM_PROMPT,
+      system: AI_SYSTEM_PROMPT + languageLine(),
       user: aiPrompt,
       maxTokens: 2500,
       temperature: 0.3,
@@ -358,27 +368,27 @@ function checkTechnical(url: string, p: PageData): AuditCheck[] {
     severity: "critical",
     title: "HTTPS",
     pass: p.isHttps,
-    message: p.isHttps ? "Page is served over HTTPS." : "Page is on HTTP — Google has used HTTPS as a signal since 2014.",
+    message: p.isHttps ? tr("Page is served over HTTPS.", "La page est servie en HTTPS.") : tr("Page is on HTTP — Google has used HTTPS as a signal since 2014.", "La page est en HTTP : Google utilise le HTTPS comme signal de classement depuis 2014."),
     evidence: `final URL: ${p.finalUrl}`,
   });
   out.push({
     id: "status",
     category: "technical",
     severity: "critical",
-    title: "200 OK status",
+    title: tr("200 OK status", "Statut 200 OK"),
     pass: p.status >= 200 && p.status < 300,
-    message: p.status >= 200 && p.status < 300 ? `Returns ${p.status}.` : `Returns ${p.status} — broken or redirecting unexpectedly.`,
+    message: p.status >= 200 && p.status < 300 ? tr(`Returns ${p.status}.`, `Répond ${p.status}.`) : tr(`Returns ${p.status} — broken or redirecting unexpectedly.`, `Répond ${p.status} : page en erreur ou redirigée de façon inattendue.`),
     evidence: `status: ${p.status}`,
   });
   out.push({
     id: "canonical",
     category: "technical",
     severity: "high",
-    title: "Canonical tag",
+    title: tr("Canonical tag", "Balise canonique"),
     pass: !!p.canonical,
     message: p.canonical
-      ? `Canonical points to ${p.canonical}.`
-      : "No <link rel=\"canonical\"> — leaves Google to guess the canonical version.",
+      ? tr(`Canonical points to ${p.canonical}.`, `La canonique pointe vers ${p.canonical}.`)
+      : tr("No <link rel=\"canonical\"> — leaves Google to guess the canonical version.", "Pas de <link rel=\"canonical\"> : Google doit deviner la version de référence."),
     evidence: p.canonical ?? "—",
   });
   const robotsBlocked = p.metaRobots
@@ -388,11 +398,11 @@ function checkTechnical(url: string, p: PageData): AuditCheck[] {
     id: "indexable",
     category: "technical",
     severity: "critical",
-    title: "Page is indexable",
+    title: tr("Page is indexable", "Page indexable"),
     pass: !robotsBlocked,
     message: robotsBlocked
-      ? `Page has 'noindex' in <meta name="robots">: ${p.metaRobots}`
-      : "No 'noindex' directive — page is indexable.",
+      ? tr(`Page has 'noindex' in <meta name="robots">: ${p.metaRobots}`, `La page contient « noindex » dans <meta name="robots"> : ${p.metaRobots}`)
+      : tr("No 'noindex' directive — page is indexable.", "Pas de directive noindex : la page est indexable."),
     evidence: p.metaRobots ?? "(no robots meta)",
   });
   return out;
@@ -405,16 +415,16 @@ function checkOnPage(p: PageData): AuditCheck[] {
     id: "title",
     category: "on-page",
     severity: "high",
-    title: "Title tag length 30-60 chars",
+    title: tr("Title tag length 30-60 chars", "Title entre 30 et 60 caractères"),
     pass: titleLen >= 30 && titleLen <= 70,
     message:
       titleLen === 0
-        ? "Page is missing a <title>."
+        ? tr("Page is missing a <title>.", "La page n’a pas de <title>.")
         : titleLen < 30
-          ? `Title is ${titleLen} chars — under the 30 char minimum.`
+          ? tr(`Title is ${titleLen} chars — under the 30 char minimum.`, `Le title fait ${titleLen} caractères, sous le minimum de 30.`)
           : titleLen > 70
-            ? `Title is ${titleLen} chars — Google will truncate over ~60.`
-            : `Title is ${titleLen} chars.`,
+            ? tr(`Title is ${titleLen} chars — Google will truncate over ~60.`, `Le title fait ${titleLen} caractères : Google le coupe au-delà d’environ 60.`)
+            : tr(`Title is ${titleLen} chars.`, `Le title fait ${titleLen} caractères.`),
     evidence: p.title ?? "(none)",
   });
   const metaLen = p.metaDescription?.trim().length ?? 0;
@@ -422,42 +432,42 @@ function checkOnPage(p: PageData): AuditCheck[] {
     id: "meta_description",
     category: "on-page",
     severity: "medium",
-    title: "Meta description 120-160 chars",
+    title: tr("Meta description 120-160 chars", "Méta-description entre 120 et 160 caractères"),
     pass: metaLen >= 120 && metaLen <= 165,
     message:
       metaLen === 0
-        ? "Missing meta description."
+        ? tr("Missing meta description.", "Méta-description absente.")
         : metaLen < 120
-          ? `Meta description is ${metaLen} chars — too short.`
+          ? tr(`Meta description is ${metaLen} chars — too short.`, `La méta-description fait ${metaLen} caractères : trop courte.`)
           : metaLen > 165
-            ? `Meta description is ${metaLen} chars — Google will truncate.`
-            : `Meta description is ${metaLen} chars.`,
+            ? tr(`Meta description is ${metaLen} chars — Google will truncate.`, `La méta-description fait ${metaLen} caractères : Google la coupera.`)
+            : tr(`Meta description is ${metaLen} chars.`, `La méta-description fait ${metaLen} caractères.`),
     evidence: p.metaDescription ?? "(none)",
   });
   out.push({
     id: "h1",
     category: "on-page",
     severity: "high",
-    title: "Exactly one H1",
+    title: tr("Exactly one H1", "Un seul titre H1"),
     pass: p.h1Count === 1,
     message:
       p.h1Count === 0
-        ? "No H1 found — Google relies on the H1 to disambiguate the page topic."
+        ? tr("No H1 found — Google relies on the H1 to disambiguate the page topic.", "Aucun H1 : le H1 aide Google à comprendre le sujet de la page.")
         : p.h1Count === 1
-          ? `One H1: "${p.h1Texts[0].slice(0, 80)}".`
-          : `${p.h1Count} H1s — picks one focal topic, not many.`,
+          ? tr(`One H1: "${p.h1Texts[0].slice(0, 80)}".`, `Un H1 : « ${p.h1Texts[0].slice(0, 80)} ».`)
+          : tr(`${p.h1Count} H1s — picks one focal topic, not many.`, `${p.h1Count} H1 : gardez-en un seul, pour un sujet principal.`),
     evidence: `H1 count: ${p.h1Count}`,
   });
   out.push({
     id: "heading_structure",
     category: "on-page",
     severity: "medium",
-    title: "Has H2 subheadings",
+    title: tr("Has H2 subheadings", "Sous-titres H2 présents"),
     pass: p.h2Count >= 2,
     message:
       p.h2Count >= 2
-        ? `${p.h2Count} H2s — good content structure.`
-        : `${p.h2Count} H2s — long content needs subheadings for scanability and snippet eligibility.`,
+        ? tr(`${p.h2Count} H2s — good content structure.`, `${p.h2Count} H2 : contenu bien structuré.`)
+        : tr(`${p.h2Count} H2s — long content needs subheadings for scanability and snippet eligibility.`, `${p.h2Count} H2 : un contenu long a besoin de sous-titres pour être parcouru facilement.`),
     evidence: `H2 count: ${p.h2Count}`,
   });
   return out;
@@ -469,12 +479,12 @@ function checkContent(p: PageData): AuditCheck[] {
     id: "word_count",
     category: "content",
     severity: "medium",
-    title: "Page has substantial content (≥300 words)",
+    title: tr("Page has substantial content (≥300 words)", "Contenu suffisant (au moins 300 mots)"),
     pass: p.wordCount >= 300,
     message:
       p.wordCount >= 300
-        ? `${p.wordCount} words — substantial content.`
-        : `${p.wordCount} words — likely thin. Even short pages should clear 300 words.`,
+        ? tr(`${p.wordCount} words — substantial content.`, `${p.wordCount} mots : contenu suffisant.`)
+        : tr(`${p.wordCount} words — likely thin. Even short pages should clear 300 words.`, `${p.wordCount} mots : contenu probablement trop mince (repère courant : 300 mots).`),
     evidence: `word count: ${p.wordCount}`,
   });
   const altCoverage = p.imageCount === 0 ? 1 : p.imagesWithAlt / p.imageCount;
@@ -482,36 +492,36 @@ function checkContent(p: PageData): AuditCheck[] {
     id: "image_alts",
     category: "content",
     severity: "medium",
-    title: "Image alt-text coverage ≥80%",
+    title: tr("Image alt-text coverage ≥80%", "Texte alternatif sur au moins 80 % des images"),
     pass: altCoverage >= 0.8,
     message:
       p.imageCount === 0
-        ? "No images on page."
-        : `${p.imagesWithAlt}/${p.imageCount} images have alt text (${Math.round(altCoverage * 100)}%).`,
+        ? tr("No images on page.", "Aucune image sur la page.")
+        : tr(`${p.imagesWithAlt}/${p.imageCount} images have alt text (${Math.round(altCoverage * 100)}%).`, `${p.imagesWithAlt} images sur ${p.imageCount} ont un texte alternatif (${Math.round(altCoverage * 100)} %).`),
     evidence: `images: ${p.imageCount}, with alt: ${p.imagesWithAlt}`,
   });
   out.push({
     id: "internal_links",
     category: "content",
     severity: "medium",
-    title: "Internal linking (≥3 links)",
+    title: tr("Internal linking (≥3 links)", "Maillage interne (au moins 3 liens)"),
     pass: p.internalLinkCount >= 3,
     message:
       p.internalLinkCount >= 3
-        ? `${p.internalLinkCount} internal links — distributes link equity.`
-        : `Only ${p.internalLinkCount} internal links — page is isolated.`,
+        ? tr(`${p.internalLinkCount} internal links — distributes link equity.`, `${p.internalLinkCount} liens internes.`)
+        : tr(`Only ${p.internalLinkCount} internal links — page is isolated.`, `Seulement ${p.internalLinkCount} liens internes : la page est isolée.`),
     evidence: `internal: ${p.internalLinkCount}`,
   });
   out.push({
     id: "external_citations",
     category: "content",
     severity: "low",
-    title: "Outbound citations (≥1 link)",
+    title: tr("Outbound citations (≥1 link)", "Sources citées (au moins 1 lien sortant)"),
     pass: p.externalLinkCount >= 1,
     message:
       p.externalLinkCount >= 1
-        ? `${p.externalLinkCount} outbound links — well-cited.`
-        : "No outbound citations — Google rewards well-cited content.",
+        ? tr(`${p.externalLinkCount} outbound links — well-cited.`, `${p.externalLinkCount} liens sortants.`)
+        : tr("No outbound citations — Google rewards well-cited content.", "Aucun lien vers une source externe."),
     evidence: `external: ${p.externalLinkCount}`,
   });
   return out;
@@ -524,21 +534,21 @@ function checkSocial(s: { warnings: string[]; og: { image: string | null }; twit
       id: "og_image",
       category: "social",
       severity: "low",
-      title: "OG image present",
+      title: tr("OG image present", "Image Open Graph présente"),
       pass: !!s.og.image,
       message: s.og.image
-        ? `og:image set (${s.og.image.slice(0, 80)}).`
-        : "Missing og:image — share previews will be image-less.",
+        ? tr(`og:image set (${s.og.image.slice(0, 80)}).`, `og:image renseignée (${s.og.image.slice(0, 80)}).`)
+        : tr("Missing og:image — share previews will be image-less.", "og:image absente : les aperçus de partage n’auront pas d’image."),
     },
     {
       id: "twitter_card",
       category: "social",
       severity: "low",
-      title: "Twitter card present",
+      title: tr("Twitter card present", "Carte Twitter / X présente"),
       pass: !!s.twitter.card,
       message: s.twitter.card
         ? `twitter:card = "${s.twitter.card}".`
-        : "Missing twitter:card — defaults to a smaller share preview.",
+        : tr("Missing twitter:card — defaults to a smaller share preview.", "twitter:card absente : l’aperçu de partage sera plus petit."),
     },
   ];
 }
@@ -552,25 +562,25 @@ function checkSchema(s: { blocks: { errors: string[]; warnings: string[] }[] } |
       id: "schema_present",
       category: "schema",
       severity: "medium",
-      title: "Structured data (JSON-LD)",
+      title: tr("Structured data (JSON-LD)", "Données structurées (JSON-LD)"),
       pass: totalBlocks > 0,
       message:
         totalBlocks > 0
-          ? `${totalBlocks} JSON-LD block${totalBlocks === 1 ? "" : "s"} present.`
-          : "No JSON-LD found — missing rich-result eligibility.",
+          ? tr(`${totalBlocks} JSON-LD block${totalBlocks === 1 ? "" : "s"} present.`, `${totalBlocks} bloc${totalBlocks === 1 ? "" : "s"} JSON-LD présent${totalBlocks === 1 ? "" : "s"}.`)
+          : tr("No JSON-LD found — missing rich-result eligibility.", "Aucun JSON-LD : la page n’est pas éligible aux résultats enrichis."),
     },
     {
       id: "schema_valid",
       category: "schema",
       severity: "high",
-      title: "Schema is valid (no errors)",
+      title: tr("Schema is valid (no errors)", "Données structurées valides (sans erreur)"),
       pass: totalBlocks === 0 || validBlocks === totalBlocks,
       message:
         totalBlocks === 0
-          ? "No schema to validate."
+          ? tr("No schema to validate.", "Aucune donnée structurée à valider.")
           : validBlocks === totalBlocks
-            ? `All ${totalBlocks} block${totalBlocks === 1 ? "" : "s"} valid.`
-            : `${totalBlocks - validBlocks} block${totalBlocks - validBlocks === 1 ? " has" : "s have"} errors.`,
+            ? tr(`All ${totalBlocks} block${totalBlocks === 1 ? "" : "s"} valid.`, `${totalBlocks === 1 ? "Le bloc est valide" : `Les ${totalBlocks} blocs sont valides`}.`)
+            : tr(`${totalBlocks - validBlocks} block${totalBlocks - validBlocks === 1 ? " has" : "s have"} errors.`, `${totalBlocks - validBlocks} bloc${totalBlocks - validBlocks === 1 ? " contient" : "s contiennent"} des erreurs.`),
     },
   ];
 }
@@ -582,37 +592,37 @@ function checkEeat(e: import("./eeat-audit").EeatResult | null): AuditCheck[] {
       id: "eeat_byline",
       category: "eeat",
       severity: "high",
-      title: "Author byline + bio (E-E-A-T)",
+      title: tr("Author byline + bio (E-E-A-T)", "Auteur et biographie (E-E-A-T)"),
       pass: e.signals.hasAuthorByline && e.signals.hasAuthorBio,
       message: e.signals.hasAuthorByline
         ? e.signals.hasAuthorBio
-          ? `Author byline (${e.signals.authorName ?? "yes"}) + bio detected.`
-          : "Byline present but no bio. Add credentials + topical background."
-        : "No author byline. Anonymous content gets penalized on YMYL queries.",
+          ? tr(`Author byline (${e.signals.authorName ?? "yes"}) + bio detected.`, `Auteur (${e.signals.authorName ?? "indiqué"}) et biographie détectés.`)
+          : tr("Byline present but no bio. Add credentials + topical background.", "Auteur indiqué, sans biographie : ajoutez ses qualifications et son expérience du sujet.")
+        : tr("No author byline. Anonymous content gets penalized on YMYL queries.", "Aucun auteur indiqué. Sur les sujets sensibles (santé, argent, droit), Google attend un auteur identifiable."),
     },
     {
       id: "eeat_dates",
       category: "eeat",
       severity: "medium",
-      title: "Published + updated dates",
+      title: tr("Published + updated dates", "Dates de publication et de mise à jour"),
       pass: e.signals.hasPublishedDate && e.signals.hasUpdatedDate,
       message:
         e.signals.hasPublishedDate && e.signals.hasUpdatedDate
-          ? "Published + last-updated dates present."
+          ? tr("Published + last-updated dates present.", "Dates de publication et de mise à jour présentes.")
           : !e.signals.hasPublishedDate
-            ? "Missing publish date."
-            : "Missing 'last-updated' date — Google rewards demonstrable freshness.",
+            ? tr("Missing publish date.", "Date de publication absente.")
+            : tr("Missing 'last-updated' date — Google rewards demonstrable freshness.", "Date de mise à jour absente : elle montre que le contenu est tenu à jour."),
     },
     {
       id: "eeat_authoritative",
       category: "eeat",
       severity: "medium",
-      title: "Authoritative outbound citations",
+      title: tr("Authoritative outbound citations", "Sources de référence citées"),
       pass: e.signals.authoritativeCitationCount >= 1,
       message:
         e.signals.authoritativeCitationCount > 0
-          ? `${e.signals.authoritativeCitationCount} citations to authoritative sources (.gov / .edu / Wikipedia / known publishers).`
-          : "No citations to authoritative sources detected.",
+          ? tr(`${e.signals.authoritativeCitationCount} citations to authoritative sources (.gov / .edu / Wikipedia / known publishers).`, `${e.signals.authoritativeCitationCount} liens vers des sources de référence (.gouv, .edu, Wikipédia, éditeurs reconnus).`)
+          : tr("No citations to authoritative sources detected.", "Aucun lien vers une source de référence."),
     },
   ];
 }
@@ -624,23 +634,23 @@ function checkMobile(m: import("./page-inspectors").MobileFriendlyCheck | null):
       id: "mobile_viewport",
       category: "mobile",
       severity: "critical",
-      title: "Viewport meta sane",
+      title: tr("Viewport meta sane", "Balise viewport correcte"),
       pass: m.hasViewport && m.viewportSane,
       message: m.hasViewport
         ? m.viewportSane
           ? `Viewport: ${m.viewport}`
-          : "Viewport blocks scaling — accessibility violation."
-        : "No viewport meta — page renders desktop-width on mobile.",
+          : tr("Viewport blocks scaling — accessibility violation.", "La balise viewport bloque le zoom : défaut d’accessibilité.")
+        : tr("No viewport meta — page renders desktop-width on mobile.", "Pas de balise viewport : la page s’affiche en largeur d’ordinateur sur mobile."),
     },
     {
       id: "mobile_no_interstitial",
       category: "mobile",
       severity: "medium",
-      title: "No intrusive interstitial",
+      title: tr("No intrusive interstitial", "Pas de fenêtre intrusive"),
       pass: !m.hasInterstitial,
       message: m.hasInterstitial
-        ? "Modal / popup / cookie banner / GDPR overlay detected — Google penalizes intrusive interstitials on mobile."
-        : "No intrusive overlay detected.",
+        ? tr("Modal / popup / cookie banner / GDPR overlay detected — Google penalizes intrusive interstitials on mobile.", "Fenêtre, pop-up ou bandeau de cookies détecté qui recouvre la page : Google pénalise les interstitiels intrusifs sur mobile.")
+        : tr("No intrusive overlay detected.", "Aucune fenêtre intrusive détectée."),
     },
   ];
 }
@@ -652,40 +662,40 @@ function checkPerformance(c: import("./local-cwv").CwvResult | null): AuditCheck
       id: "perf_lcp",
       category: "performance",
       severity: "high",
-      title: "LCP under 2.5s (mobile)",
+      title: tr("LCP under 2.5s (mobile)", "LCP sous 2,5 s (mobile)"),
       pass: c.lcpMs !== null && c.lcpMs <= 2500,
       message:
         c.lcpMs === null
-          ? "LCP not measured."
+          ? tr("LCP not measured.", "LCP non mesuré.")
           : c.lcpMs <= 2500
-            ? `LCP ${(c.lcpMs / 1000).toFixed(2)}s — good.`
-            : `LCP ${(c.lcpMs / 1000).toFixed(2)}s — over the 2.5s threshold.`,
+            ? tr(`LCP ${(c.lcpMs / 1000).toFixed(2)}s — good.`, `LCP ${(c.lcpMs / 1000).toFixed(2).replace(".", ",")} s : bon.`)
+            : tr(`LCP ${(c.lcpMs / 1000).toFixed(2)}s — over the 2.5s threshold.`, `LCP ${(c.lcpMs / 1000).toFixed(2).replace(".", ",")} s : au-dessus du seuil de 2,5 s.`),
     },
     {
       id: "perf_cls",
       category: "performance",
       severity: "medium",
-      title: "CLS under 0.1",
+      title: tr("CLS under 0.1", "CLS sous 0,1"),
       pass: c.cls !== null && c.cls <= 0.1,
       message:
         c.cls === null
-          ? "CLS not measured."
+          ? tr("CLS not measured.", "CLS non mesuré.")
           : c.cls <= 0.1
-            ? `CLS ${c.cls.toFixed(3)} — good.`
-            : `CLS ${c.cls.toFixed(3)} — layout shifts above 0.1.`,
+            ? tr(`CLS ${c.cls.toFixed(3)} — good.`, `CLS ${c.cls.toFixed(3).replace(".", ",")} : bon.`)
+            : tr(`CLS ${c.cls.toFixed(3)} — layout shifts above 0.1.`, `CLS ${c.cls.toFixed(3).replace(".", ",")} : décalages de mise en page au-dessus de 0,1.`),
     },
     {
       id: "perf_score",
       category: "performance",
       severity: "high",
-      title: "Performance score ≥ 75",
+      title: tr("Performance score ≥ 75", "Score de performance d’au moins 75"),
       pass: c.performanceScore !== null && c.performanceScore >= 75,
       message:
         c.performanceScore === null
-          ? "No performance score available."
+          ? tr("No performance score available.", "Aucun score de performance disponible.")
           : c.performanceScore >= 75
-            ? `Score ${c.performanceScore}/100 — strong.`
-            : `Score ${c.performanceScore}/100 — needs work.`,
+            ? tr(`Score ${c.performanceScore}/100 — strong.`, `Score ${c.performanceScore}/100 : bon.`)
+            : tr(`Score ${c.performanceScore}/100 — needs work.`, `Score ${c.performanceScore}/100 : à améliorer.`),
     },
   ];
 }
@@ -697,12 +707,12 @@ function checkAnchors(a: import("./page-inspectors").AnchorDistribution | null):
       id: "anchor_overopt",
       category: "on-page",
       severity: "low",
-      title: "Anchor text not over-optimized",
+      title: tr("Anchor text not over-optimized", "Textes de lien non suroptimisés"),
       pass: a.exactMatchPct < 5,
       message:
         a.exactMatchPct < 5
-          ? `Exact-match anchor share is ${a.exactMatchPct.toFixed(1)}% — within safe range.`
-          : `${a.exactMatchPct.toFixed(1)}% exact-match anchors — over-optimization risk.`,
+          ? tr(`Exact-match anchor share is ${a.exactMatchPct.toFixed(1)}% — within safe range.`, `Ancres en correspondance exacte : ${a.exactMatchPct.toFixed(1).replace(".", ",")} %, dans la normale.`)
+          : tr(`${a.exactMatchPct.toFixed(1)}% exact-match anchors — over-optimization risk.`, `${a.exactMatchPct.toFixed(1).replace(".", ",")} % d’ancres en correspondance exacte : risque de suroptimisation.`),
     },
   ];
 }
@@ -714,11 +724,11 @@ function checkSecurity(p: PageData): AuditCheck[] {
     id: "hsts",
     category: "security",
     severity: "low",
-    title: "HSTS header set",
+    title: tr("HSTS header set", "En-tête HSTS présent"),
     pass: hsts,
     message: hsts
-      ? "Strict-Transport-Security header present."
-      : "No HSTS header — browsers can't enforce HTTPS-only after first visit.",
+      ? tr("Strict-Transport-Security header present.", "En-tête Strict-Transport-Security présent.")
+      : tr("No HSTS header — browsers can't enforce HTTPS-only after first visit.", "Pas d’en-tête HSTS : le navigateur n’impose pas le HTTPS après la première visite."),
     evidence: p.responseHeaders["strict-transport-security"] ?? "(none)",
   });
   const xfo = p.responseHeaders["x-frame-options"] || p.responseHeaders["content-security-policy"];
@@ -726,11 +736,11 @@ function checkSecurity(p: PageData): AuditCheck[] {
     id: "clickjacking",
     category: "security",
     severity: "low",
-    title: "Clickjacking protection",
+    title: tr("Clickjacking protection", "Protection contre le détournement de clic"),
     pass: !!xfo,
     message: xfo
-      ? "X-Frame-Options or CSP frame-ancestors set."
-      : "No X-Frame-Options + no CSP frame-ancestors — page can be iframed by anyone.",
+      ? tr("X-Frame-Options or CSP frame-ancestors set.", "X-Frame-Options ou CSP frame-ancestors en place.")
+      : tr("No X-Frame-Options + no CSP frame-ancestors — page can be iframed by anyone.", "Ni X-Frame-Options ni CSP frame-ancestors : n’importe quel site peut afficher la page dans un cadre."),
   });
   return out;
 }
@@ -748,6 +758,10 @@ const AI_SYSTEM_PROMPT = `You write step-by-step SEO fix instructions. Given a l
 - ≤140 words per check
 
 Do NOT add preamble. Do NOT add a closing summary. Output only the markdown blocks separated by a blank line.`;
+
+/** The steps are shown to the agency and its client: in their language. */
+const languageLine = () =>
+  FR ? "\n\nWrite the steps in French, addressing the reader as « vous ». Keep each heading exactly as given." : "";
 
 function buildAiPrompt(
   url: string,
@@ -796,11 +810,15 @@ async function generateSummary(opts: {
   topIssues: string[];
 }): Promise<string> {
   if (opts.failing === 0) {
-    return `Audit complete. ${opts.url} passes all ${opts.passing} checks (score ${opts.score}/100). No critical fixes needed.`;
+    return tr(
+      `Audit complete. ${opts.url} passes all ${opts.passing} checks (score ${opts.score}/100). No critical fixes needed.`,
+      `Audit terminé. ${opts.url} passe les ${opts.passing} contrôles (score ${opts.score}/100). Aucune correction critique.`,
+    );
   }
   const out = await callAI({
     system:
-      "You write 2-3 sentence executive summaries of an SEO audit. Direct, concrete, references specific issues by name. No preamble.",
+      "You write 2-3 sentence executive summaries of an SEO audit. Direct, concrete, references specific issues by name. No preamble." +
+      (FR ? " Write in French, addressing the reader as « vous »." : ""),
     user: [
       `URL: ${opts.url}`,
       `Score: ${opts.score}/100`,
@@ -816,7 +834,10 @@ async function generateSummary(opts: {
   });
   return (
     out ??
-    `Audit complete. ${opts.url} scored ${opts.score}/100. ${opts.failing} fixes pending — top concerns: ${opts.topIssues.slice(0, 3).join(", ")}.`
+    tr(
+      `Audit complete. ${opts.url} scored ${opts.score}/100. ${opts.failing} fixes pending — top concerns: ${opts.topIssues.slice(0, 3).join(", ")}.`,
+      `Audit terminé. ${opts.url} obtient ${opts.score}/100. ${opts.failing} corrections à faire, en priorité : ${opts.topIssues.slice(0, 3).join(", ")}.`,
+    )
   );
 }
 

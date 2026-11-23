@@ -1,4 +1,5 @@
 import { findFacetTrap, findStaleContent, STALE_AFTER_MONTHS } from "./audit-site-checks";
+import { getReportLocale } from "./report-i18n";
 import {
   ALLOW_ALL,
   fetchRobotsPolicy,
@@ -47,6 +48,21 @@ const USER_AGENT =
 // ───────────────────────────────────────────────────────────────────────────
 // Helpers
 // ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Language of the finding messages, set once per audit by runAudit from
+ * the workspace language: the messages are stored and shown as written,
+ * in tasks, reports and the client's portal, the way task titles are.
+ * Module-wide like report-generator's strings; the workspace has one
+ * language, so concurrent audits agree on it.
+ */
+let FR = false;
+const tr = (en: string, fr: string): string => (FR ? fr : en);
+
+/** For tests and callers that audit outside a request. */
+export function setAuditLanguage(locale: string): void {
+  FR = locale === "fr";
+}
 
 function decodeEntities(str: string): string {
   return str
@@ -299,7 +315,7 @@ export function checkPage(page: FetchedPage): {
       type: "bad_status",
       severity: "critical",
       url,
-      message: `Server returned HTTP ${page.status} on ${url}.`,
+      message: tr(`Server returned HTTP ${page.status} on ${url}.`, `Le serveur a renvoyé HTTP ${page.status} sur ${url}.`),
     });
   }
 
@@ -308,7 +324,7 @@ export function checkPage(page: FetchedPage): {
       type: "no_https",
       severity: "critical",
       url,
-      message: "Page is not served over HTTPS.",
+      message: tr("Page is not served over HTTPS.", "La page n’est pas servie en HTTPS."),
     });
   }
 
@@ -317,7 +333,7 @@ export function checkPage(page: FetchedPage): {
       type: "slow_response",
       severity: "medium",
       url,
-      message: `Server responded in ${page.responseTimeMs}ms — aim for under 800ms.`,
+      message: tr(`Server responded in ${page.responseTimeMs}ms — aim for under 800ms.`, `Le serveur a répondu en ${page.responseTimeMs} ms : visez moins de 800 ms.`),
     });
   }
 
@@ -328,21 +344,21 @@ export function checkPage(page: FetchedPage): {
       type: "missing_title",
       severity: "critical",
       url,
-      message: "Missing <title> tag.",
+      message: tr("Missing <title> tag.", "Balise <title> absente."),
     });
   } else if (title.length < 10) {
     findings.push({
       type: "short_title",
       severity: "high",
       url,
-      message: `Title is only ${title.length} characters — aim for 50–60.`,
+      message: tr(`Title is only ${title.length} characters — aim for 50–60.`, `Le title ne fait que ${title.length} caractères : visez 50 à 60.`),
     });
   } else if (title.length > 60) {
     findings.push({
       type: "long_title",
       severity: "medium",
       url,
-      message: `Title is ${title.length} characters — Google may truncate beyond ~60.`,
+      message: tr(`Title is ${title.length} characters — Google may truncate beyond ~60.`, `Le title fait ${title.length} caractères : Google peut le couper au-delà d’environ 60.`),
     });
   }
 
@@ -353,21 +369,21 @@ export function checkPage(page: FetchedPage): {
       type: "missing_meta_description",
       severity: "high",
       url,
-      message: "Missing meta description.",
+      message: tr("Missing meta description.", "Méta-description absente."),
     });
   } else if (description.length < 50) {
     findings.push({
       type: "short_meta_description",
       severity: "medium",
       url,
-      message: `Meta description is ${description.length} characters — aim for 120–155.`,
+      message: tr(`Meta description is ${description.length} characters — aim for 120–155.`, `La méta-description fait ${description.length} caractères : visez 120 à 155.`),
     });
   } else if (description.length > 160) {
     findings.push({
       type: "long_meta_description",
       severity: "low",
       url,
-      message: `Meta description is ${description.length} characters — may truncate beyond ~160.`,
+      message: tr(`Meta description is ${description.length} characters — may truncate beyond ~160.`, `La méta-description fait ${description.length} caractères : elle peut être coupée au-delà d’environ 160.`),
     });
   }
 
@@ -378,7 +394,7 @@ export function checkPage(page: FetchedPage): {
       type: "missing_h1",
       severity: "high",
       url,
-      message: "No <h1> heading on the page.",
+      message: tr("No <h1> heading on the page.", "Aucun titre <h1> sur la page."),
     });
   }
 
@@ -389,7 +405,7 @@ export function checkPage(page: FetchedPage): {
       severity: "low",
       url,
       message:
-        "The heading outline is broken — either the page doesn't open on an <h1>, or it skips a level (an <h1> straight to an <h4>). Screen readers navigate by this outline.",
+        tr("The heading outline is broken — either the page doesn't open on an <h1>, or it skips a level (an <h1> straight to an <h4>). Screen readers navigate by this outline.", "La hiérarchie des titres est rompue : la page ne commence pas par un <h1>, ou saute un niveau (d’un <h1> directement à un <h4>). Les lecteurs d’écran naviguent par cette hiérarchie."),
     });
   }
 
@@ -399,7 +415,7 @@ export function checkPage(page: FetchedPage): {
       type: "missing_canonical",
       severity: "medium",
       url,
-      message: "Missing <link rel='canonical'>.",
+      message: tr("Missing <link rel='canonical'>.", "Balise <link rel='canonical'> absente."),
     });
   }
 
@@ -409,7 +425,7 @@ export function checkPage(page: FetchedPage): {
       type: "missing_viewport",
       severity: "high",
       url,
-      message: "No viewport meta — page won't render correctly on mobile.",
+      message: tr("No viewport meta — page won't render correctly on mobile.", "Pas de balise meta viewport : la page ne s’affichera pas correctement sur mobile."),
     });
   }
 
@@ -420,7 +436,7 @@ export function checkPage(page: FetchedPage): {
       type: "noindex_set",
       severity: "critical",
       url,
-      message: "Page has noindex set — Google will not index it.",
+      message: tr("Page has noindex set — Google will not index it.", "La page est en noindex : Google ne l’indexera pas."),
     });
   }
 
@@ -430,7 +446,7 @@ export function checkPage(page: FetchedPage): {
       type: "missing_lang",
       severity: "low",
       url,
-      message: "No lang attribute on <html>.",
+      message: tr("No lang attribute on <html>.", "Pas d’attribut lang sur <html>."),
     });
   }
 
@@ -440,7 +456,7 @@ export function checkPage(page: FetchedPage): {
       type: "missing_favicon",
       severity: "low",
       url,
-      message: "No favicon link.",
+      message: tr("No favicon link.", "Pas de lien vers un favicon."),
     });
   }
 
@@ -450,7 +466,7 @@ export function checkPage(page: FetchedPage): {
       type: "missing_og_tags",
       severity: "low",
       url,
-      message: "No OpenGraph tags — social shares will look unbranded.",
+      message: tr("No OpenGraph tags — social shares will look unbranded.", "Pas de balises Open Graph : les partages sur les réseaux sociaux n’auront ni image ni titre choisis."),
     });
   }
 
@@ -461,7 +477,7 @@ export function checkPage(page: FetchedPage): {
       severity: "medium",
       url,
       message:
-        "No JSON-LD structured data — schema markup unlocks rich results in search.",
+        tr("No JSON-LD structured data — schema markup unlocks rich results in search.", "Pas de données structurées JSON-LD : elles rendent la page éligible aux résultats enrichis."),
     });
   }
 
@@ -476,7 +492,7 @@ export function checkPage(page: FetchedPage): {
       type: "missing_image_alt",
       severity: "medium",
       url,
-      message: `${missingAlt} of the first ${sample.length} images lack alt text.`,
+      message: tr(`${missingAlt} of the first ${sample.length} images lack alt text.`, `${missingAlt} des ${sample.length} premières images n’ont pas de texte alternatif.`),
     });
   }
   const noLazy = sample.filter(
@@ -489,7 +505,7 @@ export function checkPage(page: FetchedPage): {
       type: "no_lazy_loading",
       severity: "low",
       url,
-      message: `${noLazy} images don't use loading="lazy" — slows initial render.`,
+      message: tr(`${noLazy} images don't use loading="lazy" — slows initial render.`, `${noLazy} images n’utilisent pas loading="lazy" : l’affichage initial est ralenti.`),
     });
   }
   const oldFormat = sample.filter((t) => {
@@ -501,7 +517,7 @@ export function checkPage(page: FetchedPage): {
       type: "old_image_formats",
       severity: "low",
       url,
-      message: `${oldFormat} images use legacy formats — convert to WebP/AVIF for ~30% smaller files.`,
+      message: tr(`${oldFormat} images use legacy formats — convert to WebP/AVIF for ~30% smaller files.`, `${oldFormat} images sont dans un format ancien : passez-les en WebP ou AVIF pour des fichiers plus légers.`),
     });
   }
 
@@ -512,7 +528,7 @@ export function checkPage(page: FetchedPage): {
       type: "thin_content",
       severity: "medium",
       url,
-      message: `Page has only ${wordCount} words — Google may classify as thin content.`,
+      message: tr(`Page has only ${wordCount} words — Google may classify as thin content.`, `La page ne compte que ${wordCount} mots : Google peut la considérer comme un contenu trop mince.`),
     });
   }
 
@@ -531,7 +547,7 @@ export function checkPage(page: FetchedPage): {
       type: "image_missing_dimensions",
       severity: "medium",
       url,
-      message: `${imgNoSize} images lack width/height attributes — causes layout shift (CLS) hurting Core Web Vitals.`,
+      message: tr(`${imgNoSize} images lack width/height attributes — causes layout shift (CLS) hurting Core Web Vitals.`, `${imgNoSize} images n’ont pas d’attributs width/height : la mise en page bouge au chargement (CLS), ce qui pénalise les Core Web Vitals.`),
     });
   }
 
@@ -546,7 +562,7 @@ export function checkPage(page: FetchedPage): {
         type: "mixed_content",
         severity: "high",
         url,
-        message: `${httpRefs.length} insecure HTTP resource${httpRefs.length === 1 ? "" : "s"} loaded on an HTTPS page — browsers block these.`,
+        message: tr(`${httpRefs.length} insecure HTTP resource${httpRefs.length === 1 ? "" : "s"} loaded on an HTTPS page — browsers block these.`, `${httpRefs.length} ressource${httpRefs.length === 1 ? "" : "s"} HTTP non sécurisée${httpRefs.length === 1 ? "" : "s"} chargée${httpRefs.length === 1 ? "" : "s"} sur une page HTTPS : les navigateurs les bloquent.`),
       });
     }
   }
@@ -565,7 +581,7 @@ export function checkPage(page: FetchedPage): {
           type: "non_self_canonical",
           severity: "low",
           url,
-          message: `Canonical points elsewhere: ${canonAbs}. OK if intentional (duplicate content consolidation); fix if this should be the canonical itself.`,
+          message: tr(`Canonical points elsewhere: ${canonAbs}. OK if intentional (duplicate content consolidation); fix if this should be the canonical itself.`, `La canonique pointe ailleurs : ${canonAbs}. Normal si c’est voulu (regroupement de contenus en double) ; à corriger si cette page doit être la canonique.`),
         });
       }
     } catch {
@@ -573,7 +589,7 @@ export function checkPage(page: FetchedPage): {
         type: "invalid_canonical",
         severity: "medium",
         url,
-        message: `Canonical href is malformed: ${canonicalHref}`,
+        message: tr(`Canonical href is malformed: ${canonicalHref}`, `Adresse canonique mal formée : ${canonicalHref}`),
       });
     }
   }
@@ -585,7 +601,7 @@ export function checkPage(page: FetchedPage): {
       type: "xrobots_noindex",
       severity: "critical",
       url,
-      message: `X-Robots-Tag header has noindex: "${xRobots}". Page is excluded from search.`,
+      message: tr(`X-Robots-Tag header has noindex: "${xRobots}". Page is excluded from search.`, `L’en-tête X-Robots-Tag contient noindex : « ${xRobots} ». La page est exclue des résultats.`),
     });
   }
 
@@ -609,7 +625,7 @@ export function checkPage(page: FetchedPage): {
       type: "weak_anchor_text",
       severity: "low",
       url,
-      message: `${weakAnchors} weak/non-descriptive anchor text${weakAnchors === 1 ? "" : "s"} ("click here", "read more"). Use descriptive anchor text — accessibility + SEO win.`,
+      message: tr(`${weakAnchors} weak/non-descriptive anchor text${weakAnchors === 1 ? "" : "s"} ("click here", "read more"). Use descriptive anchor text — accessibility + SEO win.`, `${weakAnchors} texte${weakAnchors === 1 ? "" : "s"} de lien peu explicite${weakAnchors === 1 ? "" : "s"} (« cliquez ici », « en savoir plus »). Un texte de lien qui décrit sa cible aide l’accessibilité et le référencement.`),
     });
   }
 
@@ -635,7 +651,7 @@ export function checkPage(page: FetchedPage): {
       type: "js_rendered_only",
       severity: "high",
       url,
-      message: `Static HTML has very little content (${wordCount} words) but ${Math.round(scriptBytes / 1024)}KB of JS. Likely client-rendered — AI crawlers (GPTBot, ClaudeBot, PerplexityBot) don't run JS and will see a blank page.`,
+      message: tr(`Static HTML has very little content (${wordCount} words) but ${Math.round(scriptBytes / 1024)}KB of JS. Likely client-rendered — AI crawlers (GPTBot, ClaudeBot, PerplexityBot) don't run JS and will see a blank page.`, `Le HTML initial contient très peu de texte (${wordCount} mots) pour ${Math.round(scriptBytes / 1024)} Ko de JavaScript. La page est sans doute rendue dans le navigateur : les robots des IA (GPTBot, ClaudeBot, PerplexityBot) n’exécutent pas le JavaScript et verront une page vide.`),
     });
   }
 
@@ -652,7 +668,7 @@ export function checkPage(page: FetchedPage): {
         severity: "high",
         url,
         message:
-          "Page returns 200 but content says 'not found' — soft-404. Return a real 404 status so Google de-indexes properly.",
+          tr("Page returns 200 but content says 'not found' — soft-404. Return a real 404 status so Google de-indexes properly.", "La page répond 200 mais affiche « introuvable » (soft 404). Renvoyez un vrai code 404 pour que Google la retire de l’index."),
       });
     }
   }
@@ -668,7 +684,7 @@ export function checkPage(page: FetchedPage): {
       type: "render_blocking_scripts",
       severity: "medium",
       url,
-      message: `${blockingScripts} blocking <script src> tags in <head> without async/defer — delays first paint.`,
+      message: tr(`${blockingScripts} blocking <script src> tags in <head> without async/defer — delays first paint.`, `${blockingScripts} balises <script src> bloquantes dans <head>, sans async ni defer : le premier affichage est retardé.`),
     });
   }
 
@@ -678,7 +694,7 @@ export function checkPage(page: FetchedPage): {
       type: "heavy_html_payload",
       severity: "medium",
       url,
-      message: `HTML payload is ${Math.round(html.length / 1024)} KB — aim for under 500 KB. Inline a lot? Server-side render less or paginate.`,
+      message: tr(`HTML payload is ${Math.round(html.length / 1024)} KB — aim for under 500 KB. Inline a lot? Server-side render less or paginate.`, `Le HTML pèse ${Math.round(html.length / 1024)} Ko : visez moins de 500 Ko (moins de contenu intégré, ou une pagination).`),
     });
   }
 
@@ -691,7 +707,7 @@ export function checkPage(page: FetchedPage): {
       severity: "low",
       url,
       message:
-        "No <meta name='twitter:card'> — Twitter/X uses Open Graph as fallback but Twitter Cards give richer previews.",
+        tr("No <meta name='twitter:card'> — Twitter/X uses Open Graph as fallback but Twitter Cards give richer previews.", "Pas de <meta name='twitter:card'> : X (Twitter) se rabat sur Open Graph, mais les Twitter Cards donnent un meilleur aperçu."),
     });
   }
 
@@ -717,7 +733,7 @@ export function checkPage(page: FetchedPage): {
         severity: "medium",
         url,
         message:
-          "Article-type page has no author byline or Person schema — Google's E-E-A-T uses author entity verification in 2026. Add author + Person JSON-LD.",
+          tr("Article-type page has no author byline or Person schema — Google's E-E-A-T uses author entity verification in 2026. Add author + Person JSON-LD.", "Article sans auteur indiqué ni schéma Person. Ajoutez l’auteur et son JSON-LD Person : Google s’appuie sur l’identité de l’auteur pour juger la fiabilité (E-E-A-T)."),
       });
     }
   }
@@ -737,7 +753,7 @@ export function checkPage(page: FetchedPage): {
       severity: "medium",
       url,
       message:
-        "Viewport disables zoom — accessibility violation and Google flags it on mobile usability.",
+        tr("Viewport disables zoom — accessibility violation and Google flags it on mobile usability.", "La balise viewport empêche le zoom : c’est un défaut d’accessibilité, signalé aussi par Google pour l’ergonomie mobile."),
     });
   }
 
@@ -807,7 +823,7 @@ async function checkSiteWide(
       severity: "medium",
       url: `${origin}/robots.txt`,
       message:
-        "No /robots.txt found — search engines guess your crawl preferences.",
+        tr("No /robots.txt found — search engines guess your crawl preferences.", "Aucun /robots.txt : les moteurs ne connaissent pas vos préférences d’exploration."),
     });
   } else {
     robotsExists = true;
@@ -819,7 +835,7 @@ async function checkSiteWide(
         type: "invalid_robots_txt",
         severity: "low",
         url: `${origin}/robots.txt`,
-        message: "robots.txt exists but looks malformed or empty.",
+        message: tr("robots.txt exists but looks malformed or empty.", "Le robots.txt existe mais semble vide ou mal formé."),
       });
     }
 
@@ -847,14 +863,14 @@ async function checkSiteWide(
         severity: "medium",
         url: `${origin}/robots.txt`,
         message:
-          "robots.txt has no explicit policy for AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot, etc.). Decide allow vs disallow — silence means default-allow for most, blocked for some.",
+          tr("robots.txt has no explicit policy for AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot, etc.). Decide allow vs disallow — silence means default-allow for most, blocked for some.", "Le robots.txt ne dit rien des robots des IA (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot…). Décidez de les autoriser ou non : sans règle, la plupart se considèrent autorisés."),
       });
     } else if (mentioned.length < 4) {
       findings.push({
         type: "partial_ai_crawler_policy",
         severity: "low",
         url: `${origin}/robots.txt`,
-        message: `robots.txt addresses only ${mentioned.join(", ")} — consider also ${aiBots.filter((b) => !mentioned.includes(b)).slice(0, 4).join(", ")}.`,
+        message: tr(`robots.txt addresses only ${mentioned.join(", ")} — consider also ${aiBots.filter((b) => !mentioned.includes(b)).slice(0, 4).join(", ")}.`, `Le robots.txt ne vise que ${mentioned.join(", ")} : envisagez aussi ${aiBots.filter((b) => !mentioned.includes(b)).slice(0, 4).join(", ")}.`),
       });
     }
   }
@@ -884,7 +900,7 @@ async function checkSiteWide(
       severity: "medium",
       url: `${origin}/sitemap.xml`,
       message:
-        "No valid sitemap.xml found — sitemaps help Google discover pages faster.",
+        tr("No valid sitemap.xml found — sitemaps help Google discover pages faster.", "Aucun sitemap.xml valide : un sitemap aide Google à découvrir les pages plus vite."),
     });
   }
 
@@ -914,14 +930,14 @@ async function checkSiteWide(
         type: "missing_security_headers",
         severity: "medium",
         url: homeUrl,
-        message: `Missing ${missing.length} security headers: ${missing.join(", ")}.`,
+        message: tr(`Missing ${missing.length} security headers: ${missing.join(", ")}.`, `${missing.length} en-têtes de sécurité absents : ${missing.join(", ")}.`),
       });
     } else if (missing.length > 0) {
       findings.push({
         type: "missing_security_headers",
         severity: "low",
         url: homeUrl,
-        message: `Missing security headers: ${missing.join(", ")}.`,
+        message: tr(`Missing security headers: ${missing.join(", ")}.`, `En-têtes de sécurité absents : ${missing.join(", ")}.`),
       });
     }
   }
@@ -947,7 +963,7 @@ async function checkSiteWide(
         type: "duplicate_title",
         severity: "high",
         url: urls[0],
-        message: `${urls.length} pages share the title "${title.slice(0, 60)}…" — each page should have a unique title.`,
+        message: tr(`${urls.length} pages share the title "${title.slice(0, 60)}…" — each page should have a unique title.`, `${urls.length} pages ont le même title « ${title.slice(0, 60)}… » : chaque page devrait avoir le sien.`),
       });
     }
   }
@@ -957,7 +973,7 @@ async function checkSiteWide(
         type: "duplicate_meta_description",
         severity: "medium",
         url: urls[0],
-        message: `${urls.length} pages share the same meta description.`,
+        message: tr(`${urls.length} pages share the same meta description.`, `${urls.length} pages ont la même méta-description.`),
       });
     }
   }
@@ -973,7 +989,7 @@ async function checkSiteWide(
       type: "inconsistent_hreflang",
       severity: "low",
       url: homeUrl,
-      message: `Hreflang tags exist on ${hreflangSeen} of ${pages.length} pages — usually all language variants should declare them.`,
+      message: tr(`Hreflang tags exist on ${hreflangSeen} of ${pages.length} pages — usually all language variants should declare them.`, `Des balises hreflang sont présentes sur ${hreflangSeen} pages sur ${pages.length} : en général, toutes les versions linguistiques doivent les déclarer.`),
     });
   }
 
@@ -1011,7 +1027,7 @@ async function checkSiteWide(
       type: "hreflang_not_reciprocal",
       severity: "medium",
       url: homeUrl,
-      message: `${nonReciprocal} hreflang link${nonReciprocal === 1 ? " is" : "s are"} not reciprocated — every language variant must declare ALL siblings. Google ignores non-reciprocal hreflang.`,
+      message: tr(`${nonReciprocal} hreflang link${nonReciprocal === 1 ? " is" : "s are"} not reciprocated — every language variant must declare ALL siblings. Google ignores non-reciprocal hreflang.`, `${nonReciprocal} lien${nonReciprocal === 1 ? "" : "s"} hreflang sans réciproque : chaque version linguistique doit déclarer toutes les autres. Google ignore les hreflang non réciproques.`),
     });
   }
 
@@ -1053,7 +1069,7 @@ async function checkSiteWide(
       type: "orphan_pages",
       severity: "medium",
       url: homeUrl,
-      message: `${orphans.length} page${orphans.length === 1 ? " is" : "s are"} not linked from any other page in the crawl: ${orphans.slice(0, 3).join(", ")}${orphans.length > 3 ? "…" : ""}. Add internal links so Google can crawl them.`,
+      message: tr(`${orphans.length} page${orphans.length === 1 ? " is" : "s are"} not linked from any other page in the crawl: ${orphans.slice(0, 3).join(", ")}${orphans.length > 3 ? "…" : ""}. Add internal links so Google can crawl them.`, `${orphans.length} page${orphans.length === 1 ? " n’est reliée" : "s ne sont reliées"} à aucune autre page explorée : ${orphans.slice(0, 3).join(", ")}${orphans.length > 3 ? "…" : ""}. Ajoutez des liens internes pour que Google les explore.`),
     });
   }
 
@@ -1087,7 +1103,7 @@ async function checkSiteWide(
       type: "canonical_chain",
       severity: "medium",
       url: homeUrl,
-      message: `${chains} page${chains === 1 ? "" : "s"} canonicalize${chains === 1 ? "s" : ""} to URLs that themselves canonicalize elsewhere. Google may ignore both — fix to canonicalize directly to the final URL.`,
+      message: tr(`${chains} page${chains === 1 ? "" : "s"} canonicalize${chains === 1 ? "s" : ""} to URLs that themselves canonicalize elsewhere. Google may ignore both — fix to canonicalize directly to the final URL.`, `${chains} page${chains === 1 ? " a" : "s ont"} une canonique qui pointe vers une adresse elle-même canonisée ailleurs. Google peut ignorer les deux : faites pointer la canonique directement vers l’adresse finale.`),
     });
   }
 
@@ -1100,7 +1116,7 @@ async function checkSiteWide(
       type: "facet_trap",
       severity: facets.urlCount >= 50 ? "high" : "medium",
       url: facets.example,
-      message: `${facets.urlCount} filter URLs are linked and open to crawling (${facets.worstCount} on ${facets.worstPath}, parameters: ${facets.params.join(", ")}). Each one is a near-duplicate that spends crawl budget: point their canonical to the unfiltered page, or set them noindex.`,
+      message: tr(`${facets.urlCount} filter URLs are linked and open to crawling (${facets.worstCount} on ${facets.worstPath}, parameters: ${facets.params.join(", ")}). Each one is a near-duplicate that spends crawl budget: point their canonical to the unfiltered page, or set them noindex.`, `${facets.urlCount} adresses de filtres sont liées et explorables (${facets.worstCount} sur ${facets.worstPath}, paramètres : ${facets.params.join(", ")}). Chacune est un quasi-doublon qui consomme le budget d’exploration : faites pointer leur canonique vers la page sans filtre, ou passez-les en noindex.`),
     });
   }
   const stale = findStaleContent(pages, new Date());
@@ -1109,7 +1125,7 @@ async function checkSiteWide(
       type: "stale_content",
       severity: "low",
       url: stale.oldestUrl,
-      message: `${stale.count} of ${stale.dated} dated page${stale.dated === 1 ? "" : "s"} ${stale.count === 1 ? "was" : "were"} last updated more than ${STALE_AFTER_MONTHS} months ago (the oldest in ${stale.oldestYear}). Search and AI answers prefer recent pages: review them and update their content and dateModified.`,
+      message: tr(`${stale.count} of ${stale.dated} dated page${stale.dated === 1 ? "" : "s"} ${stale.count === 1 ? "was" : "were"} last updated more than ${STALE_AFTER_MONTHS} months ago (the oldest in ${stale.oldestYear}). Search and AI answers prefer recent pages: review them and update their content and dateModified.`, `${stale.count} page${stale.count === 1 ? "" : "s"} datée${stale.count === 1 ? "" : "s"} sur ${stale.dated} n’${stale.count === 1 ? "a" : "ont"} pas été mise${stale.count === 1 ? "" : "s"} à jour depuis plus de ${STALE_AFTER_MONTHS} mois (la plus ancienne en ${stale.oldestYear}). Les moteurs et les réponses des IA préfèrent les pages récentes : relisez-les et mettez à jour leur contenu et leur dateModified.`),
     });
   }
 
@@ -1156,7 +1172,7 @@ async function checkBrokenLinks(
           type: "broken_link",
           severity: "high",
           url: onPage.get(u) ?? u,
-          message: `Link to ${u} returned HTTP ${r.status}.`,
+          message: tr(`Link to ${u} returned HTTP ${r.status}.`, `Le lien vers ${u} a renvoyé HTTP ${r.status}.`),
         });
       }
     }
@@ -1166,7 +1182,7 @@ async function checkBrokenLinks(
       type: "broken_link",
       severity: "high",
       url: origin,
-      message: `${broken - 5} more broken internal links (showing first 5 above).`,
+      message: tr(`${broken - 5} more broken internal links (showing first 5 above).`, `${broken - 5} autres liens internes cassés (les 5 premiers sont listés ci-dessus).`),
     });
   }
 
@@ -1560,8 +1576,11 @@ export async function runAudit(
      * multi-minute crawl looking like nothing is happening.
      */
     onProgress?: (crawled: number, max: number) => void;
+    /** Language of the messages; the workspace language by default. */
+    locale?: string;
   } = {},
 ): Promise<AuditResult> {
+  setAuditLanguage(options.locale ?? (await getReportLocale()));
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
   const fetchedAt = new Date();
   const maxPages = options.maxPages ?? 25;
@@ -1588,7 +1607,7 @@ export async function runAudit(
           type: "blocked_url",
           severity: "critical",
           url,
-          message: `${entryVerdict.reason} Audits run on the server, so it can only reach addresses that are reachable from the public internet.`,
+          message: tr(`${entryVerdict.reason} Audits run on the server, so it can only reach addresses that are reachable from the public internet.`, `${entryVerdict.reason} L’audit tourne sur le serveur : il ne peut joindre que des adresses accessibles depuis Internet.`),
         },
       ],
       score: 0,
@@ -1629,7 +1648,7 @@ export async function runAudit(
           type: "fetch_failed",
           severity: "critical",
           url,
-          message: `Could not crawl: ${(err as Error).message}`,
+          message: tr(`Could not crawl: ${(err as Error).message}`, `Exploration impossible : ${(err as Error).message}`),
         },
       ],
       score: 0,
@@ -1648,7 +1667,7 @@ export async function runAudit(
           type: "fetch_failed",
           severity: "critical",
           url,
-          message: "No pages reachable. Check the URL or your network.",
+          message: tr("No pages reachable. Check the URL or your network.", "Aucune page joignable. Vérifiez l’adresse ou le réseau."),
         },
       ],
       score: 0,
@@ -1695,6 +1714,7 @@ export async function runAudit(
       html: page.html,
       headers: page.headers,
       tech: techContext,
+      fr: FR,
     });
     for (const tf of techFindings) {
       findings.push({
@@ -1721,7 +1741,7 @@ export async function runAudit(
       type: "blocked_by_robots",
       severity: "low",
       url: crawl.blockedByRobots[0],
-      message: `${crawl.blockedByRobots.length} page${crawl.blockedByRobots.length === 1 ? " was" : "s were"} skipped because robots.txt disallows crawling them (e.g. ${crawl.blockedByRobots[0]}). Googlebot is subject to the same rules — if these pages should rank, loosen the Disallow.`,
+      message: tr(`${crawl.blockedByRobots.length} page${crawl.blockedByRobots.length === 1 ? " was" : "s were"} skipped because robots.txt disallows crawling them (e.g. ${crawl.blockedByRobots[0]}). Googlebot is subject to the same rules — if these pages should rank, loosen the Disallow.`, `${crawl.blockedByRobots.length} page${crawl.blockedByRobots.length === 1 ? " a été ignorée" : "s ont été ignorées"} car le robots.txt en interdit l’exploration (par exemple ${crawl.blockedByRobots[0]}). Googlebot suit les mêmes règles : si ces pages doivent se positionner, assouplissez le Disallow.`),
     });
   }
   if (crawl.appliedDelayMs > 0) {
@@ -1729,7 +1749,7 @@ export async function runAudit(
       type: "crawl_delay_applied",
       severity: "low",
       url: origin,
-      message: `robots.txt requests a crawl delay, so this audit fetched pages one at a time (${crawl.appliedDelayMs}ms apart). That slows every crawler, including search engines.`,
+      message: tr(`robots.txt requests a crawl delay, so this audit fetched pages one at a time (${crawl.appliedDelayMs}ms apart). That slows every crawler, including search engines.`, `Le robots.txt demande un délai d’exploration : l’audit a lu les pages une par une (${crawl.appliedDelayMs} ms d’écart). Cela ralentit tous les robots, moteurs de recherche compris.`),
     });
   }
 

@@ -82,12 +82,19 @@ export function classifyTech(techNames: string[]): TechContext {
  * Run all tech-specific checks against a fetched page. Doesn't perform
  * extra network — operates on the already-fetched HTML + headers + URL.
  */
+/** Message language for this run (runTechSpecificChecks's `fr`). */
+let FR = false;
+const tr = (en: string, fr: string): string => (FR ? fr : en);
+
 export function runTechSpecificChecks(opts: {
   url: string;
   html: string;
   headers: Headers;
   tech: TechContext;
+  /** Write the messages in French (the workspace language). */
+  fr?: boolean;
 }): TechFinding[] {
+  FR = opts.fr === true;
   const out: TechFinding[] = [];
   const { url, html, headers, tech } = opts;
 
@@ -164,7 +171,7 @@ function wordpressChecks(
       severity: "low",
       url,
       tech: "WordPress",
-      message: `WordPress version ${wpGen} disclosed in <meta generator>. Helps attackers fingerprint vulnerable installs.`,
+      message: tr(`WordPress version ${wpGen} disclosed in <meta generator>. Helps attackers fingerprint vulnerable installs.`, `Version de WordPress ${wpGen} affichée dans <meta generator> : cela aide à repérer les installations vulnérables.`),
       fix: {
         generic: "Don't disclose CMS version numbers in HTML.",
         techCause:
@@ -190,7 +197,7 @@ function wordpressChecks(
       url,
       tech: "WordPress",
       message:
-        "xmlrpc.php / pingback link exposed. xmlrpc is a common DDoS amplification vector and rarely needed in 2026.",
+        tr("xmlrpc.php / pingback link exposed. xmlrpc is a common DDoS amplification vector and rarely needed in 2026.", "Lien xmlrpc.php / pingback exposé : xmlrpc sert souvent aux attaques par déni de service et n’est presque plus utile."),
       fix: {
         generic: "Disable legacy XML-RPC unless you actively use it.",
         techCause: "WordPress enables xmlrpc by default.",
@@ -218,7 +225,7 @@ function wordpressChecks(
       severity: "high",
       url,
       tech: "WordPress",
-      message: `Multiple SEO plugins active: ${activeSeo.map((p) => p.name).join(", ")}. They conflict (double meta tags, conflicting schema, duplicate sitemaps).`,
+      message: tr(`Multiple SEO plugins active: ${activeSeo.map((p) => p.name).join(", ")}. They conflict (double meta tags, conflicting schema, duplicate sitemaps).`, `Plusieurs extensions SEO actives : ${activeSeo.map((p) => p.name).join(", ")}. Elles se contredisent (balises meta en double, données structurées en conflit, sitemaps en double).`),
       fix: {
         generic: "Run exactly one SEO plugin.",
         techCause:
@@ -242,7 +249,7 @@ function wordpressChecks(
       severity: "medium",
       url,
       tech: "WordPress",
-      message: `${pluginSlugs.size} distinct plugins detected loading assets on this page. Plugin bloat is the #1 WordPress speed killer.`,
+      message: tr(`${pluginSlugs.size} distinct plugins detected loading assets on this page. Plugin bloat is the #1 WordPress speed killer.`, `${pluginSlugs.size} extensions différentes chargent des fichiers sur cette page. Trop d’extensions est une cause fréquente de lenteur sous WordPress.`),
       fix: {
         generic: "Audit and remove unused plugins.",
         techCause:
@@ -261,7 +268,7 @@ function wordpressChecks(
       url,
       tech: "WordPress",
       message:
-        "WordPress emoji script is loaded. Most sites don't need it — costs a render-blocking request.",
+        tr("WordPress emoji script is loaded. Most sites don't need it — costs a render-blocking request.", "Le script des emojis de WordPress est chargé : la plupart des sites n’en ont pas besoin, et il bloque l’affichage."),
       fix: {
         generic: "Disable unused scripts.",
         techCause:
@@ -286,7 +293,7 @@ function wordpressChecks(
       url,
       tech: "WordPress",
       message:
-        "Block editor blocks render but block-library CSS isn't loaded — page may look broken in browsers that didn't cache the styles.",
+        tr("Block editor blocks render but block-library CSS isn't loaded — page may look broken in browsers that didn't cache the styles.", "Des blocs de l’éditeur sont affichés sans la feuille de style block-library : la page peut sembler cassée dans un navigateur qui ne l’a pas en cache."),
       fix: {
         generic: "Ship the CSS your markup depends on.",
         techCause:
@@ -306,7 +313,7 @@ function wordpressChecks(
       url,
       tech: "WordPress",
       message:
-        "Pages link to /?p=123 (default permalink). Switch to %postname% for readable, keyword-friendly URLs.",
+        tr("Pages link to /?p=123 (default permalink). Switch to %postname% for readable, keyword-friendly URLs.", "Les pages pointent vers /?p=123 (permalien par défaut). Passez à %postname% pour des adresses lisibles qui contiennent les mots-clés."),
       fix: {
         generic: "Use descriptive URL slugs containing target keywords.",
         techCause:
@@ -325,7 +332,7 @@ function wordpressChecks(
       url,
       tech: "WordPress",
       message:
-        "REST API endpoint is advertised in <head>. Fine if your headless setup needs it; otherwise consider disabling — bots probe /wp-json/wp/v2/users to enumerate user logins.",
+        tr("REST API endpoint is advertised in <head>. Fine if your headless setup needs it; otherwise consider disabling — bots probe /wp-json/wp/v2/users to enumerate user logins.", "Le lien vers l’API REST est annoncé dans <head>. Normal si un site découplé en a besoin ; sinon, envisagez de le retirer : des robots interrogent /wp-json/wp/v2/users pour lister les identifiants."),
       fix: {
         generic: "Lock down endpoints you don't need.",
         techCause: "WordPress emits <link rel='https://api.w.org/'> by default.",
@@ -344,7 +351,7 @@ function wordpressChecks(
       url,
       tech: "WordPress",
       message:
-        "Author archive URL is indexable. For single-author sites these duplicate the homepage; for multi-author sites they're often thin.",
+        tr("Author archive URL is indexable. For single-author sites these duplicate the homepage; for multi-author sites they're often thin.", "Les archives d’auteur sont indexables. Sur un site à un seul auteur, elles doublonnent l’accueil ; à plusieurs auteurs, elles sont souvent pauvres."),
       fix: {
         generic:
           "Noindex thin/duplicate archive pages or improve them with author bios + Person schema.",
@@ -364,7 +371,7 @@ function wordpressChecks(
       url,
       tech: "WordPress",
       message:
-        "admin-ajax.php is referenced on a front-end page. Heartbeat polls drain server CPU on busy sites.",
+        tr("admin-ajax.php is referenced on a front-end page. Heartbeat polls drain server CPU on busy sites.", "admin-ajax.php est appelé depuis une page publique : les requêtes Heartbeat chargent le serveur sur un site fréquenté."),
       fix: {
         generic: "Disable admin-only features on public pages.",
         techCause:
@@ -414,7 +421,7 @@ function reactStackChecks(
       severity: "high",
       url,
       tech: stackName,
-      message: `${stackName} app ships a near-empty <body> (${stripped.length} chars of text) — the page is rendered entirely client-side. AI crawlers (GPTBot, ClaudeBot, PerplexityBot) don't execute JS and will see a blank page.`,
+      message: tr(`${stackName} app ships a near-empty <body> (${stripped.length} chars of text) — the page is rendered entirely client-side. AI crawlers (GPTBot, ClaudeBot, PerplexityBot) don't execute JS and will see a blank page.`, `L’application ${stackName} envoie un <body> presque vide (${stripped.length} caractères de texte) : la page est rendue entièrement dans le navigateur. Les robots des IA (GPTBot, ClaudeBot, PerplexityBot) n’exécutent pas le JavaScript et verront une page vide.`),
       fix: {
         generic: "Render meaningful content in the initial HTML.",
         techCause: tech.isNextJs
@@ -447,7 +454,7 @@ function reactStackChecks(
       url,
       tech: "Next.js",
       message:
-        "X-Powered-By: Next.js header is set. Reveals stack version to scanners. Not a critical issue but tighten defaults.",
+        tr("X-Powered-By: Next.js header is set. Reveals stack version to scanners. Not a critical issue but tighten defaults.", "L’en-tête X-Powered-By: Next.js est envoyé : il révèle la technologie aux scanners. Rien de grave, mais le réglage par défaut mérite d’être resserré."),
       fix: {
         generic: "Strip framework identifiers from response headers.",
         techCause: "Next.js sets X-Powered-By by default.",
@@ -469,7 +476,7 @@ function reactStackChecks(
         severity: "medium",
         url,
         tech: "Next.js",
-        message: `${rawImgCount} <img> tags but only ${nextImageCount} use next/image's optimization. You're paying for CDN bandwidth + LCP penalty needlessly.`,
+        message: tr(`${rawImgCount} <img> tags but only ${nextImageCount} use next/image's optimization. You're paying for CDN bandwidth + LCP penalty needlessly.`, `${rawImgCount} balises <img>, dont seulement ${nextImageCount} optimisées par next/image : bande passante et affichage (LCP) en pâtissent inutilement.`),
         fix: {
           generic: "Use the framework's optimized image component.",
           techCause:
@@ -490,7 +497,7 @@ function reactStackChecks(
       severity: "low",
       url,
       tech: "Next.js",
-      message: `${uniqueChunks} JS chunks loaded — code-splitting is great, but >30 chunks on a single page suggests fragmentation hurting TTI. Review your dynamic imports.`,
+      message: tr(`${uniqueChunks} JS chunks loaded — code-splitting is great, but >30 chunks on a single page suggests fragmentation hurting TTI. Review your dynamic imports.`, `${uniqueChunks} fichiers JavaScript chargés : au-delà de 30 sur une page, le découpage ralentit l’interactivité. Revoyez les imports dynamiques.`),
       fix: {
         generic: "Keep the number of round-trips to a reasonable count.",
         techCause:
@@ -524,7 +531,7 @@ function shopifyChecks(
       url,
       tech: "Shopify",
       message:
-        "/collections/all is a duplicate of every product. Shopify noindexes it by default — confirm it's still noindex, or canonical to a primary category.",
+        tr("/collections/all is a duplicate of every product. Shopify noindexes it by default — confirm it's still noindex, or canonical to a primary category.", "/collections/all reprend tous les produits. Shopify la met en noindex par défaut : vérifiez qu’elle l’est toujours, ou faites pointer sa canonique vers une catégorie principale."),
       fix: {
         generic: "Don't index duplicate catch-all listing pages.",
         techCause:
@@ -543,7 +550,7 @@ function shopifyChecks(
       url,
       tech: "Shopify",
       message:
-        "Liquid debug/error comments are present in the HTML. Theme has unresolved Liquid errors that may also break SEO output (titles, meta, schema).",
+        tr("Liquid debug/error comments are present in the HTML. Theme has unresolved Liquid errors that may also break SEO output (titles, meta, schema).", "Des commentaires d’erreur Liquid sont présents dans le HTML : le thème a des erreurs qui peuvent aussi casser les titles, les balises meta et les données structurées."),
       fix: {
         generic: "Fix template errors before launch.",
         techCause: "Shopify renders Liquid errors as HTML comments.",

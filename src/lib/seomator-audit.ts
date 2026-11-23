@@ -16,6 +16,9 @@ import type {
 import { fetchPageWithPlaywright } from "@/audit/crawler/playwright-fetcher";
 import { engineTitleFr, engineWhyFr, placeFr } from "./audit-to-task.fr";
 import { ruleNamesFr } from "./rule-names.fr";
+
+/** Effort sizes in French (cabinet/priority.ts: S, M, L). */
+const EFFORT_FR: Record<string, string> = { S: "faible", M: "moyen", L: "important" };
 import type { AuditFinding, Severity } from "./audit";
 import { runEngine, type AuditMode } from "@/lib/audit-engine";
 import { isAdvisoryFor, type SiteKind } from "./advisory-rules";
@@ -332,7 +335,7 @@ export function seomatorFindingsToTasks(
       description: [
         sample.message,
         sample.fixSteps,
-        `Effort estimate: ${effort}.`,
+        fr ? `Effort estimé : ${EFFORT_FR[effort] ?? effort}.` : `Effort estimate: ${effort}.`,
       ]
         .filter(Boolean)
         .join("\n\n"),
