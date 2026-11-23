@@ -326,7 +326,8 @@
         "privacy": "Confidentialité",
         "tools": "Outils",
         "profile": "Mon profil",
-        "memory": "Ma mémoire"
+        "memory": "Ma mémoire",
+        "serp": "Résultats Google"
       }
     },
     "general": {
@@ -1066,6 +1067,50 @@
           "hint": "Après chaque échange, l’assistant propose aussi ce qui lui semble utile à retenir. Rien ne sert avant d’être gardé dans Ma mémoire."
         }
       }
+    },
+    "serp": {
+      "title": "Résultats Google",
+      "description": "D’où viennent les positions des mots-clés : un navigateur sur Google (par défaut, gratuit), ou une API de résultats payante à l’usage, plus fiable.",
+      "statusApi": "API configurée",
+      "statusBrowser": "Navigateur",
+      "sourceTitle": "Source des résultats",
+      "source": "Source",
+      "sourceApiHint": "Les positions viennent de Google, pour le pays du client, sans navigateur. En cas d’échec, le navigateur prend le relais.",
+      "sourceBrowserHint": "Un navigateur interroge Google, puis DuckDuckGo si Google le bloque. Gratuit, mais Google bloque souvent les serveurs.",
+      "browser": "Navigateur (par défaut)",
+      "edit": "Modifier",
+      "setUp": "Configurer",
+      "check": "Vérifier",
+      "checkHint": "Lance une vraie recherche, facturée par le fournisseur comme les autres.",
+      "checkButton": "Tester la connexion",
+      "checking": "Test en cours…",
+      "checkOk": "Connexion réussie : {count, plural, one {# résultat reçu} other {# résultats reçus}}.",
+      "whyTitle": "Pourquoi une API",
+      "why": "Un navigateur lancé depuis un serveur reçoit souvent un captcha de Google, ou une page incomplète, et l’outil se rabat alors sur DuckDuckGo. Une position dans un rapport client doit être celle de Google, dans le pays du client, à chaque relevé. Une API de résultats répond sans captcha, pour quelques centimes par recherche. Rien n’est obligatoire : sans clé, l’outil continue avec le navigateur.",
+      "sheetTitle": "Source des résultats Google",
+      "sheetSubtitle": "La clé est chiffrée sur ce serveur et ne s’affiche plus après l’enregistrement.",
+      "step1": "1. Fournisseur",
+      "step2": "2. Identifiants",
+      "provider_serper": "Serper",
+      "provider_dataforseo": "DataForSEO",
+      "provider_none": "Aucun (navigateur)",
+      "pricing_serper": "Une clé d’API, résultats Google par pays et langue, payés à la recherche.",
+      "pricing_dataforseo": "Identifiant et mot de passe d’API, résultats Google par pays, langue et appareil, payés à la recherche.",
+      "pricingLink": "Voir les tarifs",
+      "noneHint": "Les positions seront relevées avec le navigateur. Les identifiants déjà saisis sont conservés.",
+      "serperKey": "Clé d’API Serper",
+      "dataforseoLogin": "Identifiant d’API",
+      "dataforseoPassword": "Mot de passe d’API",
+      "secretKept": "Enregistré : laissez vide pour le garder",
+      "clear": "Tout effacer",
+      "cancel": "Annuler",
+      "saving": "Enregistrement…",
+      "saveClose": "Enregistrer",
+      "errorProvider": "Choisissez un fournisseur.",
+      "errorSerperKey": "Indiquez la clé d’API Serper.",
+      "errorDataforseoLogin": "Indiquez l’identifiant d’API DataForSEO.",
+      "errorDataforseoPassword": "Indiquez le mot de passe d’API DataForSEO.",
+      "errorNotConfigured": "Aucune API de résultats n’est configurée."
     }
   },
   "reports": {
@@ -4240,6 +4285,10 @@
       "lead": "Ces positions viennent de vérifications de la SERP en direct.",
       "body": "En connectant Search Console pour ce client, vous aurez les chiffres de Google : plus justes, ils couvrent toutes les requêtes sur lesquelles vous apparaissez, sans limite ni blocage.",
       "cta": "La connecter"
+    },
+    "api": {
+      "label": "Google (API)",
+      "title": "Relevé auprès de Google par l’API de résultats configurée dans Réglages → Résultats Google, pour le pays du client. Position du moment, sans personnalisation ; Search Console donne, elle, la moyenne vue par les internautes."
     }
   },
   "linksTab": {

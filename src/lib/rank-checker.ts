@@ -2,6 +2,7 @@ import { type Page } from "playwright";
 import { withBrowserContext } from "./browser-pool";
 import { captchaUserMessage, detectCaptcha, emptyResultsReason } from "./captcha-detect";
 import { normaliseCountry } from "./countries";
+import { fetchSerpViaApi, serpApiConfig, type SerpProvider } from "./serp-api";
 
 export type RankCheckResult = {
   query: string;
@@ -14,6 +15,10 @@ export type RankCheckResult = {
   resultsScanned: number;
   screenshotBuffer?: Buffer;
   error?: string;
+  /** Read from a paid SERP API (serp-api.ts) rather than a browser. */
+  provider?: SerpProvider;
+  /** The SERP API was set up but failed; the browser answered instead. */
+  apiError?: string;
 };
 
 /**
@@ -540,6 +545,34 @@ export async function checkRank(
   const domain = normalizeDomain(rawDomain);
   const device = options.device ?? "desktop";
 
+  // A SERP API, when one is set up: Google's own results for the
+  // client's country, with no browser, no captcha and no fallback to
+  // another engine. Lean mode does not apply, it launches nothing. On
+  // failure the browser path below still runs, and says why.
+  let apiError: string | undefined;
+  const api = domain ? await serpApiConfig() : null;
+  if (api) {
+    const r = await fetchSerpViaApi(api, {
+      query,
+      country: options.country,
+      language: options.language,
+      device,
+    });
+    if (r.ok) {
+      const hit = rankInResults(r.urls, domain);
+      return {
+        query,
+        domain: rawDomain,
+        engine: "google",
+        ...hit,
+        checkedAt: new Date(),
+        device,
+        provider: r.provider,
+      };
+    }
+    apiError = `${r.provider === "serper" ? "Serper" : "DataForSEO"}: ${r.error}`;
+  }
+
   // Lean-mode short-circuit. When the user has disabled rank checking
   // in Settings → Browser pool, we return a clear error instead of
   // launching Chrome. Saves the user from a 30s wait + the browser
@@ -589,17 +622,35 @@ export async function checkRank(
   if (google.error || google.resultsScanned === 0) {
     const ddg = await checkOnDuckDuckGo(query, domain, device);
     // Prefer DDG result if Google was blocked, else return Google's null result
-    if (!ddg.error) return ddg;
+    if (!ddg.error) return withApiError(ddg, apiError);
     // Both failed: name both. The fallback's reason alone hides that
     // Google was the first thing to go wrong.
     if (google.error) {
-      return {
+      return withApiError({
         ...ddg,
         error: `Google: ${google.error} DuckDuckGo fallback: ${ddg.error}`,
-      };
+      }, apiError);
     }
   }
-  return google;
+  return withApiError(google, apiError);
+}
+
+/** Keep the API's failure visible when the browser path answered instead. */
+function withApiError(r: RankCheckResult, apiError: string | undefined): RankCheckResult {
+  if (!apiError) return r;
+  return { ...r, apiError };
+}
+
+/** Position of the first result on the domain, among results deduped by page. */
+export function rankInResults(
+  urls: readonly string[],
+  domain: string,
+): Pick<RankCheckResult, "position" | "url" | "resultsScanned"> {
+  const results = dedupeResults([...urls]);
+  const i = results.findIndex((h) => urlMatches(h, domain));
+  return i >= 0
+    ? { position: i + 1, url: results[i], resultsScanned: results.length }
+    : { position: null, url: null, resultsScanned: results.length };
 }
 
 /** Close the cached browser. Call this when the process is shutting down. */

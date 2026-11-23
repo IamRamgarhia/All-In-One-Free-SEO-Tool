@@ -25,6 +25,7 @@ import {
   Users2,
   Wrench,
   type LucideIcon,
+  Search,
 } from "lucide-react";
 import {
   LEGACY_ANCHORS,
@@ -42,6 +43,7 @@ const ICONS: Record<SettingsIconName, LucideIcon> = {
   wrench: Wrench,
   plug: Plug,
   mail: Mail,
+  search: Search,
   bell: Bell,
   key: Key,
   palette: Palette,

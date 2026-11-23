@@ -18,6 +18,7 @@ export type SettingsSectionId =
   | "ai-learning"
   | "tools"
   | "google"
+  | "serp"
   | "email"
   | "notifications"
   | "api"
@@ -50,7 +51,8 @@ export type SettingsIconName =
   | "cloud"
   | "activity"
   | "bug"
-  | "shield";
+  | "shield"
+  | "search";
 
 export type SettingsNavItem = {
   id: SettingsSectionId;
@@ -94,6 +96,7 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
     id: "integrations",
     items: [
       { id: "google", href: "/settings/google", icon: "plug", ownerOnly: true },
+      { id: "serp", href: "/settings/serp", icon: "search", ownerOnly: true },
       { id: "email", href: "/settings/email", icon: "mail" },
       { id: "notifications", href: "/settings/notifications", icon: "bell" },
       { id: "api", href: "/settings/api", icon: "key" },

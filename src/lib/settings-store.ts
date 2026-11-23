@@ -81,6 +81,14 @@ export type SettingKey =
   | "api.together"
   | "api.github"
   | "api.ollama_url"
+  /**
+   * Optional paid source of Google results for rank checks (serp-api.ts):
+   * "serper" | "dataforseo", with its credentials, encrypted at rest.
+   */
+  | "serp.provider"
+  | "serp.serper_key"
+  | "serp.dataforseo_login"
+  | "serp.dataforseo_password"
   | "ai.active_provider"
   // Google OAuth — user supplies their own Cloud OAuth client (free, ~5 min).
   // Tokens stored encrypted-at-rest at the SQLite layer (the file lives on

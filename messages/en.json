@@ -326,7 +326,8 @@
         "privacy": "Privacy",
         "tools": "Tools",
         "profile": "My profile",
-        "memory": "My memory"
+        "memory": "My memory",
+        "serp": "Google results"
       }
     },
     "general": {
@@ -1066,6 +1067,50 @@
           "hint": "After each exchange the assistant also suggests what seems worth keeping. Nothing is used until kept in My memory."
         }
       }
+    },
+    "serp": {
+      "title": "Google results",
+      "description": "Where keyword positions come from: a browser on Google (default, free), or a pay-per-use results API, more reliable.",
+      "statusApi": "API set up",
+      "statusBrowser": "Browser",
+      "sourceTitle": "Results source",
+      "source": "Source",
+      "sourceApiHint": "Positions come from Google, for the client’s country, with no browser. If the API fails, the browser takes over.",
+      "sourceBrowserHint": "A browser searches Google, then DuckDuckGo when Google blocks it. Free, but Google often blocks servers.",
+      "browser": "Browser (default)",
+      "edit": "Edit",
+      "setUp": "Set up",
+      "check": "Check",
+      "checkHint": "Runs a real search, billed by the provider like any other.",
+      "checkButton": "Test the connection",
+      "checking": "Testing…",
+      "checkOk": "Connected: {count, plural, one {# result received} other {# results received}}.",
+      "whyTitle": "Why an API",
+      "why": "A browser started from a server often gets a Google captcha or a partial page, and the tool then falls back to DuckDuckGo. A position in a client report has to be Google’s, in the client’s country, every time. A results API answers without captchas, for a few cents per search. Nothing is required: without a key, the tool keeps using the browser.",
+      "sheetTitle": "Google results source",
+      "sheetSubtitle": "The key is encrypted on this server and never shown again after saving.",
+      "step1": "1. Provider",
+      "step2": "2. Credentials",
+      "provider_serper": "Serper",
+      "provider_dataforseo": "DataForSEO",
+      "provider_none": "None (browser)",
+      "pricing_serper": "One API key, Google results by country and language, paid per search.",
+      "pricing_dataforseo": "API login and password, Google results by country, language and device, paid per search.",
+      "pricingLink": "See pricing",
+      "noneHint": "Positions will be checked with the browser. Credentials already saved are kept.",
+      "serperKey": "Serper API key",
+      "dataforseoLogin": "API login",
+      "dataforseoPassword": "API password",
+      "secretKept": "Saved: leave blank to keep it",
+      "clear": "Clear all",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "saveClose": "Save",
+      "errorProvider": "Choose a provider.",
+      "errorSerperKey": "Enter the Serper API key.",
+      "errorDataforseoLogin": "Enter the DataForSEO API login.",
+      "errorDataforseoPassword": "Enter the DataForSEO API password.",
+      "errorNotConfigured": "No results API is set up."
     }
   },
   "reports": {
@@ -4240,6 +4285,10 @@
       "lead": "These rankings come from live SERP checks.",
       "body": "Connecting Search Console for this client gives you Google's own numbers instead — more accurate, they cover every query you actually appear for, and they can't be rate-limited or blocked.",
       "cta": "Connect it"
+    },
+    "api": {
+      "label": "Google (API)",
+      "title": "Checked on Google through the results API set up in Settings → Google results, for the client’s country. A point-in-time position without personalisation; Search Console gives the average real users saw."
     }
   },
   "linksTab": {

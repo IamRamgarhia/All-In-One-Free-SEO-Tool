@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * every settings page checks access itself, before it reads anything.
  */
 
-const OWNER_ONLY = new Set(["backup", "edge", "google"]);
+const OWNER_ONLY = new Set(["backup", "edge", "google", "serp"]);
 
 function pageFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

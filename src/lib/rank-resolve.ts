@@ -23,7 +23,7 @@ import {
   type GscRankLookup,
 } from "./rank-gsc";
 
-export type RankSource = "gsc" | "scrape";
+export type RankSource = "gsc" | "scrape" | "api";
 
 export type ResolvedRank = {
   query: string;
@@ -178,7 +178,7 @@ async function scrapeFallback(
     position: r.position,
     url: r.url,
     device: r.device,
-    source: "scrape",
+    source: r.provider ? "api" : "scrape",
     checkedAt: r.checkedAt ?? now,
     dataDate: null,
     impressions: null,

@@ -1106,7 +1106,10 @@ export const keywordRankings = sqliteTable("keyword_rankings", {
    * is a point-in-time position our IP was shown. Mixing them on a chart
    * without saying which is which invents movement that never happened.
    */
-  source: text("source", { enum: ["scrape", "gsc"] })
+  // "api": Google's results from a paid SERP API (serp-api.ts), also a
+  // point-in-time position, but Google's for the client's country rather
+  // than whatever our IP was shown.
+  source: text("source", { enum: ["scrape", "gsc", "api"] })
     .notNull()
     .default("scrape"),
   /** GSC only: how many impressions the average rests on. */

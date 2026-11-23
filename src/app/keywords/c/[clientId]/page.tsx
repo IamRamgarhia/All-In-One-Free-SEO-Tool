@@ -152,7 +152,7 @@ export default async function PerClientKeywordsPage({
       hasFeaturedSnippet: boolean;
       hasLocalPack: boolean;
       paaCount: number;
-      source: "scrape" | "gsc";
+      source: "scrape" | "gsc" | "api";
       impressions: number | null;
       dataDate: string | null;
     }[]

@@ -24,7 +24,7 @@ export function RankSourceBadge({
   impressions,
   className,
 }: {
-  source: "gsc" | "scrape" | null | undefined;
+  source: "gsc" | "scrape" | "api" | null | undefined;
   /** The day a GSC figure describes — not the day it was fetched. */
   dataDate?: string | null;
   impressions?: number | null;
@@ -56,6 +56,18 @@ export function RankSourceBadge({
       >
         <Database className="size-2.5" />
         {t("gsc.label")}
+      </span>
+    );
+  }
+
+  if (source === "api") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-300 ring-1 ring-inset ring-sky-500/25 ${className ?? ""}`}
+        title={t("api.title")}
+      >
+        <Globe className="size-2.5" />
+        {t("api.label")}
       </span>
     );
   }

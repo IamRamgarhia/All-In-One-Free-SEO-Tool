@@ -37,7 +37,7 @@ export type CheckRankResult =
       engine: "google" | "duckduckgo";
       previousPosition: number | null;
       /** Where the number came from. See src/lib/rank-resolve.ts. */
-      source: "gsc" | "scrape";
+      source: "gsc" | "scrape" | "api";
       /** GSC only: the day it describes, which is not today. */
       dataDate: string | null;
       /** GSC only: impressions behind the average, i.e. how much to trust it. */
