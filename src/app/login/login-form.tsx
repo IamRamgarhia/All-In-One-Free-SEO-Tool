@@ -10,15 +10,29 @@ import { Label } from "@/components/ui/label";
 import { AuthCard } from "@/components/auth/auth-card";
 import { safeInternalPath } from "@/lib/safe-internal-path";
 
-export function LoginForm({ mode }: { mode: "accounts" | "password" }) {
+type DevLogin = { email: string; password: string } | null;
+
+export function LoginForm({
+  mode,
+  devLogin = null,
+}: {
+  mode: "accounts" | "password";
+  devLogin?: DevLogin;
+}) {
   return (
     <Suspense fallback={null}>
-      <LoginInner mode={mode} />
+      <LoginInner mode={mode} devLogin={devLogin} />
     </Suspense>
   );
 }
 
-function LoginInner({ mode }: { mode: "accounts" | "password" }) {
+function LoginInner({
+  mode,
+  devLogin,
+}: {
+  mode: "accounts" | "password";
+  devLogin: DevLogin;
+}) {
   const search = useSearchParams();
   const t = useTranslations("auth");
   const next = safeInternalPath(search.get("next"));
@@ -60,6 +74,33 @@ function LoginInner({ mode }: { mode: "accounts" | "password" }) {
       subtitle={accounts ? t("signInAccount") : t("signInPassword")}
     >
         <form onSubmit={submit} className="space-y-4">
+          {devLogin && (
+            <div className="space-y-2 rounded-md bg-amber-500/10 px-3 py-2.5 text-xs ring-1 ring-amber-500/30">
+              <p className="font-medium">{t("devAccountTitle")}</p>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                {accounts && (
+                  <>
+                    <dt className="text-muted-foreground">{t("email")}</dt>
+                    <dd className="break-all font-mono">{devLogin.email}</dd>
+                  </>
+                )}
+                <dt className="text-muted-foreground">{t("password")}</dt>
+                <dd className="break-all font-mono">{devLogin.password}</dd>
+              </dl>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  setEmail(devLogin.email);
+                  setPassword(devLogin.password);
+                }}
+              >
+                {t("devAccountFill")}
+              </Button>
+            </div>
+          )}
           {accounts && (
             <div className="space-y-1.5">
               <Label htmlFor="email">{t("email")}</Label>

@@ -121,12 +121,15 @@ export default async function LandingPage() {
             <div className="hidden sm:block">
               <LocaleToggle current={locale} />
             </div>
-            <Link
+            {/* A plain <a>, not <Link>: the root layout picks the sign-in
+                frame on a full load only, so a client-side hop to /login
+                would render the form inside this page's frame, unstyled. */}
+            <a
               href="/login"
               className="whitespace-nowrap rounded-full bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 transition hover:bg-white/90 sm:px-4"
             >
               {t("navSignIn")}
-            </Link>
+            </a>
           </div>
         </header>
 
@@ -149,14 +152,14 @@ export default async function LandingPage() {
               {t("heroBody", { name })}
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link
+              <a
                 href="/login"
                 className="inline-flex h-12 items-center gap-2 rounded-xl px-6 text-[15px] font-semibold shadow-lg transition hover:brightness-110"
                 style={{ background: accent, color: onAccent, boxShadow: `0 12px 32px -12px ${accent}` }}
               >
                 {t("heroPrimary")}
                 <ArrowRight className="size-4" />
-              </Link>
+              </a>
               <a
                 href="#services"
                 className="inline-flex h-12 items-center rounded-xl border border-white/15 px-6 text-[15px] font-medium text-white/85 transition hover:bg-white/5"
@@ -320,13 +323,13 @@ export default async function LandingPage() {
               {t("ctaBody")}
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <Link
+              <a
                 href="/login"
                 className="inline-flex h-12 items-center gap-2 rounded-xl bg-white px-6 text-[15px] font-semibold text-slate-900 transition hover:bg-white/90"
               >
                 {t("ctaPrimary")}
                 <ArrowRight className="size-4" />
-              </Link>
+              </a>
               {email && (
                 <a
                   href={`mailto:${email}?subject=${encodeURIComponent(t("ctaMailSubject"))}`}
