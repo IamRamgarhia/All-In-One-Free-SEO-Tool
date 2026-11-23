@@ -32,7 +32,6 @@ import {
   extractCwv,
   extractScoreCap,
   extractWaivedCaps,
-  ruleDisplayName,
   verdictForScore,
 } from "@/lib/seomator-meta";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -42,6 +41,7 @@ import { SeomatorGeoPanel } from "@/components/audits/seomator-geo-panel";
 import { GeoAuditPanel } from "@/components/audits/geo-audit-panel";
 import { EngineReportView } from "@/components/audits/engine-report";
 import { buildEngineReport, isEngineReport } from "@/lib/engine-report";
+import { issueFix, issueMessage, issueTypeName } from "@/lib/issue-display";
 import { isSiteKind } from "@/lib/advisory-rules";
 
 // Map audit issue-types to the glossary term key.
@@ -528,17 +528,13 @@ export default async function AuditDetailPage({
                       <div className="flex flex-wrap items-center gap-2">
                         {issueTypeToTerm[g.type] ? (
                           <Term term={issueTypeToTerm[g.type]}>
-                            <span className="font-medium capitalize">
-                              {g.type.replace(/_/g, " ")}
+                            <span className="font-medium first-letter:uppercase">
+                              {issueTypeName(g.type, locale)}
                             </span>
                           </Term>
                         ) : (
-                          <span className="font-medium capitalize">
-                            {g.type.startsWith("seomator:")
-                              ? ruleDisplayName(
-                                  g.type.slice("seomator:".length),
-                                )
-                              : g.type.replace(/_/g, " ")}
+                          <span className="font-medium first-letter:uppercase">
+                            {issueTypeName(g.type, locale)}
                           </span>
                         )}
                         {g.category && (
@@ -563,14 +559,14 @@ export default async function AuditDetailPage({
                         )}
                       </div>
                       <p className="text-sm leading-relaxed text-muted-foreground">
-                        {g.sample}
+                        {issueMessage(g.type, g.sample, locale)}
                       </p>
                       {g.fixSteps ? (
                         <p className="mt-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs leading-relaxed text-cyan-100/90">
                           <span className="font-semibold text-cyan-200">
                             {tu("fixLabel")}{" "}
                           </span>
-                          {g.fixSteps}
+                          {issueFix(g.type, g.fixSteps, locale)}
                         </p>
                       ) : null}
                       <details className="mt-1.5">
@@ -611,7 +607,7 @@ export default async function AuditDetailPage({
                             // which cannot cross to a client component; the
                             // component looks those up itself.
                             g.type.startsWith("seomator:")
-                              ? getExplainer(g.type)
+                              ? getExplainer(g.type, locale)
                               : undefined
                           }
                         />

@@ -40,3 +40,14 @@ describe("translating a stored message", () => {
     );
   });
 });
+
+describe("values that are English fragments", () => {
+  it("are translated too", () => {
+    expect(translateEngineMessage("eeat-about-page", "About page link found in navigation")).toBe(
+      "Lien vers la page « À propos » trouvé dans la navigation",
+    );
+    expect(translateEngineMessage("eeat-privacy-policy", "Privacy policy link found in footer (2 links)")).toBe(
+      "Lien vers la politique de confidentialité trouvé dans le pied de page (2 lien(s))",
+    );
+  });
+});

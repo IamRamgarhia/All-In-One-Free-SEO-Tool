@@ -1,7 +1,8 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { geoText } from "@/lib/geo-audit/text.fr";
 
 type GeoEnvelope = {
   scores?: {
@@ -20,6 +21,7 @@ export function GeoAuditPanel({
   envelope: GeoEnvelope | null | undefined;
 }) {
   const t = useTranslations("audits.geoPanel");
+  const locale = useLocale();
   const categories = envelope?.scores?.categories;
   const composite = geoScore ?? envelope?.scores?.composite;
   if (composite == null && !categories) return null;
@@ -58,14 +60,14 @@ export function GeoAuditPanel({
               </div>
               {envelope?.scores?.tier ? (
                 <span className="text-xs capitalize text-muted-foreground">
-                  {t("tier", { tier: envelope.scores.tier })}
+                  {t("tier", { tier: geoText(envelope.scores.tier, locale) })}
                 </span>
               ) : null}
             </div>
           ) : null}
           {envelope?.scores?.tier_meaning ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              {envelope.scores.tier_meaning}
+              {geoText(envelope.scores.tier_meaning, locale)}
             </p>
           ) : null}
         </div>

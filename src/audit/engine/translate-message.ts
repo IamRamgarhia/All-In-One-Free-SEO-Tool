@@ -13,6 +13,7 @@
  */
 
 import { ENGINE_MESSAGES_FR } from "./messages.fr";
+import { CRAWLER_MESSAGES_FR } from "@/lib/crawler-messages.fr";
 
 type Compiled = { re: RegExp; fr: string; literal: number };
 
@@ -60,13 +61,57 @@ function catalogue(): Map<string, Compiled[]> {
   return byRule;
 }
 
+/**
+ * Values that are themselves English fragments, built by the rules around
+ * a placeholder (" in footer", "high"). Whole-value matches only.
+ */
+const FRAGMENTS: [RegExp, (m: RegExpExecArray) => string][] = [
+  [/^ in navigation$/, () => " dans la navigation"],
+  [/^ in footer$/, () => " dans le pied de page"],
+  [/^ with structured data$/, () => " avec données structurées"],
+  [/^ \(FTC compliant language\)$/, () => " (formulation conforme aux règles de la FTC)"],
+  [/^ \((\d+) contact methods? visible\)$/, (m) => ` (${m[1]} moyen(s) de contact visible(s))`],
+  [/^ with (\d+) editorial signals?$/, (m) => ` avec ${m[1]} signal(aux) éditorial(aux)`],
+  [/^high$/, () => "élevée"],
+  [/^medium$/, () => "moyenne"],
+  [/^low$/, () => "faible"],
+];
+
+function translateValue(value: string): string {
+  for (const [re, fr] of FRAGMENTS) {
+    const m = re.exec(value);
+    if (m) return fr(m);
+  }
+  return value;
+}
+
 /** The message in French when its template is known, else unchanged. */
 export function translateEngineMessage(ruleId: string, message: string): string {
   const list = catalogue().get(ruleId);
   if (!list) return message;
   for (const c of list) {
     const m = c.re.exec(message);
-    if (m) return c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => m[Number(i) + 1] ?? "");
+    if (m) return c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => translateValue(m[Number(i) + 1] ?? ""));
+  }
+  return message;
+}
+
+let crawler: Compiled[] | null = null;
+
+/**
+ * A crawler finding stored in English (before the crawler wrote the
+ * workspace language), in French. Per-technology findings keep their
+ * "[Next.js] " prefix.
+ */
+export function translateCrawlerMessage(message: string): string {
+  if (!crawler) {
+    crawler = CRAWLER_MESSAGES_FR.map((e) => compile(e.en, e.fr)).sort((a, b) => b.literal - a.literal);
+  }
+  const prefix = /^\[[^\]]+\] /.exec(message)?.[0] ?? "";
+  const body = message.slice(prefix.length);
+  for (const c of crawler) {
+    const m = c.re.exec(body);
+    if (m) return prefix + c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => m[Number(i) + 1] ?? "");
   }
   return message;
 }

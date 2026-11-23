@@ -10,6 +10,7 @@ import { and, desc, eq, inArray, isNotNull, like, ne, or, sql } from "drizzle-or
 import { mergeTaskPages, spreadSameDayDueDates, staggeredDueDates } from "@/lib/task-pages";
 import { engineTaskWanted, planPriorityFromTitle, templateAuditType, untouched } from "@/lib/task-dedupe";
 import { getReportLocale } from "@/lib/report-i18n";
+import { geoText } from "@/lib/geo-audit/text.fr";
 import { db } from "@/db/client";
 import { audits, auditIssues, auditRuleHistory, clients, tasks } from "@/db/schema";
 import { runAudit } from "@/lib/audit";
@@ -538,15 +539,17 @@ export async function runAuditForClient(
   }
 
   if (geoFindings.length > 0) {
+    // Stored in the workspace language, like the crawler's findings.
+    const geoLocale = await getReportLocale();
     await db.insert(auditIssues).values(
       geoFindings.map((f) => ({
         auditId: auditRow.id,
         type: `geo:${f.id}`,
         severity: f.severity as "critical" | "high" | "medium" | "low",
         url: f.pages[0] ?? client.url,
-        message: f.title,
+        message: geoText(f.title, geoLocale),
         category: "geo",
-        fixSteps: f.remediation,
+        fixSteps: geoText(f.remediation, geoLocale),
         confidence: "probably" as const,
         aiGenerated: false,
       })),

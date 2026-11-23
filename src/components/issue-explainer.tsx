@@ -1,7 +1,7 @@
 "use client";
 
 import type { Tx } from "@/lib/tx";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import {
   ChevronDown,
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   getStaticExplainer,
+  localizeExplainer,
   type IssueExplainer,
 } from "@/lib/issue-explainers";
 import { REPO_NEW_ISSUE_URL } from "@/lib/repo";
@@ -56,10 +57,9 @@ export function IssueExplainer({
   const tx = useTranslations("ui.components_issue-explainer");
   const [open, setOpen] = useState(defaultOpen);
   const [copied, setCopied] = useState(false);
-  const explainer =
-    explainerProp !== undefined
-      ? explainerProp
-      : getStaticExplainer(issueType);
+  const locale = useLocale();
+  const builtIn = explainerProp !== undefined ? explainerProp : getStaticExplainer(issueType);
+  const explainer = builtIn ? localizeExplainer(builtIn, issueType, locale) : null;
 
   if (!explainer) {
     // Say so, rather than rendering nothing.

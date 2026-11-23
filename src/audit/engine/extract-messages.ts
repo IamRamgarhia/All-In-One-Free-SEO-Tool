@@ -66,9 +66,71 @@ export function extractMessageTemplates(rulesDir = path.join(process.cwd(), "src
           out.push({ ruleId, ...t });
         }
       }
+      // Rules that return the result object themselves: { ruleId, message }.
+      if (ts.isObjectLiteralExpression(node)) {
+        const prop = (name: string) =>
+          node.properties.find(
+            (p): p is ts.PropertyAssignment =>
+              ts.isPropertyAssignment(p) && ts.isIdentifier(p.name) && p.name.text === name,
+          );
+        const idProp = prop("ruleId");
+        const msgProp = prop("message");
+        if (idProp && msgProp && ts.isStringLiteral(idProp.initializer)) {
+          const ruleId = idProp.initializer.text;
+          for (const t of toTemplates(msgProp.initializer) ?? []) {
+            const key = `${ruleId}\u0000${t.en}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push({ ruleId, ...t });
+          }
+        }
+      }
       ts.forEachChild(node, visit);
     };
     visit(src);
   }
+  return out;
+}
+
+/**
+ * The English/French pairs a module writes with `tr(en, fr)` (the crawler,
+ * src/lib/audit.ts, and its per-technology checks), as templates. Used to
+ * read findings stored in English, before the crawler wrote French.
+ */
+export function extractTrPairs(file: string): { en: string; fr: string }[] {
+  const src = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+  const out: { en: string; fr: string }[] = [];
+  const asTemplate = (node: ts.Expression): { text: string; exprs: string[] } | null => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return { text: node.text, exprs: [] };
+    if (!ts.isTemplateExpression(node)) return null;
+    let text = node.head.text;
+    const exprs: string[] = [];
+    for (const span of node.templateSpans) {
+      text += `{${exprs.length}}`;
+      exprs.push(span.expression.getText(src));
+      text += span.literal.text;
+    }
+    return { text, exprs };
+  };
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "tr" && node.arguments.length === 2) {
+      const en = asTemplate(node.arguments[0]);
+      const fr = asTemplate(node.arguments[1]);
+      // A French text built on expressions the English lacks (French
+      // agreements such as "a"/"ont") cannot be rebuilt from an English
+      // message: left out rather than rendered broken.
+      if (en && fr && fr.exprs.every((e) => en.exprs.includes(e))) {
+        // Number the French placeholders by the English expression they repeat.
+        let frText = fr.text;
+        fr.exprs.forEach((expr, i) => {
+          const at = en.exprs.indexOf(expr);
+          frText = frText.replace(`{${i}}`, at >= 0 ? `{§${at}}` : "");
+        });
+        out.push({ en: en.text, fr: frText.replace(/\{§(\d+)\}/g, "{$1}") });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(src);
   return out;
 }

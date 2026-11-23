@@ -1,5 +1,7 @@
 "use server";
 
+import { getLocale } from "next-intl/server";
+import { geoText } from "@/lib/geo-audit/text.fr";
 import { requireSignedIn } from "@/lib/action-guard";
 import { getTranslations } from "next-intl/server";
 
@@ -73,6 +75,7 @@ export async function runGeoScore(
     return { ok: false, error: msg };
   }
 
+  const locale = await getLocale();
   const weightMap = weights();
   const categories: Record<string, GeoScoreCategory> = {};
   for (const key of CATEGORY_ORDER) {
@@ -82,7 +85,7 @@ export async function runGeoScore(
       f.id.startsWith(`${key}:`) || f.title.toLowerCase().includes(key),
     );
     const note =
-      top?.title ??
+      (top ? geoText(top.title, locale) : undefined) ??
       (audit.findings.length > 0
         ? t("noteSignals", { count: audit.findings.length })
         : t("noteNoSignals"));
@@ -94,8 +97,8 @@ export async function runGeoScore(
   const env = audit.envelope as {
     scores?: { tier?: string; tier_meaning?: string };
   };
-  const tierLabel = env.scores?.tier ?? tier.label;
-  const tierMeaning = env.scores?.tier_meaning ?? tier.meaning;
+  const tierLabel = geoText(env.scores?.tier ?? tier.label, locale);
+  const tierMeaning = geoText(env.scores?.tier_meaning ?? tier.meaning, locale);
 
   let clientId: number | null = null;
   if (clientIdRaw) {

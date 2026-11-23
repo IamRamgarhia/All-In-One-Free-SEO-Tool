@@ -29,6 +29,8 @@
  * there is no shape of this object that gives you code and leaves out
  * how to reverse it.
  */
+import { ISSUE_EXPLAINERS_FR } from "./issue-explainers.fr";
+
 export type FixSnippet = {
   /** For syntax highlighting and to signal what kind of file this is. */
   language: "php" | "html" | "liquid" | "js" | "ts" | "nginx" | "text";
@@ -866,4 +868,38 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
  */
 export function getStaticExplainer(type: string): IssueExplainer | null {
   return ISSUE_EXPLAINERS[type] ?? null;
+}
+
+/**
+ * An explainer in the reader's language: the French prose
+ * (issue-explainers.fr.ts) over the English entry, whose links, code and
+ * confidence are shared. Unknown in French: the English entry.
+ */
+export function localizeExplainer(
+  explainer: IssueExplainer,
+  type: string,
+  locale: string,
+): IssueExplainer {
+  if (locale !== "fr") return explainer;
+  const fr = ISSUE_EXPLAINERS_FR[type];
+  if (!fr) return explainer;
+  const tool = explainer.externalTool;
+  return {
+    ...explainer,
+    whatIsIt: fr.whatIsIt,
+    whyItMatters: fr.whyItMatters,
+    howToFix: fr.howToFix,
+    snippet: explainer.snippet
+      ? {
+          ...explainer.snippet,
+          where: fr.snippetWhere ?? explainer.snippet.where,
+          undo: fr.snippetUndo ?? explainer.snippet.undo,
+          caution: fr.snippetCaution ?? explainer.snippet.caution,
+        }
+      : undefined,
+    externalTool:
+      tool && fr.externalToolLabel
+        ? (params) => ({ ...tool(params), label: fr.externalToolLabel! })
+        : tool,
+  };
 }
