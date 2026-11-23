@@ -29,6 +29,8 @@ import {
 } from "./google-data";
 import { callAI } from "./ai-call";
 import { loadBrand } from "./brand";
+import type { Locale } from "@/i18n/config";
+import { getReportLocale, reportFormat } from "./report-i18n";
 
 async function loadClientLogo(
   logoUrl: string | null,
@@ -66,9 +68,68 @@ const PALETTE = {
   rose: "#f87171",
 };
 
+/**
+ * Every word of the quarterly review, in each interface language. The
+ * document follows the workspace language (Settings → General), like the
+ * monthly report. Strings stay inside WinAnsi (PDFKit's Helvetica).
+ */
+const TEXT = {
+  en: {
+    docTitle: (client: string) => `${client} — Quarterly SEO Strategy`,
+    subject: "Quarterly strategy review",
+    quarter: (q: number, year: number) => `Q${q} ${year}`,
+    review: (url: string) => `90-day review · ${url}`,
+    tasksCompleted: "Tasks completed",
+    linksBuilt: "Links built",
+    contentPieces: "Content pieces",
+    narrative: "Strategic narrative",
+    trend: "Health-score trend (90 days)",
+    velocity: "Velocity vs prior 90 days",
+    manualLinks: "Manual links built",
+    linksValue: (a: number, b: number) => `${a} this Q · ${b} prior Q`,
+    auditsCompleted: "Audits completed",
+    brandMentions: "Brand mentions",
+    mentionsValue: (n: number, pos: number, neg: number) => `${n} (${pos} +, ${neg} −)`,
+    topQueries: "Top organic queries (90 days)",
+    queryLine: (clicks: number, pos: string) => `  ${clicks} clicks · pos ${pos}`,
+    footer: (date: string, n: number, since: string) =>
+      `Generated ${date} · ${n} snapshot${n === 1 ? "" : "s"} since ${since}.`,
+    aiLanguage: "",
+  },
+  fr: {
+    docTitle: (client: string) => `${client} — Stratégie SEO trimestrielle`,
+    subject: "Bilan stratégique trimestriel",
+    quarter: (q: number, year: number) => `T${q} ${year}`,
+    review: (url: string) => `Bilan sur 90 jours · ${url}`,
+    tasksCompleted: "Tâches terminées",
+    linksBuilt: "Liens obtenus",
+    contentPieces: "Contenus publiés",
+    narrative: "Analyse stratégique",
+    trend: "Évolution du score de santé (90 jours)",
+    velocity: "Rythme par rapport aux 90 jours précédents",
+    manualLinks: "Liens obtenus manuellement",
+    linksValue: (a: number, b: number) => `${a} ce trimestre · ${b} le trimestre précédent`,
+    auditsCompleted: "Audits réalisés",
+    brandMentions: "Mentions de la marque",
+    mentionsValue: (n: number, pos: number, neg: number) =>
+      `${n} (${pos} positives, ${neg} négatives)`,
+    topQueries: "Principales requêtes organiques (90 jours)",
+    queryLine: (clicks: number, pos: string) =>
+      `  ${clicks} clic${clicks > 1 ? "s" : ""} · position ${pos}`,
+    footer: (date: string, n: number, since: string) =>
+      `Généré le ${date} · ${n} relevé${n > 1 ? "s" : ""} depuis le ${since}.`,
+    aiLanguage:
+      "Write the whole review in French, addressing the client as « vous », section headings included.",
+  },
+} satisfies Record<Locale, unknown>;
+
 export async function generateQuarterlyStrategyPdf(
   clientId: number,
+  opts: { locale?: Locale } = {},
 ): Promise<QuarterlyDoc> {
+  const locale: Locale = opts.locale ?? (await getReportLocale());
+  const L = TEXT[locale];
+  const F = reportFormat(locale);
   const [client] = await db
     .select()
     .from(clients)
@@ -226,8 +287,12 @@ export async function generateQuarterlyStrategyPdf(
       .join("\n");
 
     const out = await callAI({
-      system:
+      system: [
         "You are a senior SEO strategist writing a quarterly review for an agency client. Direct, honest, action-oriented. Cite numbers from the data given.",
+        L.aiLanguage,
+      ]
+        .filter(Boolean)
+        .join(" "),
       user: userPrompt,
       maxTokens: 700,
       temperature: 0.4,
@@ -265,6 +330,7 @@ export async function generateQuarterlyStrategyPdf(
         position: q.position,
       })),
       quickWinsCount: 0,
+      locale,
     });
     narrative = fallback.prose;
   }
@@ -275,9 +341,9 @@ export async function generateQuarterlyStrategyPdf(
     size: "A4",
     margins: { top: 60, bottom: 60, left: 56, right: 56 },
     info: {
-      Title: `${client.name} — Quarterly SEO Strategy`,
+      Title: L.docTitle(client.name),
       Author: "SEO Tool",
-      Subject: "Quarterly strategy review",
+      Subject: L.subject,
     },
   });
 
@@ -287,7 +353,7 @@ export async function generateQuarterlyStrategyPdf(
   });
 
   const today = new Date();
-  const quarter = `Q${Math.floor(today.getUTCMonth() / 3) + 1} ${today.getUTCFullYear()}`;
+  const quarter = L.quarter(Math.floor(today.getUTCMonth() / 3) + 1, today.getUTCFullYear());
 
   // === Cover ===
   const clientLogo = await loadClientLogo(client.logoUrl);
@@ -314,13 +380,13 @@ export async function generateQuarterlyStrategyPdf(
     .fillColor(PALETTE.ink)
     .font("Helvetica-Bold")
     .fontSize(28)
-    .text(`${client.name} — Quarterly SEO Strategy`, { lineBreak: true });
+    .text(L.docTitle(client.name), { lineBreak: true });
   doc
     .moveDown(0.5)
     .fillColor(PALETTE.mute)
     .font("Helvetica")
     .fontSize(11)
-    .text(`90-day review · ${client.url}`);
+    .text(L.review(client.url));
 
   doc.moveDown(2);
 
@@ -329,15 +395,15 @@ export async function generateQuarterlyStrategyPdf(
     (doc.page.width - doc.page.margins.left - doc.page.margins.right - 20) / 3;
   const cards = [
     {
-      label: "Tasks completed",
+      label: L.tasksCompleted,
       value: String(doneTasks.length),
     },
     {
-      label: "Links built",
+      label: L.linksBuilt,
       value: String(linksBuiltThisQ.length),
     },
     {
-      label: "Content pieces",
+      label: L.contentPieces,
       value: String(publishedBriefs.length),
     },
   ];
@@ -359,7 +425,7 @@ export async function generateQuarterlyStrategyPdf(
   doc.y = cardY + 90;
 
   // === Narrative ===
-  drawHeading(doc, "Strategic narrative", accent);
+  drawHeading(doc, L.narrative, accent);
   doc
     .fillColor(PALETTE.ink)
     .font("Helvetica")
@@ -370,7 +436,7 @@ export async function generateQuarterlyStrategyPdf(
 
   // === Trend chart ===
   if (snapshots.length >= 3) {
-    drawHeading(doc, "Health-score trend (90 days)", accent);
+    drawHeading(doc, L.trend, accent);
     drawSparkline(
       doc,
       snapshots.map((s) => s.healthScore ?? 0),
@@ -380,28 +446,26 @@ export async function generateQuarterlyStrategyPdf(
   }
 
   // === Velocity table ===
-  drawHeading(doc, "Velocity vs prior 90 days", accent);
-  drawKv(doc, "Manual links built", `${linksBuiltThisQ.length} this Q · ${linksBuiltLastQ} prior Q`);
-  drawKv(doc, "Audits completed", String(completedAudits.length));
-  drawKv(doc, "Brand mentions", `${mentions90.length} (${positiveMentions} +, ${negativeMentions} −)`);
+  drawHeading(doc, L.velocity, accent);
+  drawKv(doc, L.manualLinks, L.linksValue(linksBuiltThisQ.length, linksBuiltLastQ));
+  drawKv(doc, L.auditsCompleted, String(completedAudits.length));
+  drawKv(doc, L.brandMentions, L.mentionsValue(mentions90.length, positiveMentions, negativeMentions));
   doc.moveDown(1);
 
   // === Top queries ===
   if (gscTopReal.length > 0) {
-    drawHeading(doc, "Top organic queries (90 days)", accent);
+    drawHeading(doc, L.topQueries, accent);
     for (const q of gscTopReal.slice(0, 8)) {
       ensureSpace(doc, 18);
       doc
         .fillColor(PALETTE.ink)
         .font("Helvetica-Bold")
         .fontSize(10)
-        .text(`"${q.query}"`, { continued: true });
+        .text(locale === "fr" ? `« ${q.query} »` : `"${q.query}"`, { continued: true });
       doc
         .fillColor(PALETTE.mute)
         .font("Helvetica")
-        .text(
-          `  ${q.clicks} clicks · pos ${q.position.toFixed(1)}`,
-        );
+        .text(L.queryLine(q.clicks, locale === "fr" ? F.dec(q.position) : q.position.toFixed(1)));
     }
     doc.moveDown(1);
   }
@@ -413,7 +477,9 @@ export async function generateQuarterlyStrategyPdf(
     .font("Helvetica")
     .fontSize(9)
     .text(
-      `Generated ${today.toLocaleDateString()} · ${snapshots.length} snapshot${snapshots.length === 1 ? "" : "s"} since ${earliest?.capturedAt.toLocaleDateString() ?? "—"}.`,
+      locale === "fr"
+        ? L.footer(F.date(today), snapshots.length, earliest ? F.date(earliest.capturedAt) : "—")
+        : L.footer(today.toLocaleDateString(), snapshots.length, earliest?.capturedAt.toLocaleDateString() ?? "—"),
       { align: "center" },
     );
 

@@ -577,7 +577,13 @@
       "status_pickModel": "Pick a model",
       "status_notConnected": "Not connected",
       "status_waiting": "Waiting for your chat app",
-      "status_notSetUp": "Not set up"
+      "status_notSetUp": "Not set up",
+      "recently": "recently",
+      "detail_apiOk": "{count, plural, one {# provider} other {# providers}} configured, using {model}.",
+      "detail_apiPickModel": "Keys are saved but no active model is selected, so AI features have nothing to call.",
+      "detail_apiNone": "No provider key saved yet.",
+      "detail_mcpWaiting": "Token generated, but nothing has connected yet. Add the config to your chat app and restart it.",
+      "detail_mcpNotSetUp": "Generate a token to let your Claude or ChatGPT subscription connect."
     },
     "smtpForm": {
       "serverTitle": "Sending server",
@@ -6388,7 +6394,8 @@
       "youReOnWhichOnly": "You're on <b0>{origin}</b0>, which only works from this machine. For the widget to work on a public site, this app needs to be reachable at a public address — a domain pointed at your server, or a tunnel. The snippet will use whatever address you open the app on.",
       "copied": "Copied",
       "copySnippet": "Copy snippet",
-      "previewIt": "Preview it"
+      "previewIt": "Preview it",
+      "iframeTitle": "Free SEO audit"
     },
     "app_leads_inbox": {
       "other": "{length} {length, plural, one {lead} other {leads}}",

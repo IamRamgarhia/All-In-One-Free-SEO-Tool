@@ -6,6 +6,9 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { graderLeads } from "@/db/schema";
 import { runAudit, type AuditFinding } from "@/lib/audit";
+import type { Locale } from "@/i18n/config";
+import { getReportLocale } from "@/lib/report-i18n";
+import { graderWidgetStrings } from "./strings";
 import {
   ipPrefix,
   looksLikeEmail,
@@ -56,6 +59,7 @@ export async function publicGrade(
     url: formData.get("url"),
     ip: h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? null,
     referer: h.get("referer"),
+    locale: await getReportLocale(),
   });
 }
 
@@ -63,10 +67,13 @@ export async function gradeForVisitor(input: {
   url: FormDataEntryValue | string | null;
   ip: string | null;
   referer: string | null;
+  /** The widget's language (the workspace's); English when omitted. */
+  locale?: Locale;
 }): Promise<PublicGradeResult> {
+  const S = graderWidgetStrings(input.locale ?? "en");
   const parsed = urlSchema.safeParse(input.url);
   if (!parsed.success) {
-    return { ok: false, error: "That doesn't look like a website address." };
+    return { ok: false, error: S.badUrl };
   }
 
   const prefix = ipPrefix(input.ip);
@@ -76,7 +83,7 @@ export async function gradeForVisitor(input: {
     const mins = Math.ceil(limit.retryAfterSec / 60);
     return {
       ok: false,
-      error: `That's a few audits in quick succession. Try again in ${mins} minute${mins === 1 ? "" : "s"}.`,
+      error: S.rateLimited(mins),
     };
   }
 
@@ -89,7 +96,7 @@ export async function gradeForVisitor(input: {
   } catch {
     return {
       ok: false,
-      error: "Couldn't reach that site. Check it loads in a browser and retry.",
+      error: S.unreachable,
     };
   }
 
@@ -99,7 +106,7 @@ export async function gradeForVisitor(input: {
     // caller "that address is internal" confirms the address exists.
     return {
       ok: false,
-      error: "Couldn't reach that site. Check it loads in a browser and retry.",
+      error: S.unreachable,
     };
   }
 
@@ -183,11 +190,12 @@ export async function captureLead(input: {
   email: string;
   name?: string;
 }): Promise<{ ok: boolean; error?: string }> {
+  const S = graderWidgetStrings(await getReportLocale());
   if (!Number.isInteger(input.leadId) || input.leadId <= 0) {
-    return { ok: false, error: "Something went wrong — re-run the audit." };
+    return { ok: false, error: S.rerun };
   }
   if (!looksLikeEmail(input.email)) {
-    return { ok: false, error: "That email doesn't look right." };
+    return { ok: false, error: S.badEmail };
   }
 
   // Only fills in contact details on a row this endpoint created. It

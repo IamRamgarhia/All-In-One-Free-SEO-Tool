@@ -191,16 +191,20 @@ export async function getAiConnectionStatus(): Promise<{
 
   const keyCount = ids.length;
   const apiOk = keyCount > 0 && Boolean(active);
+  // Labels stay English (connection-mode.tsx maps them to its own keys);
+  // the detail, shown as the badge's tooltip, is translated here.
+  const t = await actionTx("settings.connection");
+  const when = mcp.lastSeenLabel ?? t("recently");
 
   return {
     api: {
       ok: apiOk,
       label: apiOk ? "Connected" : keyCount > 0 ? "Pick a model" : "Not connected",
       detail: apiOk
-        ? `${keyCount} provider${keyCount === 1 ? "" : "s"} configured, using ${active}.`
+        ? t("detail_apiOk", { count: keyCount, model: active ?? "" })
         : keyCount > 0
-          ? "Keys are saved but no active model is selected, so AI features have nothing to call."
-          : "No provider key saved yet.",
+          ? t("detail_apiPickModel")
+          : t("detail_apiNone"),
     },
     mcp: {
       ok: mcp.connected,
@@ -210,12 +214,12 @@ export async function getAiConnectionStatus(): Promise<{
           ? "Waiting for your chat app"
           : "Not set up",
       detail: mcp.connected
-        ? `Last used ${mcp.lastSeenAt ? new Date(mcp.lastSeenAt).toLocaleString() : "recently"}${
-            mcp.lastClient ? ` by ${mcp.lastClient}` : ""
-          }.`
+        ? mcp.lastClient
+          ? t("lastUsedBy", { when, client: mcp.lastClient })
+          : t("lastUsed", { when })
         : mcp.enabled
-          ? "Token generated, but nothing has connected yet. Add the config to your chat app and restart it."
-          : "Generate a token to let your Claude or ChatGPT subscription connect.",
+          ? t("detail_mcpWaiting")
+          : t("detail_mcpNotSetUp"),
     },
   };
 }

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { generateQuarterlyStrategyPdf } from "@/lib/quarterly-strategy";
+import { getReportLocale } from "@/lib/report-i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -33,9 +34,10 @@ export async function GET(
     return NextResponse.json({ error: "Client not found" }, { status: 404 });
   }
 
+  const locale = await getReportLocale();
   let pdf: Buffer;
   try {
-    pdf = await generateQuarterlyStrategyPdf(id);
+    pdf = await generateQuarterlyStrategyPdf(id, { locale });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },
@@ -44,8 +46,11 @@ export async function GET(
   }
 
   const today = new Date();
-  const quarter = `q${Math.floor(today.getUTCMonth() / 3) + 1}-${today.getUTCFullYear()}`;
-  const filename = `${safeFilename(client.name)}-quarterly-${quarter}.pdf`;
+  const q = Math.floor(today.getUTCMonth() / 3) + 1;
+  const filename =
+    locale === "fr"
+      ? `${safeFilename(client.name)}-bilan-trimestriel-t${q}-${today.getUTCFullYear()}.pdf`
+      : `${safeFilename(client.name)}-quarterly-q${q}-${today.getUTCFullYear()}.pdf`;
 
   // @ts-expect-error - Buffer is valid BodyInit at runtime
   return new NextResponse(pdf, {

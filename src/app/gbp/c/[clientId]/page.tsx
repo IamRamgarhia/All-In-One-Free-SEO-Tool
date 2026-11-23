@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { GbpRunner } from "./gbp-runner";
 import { GbpPostComposer } from "./post-composer";
@@ -187,7 +187,7 @@ async function GbpPlaybookSection({
   };
 }) {
   const t = await getTranslations("localTab.gbp.playbook");
-  const items = playbookFor(niche);
+  const items = playbookFor(niche, (await getLocale()) === "fr" ? "fr" : "en");
   const cadenceTone: Record<string, string> = {
     once: "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
     weekly: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",

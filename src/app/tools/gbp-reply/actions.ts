@@ -21,6 +21,7 @@ import {
 } from "@/lib/gbp-api";
 import { getTranslations } from "next-intl/server";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
+import { getReportLocale } from "@/lib/report-i18n";
 import type { AiFailure } from "@/lib/ai-error";
 
 export type ReplyLocation = {
@@ -104,6 +105,10 @@ async function draftReplyForReview(opts: {
   starRating: number | null;
   comment: string | null;
 }): Promise<string | null> {
+  // Replies are published under the client's name: French workspaces get
+  // a French reply, a French sign-off and a French placeholder for a
+  // review that has stars and no text.
+  const fr = (await getReportLocale()) === "fr";
   const isPositive = (opts.starRating ?? 0) >= 4;
   const isNegative = (opts.starRating ?? 0) > 0 && (opts.starRating ?? 0) <= 2;
   const tone = isPositive
@@ -122,13 +127,17 @@ Rules:
 - For negative reviews: acknowledge the specific concern, take responsibility, propose a concrete next step (e.g. "please email us at ..." or "call us at ..."). Never argue. Never say "we'll do better."
 - For positive reviews: thank them for the specific thing they mentioned. NEVER use the phrase "we appreciate your business."
 - For neutral/3-star reviews: ask what would have made it a 5, invite back.
-- Sign off naturally — "— The ${opts.businessName} team" or first-name closer if context warrants. Don't sign every reply the same way.
-- Never use emoji (Google may downrank emoji-heavy replies and they read insincere).`;
+- Sign off naturally — "${fr ? `— L'équipe ${opts.businessName}` : `— The ${opts.businessName} team`}" or first-name closer if context warrants. Don't sign every reply the same way.
+- Never use emoji (Google may downrank emoji-heavy replies and they read insincere).${
+    fr
+      ? "\n- Reply in the language of the review. When the review has no text or its language is unclear, write in French, addressing the reader as « vous »."
+      : ""
+  }`;
 
   const user = `Business: ${opts.businessName}
 Reviewer: ${opts.reviewerName}
 Stars: ${opts.starRating ?? "(unknown)"} / 5
-Review text: ${opts.comment ?? "(left no text — star rating only)"}`;
+Review text: ${opts.comment ?? (fr ? "(aucun texte, seulement une note)" : "(left no text — star rating only)")}`;
 
   return await callAI({
     system,

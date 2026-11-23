@@ -9,6 +9,7 @@ import { clients } from "@/db/schema";
 import { scrapeGbp, type GbpReport } from "@/lib/gbp-scraper";
 import { callAI, lastAiFailure } from "@/lib/ai-call";
 import { getSetting } from "@/lib/settings-store";
+import { getReportLocale } from "@/lib/report-i18n";
 import {
   GbpScopeMissingError,
   fetchGbpLocationSummary,
@@ -111,8 +112,13 @@ export async function generateReviewReply(opts: {
     "Write the reply now. Reply text only, no quotation marks, no preamble.",
   ].join("\n");
 
+  // The reply is published under the client's name: in a French
+  // workspace, ask for French unless the review is in another language.
+  const fr = (await getReportLocale()) === "fr";
   const raw = await callAI({
-    system: REPLY_SYSTEM,
+    system: fr
+      ? `${REPLY_SYSTEM}\n\nReply in the language of the review; when its language is unclear, write in French, addressing the reader as « vous ».`
+      : REPLY_SYSTEM,
     user: userPrompt,
     maxTokens: 400,
     temperature: 0.5,

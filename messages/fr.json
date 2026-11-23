@@ -577,7 +577,13 @@
       "status_pickModel": "Choisir un modèle",
       "status_notConnected": "Non connecté",
       "status_waiting": "En attente de votre app",
-      "status_notSetUp": "Non configuré"
+      "status_notSetUp": "Non configuré",
+      "recently": "récemment",
+      "detail_apiOk": "{count, plural, one {# fournisseur configuré} other {# fournisseurs configurés}}, modèle utilisé : {model}.",
+      "detail_apiPickModel": "Des clés sont enregistrées mais aucun modèle n’est choisi : les fonctions IA n’ont rien à appeler.",
+      "detail_apiNone": "Aucune clé de fournisseur enregistrée pour l’instant.",
+      "detail_mcpWaiting": "Jeton généré, mais rien ne s’est encore connecté. Ajoutez la configuration à votre application de chat et redémarrez-la.",
+      "detail_mcpNotSetUp": "Générez un jeton pour connecter votre abonnement Claude ou ChatGPT."
     },
     "smtpForm": {
       "serverTitle": "Serveur d'envoi",
@@ -6388,7 +6394,8 @@
       "youReOnWhichOnly": "Vous êtes sur <b0>{origin}</b0>, une adresse qui ne fonctionne que sur cette machine. Pour que le widget marche sur un site public, l’application doit être joignable à une adresse publique : un domaine pointé vers votre serveur, ou un tunnel. Le code utilise l’adresse à laquelle vous ouvrez l’application.",
       "copied": "Copié",
       "copySnippet": "Copier le code",
-      "previewIt": "Voir l’aperçu"
+      "previewIt": "Voir l’aperçu",
+      "iframeTitle": "Audit SEO gratuit"
     },
     "app_leads_inbox": {
       "other": "{length, plural, one {# prospect} other {# prospects}}",

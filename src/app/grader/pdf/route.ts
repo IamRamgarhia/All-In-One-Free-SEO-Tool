@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAudit } from "@/lib/audit";
 import { generateGraderPdf } from "@/lib/grader-report";
+import { getReportLocale } from "@/lib/report-i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,14 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const locale = await getReportLocale();
   if (audit.pagesCrawled === 0) {
     return NextResponse.json(
       {
         error:
-          "Couldn't reach that URL. Check it loads in a normal browser, then try again.",
+          locale === "fr"
+            ? "Impossible d'atteindre cette adresse. Vérifiez qu'elle s'ouvre dans un navigateur, puis réessayez."
+            : "Couldn't reach that URL. Check it loads in a normal browser, then try again.",
       },
       { status: 422 },
     );
@@ -56,6 +60,7 @@ export async function GET(req: NextRequest) {
     pagesCrawled: audit.pagesCrawled,
     counts,
     findings: ranked,
+    locale,
   });
 
   const filenameSafe = hostFor(audit.finalUrl).replace(/[^a-z0-9.-]/gi, "_");
@@ -63,7 +68,7 @@ export async function GET(req: NextRequest) {
     status: 200,
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `attachment; filename="${filenameSafe}-instant-audit.pdf"`,
+      "content-disposition": `attachment; filename="${filenameSafe}-${locale === "fr" ? "audit-express" : "instant-audit"}.pdf"`,
       "cache-control": "no-store",
     },
   });

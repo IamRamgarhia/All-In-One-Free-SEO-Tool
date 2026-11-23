@@ -2,12 +2,14 @@ export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import { accentColor, displayName, loadBrand } from "@/lib/brand";
+import { getReportLocale } from "@/lib/report-i18n";
+import { graderWidgetStrings } from "./strings";
 import { EmbedGrader } from "./widget";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const brand = await loadBrand();
+  const [brand, locale] = await Promise.all([loadBrand(), getReportLocale()]);
   return {
-    title: `Free SEO audit — ${displayName(brand)}`,
+    title: graderWidgetStrings(locale).pageTitle(displayName(brand)),
     // This page lives inside an iframe on the agency's site. Their page
     // is what should rank; an indexed copy of the widget would compete
     // with it for the agency's own brand terms.
@@ -33,7 +35,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * agency's client list.
  */
 export default async function EmbedGraderPage() {
-  const brand = await loadBrand();
+  // The prospect has no session or language cookie here: the widget
+  // speaks the workspace language, like the agency's reports.
+  const [brand, locale] = await Promise.all([loadBrand(), getReportLocale()]);
 
   return (
     <EmbedGrader
@@ -41,6 +45,7 @@ export default async function EmbedGraderPage() {
       accent={accentColor(brand)}
       logo={brand.logoDataUrl}
       tagline={brand.tagline}
+      locale={locale}
     />
   );
 }

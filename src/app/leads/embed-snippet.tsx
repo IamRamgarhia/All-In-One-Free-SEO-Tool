@@ -39,7 +39,7 @@ export function EmbedSnippet() {
   const snippet = `<iframe
   src="${origin || "https://your-seo-tool-host"}/embed/grader"
   style="width:100%;border:0;min-height:420px"
-  title="Free SEO audit"
+  title="${tx("iframeTitle")}"
   loading="lazy"
 ></iframe>
 <script>

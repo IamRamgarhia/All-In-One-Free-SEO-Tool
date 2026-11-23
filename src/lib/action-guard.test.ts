@@ -133,7 +133,9 @@ describe("server actions", () => {
       ),
     );
     expect(unguarded).toEqual([]);
-  });
+    // Parses every action file in the tree: a little over 5s on a slow
+    // machine during a full parallel run, which is vitest's default limit.
+  }, 30_000);
 
   it("does not take a comment or a string for the check", () => {
     const src = `"use server";

@@ -2,7 +2,9 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { AlertCircle, Check, Loader2, Search } from "lucide-react";
+import type { Locale } from "@/i18n/config";
 import { captureLead, publicGrade, type PublicGradeResult } from "./actions";
+import { findingName, graderWidgetStrings, type GraderWidgetStrings } from "./strings";
 
 const sevTone: Record<string, string> = {
   critical: "text-rose-600 dark:text-rose-400",
@@ -16,12 +18,16 @@ export function EmbedGrader({
   accent,
   logo,
   tagline,
+  locale = "en",
 }: {
   agency: string;
   accent: string;
   logo: string | null;
   tagline: string | null;
+  /** The workspace language, read on the server (the prospect has no session). */
+  locale?: Locale;
 }) {
+  const S = graderWidgetStrings(locale);
   const [state, action, pending] = useActionState<
     PublicGradeResult | null,
     FormData
@@ -51,9 +57,9 @@ export function EmbedGrader({
           <img src={logo} alt={agency} className="h-8 max-w-[140px] object-contain" />
         ) : null}
         <div>
-          <h1 className="text-lg font-semibold">Free SEO audit</h1>
+          <h1 className="text-lg font-semibold">{S.title}</h1>
           <p className="text-xs text-muted-foreground">
-            {tagline ?? `A 10-second health check from ${agency}.`}
+            {tagline ?? S.tagline(agency)}
           </p>
         </div>
       </header>
@@ -63,8 +69,8 @@ export function EmbedGrader({
           name="url"
           type="text"
           required
-          placeholder="yourwebsite.com"
-          aria-label="Your website address"
+          placeholder={S.urlPlaceholder}
+          aria-label={S.urlLabel}
           className="h-11 min-w-0 flex-1 rounded-lg border border-black/10 bg-white/80 px-3 text-sm text-slate-900 placeholder:text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
         />
         <button
@@ -78,13 +84,13 @@ export function EmbedGrader({
           ) : (
             <Search className="size-4" />
           )}
-          {pending ? "Checking…" : "Check my site"}
+          {pending ? S.checking : S.check}
         </button>
       </form>
 
       {pending && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Fetching the page and running 19 checks…
+          {S.running}
         </p>
       )}
 
@@ -95,10 +101,12 @@ export function EmbedGrader({
         </p>
       )}
 
-      {state?.ok && <Results result={state} accent={accent} agency={agency} />}
+      {state?.ok && (
+        <Results result={state} accent={accent} agency={agency} S={S} locale={locale} />
+      )}
 
       <p className="mt-5 text-center text-[11px] text-muted-foreground">
-        Checks the homepage only. A full audit covers every page.
+        {S.homepageOnly}
       </p>
     </div>
   );
@@ -108,10 +116,14 @@ function Results({
   result,
   accent,
   agency,
+  S,
+  locale,
 }: {
   result: Extract<PublicGradeResult, { ok: true }>;
   accent: string;
   agency: string;
+  S: GraderWidgetStrings;
+  locale: Locale;
 }) {
   const tone =
     result.score >= 80 ? "#059669" : result.score >= 50 ? "#d97706" : "#e11d48";
@@ -131,28 +143,34 @@ function Results({
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
             {result.counts.critical + result.counts.high > 0
-              ? `${result.counts.critical + result.counts.high} issue${result.counts.critical + result.counts.high === 1 ? "" : "s"} worth fixing first`
-              : "No serious issues on the homepage"}
+              ? S.worthFixing(result.counts.critical + result.counts.high)
+              : S.noSerious}
             {" · "}
-            {result.counts.medium + result.counts.low} smaller
+            {S.smaller(result.counts.medium + result.counts.low)}
           </div>
         </div>
       </div>
 
       {result.topFindings.length > 0 && (
         <ul className="space-y-1.5 text-sm">
-          {result.topFindings.map((f, i) => (
-            <li key={`${f.type}-${i}`} className="flex gap-2">
-              <span className={`shrink-0 font-medium ${sevTone[f.severity] ?? ""}`}>
-                ●
-              </span>
-              <span className="text-muted-foreground">{f.message}</span>
-            </li>
-          ))}
+          {result.topFindings.map((f, i) => {
+            const name = findingName(f.type, locale);
+            return (
+              <li key={`${f.type}-${i}`} className="flex gap-2">
+                <span className={`shrink-0 font-medium ${sevTone[f.severity] ?? ""}`}>
+                  ●
+                </span>
+                <span className="text-muted-foreground">
+                  {name ? <span className="font-medium text-foreground">{name} : </span> : null}
+                  {f.message}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
 
-      <LeadForm leadId={result.leadId} accent={accent} agency={agency} />
+      <LeadForm leadId={result.leadId} accent={accent} agency={agency} S={S} />
     </div>
   );
 }
@@ -169,10 +187,12 @@ function LeadForm({
   leadId,
   accent,
   agency,
+  S,
 }: {
   leadId: number;
   accent: string;
   agency: string;
+  S: GraderWidgetStrings;
 }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -184,33 +204,30 @@ function LeadForm({
     return (
       <p className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-700 ring-1 ring-inset ring-emerald-500/25 dark:text-emerald-300">
         <Check className="size-4 shrink-0" />
-        Thanks — {agency} will be in touch with the full breakdown.
+        {S.thanks(agency)}
       </p>
     );
   }
 
   return (
     <div className="rounded-xl border border-black/5 bg-black/[0.02] p-4 dark:border-white/10 dark:bg-white/5">
-      <p className="text-sm font-medium">Want the full report?</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        This checked your homepage. Leave an email and {agency} will send the
-        full audit — every page, with what to fix first.
-      </p>
+      <p className="text-sm font-medium">{S.wantFull}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{S.wantFullHint(agency)}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Your name (optional)"
-          aria-label="Your name"
+          placeholder={S.namePlaceholder}
+          aria-label={S.nameLabel}
           className="h-10 min-w-[8rem] flex-1 rounded-lg border border-black/10 bg-white/80 px-3 text-sm text-slate-900 placeholder:text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
         />
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@company.com"
-          aria-label="Your email"
+          placeholder={S.emailPlaceholder}
+          aria-label={S.emailLabel}
           className="h-10 min-w-[10rem] flex-[2] rounded-lg border border-black/10 bg-white/80 px-3 text-sm text-slate-900 placeholder:text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
         />
         <button
@@ -223,12 +240,12 @@ function LeadForm({
               setError(null);
               const r = await captureLead({ leadId, email, name });
               if (r.ok) setSent(true);
-              else setError(r.error ?? "Couldn't save that.");
+              else setError(r.error ?? S.saveFailed);
             })
           }
         >
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-          Send it
+          {S.send}
         </button>
       </div>
       {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}

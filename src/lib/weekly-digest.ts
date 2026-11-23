@@ -23,6 +23,75 @@ import {
 import { updatesNear } from "./algorithm-updates";
 import { getRankingUpdates } from "./google-updates-store";
 import { getSetting } from "./settings-store";
+import type { Locale } from "@/i18n/config";
+import { getReportLocale } from "./report-i18n";
+
+const plural = (n: number, one: string, other: string) => (n === 1 ? one : other);
+
+/**
+ * Every word of the digest, in each interface language. The digest goes
+ * to the agency (on screen and by email), so it follows the workspace
+ * language (Settings → General), like the reports.
+ */
+const TEXT = {
+  en: {
+    date: (d: Date) => d.toISOString().slice(0, 10),
+    tasksShipped: (n: number) => `${n} task${n === 1 ? "" : "s"} shipped`,
+    scoreUp: (d: number) => `Score +${d}`,
+    clicksUp: (d: number) => `Clicks +${d}`,
+    scoreDropped: (d: number) => `Score dropped ${d} points`,
+    highIssues: (n: number) => `${n} high-severity issue${n === 1 ? "" : "s"} unresolved`,
+    clicksDown: (d: number) => `Clicks ${d}`,
+    noAudit: "No audit this week",
+    title: "Weekly digest",
+    summary: (clients: number, audits: number, tasks: number, improved: number, dropped: number) =>
+      `${clients} client${clients === 1 ? "" : "s"} · ${audits} audit${audits === 1 ? "" : "s"} · ${tasks} task${tasks === 1 ? "" : "s"} shipped · ${improved} improved · ${dropped} dropped`,
+    googleUpdates: "Google updates this week:",
+    perClient: "Per client:",
+    noChange: "no change",
+    statClients: "clients",
+    statAudits: "audits",
+    statTasks: "tasks shipped",
+    statImproved: "improved",
+    statDropped: "dropped",
+    colClient: "Client",
+    colScore: "Score",
+    colTrend: "Trend",
+    colWins: "Wins",
+    colConcerns: "Concerns",
+    subject: (start: string, end: string) => `Weekly SEO digest — ${start} → ${end}`,
+  },
+  fr: {
+    date: (d: Date) => d.toLocaleDateString("fr-FR"),
+    tasksShipped: (n: number) => `${n} ${plural(n, "tâche terminée", "tâches terminées")}`,
+    scoreUp: (d: number) => `Score +${d}`,
+    clicksUp: (d: number) => `Clics +${d}`,
+    scoreDropped: (d: number) => `Score en baisse de ${d} ${plural(d, "point", "points")}`,
+    highIssues: (n: number) =>
+      `${n} ${plural(n, "problème de gravité élevée non résolu", "problèmes de gravité élevée non résolus")}`,
+    clicksDown: (d: number) => `Clics ${d}`,
+    noAudit: "Aucun audit cette semaine",
+    title: "Synthèse hebdomadaire",
+    summary: (clients: number, audits: number, tasks: number, improved: number, dropped: number) =>
+      `${clients} client${clients > 1 ? "s" : ""} · ${audits} audit${audits > 1 ? "s" : ""} · ${tasks} ${plural(tasks, "tâche terminée", "tâches terminées")} · ${improved} en progrès · ${dropped} en recul`,
+    googleUpdates: "Mises à jour de Google cette semaine :",
+    perClient: "Par client :",
+    noChange: "aucun changement",
+    statClients: "clients",
+    statAudits: "audits",
+    statTasks: "tâches terminées",
+    statImproved: "en progrès",
+    statDropped: "en recul",
+    colClient: "Client",
+    colScore: "Score",
+    colTrend: "Tendance",
+    colWins: "Réussites",
+    colConcerns: "Points d’attention",
+    subject: (start: string, end: string) => `Synthèse SEO hebdomadaire — du ${start} au ${end}`,
+  },
+} satisfies Record<Locale, unknown>;
+
+type DigestText = (typeof TEXT)["en"];
 
 export type DigestRow = {
   clientId: number;
@@ -58,7 +127,10 @@ export type WeeklyDigest = {
   htmlVersion: string;
 };
 
-export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
+export async function buildWeeklyDigest(
+  opts: { locale?: Locale } = {},
+): Promise<WeeklyDigest> {
+  const L: DigestText = TEXT[opts.locale ?? (await getReportLocale())];
   const now = new Date();
   const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
@@ -187,20 +259,20 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
     let highlight = "";
     let concern = "";
     if (taskCompleted.length > 0) {
-      highlight = `${taskCompleted.length} task${taskCompleted.length === 1 ? "" : "s"} shipped`;
+      highlight = L.tasksShipped(taskCompleted.length);
     } else if (scoreDelta !== null && scoreDelta > 0) {
-      highlight = `Score +${scoreDelta}`;
+      highlight = L.scoreUp(scoreDelta);
     } else if (clicksDelta !== null && clicksDelta > 0) {
-      highlight = `Clicks +${clicksDelta}`;
+      highlight = L.clicksUp(clicksDelta);
     }
     if (scoreDelta !== null && scoreDelta <= -5) {
-      concern = `Score dropped ${Math.abs(scoreDelta)} points`;
+      concern = L.scoreDropped(Math.abs(scoreDelta));
     } else if (openHighIssues > 0) {
-      concern = `${openHighIssues} high-severity issue${openHighIssues === 1 ? "" : "s"} unresolved`;
+      concern = L.highIssues(openHighIssues);
     } else if (clicksDelta !== null && clicksDelta < -50) {
-      concern = `Clicks ${clicksDelta}`;
+      concern = L.clicksDown(clicksDelta);
     } else if (recentAudits.length === 0) {
-      concern = "No audit this week";
+      concern = L.noAudit;
     }
 
     rows.push({
@@ -241,6 +313,7 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
     clientsImproved,
     clientsDropped,
     algoOverlaps,
+    L,
   });
   const brand = {
     name: (await getSetting<string>("brand.name")) ?? null,
@@ -258,6 +331,7 @@ export async function buildWeeklyDigest(): Promise<WeeklyDigest> {
     clientsDropped,
     algoOverlaps,
     brand,
+    L,
   });
 
   return {
@@ -280,6 +354,7 @@ type RenderOpts = {
   clientsImproved: number;
   clientsDropped: number;
   algoOverlaps: { name: string; date: string; type: string }[];
+  L: DigestText;
   brand?: {
     name: string | null;
     tagline: string | null;
@@ -289,21 +364,20 @@ type RenderOpts = {
 };
 
 function renderText(o: RenderOpts): string {
+  const { L } = o;
   const lines: string[] = [];
-  lines.push(
-    `Weekly digest · ${o.weekStart.toISOString().slice(0, 10)} → ${o.weekEnd.toISOString().slice(0, 10)}`,
-  );
+  lines.push(`${L.title} · ${L.date(o.weekStart)} → ${L.date(o.weekEnd)}`);
   lines.push("");
   lines.push(
-    `${o.rows.length} client${o.rows.length === 1 ? "" : "s"} · ${o.auditsRun} audit${o.auditsRun === 1 ? "" : "s"} · ${o.tasksDoneThisWeek} task${o.tasksDoneThisWeek === 1 ? "" : "s"} shipped · ${o.clientsImproved} improved · ${o.clientsDropped} dropped`,
+    L.summary(o.rows.length, o.auditsRun, o.tasksDoneThisWeek, o.clientsImproved, o.clientsDropped),
   );
   if (o.algoOverlaps.length > 0) {
     lines.push("");
-    lines.push("Google updates this week:");
+    lines.push(L.googleUpdates);
     for (const u of o.algoOverlaps) lines.push(`  - ${u.name} (${u.type})`);
   }
   lines.push("");
-  lines.push("Per client:");
+  lines.push(L.perClient);
   for (const r of o.rows) {
     const score = r.scoreLatest !== null ? `${r.scoreLatest}` : "—";
     const delta =
@@ -318,7 +392,7 @@ function renderText(o: RenderOpts): string {
     const trend =
       r.scoreHistory.length >= 2 ? "  " + unicodeSparkline(r.scoreHistory) : "";
     lines.push(
-      `  ${r.clientName} — ${score}${delta}${trend} · ${parts.join(" · ") || "no change"}`,
+      `  ${r.clientName} — ${score}${delta}${trend} · ${parts.join(" · ") || L.noChange}`,
     );
   }
   return lines.join("\n");
@@ -368,10 +442,11 @@ function htmlSparkbar(values: number[]): string {
 }
 
 function renderHtml(o: RenderOpts): string {
-  const start = o.weekStart.toISOString().slice(0, 10);
-  const end = o.weekEnd.toISOString().slice(0, 10);
+  const { L } = o;
+  const start = L.date(o.weekStart);
+  const end = L.date(o.weekEnd);
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>Weekly digest</title>
+<html lang="${L === TEXT.fr ? "fr" : "en"}"><head><meta charset="utf-8"><title>${L.title}</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; color: #1a1a1a; line-height: 1.5; }
   h1 { font-size: 22px; margin: 0 0 4px; }
@@ -389,24 +464,24 @@ function renderHtml(o: RenderOpts): string {
   .ok { color: #059669; }
   .bad { color: #d97706; }
 </style></head><body>
-<h1>Weekly digest</h1>
+<h1>${L.title}</h1>
 <p class="sub">${start} → ${end}</p>
 <div class="stats">
-  <span class="stat"><b>${o.rows.length}</b> clients</span>
-  <span class="stat"><b>${o.auditsRun}</b> audits</span>
-  <span class="stat"><b>${o.tasksDoneThisWeek}</b> tasks shipped</span>
-  <span class="stat ok"><b>${o.clientsImproved}</b> improved</span>
-  <span class="stat bad"><b>${o.clientsDropped}</b> dropped</span>
+  <span class="stat"><b>${o.rows.length}</b> ${L.statClients}</span>
+  <span class="stat"><b>${o.auditsRun}</b> ${L.statAudits}</span>
+  <span class="stat"><b>${o.tasksDoneThisWeek}</b> ${L.statTasks}</span>
+  <span class="stat ok"><b>${o.clientsImproved}</b> ${L.statImproved}</span>
+  <span class="stat bad"><b>${o.clientsDropped}</b> ${L.statDropped}</span>
 </div>
 ${
   o.algoOverlaps.length > 0
-    ? `<div class="algo"><b>Google updates this week:</b> ${o.algoOverlaps
+    ? `<div class="algo"><b>${L.googleUpdates}</b> ${o.algoOverlaps
         .map((u) => `${esc(u.name)} (${esc(u.type)})`)
         .join(" · ")}</div>`
     : ""
 }
 <table>
-  <thead><tr><th>Client</th><th>Score</th><th>Trend</th><th>Wins</th><th>Concerns</th></tr></thead>
+  <thead><tr><th>${L.colClient}</th><th>${L.colScore}</th><th>${L.colTrend}</th><th>${L.colWins}</th><th>${L.colConcerns}</th></tr></thead>
   <tbody>
     ${o.rows
       .map(
@@ -481,11 +556,16 @@ export async function tickWeeklyDigestRunner(): Promise<void> {
   if (digestInFlight) return; // Another tick is mid-send
   digestInFlight = true;
   try {
-    const digest = await buildWeeklyDigest();
+    const locale = await getReportLocale();
+    const digest = await buildWeeklyDigest({ locale });
+    const L = TEXT[locale];
     const { sendMail } = await import("./mailer");
     await sendMail({
       to: [email],
-      subject: `Weekly SEO digest — ${digest.weekStart} → ${digest.weekEnd}`,
+      subject:
+        locale === "fr"
+          ? L.subject(L.date(new Date(`${digest.weekStart}T12:00:00Z`)), L.date(new Date(`${digest.weekEnd}T12:00:00Z`)))
+          : L.subject(digest.weekStart, digest.weekEnd),
       text: digest.textVersion,
       html: digest.htmlVersion,
     });
