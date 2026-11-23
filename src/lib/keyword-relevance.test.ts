@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankByRelevance, stems } from "./keyword-relevance";
+import { bestPageFor, rankByRelevance, stems } from "./keyword-relevance";
 
 const about = {
   name: "ND Prestige",
@@ -74,5 +74,28 @@ describe("searches that bring no customer", () => {
       "chauffeur vtc paris emploi",
       "chauffeur vtc paris accident",
     ]);
+  });
+});
+
+describe("bestPageFor", () => {
+  const urls = [
+    "https://nd-prestige.com/",
+    "https://nd-prestige.com/transfert-aeroport-orly",
+    "https://nd-prestige.com/transfert-aeroport-cdg",
+    "https://nd-prestige.com/navette-disneyland-paris",
+    "https://nd-prestige.com/es/traslado-aeropuerto-cdg",
+  ];
+
+  it("finds the page a keyword is about", () => {
+    expect(bestPageFor("transport aéroport d orly", urls)).toBe("/transfert-aeroport-orly");
+    expect(bestPageFor("navette disneyland depuis paris", urls)).toBe("/navette-disneyland-paris");
+  });
+
+  it("needs two shared words, so one city name is not a match", () => {
+    expect(bestPageFor("mise à disposition chauffeur paris", urls)).toBeNull();
+  });
+
+  it("ignores the home page", () => {
+    expect(bestPageFor("nd prestige", ["https://nd-prestige.com/"])).toBeNull();
   });
 });

@@ -81,3 +81,36 @@ export function rankByRelevance<T extends { query: string }>(
     .sort((a, b) => b.s - a.s || a.i - b.i)
     .map((x) => x.k);
 }
+
+/**
+ * The site's page that a keyword is about, from the page addresses the last
+ * audit crawled: the path sharing the most words with the keyword, at least
+ * two of them (one shared word, like "paris", matches half the site). Ties
+ * go to the shorter path. Null when no page fits: the keyword needs a page.
+ *
+ * The plan the client approves used to say "page to create" for every
+ * keyword Google did not rank yet, including "transport aéroport d'Orly" on
+ * a site with a /transfert-aeroport-orly page.
+ */
+export function bestPageFor(query: string, urls: readonly string[]): string | null {
+  const want = stems(query);
+  let best: { path: string; score: number } | null = null;
+  for (const url of urls) {
+    let path: string;
+    try {
+      path = new URL(url).pathname;
+    } catch {
+      continue;
+    }
+    if (path === "/" || path === "") continue;
+    const have = stems(decodeURIComponent(path).replace(/[/_-]+/g, " "));
+    let score = 0;
+    for (const s of want) if (have.has(s)) score++;
+    if (score < 2) continue;
+    const clean = path.replace(/\/+$/, "");
+    if (!best || score > best.score || (score === best.score && clean.length < best.path.length)) {
+      best = { path: clean, score };
+    }
+  }
+  return best?.path ?? null;
+}

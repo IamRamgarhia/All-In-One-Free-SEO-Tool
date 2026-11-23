@@ -58,6 +58,8 @@ export type ProposalDoc = {
    */
   keywordBaseline?: {
     tracked: number;
+    /** Keywords whose position was checked at least once (absent on older documents). */
+    checked?: number;
     ranking: number;
     inTopTen: number;
     strikingDistance: number;
@@ -186,6 +188,9 @@ function labelsFor(locale: string) {
     keywords: fr ? "Les mots-clés" : "The keywords",
     kwHead: fr ? ["MOT-CLÉ", "INTENTION", "ACTUEL", "PAGE"] : ["KEYWORD", "INTENT", "NOW", "PAGE"],
     needsPage: fr ? "page à créer" : "needs a page",
+    notChecked: fr
+      ? "Positions pas encore mesurées : le premier relevé est fait après la validation de ce plan."
+      : "Positions not measured yet: the first check runs once this plan is approved.",
     nowNote: fr
       ? "« Actuel » est la position Google aujourd’hui, vide quand le site n’est pas encore positionné."
       : "“Now” is the current Google position, blank where the site does not rank for it yet.",
@@ -546,11 +551,14 @@ export async function generateProposalPdf(
     heading(doc, F, L.standToday, accent);
     doc.moveDown(0.4);
 
+    // Nothing checked yet: a dash, not a 0 that reads as a measurement.
+    const unmeasured = kb.checked === 0;
+    const n = (v: number) => (unmeasured ? "—" : String(v));
     const stats: [string, string][] = [
       [L.stats[0], String(kb.tracked)],
-      [L.stats[1], String(kb.ranking)],
-      [L.stats[2], String(kb.inTopTen)],
-      [L.stats[3], String(kb.strikingDistance)],
+      [L.stats[1], n(kb.ranking)],
+      [L.stats[2], n(kb.inTopTen)],
+      [L.stats[3], n(kb.strikingDistance)],
     ];
     for (const [label, value] of stats) {
       ensure(20);
@@ -568,6 +576,14 @@ export async function generateProposalPdf(
           width: 70,
           align: "right",
         });
+      doc.x = doc.page.margins.left;
+    }
+    if (unmeasured) {
+      ensure(16);
+      doc.moveDown(0.3);
+      doc.font(F("regular")).fontSize(8.5).fillColor(MUTE).text(L.notChecked, doc.page.margins.left, doc.y, {
+        width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+      });
       doc.x = doc.page.margins.left;
     }
 
@@ -716,7 +732,7 @@ export async function generateProposalPdf(
           .font(F("bold"))
           .fontSize(9)
           .fillColor(accent)
-          .text(phase.phase.toUpperCase(), doc.page.margins.left, doc.y, {
+          .text(phaseText(phase.phase, L.locale).toUpperCase(), doc.page.margins.left, doc.y, {
             width,
             characterSpacing: 0.6,
           });
@@ -730,7 +746,7 @@ export async function generateProposalPdf(
         .font(F("bold"))
         .fontSize(11.5)
         .fillColor(INK)
-        .text(`${phase.week} — ${phase.focus}`, doc.page.margins.left, doc.y, {
+        .text(`${weekText(phase.week, L.locale)} — ${focusText(phase.focus, L.locale)}`, doc.page.margins.left, doc.y, {
           width,
         });
       for (const item of phase.items) {
@@ -947,8 +963,40 @@ export function proposalPdfFromRow(row: Proposal, locale: string): Promise<Buffe
     // Read from the frozen column, never recomputed from the client
     // record. What they agreed to has to keep reading the same after
     // somebody edits the client's scope next month.
-    surfaces: row.surfacesJson ? splitSurfaces(surfacesFor(row.surfacesJson, null)) : null,
+    surfaces: row.surfacesJson ? splitSurfaces(surfacesFor(row.surfacesJson, null), locale) : null,
   });
+}
+
+/**
+ * The plan's week, phase and focus labels are stored in English in each
+ * document (frozen when it was built). They are translated here, when the
+ * PDF is drawn, so documents built before French labels existed read in
+ * French too. An unknown label (written by hand) is shown as it is.
+ */
+const PHASE_FR: Record<string, string> = {
+  "Foundation · days 1-30": "Fondations · jours 1 à 30",
+  "Content and authority · days 31-60": "Contenus et autorité · jours 31 à 60",
+  "Compound growth · days 61-90": "Croissance · jours 61 à 90",
+};
+const FOCUS_FR: Record<string, string> = {
+  "technical foundations": "fondations techniques",
+  "keywords and rankings": "mots-clés et positions",
+  content: "contenus",
+  "links and outreach": "liens et relations presse",
+  "local presence": "présence locale",
+  "ongoing work": "suivi courant",
+};
+function isFrench(locale: string): boolean {
+  return locale.startsWith("fr");
+}
+function phaseText(phase: string, locale: string): string {
+  return isFrench(locale) ? (PHASE_FR[phase] ?? phase) : phase;
+}
+function focusText(focus: string, locale: string): string {
+  return isFrench(locale) ? (FOCUS_FR[focus] ?? focus) : focus;
+}
+function weekText(week: string, locale: string): string {
+  return isFrench(locale) ? week.replace(/^Week (\d+)$/, "Semaine $1") : week;
 }
 
 /** A file name for the proposal's PDF. */

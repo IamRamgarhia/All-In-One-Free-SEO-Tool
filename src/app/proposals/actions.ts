@@ -1,6 +1,8 @@
 "use server";
 
 import type { Tx } from "@/lib/tx";
+import { bestPageFor } from "@/lib/keyword-relevance";
+import { pickReferenceAudits } from "@/lib/reference-audit";
 import { requireSignedIn } from "@/lib/action-guard";
 
 import { revalidatePath } from "next/cache";
@@ -476,19 +478,24 @@ export async function buildKickoffReport(
     return Number.isFinite(n) && n > max ? n : max;
   }, 0);
 
-  let intro = fallbackIntro(client.name, baseline, planWeeks);
+  const locale = await docLocale();
+  const fr = locale.startsWith("fr");
+  let intro = fallbackIntro(client.name, baseline, planWeeks, fr);
   try {
     const { callAI } = await import("@/lib/ai-call");
     const written = await callAI({
       system:
         "You write the opening paragraph of an SEO plan for a client to approve. " +
         "Plain language, no jargon, no hype, no invented numbers. " +
-        "Two or three sentences. Never promise rankings or traffic.",
+        "Two or three sentences. Never promise rankings or traffic." +
+        (fr ? " Write in French, addressing the client as « vous »." : ""),
       user:
         `Client: ${client.name} (${client.url}).\n` +
         `Their site was audited and we found things to fix.\n` +
-        `They track ${baseline.tracked} keywords, ${baseline.ranking} of which already rank, ` +
-        `${baseline.inTopTen} on page one.\n` +
+        (baseline.checked > 0
+          ? `They track ${baseline.tracked} keywords, ${baseline.ranking} of which already rank, ` +
+            `${baseline.inTopTen} on page one.\n`
+          : `They track ${baseline.tracked} keywords; their positions have not been checked yet.\n`) +
         `The plan runs ${planWeeks} weeks.\n` +
         `We will work on: ${inScope.map((sf) => sf.label.toLowerCase()).join(", ") || "nothing agreed yet"}.\n` +
         (outOfScope.length > 0
@@ -505,7 +512,7 @@ export async function buildKickoffReport(
   await db
     .update(proposals)
     .set({
-      title: `SEO plan — ${client.name}`,
+      title: fr ? `Plan SEO — ${client.name}` : `SEO plan — ${client.name}`,
       intro,
       baselineJson: baseline,
       timelineJson: timeline,
@@ -536,14 +543,22 @@ async function keywordBaselineFor(clientId: number) {
   // One row per keyword — the newest check wins, and a keyword that has
   // never been checked still counts as tracked with an unknown position.
   const latest = new Map<string, { position: number | null; url: string | null }>();
+  // Keywords whose position was actually checked at least once. With none,
+  // "0 already ranking" would be a claim about Google nobody measured.
+  const checkedSet = new Set<string>();
   for (const r of rows) {
+    if (r.checkedAt) checkedSet.add(r.keyword);
     if (!latest.has(r.keyword))
       latest.set(r.keyword, { position: r.position ?? null, url: r.url ?? null });
   }
+  // The pages the last crawl read, to name the page a keyword is about
+  // before Google ranks it (lib/keyword-relevance.ts, bestPageFor).
+  const sitePages = await crawledPagesOf(clientId);
 
   const positions = [...latest.values()].map((v) => v.position);
   return {
     tracked: latest.size,
+    checked: checkedSet.size,
     ranking: positions.filter((p) => p !== null).length,
     inTopTen: positions.filter((p) => p !== null && p <= 10).length,
     strikingDistance: positions.filter((p) => p !== null && p > 10 && p <= 20)
@@ -568,10 +583,22 @@ async function keywordBaselineFor(clientId: number) {
         // Where it ranks today, if it does. A keyword with no page yet
         // is the honest signal that something has to be written, so it
         // says so rather than being left blank.
-        targetPage: v.url ? pathOf(v.url) : null,
+        targetPage: v.url ? pathOf(v.url) : bestPageFor(keyword, sitePages),
       }))
       .sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999)),
   };
+}
+
+/** Page addresses the reference crawl read (lib/reference-audit.ts). */
+async function crawledPagesOf(clientId: number): Promise<string[]> {
+  const done = await db
+    .select({ kind: audits.kind, mode: audits.mode, rawReport: audits.rawReport })
+    .from(audits)
+    .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
+    .orderBy(desc(audits.completedAt));
+  const { latest } = pickReferenceAudits(done);
+  const pages = (latest?.rawReport as { coverage?: { pages?: unknown } } | null)?.coverage?.pages;
+  return Array.isArray(pages) ? pages.filter((p): p is string => typeof p === "string") : [];
 }
 
 /** Just the path, so a table of URLs stays readable at PDF width. */
@@ -672,13 +699,31 @@ function focusOf(items: string[]): string {
 
 function fallbackIntro(
   name: string,
-  baseline: { tracked: number; ranking: number },
+  baseline: { tracked: number; checked: number; ranking: number },
   weeks: number,
+  fr = false,
 ): string {
+  if (fr) {
+    const suivi =
+      baseline.tracked === 0
+        ? ""
+        : baseline.checked > 0
+          ? ` Nous suivons ${baseline.tracked} recherches pour vous, dont ${baseline.ranking} où votre site apparaît déjà sur Google.`
+          : ` Nous suivons ${baseline.tracked} recherches pour vous ; leurs positions seront mesurées dès le premier relevé.`;
+    return (
+      `Nous avons passé en revue le site de ${name}, et voici ce que nous proposons de faire à partir de ce que nous avons trouvé.` +
+      suivi +
+      (weeks > 0
+        ? ` Le plan ci-dessous couvre les ${weeks} prochaines semaines, en commençant par ce qui bloque tout le reste.`
+        : "")
+    );
+  }
   const tracked =
-    baseline.tracked > 0
-      ? ` We're tracking ${baseline.tracked} search terms for you, ${baseline.ranking} of which already show up in Google.`
-      : "";
+    baseline.tracked === 0
+      ? ""
+      : baseline.checked > 0
+        ? ` We're tracking ${baseline.tracked} search terms for you, ${baseline.ranking} of which already show up in Google.`
+        : ` We're tracking ${baseline.tracked} search terms for you; their positions will be measured at the first check.`;
   return (
     `We've been through ${name}'s site and this is what we'd like to do about what we found.` +
     tracked +

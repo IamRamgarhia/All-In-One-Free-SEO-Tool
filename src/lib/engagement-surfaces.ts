@@ -91,6 +91,42 @@ export const SURFACES: Surface[] = [
   },
 ];
 
+/** The same, in French: shown in the onboarding and written in the document the client approves. */
+const FR: Record<SurfaceId, { label: string; detail: string }> = {
+  website: {
+    label: "Le site",
+    detail: "Titres, descriptions, intertitres, maillage interne, vitesse et santé technique du site lui-même.",
+  },
+  content: {
+    label: "Contenus et blog",
+    detail: "Planifier, briefer et actualiser les articles pour que le site réponde à ce que les gens cherchent vraiment.",
+  },
+  local: {
+    label: "Présence locale",
+    detail:
+      "Fiche Google Business, positions dans le pack local, avis, et nom, adresse et téléphone identiques partout où ils apparaissent.",
+  },
+  ecommerce: {
+    label: "Pages produits et catégories",
+    detail:
+      "Données structurées produit, structure des pages catégories, et les problèmes d’images et de contenu dupliqué propres aux grands catalogues.",
+  },
+  links: {
+    label: "Liens et relations presse",
+    detail: "Obtenir des liens d’autres sites, récupérer ceux qui ont été perdus et garder un profil de liens sain.",
+  },
+  ai: {
+    label: "Visibilité dans les IA",
+    detail:
+      "Savoir si ChatGPT, Perplexity, Gemini et les aperçus IA de Google citent l’entreprise quand on leur pose ce genre de question.",
+  },
+};
+
+/** The surface in the given locale (French by default, English otherwise). */
+export function localizeSurface(s: Surface, locale: string | null | undefined): Surface {
+  return (locale ?? "fr").startsWith("fr") ? { ...s, ...FR[s.id] } : s;
+}
+
 const BY_ID = new Map(SURFACES.map((s) => [s.id, s]));
 
 export function surfaceById(id: SurfaceId): Surface | null {
@@ -152,14 +188,15 @@ export function surfacesFor(
 }
 
 /** In-scope surfaces and out-of-scope ones, in reading order. */
-export function splitSurfaces(ids: SurfaceId[]): {
+export function splitSurfaces(ids: SurfaceId[], locale?: string | null): {
   inScope: Surface[];
   outOfScope: Surface[];
 } {
   const set = new Set(ids);
+  const loc = (sf: Surface) => (locale ? localizeSurface(sf, locale) : sf);
   return {
-    inScope: SURFACES.filter((s) => set.has(s.id)),
-    outOfScope: SURFACES.filter((s) => !set.has(s.id)),
+    inScope: SURFACES.filter((s) => set.has(s.id)).map(loc),
+    outOfScope: SURFACES.filter((s) => !set.has(s.id)).map(loc),
   };
 }
 

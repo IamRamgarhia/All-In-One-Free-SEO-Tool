@@ -9,7 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   CheckCircle2,
   Circle,
@@ -32,7 +32,7 @@ import {
   type SaveBrandResult,
 } from "./actions";
 import { COUNTRIES } from "./countries";
-import { SURFACES, surfacesFor } from "@/lib/engagement-surfaces";
+import { SURFACES as SURFACES_EN, localizeSurface, surfacesFor } from "@/lib/engagement-surfaces";
 import { AuditProgressBar } from "./audit-progress";
 import { inferClientProfile } from "@/lib/infer-client-profile";
 
@@ -675,6 +675,8 @@ function SurfacesStep({
     });
   }
 
+  const locale = useLocale();
+  const SURFACES = SURFACES_EN.map((sf) => localizeSurface(sf, locale));
   const out = SURFACES.filter((sf) => !picked.has(sf.id));
 
   return (
