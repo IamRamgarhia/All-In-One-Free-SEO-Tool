@@ -1,6 +1,7 @@
 "use server";
 
 import { actionTx } from "@/lib/action-tx";
+import { isAdvisoryGeoFinding, isSiteKind } from "@/lib/advisory-rules";
 import { requireSignedIn } from "@/lib/action-guard";
 
 import { redirect } from "next/navigation";
@@ -225,6 +226,7 @@ export async function runAuditForClient(
   try {
     engine = await runSeomatorAudit(result.url, {
       mode,
+      siteKind: isSiteKind(client.niche) ? client.niche : null,
       maxPages: ENGINE_MAX_PAGES[mode],
       ...(mode === "full" && {
         previewScreenshotPath: auditPreviewAbsolutePath(auditRow.id),
@@ -270,7 +272,10 @@ export async function runAuditForClient(
   } catch {
     geoResult = null;
   }
-  const geoFindings = geoResult?.findings ?? [];
+  // Editorial GEO findings (author, dates, article markup) are not problems
+  // on a site that does not publish content (lib/advisory-rules.ts).
+  const siteKind = isSiteKind(client.niche) ? client.niche : null;
+  const geoFindings = (geoResult?.findings ?? []).filter((f) => !isAdvisoryGeoFinding(`geo:${f.id}`, siteKind));
 
   // Infrastructure URLs out before anything is stored or turned into work.
   //

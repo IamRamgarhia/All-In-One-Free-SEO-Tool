@@ -18,7 +18,7 @@ import { engineTitleFr, engineWhyFr, placeFr } from "./audit-to-task.fr";
 import { ruleNamesFr } from "./rule-names.fr";
 import type { AuditFinding, Severity } from "./audit";
 import { runEngine, type AuditMode } from "@/lib/audit-engine";
-import { isAdvisoryRule } from "./advisory-rules";
+import { isAdvisoryFor, type SiteKind } from "./advisory-rules";
 import { seoScoreOf } from "./seo-score";
 
 export { seoScoreOf };
@@ -67,6 +67,8 @@ export type SeomatorBridgeResult = {
 export type RunSeomatorAuditOptions = {
   /** quick: HTML only. full: browser render, Core Web Vitals, mobile parity. */
   mode: AuditMode;
+  /** The client's niche (lib/advisory-rules.ts, isAdvisoryFor). */
+  siteKind?: SiteKind | null;
   maxPages?: number;
   allowPrivateHosts?: boolean;
   ignoreRobots?: boolean;
@@ -153,6 +155,8 @@ export function collapseSiteWide<T extends { type: string; message: string; url:
  */
 export function mapSeomatorResult(
   result: SeomatorAuditResult,
+  /** The client's niche: rules written for other kinds of site are not problems here. */
+  kind?: SiteKind | null,
 ): Omit<SeomatorBridgeResult, "raw"> {
   const findings: SeomatorFinding[] = [];
   const seen = new Set<string>();
@@ -161,7 +165,7 @@ export function mapSeomatorResult(
     for (const rule of category.results) {
       // Good practice, not ranking: shown on the audit page, not a problem
       // here (lib/advisory-rules.ts).
-      if (isAdvisoryRule(rule.ruleId)) continue;
+      if (isAdvisoryFor(rule.ruleId, kind)) continue;
       const severity = severityFor(rule.status, category.categoryId);
       if (!severity) continue;
 
@@ -226,7 +230,7 @@ export function mapSeomatorResult(
 
   return {
     url: result.url,
-    score: seoScoreOf(result),
+    score: seoScoreOf(result, kind),
     pagesCrawled: result.crawledPages,
     findings,
     summary: lines.join("\n"),
@@ -379,6 +383,6 @@ export async function runSeomatorAudit(
       : undefined,
   });
 
-  const mapped = mapSeomatorResult(raw);
+  const mapped = mapSeomatorResult(raw, options.siteKind);
   return { ...mapped, raw };
 }

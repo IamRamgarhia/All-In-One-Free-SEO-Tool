@@ -2,7 +2,7 @@ import { getCategoryById, getFixSuggestion, getRuleById } from "@/audit/catalog"
 import { isNotMeasured } from "@/audit/engine/define-rule";
 import { collectFindings, type Finding } from "@/audit/report/findings";
 import type { AuditResult, PageSnapshot, RuleStatus } from "@/audit/types";
-import { isAdvisoryRule } from "./advisory-rules";
+import { isAdvisoryFor, type SiteKind } from "./advisory-rules";
 import { seoScoreOf } from "./seo-score";
 
 /**
@@ -64,7 +64,7 @@ export function isEngineReport(raw: unknown): raw is AuditResult {
   );
 }
 
-export function buildEngineReport(result: AuditResult, topCount = 10): EngineReport {
+export function buildEngineReport(result: AuditResult, topCount = 10, kind?: SiteKind | null): EngineReport {
   const findingsByRule = new Map<string, Finding[]>();
   for (const f of collectFindings(result)) {
     const list = findingsByRule.get(f.ruleId) ?? [];
@@ -105,7 +105,7 @@ export function buildEngineReport(result: AuditResult, topCount = 10): EngineRep
         })),
         priority: Math.max(0, ...findings.map((f) => f.priority)),
         fix: getFixSuggestion(ruleId),
-        advisory: isAdvisoryRule(ruleId),
+        advisory: isAdvisoryFor(ruleId, kind),
       };
     });
 
@@ -140,7 +140,7 @@ export function buildEngineReport(result: AuditResult, topCount = 10): EngineRep
 
   return {
     url: result.url,
-    score: seoScoreOf(result),
+    score: seoScoreOf(result, kind),
     totals,
     categories,
     top,

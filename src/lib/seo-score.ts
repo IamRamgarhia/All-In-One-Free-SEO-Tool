@@ -11,7 +11,7 @@
 import { categories as engineCategories } from "@/audit/engine/categories";
 import { calculateCategoryScore, calculateOverallScore } from "@/audit/scoring/scoring";
 import type { RuleResult } from "@/audit/types";
-import { isAdvisoryRule } from "./advisory-rules";
+import { isAdvisoryFor, type SiteKind } from "./advisory-rules";
 
 export type ScorableResult = {
   overallScore: number;
@@ -19,9 +19,10 @@ export type ScorableResult = {
   categoryResults: ReadonlyArray<{ categoryId: string; results: ReadonlyArray<Pick<RuleResult, "ruleId" | "status" | "weight">> }>;
 };
 
-export function seoScoreOf(result: ScorableResult): number {
+/** With the client's niche, rules written for other kinds of site are left out too. */
+export function seoScoreOf(result: ScorableResult, kind?: SiteKind | null): number {
   const scored = result.categoryResults
-    .map((c) => ({ categoryId: c.categoryId, results: c.results.filter((r) => !isAdvisoryRule(r.ruleId)) }))
+    .map((c) => ({ categoryId: c.categoryId, results: c.results.filter((r) => !isAdvisoryFor(r.ruleId, kind)) }))
     .filter((c) => c.results.length > 0)
     .map((c) => ({ categoryId: c.categoryId, score: calculateCategoryScore([...c.results]) }));
   const uncapped = calculateOverallScore(scored, engineCategories);

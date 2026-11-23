@@ -42,6 +42,7 @@ import { SeomatorGeoPanel } from "@/components/audits/seomator-geo-panel";
 import { GeoAuditPanel } from "@/components/audits/geo-audit-panel";
 import { EngineReportView } from "@/components/audits/engine-report";
 import { buildEngineReport, isEngineReport } from "@/lib/engine-report";
+import { isSiteKind } from "@/lib/advisory-rules";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -189,7 +190,7 @@ export default async function AuditDetailPage({
     (audit.kind === "seomator" || audit.rawReport != null) &&
     audit.status === "completed" &&
     isEngineReport(audit.rawReport)
-      ? buildEngineReport(audit.rawReport)
+      ? buildEngineReport(audit.rawReport, 10, isSiteKind(client?.niche) ? client.niche : null)
       : null;
   const listed = report
     ? issues.filter((i) => !i.type.startsWith("seomator:"))
