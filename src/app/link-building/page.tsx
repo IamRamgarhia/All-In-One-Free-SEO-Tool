@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import type { Tx } from "@/lib/tx";
 import Link from "next/link";
 import { and, asc, count, desc, eq, gte, like, or } from "drizzle-orm";
@@ -83,6 +83,7 @@ export default async function LinkBuildingPage({
 }) {
   const total = await ensureSeoResourcesSeeded();
   const tx = await getTranslations("ui.app_link-building_page");
+  const locale = await getLocale();
 
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
@@ -174,13 +175,13 @@ export default async function LinkBuildingPage({
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
         title={tx("linkBuilding")}
-        description={tx("curatedDatabaseOfSitesAcross", { total: total.toLocaleString(), size: countsMap.size })}
+        description={tx("curatedDatabaseOfSitesAcross", { total: total.toLocaleString(locale), size: countsMap.size })}
         icon={Link2}
         accent="emerald"
         meta={
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-muted-foreground ring-1 ring-inset ring-white/10">
-              {tx("resources", { total: total.toLocaleString() })}
+              {tx("resources", { total: total.toLocaleString(locale) })}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-emerald-300 ring-1 ring-inset ring-emerald-500/20">
               {tx("tracked", { length: trackedRows.length })}
@@ -232,7 +233,7 @@ export default async function LinkBuildingPage({
               )
               .map(([cat, n]) => (
                 <option key={cat} value={cat}>
-                  {CATEGORY_LABELS[cat] ?? cat} ({n.toLocaleString()})
+                  {CATEGORY_LABELS[cat] ?? cat} ({n.toLocaleString(locale)})
                 </option>
               ))}
           </select>
@@ -263,7 +264,7 @@ export default async function LinkBuildingPage({
           <h2 className="text-sm font-semibold">{tx("browseResources")}</h2>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {tx("showingOf", { length: resources.length })}
-            {(where ? "filtered" : "total")}{tx("sortedByDaDescending", { total: total.toLocaleString() })}
+            {(where ? "filtered" : "total")}{tx("sortedByDaDescending", { total: total.toLocaleString(locale) })}
           </p>
         </header>
         {resources.length === 0 ? (
@@ -298,7 +299,7 @@ export default async function LinkBuildingPage({
                     )}
                     {r.alexa !== null && (
                       <span className="rounded-md bg-cyan-500/10 px-1.5 py-0.5 text-cyan-300 ring-1 ring-inset ring-cyan-500/20">
-                        {tx("alexa", { v: r.alexa.toLocaleString() })}
+                        {tx("alexa", { v: r.alexa.toLocaleString(locale) })}
                       </span>
                     )}
                   </div>
@@ -369,7 +370,7 @@ export default async function LinkBuildingPage({
                       {s.da !== null && <span>{tx("da2", { da: s.da })}</span>}
                       {s.submittedAt && (
                         <span>
-                          · {s.status} {s.submittedAt.toLocaleDateString()}
+                          · {s.status} {s.submittedAt.toLocaleDateString(locale)}
                         </span>
                       )}
                     </div>

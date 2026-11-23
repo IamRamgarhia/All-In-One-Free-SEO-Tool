@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import type { Tx } from "@/lib/tx";
 import Link from "next/link";
 import { useState, useTransition } from "react";
@@ -134,6 +134,7 @@ function pillClass(active: boolean): string {
 
 function ConvRow({ conv }: { conv: ChatConversation }) {
   const tx = useTranslations("ui.app_chats_client");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[] | null>(null);
@@ -190,7 +191,7 @@ function ConvRow({ conv }: { conv: ChatConversation }) {
             <p className="truncate font-medium">{conv.title}</p>
           )}
           <p className="text-[11px] text-muted-foreground">
-            {new Date(conv.updatedAt).toLocaleString()}
+            {new Date(conv.updatedAt).toLocaleString(locale)}
           </p>
         </div>
         <button

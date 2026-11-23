@@ -11,7 +11,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ import { searchReddit, type RedditResearchResult } from "./actions";
 
 export default function RedditResearchPage() {
   const t = useTranslations("tools.ui.reddit-research");
+  const locale = useLocale();
   const [query, setQuery] = useState("");
   const [subreddit, setSubreddit] = useState("");
   const [sort, setSort] = useState<"relevance" | "top" | "new" | "comments">(
@@ -229,7 +230,7 @@ export default function RedditResearchPage() {
                           <MessageCircle className="size-3" />
                           {p.numComments}
                         </span>
-                        <span>· {p.createdAt.toLocaleDateString()}</span>
+                        <span>· {p.createdAt.toLocaleDateString(locale)}</span>
                         <a
                           href={p.permalink}
                           target="_blank"

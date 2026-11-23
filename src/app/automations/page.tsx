@@ -1,5 +1,5 @@
 import type { Tx } from "@/lib/tx";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { desc, eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +65,7 @@ const actionIcon = {
 
 export default async function AutomationsPage() {
   const tx = await getTranslations("ui.app_automations_page");
+  const locale = await getLocale();
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
@@ -229,14 +230,14 @@ export default async function AutomationsPage() {
                       <div className="text-[10px] text-muted-foreground">
                         {tx("ranOther", { runCount: r.runCount })}
                         {r.lastRunAt
-                          ? ` · last ${r.lastRunAt.toLocaleString()}`
+                          ? ` · last ${r.lastRunAt.toLocaleString(locale)}`
                           : ""}
                       </div>
                       {r.schedule ? (
                         <div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                           <CalendarClock className="size-3" />
                           {tx(`every.${r.schedule.every}`, { hour: r.schedule.hour, day: r.schedule.day ?? 1 })} ({r.schedule.tz})
-                          {r.enabled && r.nextRunAt ? ` · ${tx("nextRun", { when: r.nextRunAt.toLocaleString() })}` : ""}
+                          {r.enabled && r.nextRunAt ? ` · ${tx("nextRun", { when: r.nextRunAt.toLocaleString(locale) })}` : ""}
                         </div>
                       ) : null}
                       {r.failures > 0 ? (
@@ -252,7 +253,7 @@ export default async function AutomationsPage() {
                                     {tx(`runStatus.${run.status === "ok" || run.status === "running" ? run.status : "error"}`)}
                                   </span>
                                   {" · "}
-                                  {run.startedAt.toLocaleString()}
+                                  {run.startedAt.toLocaleString(locale)}
                                   {run.clientName ? ` · ${run.clientName}` : ""}
                                 </summary>
                                 <div className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-white/5 p-2 text-[12px] leading-relaxed">

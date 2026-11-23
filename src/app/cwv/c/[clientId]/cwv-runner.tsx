@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   AlertCircle,
   CheckCircle2,
@@ -187,6 +187,7 @@ export function CwvRunner({
 
 function ReportCard({ r, clientId }: { r: CwvRow; clientId: number }) {
   const t = useTranslations("auditTab.cwv");
+  const locale = useLocale();
   const [pending, startTransition] = useTransition();
   return (
     <article className="glass-apple relative overflow-hidden rounded-2xl">
@@ -208,7 +209,7 @@ function ReportCard({ r, clientId }: { r: CwvRow; clientId: number }) {
             </a>
           </div>
           <div className="mt-0.5 text-[11px] text-muted-foreground">
-            {r.scannedAt.toLocaleString()}
+            {r.scannedAt.toLocaleString(locale)}
           </div>
         </div>
         <button

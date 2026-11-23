@@ -17,7 +17,7 @@ import { assertClientAccess } from "@/lib/client-scope";
 import { diffRuleStatuses } from "@/lib/cabinet/diff";
 import { categoryLabel } from "@/lib/seomator-meta";
 import { getTranslations } from "next-intl/server";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 type IssueRow = typeof auditIssues.$inferSelect;
 
@@ -374,6 +374,7 @@ function DiffCard({
   tone: "muted" | "bright";
 }) {
   const t = useTranslations("auditUi");
+  const locale = useLocale();
   return (
     <div
       className={
@@ -394,7 +395,7 @@ function DiffCard({
           {t("list.auditNumber", { id: audit.id })}
         </Link>
         <div className="text-xs text-muted-foreground">
-          {audit.completedAt?.toLocaleString() ?? "—"} ·{" "}
+          {audit.completedAt?.toLocaleString(locale) ?? "—"} ·{" "}
           {t("diff.issuesCount", { count })}
         </div>
       </div>

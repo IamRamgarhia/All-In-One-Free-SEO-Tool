@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import { useTransition } from "react";
 import {
@@ -45,6 +45,7 @@ export function HistoryClient({
   currentClient: number | null;
 }) {
   const tx = useTranslations("ui.app_history_client");
+  const locale = useLocale();
   const [pending, startTransition] = useTransition();
 
   return (
@@ -142,7 +143,7 @@ export function HistoryClient({
                   <span className="font-medium">{r.label}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  {new Date(r.createdAt).toLocaleString()}
+                  {new Date(r.createdAt).toLocaleString(locale)}
                   {r.clientId &&
                     clients.find((c) => c.id === r.clientId) && (
                       <span>

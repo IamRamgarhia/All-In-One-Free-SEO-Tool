@@ -4,7 +4,7 @@ import type { TaskPage } from "@/lib/task-pages";
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Check,
   CheckCircle2,
@@ -69,12 +69,13 @@ function dueBadgeProps(
   done: boolean,
   nowMs: number,
   t: TasksTranslate,
+  locale: string,
 ): { tone: string; label: string } {
   const days = Math.round((dueDate.getTime() - nowMs) / 86_400_000);
   if (done) {
     return {
       tone: "bg-white/5 text-muted-foreground ring-white/10",
-      label: t("due.wasDue", { date: dueDate.toLocaleDateString() }),
+      label: t("due.wasDue", { date: dueDate.toLocaleDateString(locale) }),
     };
   }
   if (days < 0)
@@ -510,7 +511,8 @@ function DueBadge({
   nowMs: number;
 }) {
   const t = useTranslations("tasks");
-  const { tone, label } = dueBadgeProps(dueDate, done, nowMs, t);
+  const locale = useLocale();
+  const { tone, label } = dueBadgeProps(dueDate, done, nowMs, t, locale);
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${tone}`}

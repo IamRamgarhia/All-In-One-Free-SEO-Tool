@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useNow, useTranslations } from "next-intl";
 import {
   AlertCircle,
   ExternalLink,
@@ -71,6 +71,7 @@ export function KnowledgePanel({
 }) {
   const t = useTranslations("knowledge");
   const format = useFormatter();
+  const now = useNow();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<KbHit[] | null>(null);
@@ -105,7 +106,7 @@ export function KnowledgePanel({
           {stats.updatedAt ? (
             <span className="text-muted-foreground">
               {" · "}
-              {t("updated", { when: format.relativeTime(new Date(stats.updatedAt)) })}
+              {t("updated", { when: format.relativeTime(new Date(stats.updatedAt), now) })}
             </span>
           ) : null}
         </p>

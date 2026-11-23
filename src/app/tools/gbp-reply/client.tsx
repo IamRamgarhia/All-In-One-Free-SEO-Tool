@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   fetchReviewsWithDrafts,
   submitReply,
@@ -136,6 +136,7 @@ function ReviewRow({
   locationName: string;
 }) {
   const t = useTranslations("tools.ui.gbp-reply");
+  const locale = useLocale();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(review.draft ?? "");
   const [posted, setPosted] = useState(Boolean(review.reply));
@@ -163,7 +164,7 @@ function ReviewRow({
             </span>
             <StarRating value={review.starRating} />
             <span className="text-[10px] text-muted-foreground">
-              {new Date(review.createTime).toLocaleDateString()}
+              {new Date(review.createTime).toLocaleDateString(locale)}
             </span>
           </div>
           <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground/90">

@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat, ArrowUpRight } from "lucide-react";
 import { setTaskStatus, deleteTask } from "./actions";
 import { TimeTracker } from "./time-tracker";
@@ -186,13 +186,14 @@ function dueBadgeProps(
   done: boolean,
   nowMs: number,
   t: TasksTranslate,
+  locale: string,
 ): { tone: string; label: string } {
   const ms = dueDate.getTime() - nowMs;
   const days = Math.round(ms / 86_400_000);
   if (done) {
     return {
       tone: "bg-white/5 text-muted-foreground ring-white/10",
-      label: t("due.wasDue", { date: dueDate.toLocaleDateString() }),
+      label: t("due.wasDue", { date: dueDate.toLocaleDateString(locale) }),
     };
   }
   if (days < 0) {
@@ -229,7 +230,8 @@ function DueBadge({
   nowMs: number;
 }) {
   const t = useTranslations("tasks");
-  const { tone, label } = dueBadgeProps(dueDate, done, nowMs, t);
+  const locale = useLocale();
+  const { tone, label } = dueBadgeProps(dueDate, done, nowMs, t, locale);
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ring-1 ring-inset ${tone}`}

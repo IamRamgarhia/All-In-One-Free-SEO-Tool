@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import path from "node:path";
 import { statSync, existsSync, readdirSync } from "node:fs";
 import {
@@ -26,6 +26,7 @@ function fmtBytes(b: number): string {
 export default async function BackupPage() {
   await requireSettingsPage("/settings/backup", { owner: true });
   const tx = await getTranslations("ui.app_settings_backup_page");
+  const locale = await getLocale();
   const dbPath = process.env.SEO_DB_PATH ?? path.join(process.cwd(), "data.db");
   const dbAbs = path.resolve(dbPath);
   const dbExists = existsSync(dbAbs);
@@ -107,7 +108,7 @@ export default async function BackupPage() {
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
               {tx("lastModified")}
             </p>
-            <p>{dbMtime?.toLocaleString() ?? "—"}</p>
+            <p>{dbMtime?.toLocaleString(locale) ?? "—"}</p>
           </div>
         </div>
 
@@ -207,7 +208,7 @@ export default async function BackupPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-[11px]">{b.name}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {b.mtime.toLocaleString()} · {fmtBytes(b.size)}
+                    {b.mtime.toLocaleString(locale)} · {fmtBytes(b.size)}
                   </p>
                 </div>
               </li>

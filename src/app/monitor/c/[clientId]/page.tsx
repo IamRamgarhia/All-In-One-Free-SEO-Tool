@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { desc, eq, inArray } from "drizzle-orm";
 import { Activity, ExternalLink, X } from "lucide-react";
 import { db } from "@/db/client";
@@ -48,6 +48,7 @@ export default async function PerClientMonitorPage({
   if (!client) notFound();
 
   const t = await getTranslations("auditTab.monitor");
+  const locale = await getLocale();
 
   const pages = await db
     .select()
@@ -146,7 +147,7 @@ export default async function PerClientMonitorPage({
                     {p.lastCheckedAt && (
                       <div className="text-[11px] text-muted-foreground/70">
                         {t("page.lastChecked", {
-                          date: p.lastCheckedAt.toLocaleString(),
+                          date: p.lastCheckedAt.toLocaleString(locale),
                         })}
                       </div>
                     )}
@@ -209,7 +210,7 @@ export default async function PerClientMonitorPage({
                       : c.field}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    {c.detectedAt.toLocaleString()}
+                    {c.detectedAt.toLocaleString(locale)}
                   </span>
                 </div>
                 <div className="mt-1.5 grid gap-1 text-xs">

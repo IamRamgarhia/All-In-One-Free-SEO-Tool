@@ -1,5 +1,5 @@
 import { TrendingUp } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 export function OpportunitiesPanel({
   opportunities,
@@ -13,6 +13,7 @@ export function OpportunitiesPanel({
   }[];
 }) {
   const t = useTranslations("tools.ui.serp-features");
+  const locale = useLocale();
   if (opportunities.length === 0) return null;
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">
@@ -42,7 +43,7 @@ export function OpportunitiesPanel({
               {o.competitorDomain}
             </a>
             <span className="text-[10px] text-muted-foreground">
-              {o.capturedAt.toLocaleDateString()}
+              {o.capturedAt.toLocaleDateString(locale)}
             </span>
           </li>
         ))}

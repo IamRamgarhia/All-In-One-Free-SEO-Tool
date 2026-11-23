@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useActionState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   CheckCircle2,
   ChevronDown,
@@ -353,6 +353,7 @@ function TrackerRow({
   row: TrackedRow;
 }) {
   const t = useTranslations("linksTab.linkBuilding.hub");
+  const locale = useLocale();
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -384,7 +385,7 @@ function TrackerRow({
               <span>
                 {t("row.statusOn", {
                   status: statusLabel(t, row.status),
-                  date: row.submittedAt.toLocaleDateString(),
+                  date: row.submittedAt.toLocaleDateString(locale),
                 })}
               </span>
             )}

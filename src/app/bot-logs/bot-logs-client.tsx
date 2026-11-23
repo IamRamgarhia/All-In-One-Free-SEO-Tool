@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -60,6 +60,7 @@ export function BotLogsClient({
   uploads: Upload[];
 }) {
   const tx = useTranslations("ui.app_bot-logs_bot-logs-client");
+  const locale = useLocale();
   const fileRef = useRef<HTMLInputElement>(null);
   const [clientId, setClientId] = useState<string>("");
   const [pending, startTransition] = useTransition();
@@ -168,7 +169,7 @@ export function BotLogsClient({
           <div className="mt-4 space-y-3">
             <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 ring-1 ring-inset ring-emerald-500/30">
               <CheckCircle2 className="mr-1 inline size-3.5" />
-              {tx("parsedLinesHitsWhoseUser", { v: result.totalLines.toLocaleString(), v2: result.matchedLines.toLocaleString(), length: Object.keys(result.botCounts).length })}
+              {tx("parsedLinesHitsWhoseUser", { v: result.totalLines.toLocaleString(locale), v2: result.matchedLines.toLocaleString(locale), length: Object.keys(result.botCounts).length })}
             </div>
 
             {result.addressWarning && (
@@ -202,13 +203,13 @@ export function BotLogsClient({
                         ) : (
                           <span className="tabular-nums">
                             <span className="text-emerald-300">
-                              {tx("verified", { v: v.verified.toLocaleString() })}
+                              {tx("verified", { v: v.verified.toLocaleString(locale) })}
                             </span>
                             {v.unverified > 0 && (
                               <>
                                 {" · "}
                                 <span className="text-amber-300">
-                                  {tx("fromOtherAddresses", { v: v.unverified.toLocaleString() })}
+                                  {tx("fromOtherAddresses", { v: v.unverified.toLocaleString(locale) })}
                                 </span>
                               </>
                             )}
@@ -216,7 +217,7 @@ export function BotLogsClient({
                               <>
                                 {" · "}
                                 <span className="text-muted-foreground">
-                                  {tx("withNoAddress", { v: v.noAddress.toLocaleString() })}
+                                  {tx("withNoAddress", { v: v.noAddress.toLocaleString(locale) })}
                                 </span>
                               </>
                             )}
@@ -258,7 +259,7 @@ export function BotLogsClient({
                         >
                           {bucket}{" "}
                           <span className="font-bold">
-                            {count.toLocaleString()}
+                            {count.toLocaleString(locale)}
                           </span>
                         </span>
                       );
@@ -288,7 +289,7 @@ export function BotLogsClient({
                     >
                       <span className="truncate font-mono">{p.path}</span>
                       <span className="shrink-0 text-muted-foreground">
-                        {p.count.toLocaleString()}
+                        {p.count.toLocaleString(locale)}
                       </span>
                     </li>
                   ))}
@@ -338,7 +339,7 @@ export function BotLogsClient({
                         )}
                       </div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        {tx("linesKb", { v: (u.lineCount ?? 0).toLocaleString(), v2: ((u.rawByteSize ?? 0) / 1024).toFixed(1), v3: u.uploadedAt.toLocaleString() })}
+                        {tx("linesKb", { v: (u.lineCount ?? 0).toLocaleString(locale), v2: ((u.rawByteSize ?? 0) / 1024).toFixed(1), v3: u.uploadedAt.toLocaleString(locale) })}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1">
                         {sorted.map(([bot, count]) => {
@@ -354,14 +355,14 @@ export function BotLogsClient({
                             >
                               {bot}
                               <span className="font-bold tabular-nums">
-                                {count.toLocaleString()}
+                                {count.toLocaleString(locale)}
                               </span>
                               {v && !v.listError && (
                                 <span
                                   className="tabular-nums text-emerald-300"
                                   title={tx("hitsFromTheCrawlerS")}
                                 >
-                                  ✓{v.verified.toLocaleString()}
+                                  ✓{v.verified.toLocaleString(locale)}
                                 </span>
                               )}
                             </span>
@@ -370,7 +371,7 @@ export function BotLogsClient({
                       </div>
                       {aiTotal > 0 && (
                         <div className="mt-1 text-[11px] text-violet-300">
-                          {tx("aiBotHitsThisPeriod", { aiTotal: aiTotal.toLocaleString() })}
+                          {tx("aiBotHitsThisPeriod", { aiTotal: aiTotal.toLocaleString(locale) })}
                         </div>
                       )}
                     </div>

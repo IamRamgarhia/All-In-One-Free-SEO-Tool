@@ -341,6 +341,7 @@ function KeywordsStep({
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const t = useTranslations("onboarding.keywords");
   const tCommon = useTranslations("onboarding");
+  const locale = useLocale();
 
   useAdvanceWhenOk(accepted?.ok, onNext);
 
@@ -444,7 +445,7 @@ function KeywordsStep({
                         </span>
                       )}
                       {k.impressions !== undefined && (
-                        <span>{tx("imp", { v: k.impressions.toLocaleString() })}</span>
+                        <span>{tx("imp", { v: k.impressions.toLocaleString(locale) })}</span>
                       )}
                       {k.position !== undefined && (
                         <span>{tx("pos", { v: k.position.toFixed(1) })}</span>

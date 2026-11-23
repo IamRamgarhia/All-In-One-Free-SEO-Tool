@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { desc, eq, inArray } from "drizzle-orm";
 import {
   AlertCircle,
@@ -60,6 +60,7 @@ export default async function PerClientCitationsPage({
     .limit(1);
   if (!client) notFound();
   const t = await getTranslations("localTab.citations");
+  const locale = await getLocale();
   const statusLabel = (st: string) =>
     t.has(`status.${st}`) ? t(`status.${st}`) : st;
   const categoryLabel = (cat: string) =>
@@ -344,7 +345,7 @@ export default async function PerClientCitationsPage({
                     : "bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10 hover:text-foreground"
                 }`}
               >
-                {categoryLabel(cat)} ({(catCounts.get(cat) ?? 0).toLocaleString()})
+                {categoryLabel(cat)} ({(catCounts.get(cat) ?? 0).toLocaleString(locale)})
               </a>
             ))}
           </div>

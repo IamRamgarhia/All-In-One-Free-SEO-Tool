@@ -9,7 +9,7 @@ import {
   resolve404,
 } from "./actions";
 import type { RedirectRule, NotFoundLog } from "@/db/schema";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 export function Manager({
   rules,
@@ -19,6 +19,7 @@ export function Manager({
   notFound: NotFoundLog[];
 }) {
   const t = useTranslations("tools.ui.redirects-manager");
+  const locale = useLocale();
   const [, startMut] = useTransition();
   const [resolveId, setResolveId] = useState<number | null>(null);
   const [resolveTarget, setResolveTarget] = useState("");
@@ -167,7 +168,7 @@ export function Manager({
                       <span className="text-muted-foreground tabular-nums">
                         {t("hits", {
                           count: n.hits,
-                          date: n.lastSeen.toLocaleDateString(),
+                          date: n.lastSeen.toLocaleDateString(locale),
                         })}
                       </span>
                       {!n.resolved && (

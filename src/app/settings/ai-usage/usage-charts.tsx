@@ -9,7 +9,7 @@
  *   - "Cost by feature" — donut, cycling through the brand palette
  */
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   Bar,
   BarChart,
@@ -59,6 +59,7 @@ export function UsageCharts({
   featureRows: FeatureRow[];
 }) {
   const tx = useTranslations("ui.app_settings_ai-usage_usage-charts");
+  const locale = useLocale();
   // Donut wants whole-dollar values (cost is in micros — divide once)
   const featureChart = featureRows
     .filter((r) => r.cost > 0)
@@ -97,7 +98,7 @@ export function UsageCharts({
                 tickLine={false}
                 axisLine={false}
                 width={32}
-                tickFormatter={(v) => v.toLocaleString()}
+                tickFormatter={(v) => v.toLocaleString(locale)}
               />
               <Tooltip
                 contentStyle={{
@@ -106,7 +107,7 @@ export function UsageCharts({
                   borderRadius: 8,
                   fontSize: 11,
                 }}
-                formatter={(value) => [Number(value).toLocaleString(), "calls"]}
+                formatter={(value) => [Number(value).toLocaleString(locale), "calls"]}
                 labelStyle={{ color: "rgb(226 232 240)" }}
               />
               <Bar dataKey="calls" fill={CYAN} radius={[2, 2, 0, 0]} />

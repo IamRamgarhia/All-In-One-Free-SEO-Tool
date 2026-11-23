@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useActionState, useState, useTransition } from "react";
 import { Check, Copy, Key, Loader2, Plus, Trash2 } from "lucide-react";
 import {
@@ -21,6 +21,7 @@ export type ApiKeyRow = {
 
 export function ApiKeyManager({ initial }: { initial: ApiKeyRow[] }) {
   const tx = useTranslations("ui.app_settings_api-keys_manager");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<
     CreateApiKeyState | null,
     FormData
@@ -126,7 +127,7 @@ export function ApiKeyManager({ initial }: { initial: ApiKeyRow[] }) {
                   <div className="text-[10px] text-muted-foreground">
                     {tx.rich("scopes", { keyPrefix: k.keyPrefix, v: k.scopes.join(", "), b0: (chunks) => <code>{chunks}</code> })}
                     {k.lastUsedAt
-                      ? `used ${k.lastUsedAt.toLocaleString()}`
+                      ? `used ${k.lastUsedAt.toLocaleString(locale)}`
                       : "never used"}
                   </div>
                 </div>
@@ -147,7 +148,7 @@ export function ApiKeyManager({ initial }: { initial: ApiKeyRow[] }) {
               )}
               {k.revokedAt && (
                 <span className="text-[10px] text-muted-foreground">
-                  {tx("revoked", { v: k.revokedAt.toLocaleDateString() })}
+                  {tx("revoked", { v: k.revokedAt.toLocaleDateString(locale) })}
                 </span>
               )}
             </li>

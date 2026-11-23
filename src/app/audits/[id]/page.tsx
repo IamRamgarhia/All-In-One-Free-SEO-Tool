@@ -125,6 +125,7 @@ export default async function AuditDetailPage({
   const tCat = await getTranslations("auditUi.categories");
   const tVerdict = await getTranslations("auditUi.verdict");
   const tStatus = await getTranslations("audits.status");
+  const locale = await getLocale();
   const catName = (id: string) => (tCat.has(id) ? tCat(id) : categoryLabel(id));
 
   // `stalledSeconds` is computed by SQLite rather than with Date.now()
@@ -778,10 +779,10 @@ export default async function AuditDetailPage({
                     <p className="mt-1 text-sm text-muted-foreground">
                       {audit.completedAt
                         ? t("completedAt", {
-                            date: audit.completedAt.toLocaleString(),
+                            date: audit.completedAt.toLocaleString(locale),
                           })
                         : t("startedAt", {
-                            date: (audit.startedAt ?? audit.createdAt).toLocaleString(),
+                            date: (audit.startedAt ?? audit.createdAt).toLocaleString(locale),
                           })}{" "}
                       · {client.name}
                       {" · "}

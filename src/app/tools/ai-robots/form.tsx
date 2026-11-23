@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Loader2, Check, X, Circle, Copy } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { runAiRobotsAudit } from "./actions";
 import { usePresetClientId, usePresetUrl } from "@/components/use-preset-url";
 import type { RobotsAudit } from "@/lib/ai-bot-robots";
@@ -38,6 +38,7 @@ export function AiRobotsForm() {
   // not retyped and the findings attach to the right client.
   const t = useTranslations("tools.ui.ai-robots");
   const tCommon = useTranslations("tools.common");
+  const locale = useLocale();
   const presetUrl = usePresetUrl();
   const clientId = usePresetClientId();
   const [url, setUrl] = useState(presetUrl);
@@ -139,7 +140,7 @@ export function AiRobotsForm() {
               <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {t("fetchedAt", {
                   url: result.url,
-                  date: new Date(result.fetchedAt).toLocaleString(),
+                  date: new Date(result.fetchedAt).toLocaleString(locale),
                 })}
               </p>
             </header>

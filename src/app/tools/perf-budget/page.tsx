@@ -4,7 +4,7 @@ import { ToolBackLink } from "@/components/tools/tool-back-link";
 import { useActionState, useState } from "react";
 import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { Gauge, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { PageHeader } from "@/components/shell/page-header";
 import { runBudget, type BudgetState } from "./actions";
 import { RecentRuns } from "@/components/recent-runs";
@@ -25,6 +25,7 @@ const DEFAULTS = {
 export default function PerfBudgetPage() {
   const t = useTranslations("tools.ui.perf-budget");
   const tCommon = useTranslations("tools.common");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<BudgetState, FormData>(
     runBudget,
     null,
@@ -120,7 +121,7 @@ export default function PerfBudgetPage() {
                 : t("overLimit", { count: state.fails })}
             </h2>
             <span className="text-[11px] text-muted-foreground">
-              {t("measuredAt", { time: new Date().toLocaleTimeString() })}
+              {t("measuredAt", { time: new Date().toLocaleTimeString(locale) })}
             </span>
           </header>
           <ul className="divide-y divide-white/[0.06]">

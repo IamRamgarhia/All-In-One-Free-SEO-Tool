@@ -931,7 +931,7 @@ function money(amount: number, currency: string, locale?: string): string {
       // PDF fonts lack: it printed "1 /110 €".
       .replace(/[\u202f\u00a0]/g, " ");
   } catch {
-    return `${currency} ${amount.toLocaleString()}`;
+    return `${currency} ${amount.toLocaleString(locale)}`;
   }
 }
 

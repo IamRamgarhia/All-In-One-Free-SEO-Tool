@@ -28,7 +28,7 @@
     "description": "Collez une URL : l’IA récupère la page, identifie le type de contenu et produit un JSON-LD valide, fondé sur le contenu réel. Aucun champ inventé."
   },
   "outreach-personalize": {
-    "title": "Personnalisation d’outreach",
+    "title": "Personnalisation des e-mails de prospection",
     "description": "Collez l’URL du prospect et votre modèle de message. L’IA analyse son site (articles récents, sujets de prédilection) et réécrit votre accroche avec une référence précise. De 2 % à 15 % de taux de réponse."
   },
   "cluster": {
@@ -37,7 +37,7 @@
   },
   "programmatic-seo": {
     "title": "Boîte à outils SEO programmatique",
-    "description": "Un CSV et quatre modèles → des centaines, voire des milliers de landing pages, avec sitemap et maillage interne. Idéal pour les combinaisons ville × service et les pages de comparatif SaaS."
+    "description": "Un CSV et quatre modèles → des centaines, voire des milliers de pages d’atterrissage, avec sitemap et maillage interne. Idéal pour les combinaisons ville × service et les pages de comparatif SaaS."
   },
   "og-image": {
     "title": "Générateur d’images OG",
@@ -85,7 +85,7 @@
   },
   "youtube-audit": {
     "title": "Audit SEO YouTube",
-    "description": "Collez une URL YouTube → checklist en 14 points (titre, description, chapitres, hashtags, tags, sous-titres, miniature, ratio de likes, fraîcheur) et corrections proposées par l’IA. Gratuit, via oEmbed et la page de la vidéo."
+    "description": "Collez une URL YouTube → liste de contrôle en 14 points (titre, description, chapitres, hashtags, tags, sous-titres, miniature, ratio de likes, fraîcheur) et corrections proposées par l’IA. Gratuit, via oEmbed et la page de la vidéo."
   },
   "soft-404": {
     "title": "Détecteur de soft 404",
@@ -321,7 +321,7 @@
   },
   "github-pr": {
     "title": "PR GitHub de corrections SEO",
-    "description": "Pour les sites sans connexion directe à un CMS (Next.js, développement sur mesure), ouvrez une PR structurée contenant la checklist des corrections SEO à faire appliquer par votre développeur."
+    "description": "Pour les sites sans connexion directe à un CMS (Next.js, développement sur mesure), ouvrez une PR structurée contenant la liste de contrôle des corrections SEO à faire appliquer par votre développeur."
   },
   "geo-swot": {
     "title": "SWOT GEO",

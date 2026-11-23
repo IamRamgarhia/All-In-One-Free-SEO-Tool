@@ -55,8 +55,8 @@
       "tools_ads-funnel": "Architecte funnel ads ⭐",
       "tools_branded-split": "Marque vs hors marque",
       "backlinks": "Backlinks",
-      "link-building": "Link building",
-      "outreach": "Outreach",
+      "link-building": "Netlinking",
+      "outreach": "Prospection",
       "broken-links": "Liens cassés",
       "gbp": "Google Business Profile",
       "citations": "Citations",
@@ -257,7 +257,7 @@
       }
     },
     "quickWins": {
-      "title": "Quick wins sur tous les clients",
+      "title": "Gains rapides sur tous les clients",
       "subtitle": "Les mots-clés aux plus fortes impressions classés entre la 4e et la 15e position. Un ajustement suffit pour la première page.",
       "stats": "{impressions, number} impr. · {clicks, number} clics",
       "current": "actuelle"
@@ -320,7 +320,7 @@
         "data": "Données",
         "backup": "Sauvegarde",
         "browser": "Navigateur",
-        "edge": "Edge worker",
+        "edge": "Relais en périphérie (edge worker)",
         "health": "Santé du système",
         "errors": "Journal des erreurs",
         "privacy": "Confidentialité",
@@ -872,7 +872,7 @@
         "bot-logs": "Logs des robots IA",
         "report-data": "Ajouter du travail aux rapports",
         "brand-serp": "SERP de marque",
-        "knowledge-panel": "Knowledge Panel",
+        "knowledge-panel": "Fiche d’entité Google",
         "annotations": "Annotations des graphiques",
         "ask": "Demander à l’IA",
         "capture": "Capture universelle",
@@ -940,9 +940,9 @@
         "digest": "Résumé hebdomadaire envoyé par e-mail.",
         "monitor": "Surveille les changements sur des pages choisies et la disponibilité des sites, avec les instantanés à comparer avant et après.",
         "snapshots": "Instantanés enregistrés, à comparer avant et après.",
-        "brand-monitor": "Les mentions de la marque, la part de la première page Google qu’elle contrôle sur son nom, et son Knowledge Panel.",
+        "brand-monitor": "Les mentions de la marque, la part de la première page Google qu’elle contrôle sur son nom, et sa fiche d’entité Google.",
         "brand-serp": "Part de la première page Google que la marque contrôle sur son propre nom.",
-        "knowledge-panel": "Relève le Knowledge Panel de la marque et signale ce qui a changé.",
+        "knowledge-panel": "Relève la fiche d’entité Google de la marque et signale ce qui a changé.",
         "annotations": "Repères sur les graphiques pour relier une variation à un événement.",
         "algorithm-updates": "Les mises à jour de l’algorithme, la volatilité des positions jour après jour et l’actualité du SEO.",
         "news": "Actualité du SEO.",
@@ -957,7 +957,7 @@
         "chats": "Historique des conversations avec l’IA.",
         "ask": "Pose une question sur les audits, mots-clés et tâches d’un client, et retrouve les conversations passées.",
         "capture": "Extrait d’une URL le titre, la marque, le logo, les coordonnées et le schema.",
-        "links": "Liens courts avec suivi des clics, pour l’outreach et les réseaux.",
+        "links": "Liens courts avec suivi des clics, pour la prospection et les réseaux.",
         "knowledge": "Ressources pour apprendre et former l’équipe.",
         "tools_health-check": "Le bilan complet d’une URL ou de 25 d’un coup, la version à montrer à un prospect et les signaux du domaine.",
         "tools_render": "Ce que Google voit d’une URL : HTML après JavaScript, capture d’écran, chaîne de redirections et en-têtes HTTP à chaque saut.",
@@ -1180,7 +1180,7 @@
           "0": "Tout l’Exécutif +",
           "1": "Courbe de trafic organique réelle (GA4)",
           "2": "Top 10 mots-clés avec CTR + position",
-          "3": "Opportunités quick-win",
+          "3": "Gains rapides possibles",
           "4": "Tâches terminées + recommandations"
         }
       },
@@ -1199,7 +1199,7 @@
         "description": "Lean, centré valeur trafic. Pour la direction.",
         "bullets": {
           "0": "Trafic + conversions en tête",
-          "1": "Score + delta",
+          "1": "Score et évolution",
           "2": "Travail réalisé",
           "3": "Sans bruit technique"
         }
@@ -1326,19 +1326,19 @@
   },
   "keywords": {
     "title": "Mots-clés",
-    "description": "Choisissez un client pour rechercher des mots-clés, suivre les positions et trouver des quick wins.",
+    "description": "Choisissez un client pour rechercher des mots-clés, suivre les positions et trouver des gains rapides.",
     "toolLabel": "Mots-clés",
     "noneTracked": "Aucun suivi",
     "keywordCount": "{count, plural, one {# mot-clé} other {# mots-clés}}",
-    "quickWinsReady": "{count, plural, one {# quick win} other {# quick wins}} prêts",
+    "quickWinsReady": "{count, plural, one {# gain rapide prêt} other {# gains rapides prêts}}",
     "clickToManage": "Cliquer pour gérer",
     "clickToTrackFirst": "Cliquer pour suivre le premier",
     "quickWinBadge": "{count} QW",
     "clientTitle": "Mots-clés · {name}",
-    "clientDescriptionGsc": "Recherchez, suivez les positions, trouvez des quick wins. Les classements viennent de Search Console — les chiffres de Google, gratuits, sans coût d’API.",
-    "clientDescriptionBrowser": "Recherchez, suivez les positions, trouvez des quick wins. Les vérifications passent par un navigateur headless — gratuit, mais connectez Search Console pour les chiffres de Google.",
+    "clientDescriptionGsc": "Recherchez, suivez les positions, trouvez des gains rapides. Les classements viennent de Search Console — les chiffres de Google, gratuits, sans coût d’API.",
+    "clientDescriptionBrowser": "Recherchez, suivez les positions, trouvez des gains rapides. Les vérifications passent par un navigateur headless — gratuit, mais connectez Search Console pour les chiffres de Google.",
     "exportCsv": "Exporter CSV",
-    "quickWinsTitle": "Quick wins",
+    "quickWinsTitle": "Gains rapides",
     "quickWinsDescription": "Mots-clés suivis actuellement en positions 4-15 — poussez-les en page 1.",
     "emptyTracked": "Aucun mot-clé suivi pour l’instant. Utilisez le formulaire de recherche ci-dessus, ou collez un CSV.",
     "trackedTitle": "Mots-clés suivis ({count})",
@@ -1354,7 +1354,7 @@
     "colActions": "Actions",
     "runSerpScan": "— lancer un scan SERP",
     "aioTitle": "AI Overview Google présent pour cette requête",
-    "fsTitle": "Featured snippet présent",
+    "fsTitle": "Extrait optimisé présent",
     "lpTitle": "Pack local (3) présent",
     "paaTitle": "{count} questions People Also Ask",
     "viewScreenshots": "Voir les captures SERP",
@@ -1554,9 +1554,9 @@
   },
   "onboarding": {
     "backToClient": "Retour au client",
-    "pageTitle": "Onboarding intelligent · {name}",
+    "pageTitle": "Mise en route intelligente · {name}",
     "pageDescription": "Décrivez l’activité une fois : l’outil construit un plan SEO sur 30 jours adapté à la niche, à la langue et à la stack — et génère les tâches quotidiennes pour ne plus se demander quoi faire chaque matin.",
-    "skip": "Passer l’onboarding",
+    "skip": "Passer la mise en route",
     "skipping": "Passage…",
     "saving": "Enregistrement…",
     "steps": {
@@ -1574,7 +1574,7 @@
       "runningHint": "Cela tourne en arrière-plan — continuez les étapes ci-dessous, ce sera prêt à la fin.",
       "completedHint": "{issues, plural, one {# point} other {# points}} à examiner. Tout est dans le rapport final.",
       "completedHintScore": "{issues, plural, one {# point} other {# points}} à examiner · score santé {score}/100. Tout est dans le rapport final.",
-      "failedHint": "Le site était peut‑être inaccessible. Relancez depuis la fiche client — le reste de l’onboarding fonctionne quand même."
+      "failedHint": "Le site était peut‑être inaccessible. Relancez depuis la fiche client — le reste de la mise en route fonctionne quand même."
     },
     "brand": {
       "title": "Parlez-moi de l’activité",
@@ -2088,7 +2088,7 @@
       "writing": "Rédaction en cours (jusqu’à 2 min)…",
       "confirmReplaceDraft": "Remplacer l’article actuel par une nouvelle version ? Vos modifications seront perdues.",
       "titleField": "Titre",
-      "metaTitle": "Meta title",
+      "metaTitle": "Balise title",
       "metaDescription": "Meta description",
       "edit": "Éditer",
       "preview": "Aperçu",
@@ -2691,7 +2691,18 @@
     },
     "toolDot": {
       "ready": "Prêt",
-      "needsSetup": "À configurer"
+      "needsSetup": "À configurer",
+      "readyFreeBrowser": "Fonctionne dès maintenant, sans clé d’IA. Lance un navigateur sur cette machine : chaque utilisation est gratuite.",
+      "readyFree": "Fonctionne dès maintenant, sans clé d’IA, et ne coûte rien à l’usage.",
+      "readyAi": "Fonctionne dès maintenant avec votre clé d’IA : chaque utilisation coûte un peu.",
+      "needsAiKeyTitle": "Nécessite une clé d’IA. Un abonnement de chat connecté ne fait pas fonctionner cette page : la connexion va dans l’autre sens.",
+      "needsAiKey": "Nécessite une clé d’IA",
+      "needs": {
+        "gsc": "Connectez d’abord Google Search Console",
+        "gbp": "Ajoutez d’abord l’URL de la fiche Google Business Profile du client sur cette page",
+        "ga4": "Connectez d’abord Google Analytics 4",
+        "wpBridge": "Installez d’abord l’extension WordPress SEO Tool Bridge"
+      }
     },
     "theme": {
       "toDark": "Passer au thème sombre",
@@ -2904,10 +2915,10 @@
       "technicalHint": "Chaque problème avec ses URL, pour les développeurs"
     },
     "aiAudit": "Audit IA",
-    "replanTitle": "Relancer l’onboarding pour rafraîchir les mots-clés et le plan",
-    "onboardingTitle": "Onboarding intelligent : génère un plan sur 30 jours",
+    "replanTitle": "Relancer la mise en route pour rafraîchir les mots-clés et le plan",
+    "onboardingTitle": "Mise en route intelligente : génère un plan sur 30 jours",
     "replan": "Replanifier",
-    "onboarding": "Onboarding intelligent",
+    "onboarding": "Mise en route intelligente",
     "more": "Plus",
     "menu": {
       "agent": "Agent IA",
@@ -2940,7 +2951,7 @@
       "quickHint": "Exploration du site et 373 règles techniques, HTML uniquement.",
       "runNow": "Lancer →",
       "keywords": "Suivre des mots-clés",
-      "keywordsHint": "10 à 15 mots-clés suffisent à l’IA pour repérer des quick wins.",
+      "keywordsHint": "10 à 15 mots-clés suffisent à l’IA pour repérer des gains rapides.",
       "addKeywords": "Ajouter des mots-clés →",
       "onboardingHint": "L’IA inspecte le site et génère un plan SEO sur 30 jours.",
       "autoPlan": "Planifier →"
@@ -2974,7 +2985,7 @@
     "loading": {
       "traffic": "Chargement du trafic organique depuis Analytics…",
       "keywords": "Chargement des principaux mots-clés depuis Search Console…",
-      "quickWins": "Recherche de quick wins…"
+      "quickWins": "Recherche de gains rapides…"
     },
     "schedule": {
       "title": "Envoi programmé du rapport",
@@ -2994,10 +3005,10 @@
       "reapply": "Réappliquer les modèles"
     },
     "checklist": {
-      "title": "Checklist de la stack",
-      "generic": "Checklist SEO générique (aucun CMS majeur détecté)",
+      "title": "Liste de contrôle pour la technologie du site",
+      "generic": "Liste de contrôle SEO générique (aucun CMS majeur détecté)",
       "tailored": "Tâches adaptées à {stacks}",
-      "reapply": "Réappliquer la checklist",
+      "reapply": "Réappliquer la liste de contrôle",
       "body": "Des tâches SEO propres à la plateforme ont été ajoutées à la création du client, avec le plugin, le réglage ou l’étape exacte à suivre."
     },
     "audits": {
@@ -3079,7 +3090,7 @@
     },
     "dailyAutomation": {
       "title": "Automatisation quotidienne",
-      "empty": "Aucune planification pour l'instant. Programmez la génération automatique d'articles, de posts Google Business, de textes pour les réseaux ou de checklists quotidiennes pour ce client.",
+      "empty": "Aucune planification pour l'instant. Programmez la génération automatique d'articles, de posts Google Business, de textes pour les réseaux ou de listes de contrôle quotidiennes pour ce client.",
       "active": "{active}/{total, plural, one {# planification active} other {# planifications actives}}",
       "pending": " · {count, plural, one {# élément attend} other {# éléments attendent}} une relecture",
       "lastPublished": " · dernière publication le {date}",
@@ -3143,7 +3154,7 @@
         "snapshots": "{count, plural, one {<b>#</b> instantané de métriques} other {<b>#</b> instantanés de métriques}}"
       },
       "none": "Aucun enregistrement lié : uniquement la fiche du client.",
-      "plus": "En plus : les infos de marque du client, ses intégrations (jetons GSC/GA4/GBP/pont WP), son lien de partage et son état d'onboarding.",
+      "plus": "En plus : les infos de marque du client, ses intégrations (jetons GSC/GA4/GBP/pont WP), son lien de partage et l'état de sa mise en route.",
       "irreversible": "<b>Irréversible.</b> Une restauration n'est possible qu'à partir d'une sauvegarde de votre fichier data.db.",
       "typeToConfirm": "Tapez <name></name> pour confirmer :",
       "keep": "Garder ce client",
@@ -4523,7 +4534,7 @@
         "titles": {
           "heading": "En panne de titre ? L'IA vous en propose 6.",
           "hint": "Adaptés au style maison de {site} et à la niche de votre client.",
-          "keywordPlaceholder": "Mot-clé cible (ex. : onboarding saas)",
+          "keywordPlaceholder": "Mot-clé cible (ex. : intégration des nouveaux clients saas)",
           "contextPlaceholder": "Contexte supplémentaire facultatif (audience, angle…)",
           "generating": "Génération…",
           "submit": "Proposer 6 titres",
@@ -4561,9 +4572,9 @@
         },
         "form": {
           "topic": "Sujet *",
-          "topicPlaceholder": "ex. : comment nous avons réduit l'onboarding SaaS de 12 jours à 2",
+          "topicPlaceholder": "ex. : comment nous avons réduit l'intégration des nouveaux clients SaaS de 12 jours à 2",
           "keyword": "Mot-clé cible *",
-          "keywordPlaceholder": "ex. : parcours d'onboarding saas",
+          "keywordPlaceholder": "ex. : parcours d'intégration client saas",
           "supporting": "Mots-clés secondaires (facultatif)",
           "supportingPlaceholder": "activation des utilisateurs, conversion de l'essai gratuit",
           "authorName": "Nom de l'auteur (signature)",
@@ -5502,7 +5513,7 @@
       "tabs": {
         "mentions": "Mentions",
         "serp": "SERP de marque",
-        "panel": "Knowledge Panel"
+        "panel": "Fiche d’entité Google"
       }
     },
     "googleWatch": {
@@ -5872,19 +5883,19 @@
       "aiTemplate": {
         "watch": {
           "label": "Veille hebdomadaire",
-          "prompt": "Fais la veille de la semaine pour ce client : évolution des positions des mots-clés suivis, visibilité dans les IA, nouveaux problèmes d’audit et avis à traiter. Termine par les 3 actions prioritaires de la semaine."
+          "prompt": "Faites la veille de la semaine pour ce client : évolution des positions des mots-clés suivis, visibilité dans les IA, nouveaux problèmes d’audit et avis à traiter. Terminez par les 3 actions prioritaires de la semaine."
         },
         "report": {
           "label": "Commentaire du rapport mensuel",
-          "prompt": "Rédige le commentaire du rapport mensuel de ce client : ce qui a progressé, ce qui a reculé et pourquoi, en t’appuyant sur Search Console, les positions et le dernier audit. Ton clair, pour un client non spécialiste, à relire avant envoi."
+          "prompt": "Rédigez le commentaire du rapport mensuel de ce client : ce qui a progressé, ce qui a reculé et pourquoi, en vous appuyant sur Search Console, les positions et le dernier audit. Ton clair, pour un client non spécialiste, à relire avant envoi."
         },
         "drop": {
           "label": "Explication d’une chute",
-          "prompt": "Une position ou un score vient de chuter. Cherche l’explication la plus probable (audit, changements de pages, Search Console, concurrents cités par les IA) et propose 3 pistes concrètes, de la plus sûre à la plus incertaine."
+          "prompt": "Une position ou un score vient de chuter. Cherchez l’explication la plus probable (audit, changements de pages, Search Console, concurrents cités par les IA) et proposez 3 pistes concrètes, de la plus sûre à la plus incertaine."
         },
         "monday": {
           "label": "Résumé du lundi",
-          "prompt": "Fais le résumé du lundi pour l’équipe : pour ce client, ce qui demande une action cette semaine (problèmes critiques, avis sans réponse, corrections proposées par l’agent, tâches en retard)."
+          "prompt": "Faites le résumé du lundi pour l’équipe : pour ce client, ce qui demande une action cette semaine (problèmes critiques, avis sans réponse, corrections proposées par l’agent, tâches en retard)."
         }
       },
       "aiPrompt": "Consigne pour l’IA",
@@ -6508,7 +6519,7 @@
       "scopes": "<b0>{keyPrefix}</b0> · droits : {v} ·",
       "revoke": "Révoquer",
       "revoked": "révoquée {v}",
-      "useAuthorizationBearerYourKey": "Ajoutez <b0>Authorization: Bearer YOUR_KEY</b0> aux requêtes vers <b1>/api/v1/clients</b1>, <b2>/api/v1/audits</b2>, <b3>/api/v1/keywords</b3>, <b4>/api/v1/snapshots</b4>."
+      "useAuthorizationBearerYourKey": "Ajoutez <b0>Authorization: Bearer VOTRE_CLE</b0> aux requêtes vers <b1>/api/v1/clients</b1>, <b2>/api/v1/audits</b2>, <b3>/api/v1/keywords</b3>, <b4>/api/v1/snapshots</b4>."
     },
     "app_settings_backup_auto-backup-card": {
       "automaticDailyBackup": "Sauvegarde quotidienne automatique",
@@ -6686,7 +6697,7 @@
       "worthKnowingBeforeYouDo": "<b0>À savoir avant de le faire.</b0> Un tunnel met sur l’internet public un point d’accès capable de lire tous les projets et de modifier des sites en ligne, avec ce seul jeton pour le protéger. Arrêtez le tunnel quand vous ne vous en servez pas, et révoquez le jeton s’il fuit.",
       "anthropicAlsoHasAnOfficial": "Anthropic propose aussi une version officielle, les",
       "previewOutboundOnlySoNothing": ", en préversion : uniquement en sortie, donc rien n’est exposé en entrée. Demande Docker et un rôle dans la Claude Console.",
-      "mcpTunnels": "MCP tunnels",
+      "mcpTunnels": "Tunnels MCP",
       "identifiedAs": " — il s’est présenté comme {name}.",
       "previousVersionSavedAlongsideIt": " ; la version précédente est enregistrée à côté."
     },
@@ -6925,9 +6936,9 @@
       "rankingIssue": "Incident de classement",
       "update": "Mise à jour",
       "googleAlgorithmUpdates": "Mises à jour de l’algorithme Google",
-      "everyRankingUpdateAndRanking": "Toutes les mises à jour et tous les incidents de classement publiés par Google sur son Search Status Dashboard, avec l’annonce de Google. Vérifié chaque jour.",
+      "everyRankingUpdateAndRanking": "Toutes les mises à jour et tous les incidents de classement publiés par Google sur son tableau d’état de la recherche (Search Status Dashboard), avec l’annonce de Google. Vérifié chaque jour.",
       "source": "Source :",
-      "searchStatusDashboard": "Search Status Dashboard",
+      "searchStatusDashboard": "Tableau d’état de la recherche Google (Search Status Dashboard)",
       "lastChecked": "Dernière vérification : {v}",
       "notCheckedYetHistoryAs": "Pas encore vérifié · historique au {v}",
       "datesAreTheUsPacific": "Les dates sont celles affichées par Google (heure du Pacifique). Le texte sous chacune est l’annonce de Google. Google ne dit pas quels types de sites ont gagné ou perdu : cette page non plus.",
@@ -6976,7 +6987,7 @@
       "whyMightTrafficHaveDropped": "Pourquoi le trafic a-t-il pu baisser récemment ?",
       "whatSTheSingleHighest": "Quelle est la correction la plus utile à faire cette semaine ?",
       "whichContentIsDecayingAnd": "Quels contenus s’essoufflent et méritent d’être repris ?",
-      "pick3KeywordsIM": "Choisis les 3 mots-clés les plus proches de la première page.",
+      "pick3KeywordsIM": "Choisissez les 3 mots-clés les plus proches de la première page.",
       "whatSMissingFromMy": "Que manque-t-il à ma base technique SEO ?",
       "answerInContextOf": "Répondre dans le contexte de",
       "noSpecificClientGeneralSeo": "Aucun projet précis (questions SEO générales)",
@@ -7428,7 +7439,7 @@
     },
     "app_knowledge-panel_page": {
       "knowledgePanelMonitor": "Suivi de la fiche d’entité Google",
-      "captureGoogleSBrandKnowledge": "Capturez la fiche d’entité (Knowledge Panel) de la marque d’un projet et comparez-la au relevé précédent. Font surface les changements de description, les ajouts ou retraits Wikipédia et Crunchbase, les profils sociaux modifiés : chaque retouche de Google sur votre marque qui compte pour l’E-E-A-T."
+      "captureGoogleSBrandKnowledge": "Capturez la fiche d’entité (Knowledge Panel) de la marque d’un projet et comparez-la au relevé précédent. Les changements apparaissent : description, ajouts ou retraits Wikipédia et Crunchbase, profils sociaux modifiés, soit chaque retouche de Google sur votre marque qui compte pour l’E-E-A-T."
     },
     "app_link-building_library_page": {
       "backToLinkBuilding": "Retour au link building",
@@ -7471,7 +7482,7 @@
       "live": "En ligne",
       "rejected": "Refusé",
       "lost": "Perdu",
-      "linkBuilding": "Link building",
+      "linkBuilding": "Netlinking",
       "curatedDatabaseOfSitesAcross": "Une base sélectionnée de {total} sites répartis en {size} catégories de link building. Filtrez, suivez par projet, notez le statut.",
       "resources": "{total} ressources",
       "tracked": "{length} suivies",
@@ -7662,10 +7673,10 @@
       "whichPagesOnClientX": "Quelles pages du projet X ont perdu du trafic sur les 28 derniers jours ?",
       "whatDidTheDailyAgent": "Qu’a fait l’agent quotidien ce matin ?",
       "writeCodeOnRequest": "Écrire du code à la demande",
-      "writeAWordpressPluginThat": "Écris une extension WordPress qui ajoute une balise canonique à tous les articles.",
+      "writeAWordpressPluginThat": "Écrivez une extension WordPress qui ajoute une balise canonique à tous les articles.",
       "generateJsonLdSchemaFor": "Génère le schema JSON-LD d’un dentiste local (5 services, horaires).",
       "giveMeHtaccessToRedirect": "Donne-moi le .htaccess qui redirige /old-blog/* vers /blog/*.",
-      "writeAShopifyLiquidSnippet": "Écris un bout de Liquid Shopify pour un schema produit avec avis.",
+      "writeAShopifyLiquidSnippet": "Écrivez un extrait Liquid Shopify pour un schema produit avec avis.",
       "forComplexCodeTheSeo": "Pour du code complexe, l’outil générateur de code SEO offre une interface plus claire et les étapes d’installation.",
       "useTheCodeGenerator": "Utiliser le générateur de code",
       "researchLiveData": "Chercher des données en direct",
@@ -7761,6 +7772,50 @@
       "localPack": "Pack local",
       "paa": "{length} questions",
       "failed": "échec"
+    },
+    "app_about_page": {
+      "title": "À propos de cet outil",
+      "description": "Qui l’a créé, ce qu’il défend, comment le soutenir.",
+      "whatTitle": "De quoi s’agit-il",
+      "whatBody": "Une plateforme SEO auto-hébergée pour les indépendants, les petites agences et les propriétaires de sites. Plus de 100 outils : audits, suivi des positions, contenus, liens entrants, SEO local, visibilité dans les IA, publicité payante, le tout sur votre propre machine. Pas d’abonnement mensuel, pas de surveillance, et aucune API payante n’est nécessaire pour démarrer.",
+      "freeFirstTitle": "La gratuité d’abord.",
+      "freeFirstBody": "Utilise les API gratuites de Google (Search Console, GA4, PageSpeed Insights) et, à défaut, un navigateur sans interface. Les clés payantes sont facultatives : vous apportez les vôtres si vous le souhaitez.",
+      "privacyTitle": "La confidentialité d’abord.",
+      "privacyBody": "Toutes les données tiennent dans un seul fichier SQLite sur votre machine. Aucune télémétrie, aucun envoi de données vers l’extérieur, aucune mesure d’audience.",
+      "stackTitle": "Adapté à la technologie du site.",
+      "stackBody": "Les recommandations s’adaptent à WordPress, Shopify, Next.js, Webflow, etc., détectés automatiquement.",
+      "oneKeyTitle": "Une seule clé d’IA.",
+      "oneKeyBody": "Branchez une fois n’importe quel fournisseur gratuit (Gemini, Groq, DeepSeek) et toutes les fonctions d’IA fonctionnent, avec une limite d’appels simultanés commune à tout l’espace pour que les automatisations ne bloquent jamais vos actions manuelles.",
+      "websiteDesc": "Le site du développeur : autres projets, contact, missions.",
+      "sourceTitle": "Code source",
+      "sourceDesc": "Ajoutez une étoile, dupliquez, auditez, contribuez ou auto-hébergez, comme il vous convient.",
+      "shortcutsTitle": "Raccourcis clavier",
+      "shortcutsDesc": "Tous les raccourcis de l’application. Appuyez sur <kbd>?</kbd> n’importe où.",
+      "licenseTitle": "Licence : libre d’utilisation, interdit à la revente",
+      "licenseIntro": "Cet outil est publié sous la licence <link>PolyForm Noncommercial 1.0.0</link>. Son code source est accessible, mais il n’est pas « open source » au sens strict de l’OSI : DiceCodes a fait ce choix pour que le projet reste gratuit pour toujours pour ses utilisateurs, tout en empêchant sa revente et les copies vendues en SaaS.",
+      "canTitle": "Vous pouvez, librement",
+      "can1": "L’auto-héberger pour votre propre travail SEO (sans limite de volume)",
+      "can2": "L’utiliser pour vos clients, en indépendant ou en agence",
+      "can3": "Modifier, dupliquer et adapter le code",
+      "can4": "En partager des copies aux mêmes conditions",
+      "can5": "Proposer vos améliorations (pull requests)",
+      "cannotTitle": "Vous ne pouvez pas, sans autorisation écrite",
+      "cannot1": "Vendre le logiciel ou une version dérivée",
+      "cannot2": "Le proposer comme service hébergé payant (SaaS)",
+      "cannot3": "Le placer sous une autre licence",
+      "cannot4": "Retirer la mention de DiceCodes pour le présenter comme le vôtre",
+      "commercial": "Pour une licence commerciale (SaaS payant, revente en marque blanche, intégration dans un autre produit), écrivez à <link>{email}</link>. Le tarif est fixé par déploiement, pas par utilisateur.",
+      "tip": "Si cet outil vous évite le coût d’un abonnement Ahrefs ou Semrush, un don aide à le faire vivre. Le bouton <b>Soutenir le projet</b> ci-dessus ouvre UPI (avec QR code et montants de 100, 300, 500 ou 1000 ₹) pour l’Inde, et PayPal pour tous les autres pays.",
+      "hireTitle": "Un projet en tête ? Nous pouvons le réaliser pour vous.",
+      "hireSubtitle": "{name} conçoit des logiciels sur mesure, seul et de bout en bout.",
+      "hireBody": "Cette plateforme SEO (plus de 150 outils, un agent IA quotidien, un ensemble de navigateurs sans interface, des rapports en marque blanche) a été construite par une seule personne. Si vous avez une idée de ce genre pour votre entreprise ou votre startup, nous pouvons la réaliser.",
+      "hire1": "<b>Premières versions de produit (MVP)</b> : de l’idée au produit en ligne en 4 à 12 semaines",
+      "hire2": "<b>Applications d’IA</b> : RAG, agents, automatisations",
+      "hire3": "<b>Outils internes et tableaux de bord</b> pour les équipes opérationnelles",
+      "hire4": "<b>Plateformes SaaS</b> avec facturation, authentification et gestion de plusieurs clients",
+      "emailCta": "Écrire à {email}",
+      "pastWork": "Voir les réalisations sur dicecodes.com",
+      "hireNote": "Remarque : ceci est distinct de la licence de l’outil SEO. Si vous souhaitez <b>revendre cet outil SEO ou le proposer en hébergement payant</b>, c’est une autre discussion (tout aussi bienvenue) : voir la <link>licence</link> ci-dessus."
     },
     "app_shortcuts_page": {
       "openTheQuickSearchPalette": "Ouvrir la recherche rapide (Cmd / Ctrl + K)",
@@ -8685,7 +8740,7 @@
     "keywordContext": "Mot-clé suivi : « {query} » ({country}, {device}) pour {name}.",
     "article": "Améliore l’introduction de cet article.",
     "articleContext": "Article : « {title} », mot-clé principal « {keyword} ».\nDébut du texte :\n{start}",
-    "offer": "Résume cette offre pour le client, en mots simples.",
+    "offer": "Résumez cette offre pour le client, en mots simples.",
     "offerContext": "Proposition « {title} » pour {name}. Contenu :\n{lines}"
   }
 }

@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
+import { useLocale } from "next-intl";
 import type { RuleStatus } from "@/audit/types";
 import type { CategoryRow, EngineReport, RuleRow } from "@/lib/engine-report";
 import { verdictForScore } from "@/lib/seomator-meta";
@@ -414,6 +415,7 @@ function ReportHero({
 }
 
 function KeyMetrics({ report, pages, geoScore, t }: { report: EngineReport; pages: number; geoScore: number | null; t: T }) {
+  const locale = useLocale();
   const m = report.page?.metrics;
   const tiles: { label: string; value: string | number; tone?: "good" | "warn" | "bad" }[] = [
     { label: t("checks"), value: report.totals.total },
@@ -423,7 +425,7 @@ function KeyMetrics({ report, pages, geoScore, t }: { report: EngineReport; page
     { label: t("notMeasured"), value: report.totals["not-measured"] },
     ...(m
       ? [
-          { label: t("words"), value: m.wordCount.toLocaleString() },
+          { label: t("words"), value: m.wordCount.toLocaleString(locale) },
           { label: t("internalLinks"), value: m.internalLinks },
           { label: t("externalLinks"), value: m.externalLinks },
           { label: t("images"), value: m.images },

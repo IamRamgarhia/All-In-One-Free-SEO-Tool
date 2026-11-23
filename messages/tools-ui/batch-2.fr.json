@@ -165,7 +165,7 @@
       "mobileFriendlyTest": "Réussite / échec et capture du rendu de cette URL par Google sur mobile. Détecte les problèmes propres au mobile.",
       "richResultsTest": "Valide le JSON-LD et montre les types de résultats enrichis auxquels cette URL est éligible (FAQ, Recipe, Product, etc.).",
       "schemaValidator": "Validation stricte du JSON-LD selon la spécification schema.org : détecte les erreurs de type ignorées par le test des résultats enrichis.",
-      "mozillaObservatory": "Note les en-têtes de sécurité de A+ à F avec une checklist concrète (HSTS, CSP, X-Frame-Options, etc.).",
+      "mozillaObservatory": "Note les en-têtes de sécurité de A+ à F avec une liste de contrôle concrète (HSTS, CSP, X-Frame-Options, etc.).",
       "ssllabs": "Note TLS / SSL détaillée de A+ à F. Lent (~2 min) mais la référence pour l’analyse des certificats et des suites de chiffrement.",
       "securityHeaders": "Note rapide des en-têtes HTTP par Scott Helme. Plus rapide qu’Observatory, idéal pour un contrôle quotidien.",
       "searchConsole": "État d’indexation, actions manuelles, sitemaps, performances : la source de vérité de Google. Gratuit, validation du site requise.",
@@ -246,7 +246,7 @@
     "colLastCrawl": "Dernier crawl"
   },
   "link-intersect": {
-    "pageTitle": "Link intersect",
+    "pageTitle": "Liens communs aux concurrents",
     "pageDescription": "Les sites qui font un lien vers vos concurrents mais pas vers vous : la liste d’où part réellement le netlinking. Chaque page est lue une seule fois et vérifiée pour tous les domaines en même temps : savoir si un site a déjà un lien vers vous repose sur son propre HTML, pas sur une recherche qui aurait pu le manquer.",
     "errNoCompetitor": "Ajoutez au moins un domaine concurrent.",
     "errInvalidDomain": "Domaine invalide.",
@@ -534,7 +534,7 @@
   },
   "youtube-audit": {
     "pageTitle": "Audit SEO YouTube",
-    "pageDescription": "Collez l’URL de n’importe quelle vidéo YouTube publique. Nous récupérons titre / description / tags / sous-titres / miniature / engagement, appliquons une checklist en 14 points (longueur du titre, placement du mot-clé, richesse de la description, chapitres, hashtags, tags, sous-titres, résolution de la miniature, ratio de j’aime, fraîcheur), et l’IA rédige des instructions de correction pas à pas pour chaque point en échec. Gratuit : utilise oEmbed et le scraping de la page de la vidéo (ou votre clé YouTube Data API pour des données plus riches).",
+    "pageDescription": "Collez l’URL de n’importe quelle vidéo YouTube publique. Nous récupérons titre / description / tags / sous-titres / miniature / engagement, appliquons une liste de contrôle en 14 points (longueur du titre, placement du mot-clé, richesse de la description, chapitres, hashtags, tags, sous-titres, résolution de la miniature, ratio de j’aime, fraîcheur), et l’IA rédige des instructions de correction pas à pas pour chaque point en échec. Gratuit : utilise oEmbed et le scraping de la page de la vidéo (ou votre clé YouTube Data API pour des données plus riches).",
     "errNoUrl": "Collez une URL YouTube.",
     "keywordPlaceholder": "Mot-clé cible (facultatif)",
     "auditing": "Audit de la vidéo…",
@@ -549,7 +549,7 @@
     "passing": "Réussis",
     "failing": "Échoués",
     "score": "Score",
-    "checklist": "Checklist",
+    "checklist": "Liste de contrôle",
     "categories": {
       "title": "titre",
       "description": "description",

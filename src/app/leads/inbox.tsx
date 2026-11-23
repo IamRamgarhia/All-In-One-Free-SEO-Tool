@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, Trash2, UserPlus } from "lucide-react";
@@ -102,6 +102,7 @@ function LeadRow({
   onError: (m: string) => void;
 }) {
   const tx = useTranslations("ui.app_leads_inbox");
+  const locale = useLocale();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [status, setStatus] = useState(lead.status);
@@ -152,7 +153,7 @@ function LeadRow({
             </a>
             {serious > 0 && ` · ${serious} serious issue${serious === 1 ? "" : "s"}`}
             {" · "}
-            {new Date(lead.createdAt).toLocaleDateString()}
+            {new Date(lead.createdAt).toLocaleDateString(locale)}
           </div>
         </div>
 

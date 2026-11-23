@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Search, Sparkles, Globe, Video, MessagesSquare, BookOpen } from "lucide-react";
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,7 @@ export function ResearchForm({
 }) {
   const t = useTranslations("keywords.research");
   const tr = useTranslations("keywordsTab.keywords.research");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<
     ResearchActionResult | null,
     FormData
@@ -171,11 +172,11 @@ export function ResearchForm({
                   {s.bingVolume !== undefined && (
                     <span
                       title={t("bingVolumeTitle", {
-                        volume: s.bingVolume.toLocaleString(),
+                        volume: s.bingVolume.toLocaleString(locale),
                       })}
                       className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium tabular-nums text-emerald-300 ring-1 ring-inset ring-emerald-500/25"
                     >
-                      {s.bingVolume.toLocaleString()}
+                      {s.bingVolume.toLocaleString(locale)}
                       <span className="opacity-70">{t("perMonthOnBing")}</span>
                     </span>
                   )}

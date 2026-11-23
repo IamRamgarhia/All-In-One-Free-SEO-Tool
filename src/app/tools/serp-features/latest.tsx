@@ -1,5 +1,5 @@
 import { CheckCircle2, XCircle } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 
 export function LatestSnapshots({
   latest,
@@ -17,6 +17,7 @@ export function LatestSnapshots({
   }[];
 }) {
   const t = useTranslations("tools.ui.serp-features");
+  const locale = useLocale();
   if (latest.length === 0) {
     return (
       <section className="glass-apple rounded-2xl p-5 text-sm text-muted-foreground">
@@ -63,7 +64,7 @@ export function LatestSnapshots({
                   {s.paaQuestions.length}
                 </td>
                 <td className="px-4 py-1.5 text-right text-muted-foreground">
-                  {s.capturedAt.toLocaleDateString()}
+                  {s.capturedAt.toLocaleDateString(locale)}
                 </td>
               </tr>
             ))}

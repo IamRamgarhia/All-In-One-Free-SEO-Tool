@@ -1,4 +1,4 @@
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { cn } from "@/lib/utils";
 import { shortAgo } from "@/lib/relative-time";
 
@@ -36,6 +36,7 @@ export function FreshnessBadge({
 }) {
   const tx = useTranslations("ui.components_ui_freshness-badge");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   if (capturedAt === null || capturedAt === undefined) {
     return (
       <span
@@ -78,8 +79,8 @@ export function FreshnessBadge({
       )}
       title={
         source
-          ? tx("capturedSource", { source, when: date.toLocaleString() })
-          : tx("captured", { when: date.toLocaleString() })
+          ? tx("capturedSource", { source, when: date.toLocaleString(locale) })
+          : tx("captured", { when: date.toLocaleString(locale) })
       }
     >
       <span className={cn("size-1.5 rounded-full", dotCls)} />

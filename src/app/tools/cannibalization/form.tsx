@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, Split } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { runCannibalScan, type CannibalState } from "./actions";
 
 const SEVERITY_TONE = {
@@ -19,6 +19,7 @@ const SEVERITY_LABEL_KEY = {
 
 export function CannibalForm({ properties }: { properties: string[] }) {
   const t = useTranslations("tools.ui.cannibalization");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<
     CannibalState | null,
     FormData
@@ -89,7 +90,7 @@ export function CannibalForm({ properties }: { properties: string[] }) {
             />
             <Stat
               label={t("queriesAnalyzed")}
-              value={state.summary.queriesAnalyzed.toLocaleString()}
+              value={state.summary.queriesAnalyzed.toLocaleString(locale)}
               tone="muted"
             />
           </div>

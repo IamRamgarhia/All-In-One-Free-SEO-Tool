@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { headers } from "next/headers";
 import { ExternalLink, Link2, MousePointerClick, X } from "lucide-react";
 import { db } from "@/db/client";
@@ -15,6 +15,7 @@ import { deleteShortLink } from "./actions";
 
 export default async function ShortLinksPage() {
   const tx = await getTranslations("ui.app_links_page");
+  const locale = await getLocale();
   const [allClients, links, h] = await Promise.all([
     db
       .select({ id: clients.id, name: clients.name })
@@ -137,7 +138,7 @@ export default async function ShortLinksPage() {
                       </div>
                       {l.lastClickAt && (
                         <span className="text-[10px] text-muted-foreground">
-                          {tx("last", { v: l.lastClickAt.toLocaleDateString() })}
+                          {tx("last", { v: l.lastClickAt.toLocaleDateString(locale) })}
                         </span>
                       )}
                       <form action={deleteShortLink.bind(null, l.id)}>

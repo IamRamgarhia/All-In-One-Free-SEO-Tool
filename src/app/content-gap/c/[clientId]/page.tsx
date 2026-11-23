@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { eq } from "drizzle-orm";
 import {
   AlertCircle,
@@ -31,6 +31,7 @@ export default async function PerClientContentGapPage({
   if (!client) notFound();
 
   const t = await getTranslations("keywordsTab.contentGap");
+  const locale = await getLocale();
 
   const result = await analyzeContentGap({ clientId });
 
@@ -97,7 +98,7 @@ export default async function PerClientContentGapPage({
                     <tr key={k.query} className="hover:bg-white/[0.03]">
                       <td className="px-5 py-2 font-medium">{k.query}</td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {k.impressions.toLocaleString()}
+                        {k.impressions.toLocaleString(locale)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                         {k.clicks}

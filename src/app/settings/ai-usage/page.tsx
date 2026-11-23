@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { gte, desc, eq, sql as drizzleSql, count, sum } from "drizzle-orm";
 import { Activity, Coins, Users, Zap } from "lucide-react";
 import Link from "next/link";
@@ -16,6 +16,7 @@ import { requireSettingsPage } from "../access";
 export default async function AiUsagePage() {
   await requireSettingsPage("/settings/ai-usage");
   const tx = await getTranslations("ui.app_settings_ai-usage_page");
+  const locale = await getLocale();
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - 30);
 
@@ -166,13 +167,13 @@ export default async function AiUsagePage() {
         <Stat
           label={tx("last30Days")}
           value={tx("calls2", { total })}
-          hint={tx("tokens", { v: (totalIn + totalOut).toLocaleString() })}
+          hint={tx("tokens", { v: (totalIn + totalOut).toLocaleString(locale) })}
           tone="cyan"
         />
         <Stat
           label={tx("n30DayCost")}
           value={microsToDisplay(totalCost)}
-          hint={`in ${totalIn.toLocaleString()} · out ${totalOut.toLocaleString()}`}
+          hint={`in ${totalIn.toLocaleString(locale)} · out ${totalOut.toLocaleString(locale)}`}
           tone="amber"
         />
         <Stat
@@ -243,7 +244,7 @@ export default async function AiUsagePage() {
               >
                 <span className="font-medium">{r.feature}</span>
                 <span className="text-muted-foreground tabular-nums">
-                  {tx.rich("callsTok", { calls: r.calls, v: r.tokens.toLocaleString(), v2: microsToDisplay(r.cost), b0: (chunks) => <span className="font-medium text-foreground">{chunks}</span> })}
+                  {tx.rich("callsTok", { calls: r.calls, v: r.tokens.toLocaleString(locale), v2: microsToDisplay(r.cost), b0: (chunks) => <span className="font-medium text-foreground">{chunks}</span> })}
                 </span>
               </li>
             ))}
@@ -265,7 +266,7 @@ export default async function AiUsagePage() {
               >
                 <span className="font-medium">{r.provider}</span>
                 <span className="text-muted-foreground tabular-nums">
-                  {tx.rich("callsTok", { calls: r.calls, v: r.tokens.toLocaleString(), v2: microsToDisplay(r.cost), b0: (chunks) => <span className="font-medium text-foreground">{chunks}</span> })}
+                  {tx.rich("callsTok", { calls: r.calls, v: r.tokens.toLocaleString(locale), v2: microsToDisplay(r.cost), b0: (chunks) => <span className="font-medium text-foreground">{chunks}</span> })}
                 </span>
               </li>
             ))}
@@ -318,7 +319,7 @@ export default async function AiUsagePage() {
                 <span className="flex items-center justify-between gap-3 px-5 py-2.5 text-xs">
                   <span className="font-medium">{r.clientName}</span>
                   <span className="text-muted-foreground tabular-nums">
-                    {tx.rich("callsTok", { calls: r.calls, v: r.tokens.toLocaleString(), v2: microsToDisplay(r.cost), b0: (chunks) => <span className="font-medium text-foreground">{chunks}</span> })}
+                    {tx.rich("callsTok", { calls: r.calls, v: r.tokens.toLocaleString(locale), v2: microsToDisplay(r.cost), b0: (chunks) => <span className="font-medium text-foreground">{chunks}</span> })}
                   </span>
                 </span>
               );
@@ -366,7 +367,7 @@ export default async function AiUsagePage() {
               {recentCalls.slice(0, 50).map((r) => (
                 <tr key={r.id} className="border-t border-white/[0.04]">
                   <td className="px-4 py-1.5 text-muted-foreground">
-                    {r.createdAt.toLocaleString().slice(5, 17)}
+                    {r.createdAt.toLocaleString(locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                   </td>
                   <td className="px-4 py-1.5">{r.feature}</td>
                   <td className="px-4 py-1.5 text-muted-foreground">
@@ -376,10 +377,10 @@ export default async function AiUsagePage() {
                     {r.channel ? channelLabel(r.channel) : "—"}
                   </td>
                   <td className="px-4 py-1.5 text-right tabular-nums">
-                    {r.promptTokens.toLocaleString()}
+                    {r.promptTokens.toLocaleString(locale)}
                   </td>
                   <td className="px-4 py-1.5 text-right tabular-nums">
-                    {r.completionTokens.toLocaleString()}
+                    {r.completionTokens.toLocaleString(locale)}
                   </td>
                   <td className="px-4 py-1.5 text-right tabular-nums">
                     {microsToDisplay(r.costMicros)}

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { eq, desc } from "drizzle-orm";
 import {
   ExternalLink,
@@ -45,6 +45,7 @@ export default async function PerClientBrandMonitorPage({
     .limit(1);
   if (!client) notFound();
   const t = await getTranslations("aiTab.brandMonitor");
+  const locale = await getLocale();
 
 
   const mentions = await db
@@ -133,7 +134,7 @@ export default async function PerClientBrandMonitorPage({
                       )}
                       {m.publishedAt && (
                         <span className="text-[11px] text-muted-foreground">
-                          · {m.publishedAt.toLocaleDateString()}
+                          · {m.publishedAt.toLocaleDateString(locale)}
                         </span>
                       )}
                     </div>

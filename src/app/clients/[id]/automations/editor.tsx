@@ -1,7 +1,7 @@
 "use client";
 
 import type { Tx } from "@/lib/tx";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useActionState, useState, useTransition } from "react";
 import {
   Calendar,
@@ -433,6 +433,7 @@ function ScheduleRow({
   clientId: number;
 }) {
   const tx = useTranslations("ui.app_clients_id_automations_editor");
+  const locale = useLocale();
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const meta = KIND_META(tx)[schedule.kind];
@@ -470,7 +471,7 @@ function ScheduleRow({
             {schedule.lastRunAt && (
               <>
                 {tx("lastRun")}
-                {new Date(schedule.lastRunAt).toLocaleString().slice(0, 16)}
+                {new Date(schedule.lastRunAt).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" })}
               </>
             )}
           </p>
@@ -571,7 +572,7 @@ function ScheduleRow({
           {schedule.nextRunAt && (
             <div>
               <span className="text-foreground/80">{tx("nextRun")}</span>{" "}
-              {new Date(schedule.nextRunAt).toLocaleString()}
+              {new Date(schedule.nextRunAt).toLocaleString(locale)}
             </div>
           )}
         </div>

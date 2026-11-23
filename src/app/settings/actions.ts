@@ -1,6 +1,7 @@
 "use server";
 
 import { actionTx } from "@/lib/action-tx";
+import { getReportLocale } from "@/lib/report-i18n";
 import { requireSignedIn } from "@/lib/action-guard";
 
 import { requireEditor, requireSettingsAdmin } from "@/lib/auth";
@@ -55,6 +56,7 @@ export async function testWebhook(
   await requireSettingsAdmin();
   await requireSignedIn();
   const tx = await actionTx("ui.app_settings_actions");
+  const locale = await getReportLocale();
   const raw = String(formData.get("url") ?? "").trim();
 
   const parsed = webhookSchema.safeParse(raw);
@@ -68,7 +70,7 @@ export async function testWebhook(
     level: "info",
     fields: [
       { label: tx("service"), value: detectKind(parsed.data) },
-      { label: tx("sentAt"), value: new Date().toLocaleString() },
+      { label: tx("sentAt"), value: new Date().toLocaleString(locale) },
     ],
   });
 

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { desc, eq, and } from "drizzle-orm";
 import { pickReferenceAudits } from "@/lib/reference-audit";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import {
   ArrowUpRight,
   CalendarClock,
@@ -109,6 +109,7 @@ export default async function PerClientReportsPage({
 
   const smtpConfigured = Boolean(await getSmtpConfig());
   const t = await getTranslations("reports");
+  const locale = await getLocale();
 
   function resolveTemplate(meta: TemplateMeta) {
     return {
@@ -149,7 +150,7 @@ export default async function PerClientReportsPage({
           hint={
             latest
               ? t("auditedOn", {
-                  date: (latest.completedAt ?? latest.createdAt).toLocaleDateString(),
+                  date: (latest.completedAt ?? latest.createdAt).toLocaleDateString(locale),
                 })
               : t("runAuditFirst")
           }
@@ -276,7 +277,7 @@ export default async function PerClientReportsPage({
                     </div>
                     {s.nextSendAt && (
                       <div className="text-[11px] text-muted-foreground/80">
-                        {t("nextSend", { when: s.nextSendAt.toLocaleString() })}
+                        {t("nextSend", { when: s.nextSendAt.toLocaleString(locale) })}
                       </div>
                     )}
                   </div>

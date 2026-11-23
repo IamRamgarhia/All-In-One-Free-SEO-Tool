@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { and, desc, eq } from "drizzle-orm";
@@ -16,6 +16,7 @@ export default async function ClientAiAuditPage({
   params: Promise<{ id: string }>;
 }) {
   const tx = await getTranslations("ui.app_clients_id_ai-audit_page");
+  const locale = await getLocale();
   const { id } = await params;
   const clientId = Number(id);
   if (!Number.isFinite(clientId)) notFound();
@@ -89,7 +90,7 @@ export default async function ClientAiAuditPage({
                       {a.targetUrl?.replace(/^https?:\/\//, "") ?? tx("noUrl")}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                      {tx.rich("issuesOpen", { v: a.createdAt.toLocaleString(), issuesCount: a.issuesCount, status: a.status, b0: (chunks) => <span
+                      {tx.rich("issuesOpen", { v: a.createdAt.toLocaleString(locale), issuesCount: a.issuesCount, status: a.status, b0: (chunks) => <span
                         className={
                           a.status === "completed"
                             ? "text-emerald-300"

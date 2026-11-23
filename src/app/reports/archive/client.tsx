@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Download,
@@ -39,6 +39,7 @@ export function ArchiveClient({
   currentClient: number | null;
 }) {
   const t = useTranslations("auditUi.reports.archive");
+  const locale = useLocale();
   const [pending, startTransition] = useTransition();
 
   return (
@@ -84,7 +85,7 @@ export function ArchiveClient({
                   {" · "}
                   {a.pdfBytes ? `${Math.round(a.pdfBytes / 1024)} KB` : t("noPdf")}
                   {" · "}
-                  {new Date(a.createdAt).toLocaleDateString()}
+                  {new Date(a.createdAt).toLocaleDateString(locale)}
                 </p>
               </div>
               {a.pdfBytes && a.pdfBytes > 0 && (

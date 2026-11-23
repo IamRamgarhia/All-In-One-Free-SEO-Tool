@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useRef, useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   AlertCircle,
   AlertTriangle,
@@ -691,6 +691,7 @@ function DraftRow({
   clientId: number;
 }) {
   const t = useTranslations("linksTab.guestPosts.composer");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   void clientId;
@@ -709,7 +710,7 @@ function DraftRow({
             {t("list.meta", {
               site: draft.siteName,
               keyword: draft.targetKeyword,
-              date: draft.createdAt.toLocaleDateString(),
+              date: draft.createdAt.toLocaleDateString(locale),
             })}
           </p>
         </div>

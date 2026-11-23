@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useState, useTransition } from "react";
 import {
   AlertCircle,
@@ -56,6 +56,7 @@ export function AutopilotPanel({
   runs: RunRow[];
 }) {
   const tx = useTranslations("ui.app_agent_autopilot_panel");
+  const locale = useLocale();
   const [level, setLevel] = useState(settings.level);
   const [caps, setCaps] = useState(settings);
   const [message, setMessage] = useState<string | null>(null);
@@ -217,7 +218,7 @@ export function AutopilotPanel({
             {runs.map((r) => (
               <li key={r.id} className="flex flex-wrap gap-x-3 gap-y-1 py-2">
                 <span className="text-muted-foreground">
-                  {new Date(r.startedAt).toLocaleString()}
+                  {new Date(r.startedAt).toLocaleString(locale)}
                 </span>
                 <span className="font-medium">{r.clientName}</span>
                 <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">

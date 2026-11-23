@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useActionState, useState, useTransition } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { addAnnotation, removeAnnotation, type CreateState } from "./actions";
@@ -28,6 +28,7 @@ export function AnnotationsClient({
   annotations: Annotation[];
 }) {
   const tx = useTranslations("ui.app_annotations_client");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<CreateState, FormData>(
     addAnnotation,
     null,
@@ -179,7 +180,7 @@ export function AnnotationsClient({
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="font-medium">{a.label}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  {tx("scope2", { v: a.eventDate.toLocaleDateString(), scope: a.scope })}
+                  {tx("scope2", { v: a.eventDate.toLocaleDateString(locale), scope: a.scope })}
                   {a.clientId &&
                     clients.find((c) => c.id === a.clientId) &&
                     ` · ${clients.find((c) => c.id === a.clientId)?.name}`}

@@ -28,6 +28,7 @@ import { db } from "@/db/client";
 import { clients, reportArchives, reportBatches } from "@/db/schema";
 import { generateReportPdf, type ReportTemplate } from "./report-generator";
 import { logActivity } from "./activity";
+import { getReportLocale, reportStrings } from "./report-i18n";
 
 export type BatchProgress = {
   id: number;
@@ -112,6 +113,8 @@ async function runBatch(
   },
 ): Promise<void> {
   const template = opts.template ?? "detailed";
+  // Archive titles are read in the portal: dated in the workspace language.
+  const dateTag = reportStrings(await getReportLocale()).intlLocale;
   let done = 0;
   let failed = 0;
 
@@ -132,7 +135,7 @@ async function runBatch(
       const pdf = await generateReportPdf(clientId, template);
       await db.insert(reportArchives).values({
         clientId,
-        title: reportTitle(name, opts.periodEnd ?? null),
+        title: reportTitle(name, opts.periodEnd ?? null, dateTag),
         periodStart: opts.periodStart ?? null,
         periodEnd: opts.periodEnd ?? null,
         template,
@@ -151,7 +154,7 @@ async function runBatch(
       failed++;
       await db.insert(reportArchives).values({
         clientId,
-        title: reportTitle(name, opts.periodEnd ?? null),
+        title: reportTitle(name, opts.periodEnd ?? null, dateTag),
         periodStart: opts.periodStart ?? null,
         periodEnd: opts.periodEnd ?? null,
         template,
@@ -189,8 +192,8 @@ async function runBatch(
   });
 }
 
-function reportTitle(clientName: string, periodEnd: Date | null): string {
-  const when = (periodEnd ?? new Date()).toLocaleDateString(undefined, {
+function reportTitle(clientName: string, periodEnd: Date | null, dateTag: string): string {
+  const when = (periodEnd ?? new Date()).toLocaleDateString(dateTag, {
     month: "long",
     year: "numeric",
   });

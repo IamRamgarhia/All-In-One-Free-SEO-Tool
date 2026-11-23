@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getTranslations } from "next-intl/server";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { eq } from "drizzle-orm";
@@ -125,6 +125,7 @@ function SnapshotPanel({
   side: string;
   snap: typeof toolSnapshots.$inferSelect;
 }) {
+  const locale = useLocale();
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">
       <header className="border-b border-white/[0.06] px-5 py-3">
@@ -134,7 +135,7 @@ function SnapshotPanel({
         <h3 className="mt-0.5 truncate font-mono text-sm">{snap.label}</h3>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
           <Calendar className="size-3" />
-          {snap.capturedAt.toLocaleString()}
+          {snap.capturedAt.toLocaleString(locale)}
         </div>
       </header>
       <div className="p-5">

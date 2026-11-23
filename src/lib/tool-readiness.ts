@@ -38,14 +38,33 @@ export const NEEDS_FIX_HREF: Record<ToolNeed, string | null> = {
   "wp-bridge": "/settings#integrations",
 };
 
+/**
+ * Message keys under `shell.toolDot` (messages/*.json) for the texts
+ * below. `title` and `label` stay in English for code that reads them;
+ * what is shown on screen goes through these keys.
+ */
+export const NEEDS_HINT_KEYS: Record<ToolNeed, string> = {
+  gsc: "needs.gsc",
+  gbp: "needs.gbp",
+  ga4: "needs.ga4",
+  "wp-bridge": "needs.wpBridge",
+};
+
 export type ToolReadiness =
   /** Green. Nothing stands in the way. */
-  | { state: "ready"; title: string }
+  | { state: "ready"; title: string; titleKey: string }
   /**
    * Amber. Something specific is missing, and we know what — plus where
    * to go and fix it, so the dot's tooltip can lead somewhere.
    */
-  | { state: "blocked"; title: string; label: string; fixHref: string | null }
+  | {
+      state: "blocked";
+      title: string;
+      label: string;
+      titleKey: string;
+      labelKey: string;
+      fixHref: string | null;
+    }
   /** No dot. We genuinely do not know; a guess here would be a lie. */
   | { state: "unknown"; title: null };
 
@@ -82,6 +101,8 @@ export function toolReadiness(opts: {
       state: "blocked",
       title: NEEDS_HINTS[needs],
       label: NEEDS_HINTS[needs],
+      titleKey: NEEDS_HINT_KEYS[needs],
+      labelKey: NEEDS_HINT_KEYS[needs],
       fixHref: NEEDS_FIX_HREF[needs],
     };
   }
@@ -95,17 +116,24 @@ export function toolReadiness(opts: {
       title: cap?.usesBrowser
         ? "Works now — no AI key needed. Runs a browser on this machine, so it costs nothing per use."
         : "Works now — needs no AI key, costs nothing to run.",
+      titleKey: cap?.usesBrowser ? "readyFreeBrowser" : "readyFree",
     };
   }
 
   if (isKnownAiPage(route)) {
     return hasAiKey
-      ? { state: "ready", title: "Works now — uses your AI key, so it costs a little per run." }
+      ? {
+          state: "ready",
+          title: "Works now — uses your AI key, so it costs a little per run.",
+          titleKey: "readyAi",
+        }
       : {
           state: "blocked",
           title:
             "Needs an AI key. A connected chat subscription does not drive this page — that runs the other way round.",
           label: "Needs an AI key",
+          titleKey: "needsAiKeyTitle",
+          labelKey: "needsAiKey",
           fixHref: "/settings#ai",
         };
   }

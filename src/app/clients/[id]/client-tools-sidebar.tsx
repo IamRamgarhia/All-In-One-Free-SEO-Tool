@@ -14,12 +14,11 @@ import {
 } from "lucide-react";
 import {
   buildClientToolGroups,
-  CLIENT_TOOL_NEEDS_HINTS,
   type ClientToolLink,
   type ClientToolsClient,
 } from "./client-tools-launcher";
 import { ToolDot, ToolDotLegend } from "@/components/tool-dot";
-import { toolReadiness } from "@/lib/tool-readiness";
+import { NEEDS_HINT_KEYS, toolReadiness } from "@/lib/tool-readiness";
 import {
   allMappedGroups,
   groupsForSurfaces,
@@ -83,6 +82,7 @@ export function ClientToolsSidebar({
   onOpenTool?: (tool: OpenToolState) => void;
 }) {
   const t = useTranslations("clientPage.tools");
+  const tDot = useTranslations("shell.toolDot");
   const off = new Set(disabledTools ?? []);
   // Names and blurbs in the reader's language (clientPage.tools.items,
   // keyed by the tool's path). `label` stays the English one: the scope
@@ -247,7 +247,7 @@ export function ClientToolsSidebar({
               )}
               {tool.needs && (
                 <span
-                  title={CLIENT_TOOL_NEEDS_HINTS[tool.needs]}
+                  title={tDot(NEEDS_HINT_KEYS[tool.needs])}
                   className="grid size-4 shrink-0 place-items-center rounded text-amber-300/80"
                 >
                   <Lock className="size-3" />

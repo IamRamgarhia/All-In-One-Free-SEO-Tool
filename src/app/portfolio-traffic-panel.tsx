@@ -5,7 +5,8 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
+import { useLocale } from "next-intl";
 import { getPortfolioTraffic } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ export async function PortfolioTrafficPanel() {
   const data = await getPortfolioTraffic();
   if (data.clientsContributing === 0) return null;
   const t = await getTranslations("dashboard.traffic");
+  const locale = await getLocale();
 
   return (
     <section className="glass-apple animate-page-enter relative overflow-hidden rounded-2xl">
@@ -64,7 +66,7 @@ export async function PortfolioTrafficPanel() {
                 </Link>
                 <div className="flex items-center gap-3">
                   <span className="text-xs tabular-nums text-muted-foreground">
-                    {m.recentSessions.toLocaleString()}
+                    {m.recentSessions.toLocaleString(locale)}
                   </span>
                   {typeof m.deltaPct === "number" && (
                     <span
@@ -117,6 +119,7 @@ function Metric({
   deltaLabel?: string;
   big?: boolean;
 }) {
+  const locale = useLocale();
   return (
     <div>
       <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -130,7 +133,7 @@ function Metric({
             : "text-2xl text-foreground",
         )}
       >
-        {value.toLocaleString()}
+        {value.toLocaleString(locale)}
       </div>
       {typeof delta === "number" && (
         <div

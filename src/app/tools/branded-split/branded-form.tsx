@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { GitMerge, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { runSplit, type BrandedSplitState } from "./actions";
 
 export function BrandedForm({ properties }: { properties: string[] }) {
@@ -165,15 +165,16 @@ function SideCard({
         ? "text-emerald-300"
         : "text-muted-foreground";
   const tr = useTranslations("tools.ui.branded-split");
+  const locale = useLocale();
   const t = tone === "violet" ? "text-violet-300" : "text-cyan-300";
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl p-5 space-y-2">
       <div className={`text-xs font-semibold uppercase tracking-wider ${t}`}>
         {label}
       </div>
-      <div className="text-3xl font-bold tabular-nums">{clicks.toLocaleString()}</div>
+      <div className="text-3xl font-bold tabular-nums">{clicks.toLocaleString(locale)}</div>
       <div className="text-xs text-muted-foreground tabular-nums">
-        {tr("sideStats", { impressions: impressions.toLocaleString(), queries })}
+        {tr("sideStats", { impressions: impressions.toLocaleString(locale), queries })}
       </div>
       <div className={`text-xs tabular-nums ${deltaTone}`}>
         {tr("sideDelta", {

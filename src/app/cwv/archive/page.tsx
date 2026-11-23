@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { Gauge } from "lucide-react";
@@ -17,6 +17,7 @@ export default async function CwvArchivePage({
   searchParams: Promise<SearchParams>;
 }) {
   const tx = await getTranslations("ui.app_cwv_archive_page");
+  const locale = await getLocale();
   const sp = await searchParams;
   const clientFilter = sp.client ? Number(sp.client) : null;
 
@@ -112,7 +113,7 @@ export default async function CwvArchivePage({
                   <span>
                     {tx("lcpMsInpMsCls", { v: r.lcpMs ?? "?", v2: r.inpMs ?? "?", v3: r.cls !== null ? (r.cls / 100).toFixed(3) : "?" })}
                   </span>
-                  <span>{new Date(r.scannedAt).toLocaleString()}</span>
+                  <span>{new Date(r.scannedAt).toLocaleString(locale)}</span>
                   {r.clientName && <span>· {r.clientName}</span>}
                 </p>
               </div>

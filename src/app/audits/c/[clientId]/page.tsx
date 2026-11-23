@@ -6,7 +6,7 @@ import { ClipboardList } from "lucide-react";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, clients } from "@/db/schema";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Play } from "lucide-react";
@@ -74,6 +74,7 @@ export default async function PerClientAuditsPage({
   const t = await getTranslations("audits");
   const tStatus = await getTranslations("audits.status");
   const tl = await getTranslations("auditUi.list");
+  const locale = await getLocale();
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -175,7 +176,7 @@ export default async function PerClientAuditsPage({
                       {a.issuesCount}
                     </td>
                     <td className="px-5 py-4 text-xs text-muted-foreground">
-                      {(a.completedAt ?? a.createdAt).toLocaleString()}
+                      {(a.completedAt ?? a.createdAt).toLocaleString(locale)}
                     </td>
                     <td className="px-5 py-4 text-right">
                       <ScoreBadge score={a.score ?? null} />

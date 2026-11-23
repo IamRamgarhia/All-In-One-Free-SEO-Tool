@@ -12,7 +12,7 @@ import {
   Search,
   XCircle,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,6 +76,7 @@ const externalCheckers = [
 
 export default function DomainOverviewPage() {
   const t = useTranslations("tools.ui.domain-overview");
+  const locale = useLocale();
   const [url, setUrl] = useState(usePresetUrl());
   const [result, setResult] = useState<DomainOverviewResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -319,7 +320,7 @@ export default function DomainOverviewPage() {
               label={t("bingIndexed")}
               value={
                 result.indexedEstimate !== null
-                  ? result.indexedEstimate.toLocaleString()
+                  ? result.indexedEstimate.toLocaleString(locale)
                   : "?"
               }
               ok={result.indexedEstimate !== null && result.indexedEstimate > 0}

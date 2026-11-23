@@ -25,13 +25,14 @@ export function ToolDot({
   /** Positioning only — size and color are fixed so every dot matches. */
   className?: string;
 }) {
+  const t = useTranslations("shell.toolDot");
   const r = toolReadiness({ href, needs, hasAiKey });
   if (r.state === "unknown") return null;
 
   return (
     <span
       aria-hidden="true"
-      title={r.title}
+      title={t(r.titleKey)}
       className={`inline-block size-2.5 shrink-0 rounded-full ring-2 ${
         r.state === "ready"
           ? "bg-emerald-500 ring-emerald-500/25"

@@ -8,11 +8,12 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useLocale } from "next-intl";
 
 type Props = {
   value: number;
   duration?: number;
-  /** Locale-aware formatter, default toLocaleString() */
+  /** Locale-aware formatter, default toLocaleString() in the UI locale */
   format?: (n: number) => string;
   className?: string;
 };
@@ -20,9 +21,10 @@ type Props = {
 export function CountUp({
   value,
   duration = 700,
-  format = (n) => n.toLocaleString(),
+  format,
   className,
 }: Props) {
+  const locale = useLocale();
   const [display, setDisplay] = useState(value);
   const rafRef = useRef<number | null>(null);
   const startedRef = useRef(false);
@@ -50,5 +52,5 @@ export function CountUp({
     };
   }, [value, duration]);
 
-  return <span className={className}>{format(display)}</span>;
+  return <span className={className}>{format ? format(display) : display.toLocaleString(locale)}</span>;
 }

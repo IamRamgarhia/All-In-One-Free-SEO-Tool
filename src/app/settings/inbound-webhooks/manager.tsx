@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useActionState, useState, useTransition } from "react";
 import {
   Check,
@@ -36,6 +36,7 @@ export function InboundWebhooksManager({
   initial: InboundWebhookRow[];
 }) {
   const tx = useTranslations("ui.app_settings_inbound-webhooks_manager");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<
     CreateInboundState | null,
     FormData
@@ -149,7 +150,7 @@ export function InboundWebhooksManager({
                     <div className="text-[10px] text-muted-foreground">
                       {tx("other", { eventType: h.eventType, receiveCount: h.receiveCount })}
                       {h.lastReceivedAt
-                        ? ` · last ${new Date(h.lastReceivedAt).toLocaleString()}`
+                        ? ` · last ${new Date(h.lastReceivedAt).toLocaleString(locale)}`
                         : tx("neverReceived")}
                     </div>
                   </div>

@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { History, Loader2, Plus } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { runSnapshot, loadSnapshots, type SnapshotState } from "./actions";
 import { diffSnapshots, type DiffLine } from "@/lib/diff-text";
 import type { RobotsSnapshot } from "@/db/schema";
@@ -13,6 +13,7 @@ export function RobotsTracker({
   initialHosts: { hostname: string; lastFetched: Date; snapshots: number }[];
 }) {
   const t = useTranslations("tools.ui.robots-history");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<
     SnapshotState | null,
     FormData
@@ -109,7 +110,7 @@ export function RobotsTracker({
                 <span className="text-muted-foreground tabular-nums">
                   {t("hostMeta", {
                     count: h.snapshots,
-                    date: h.lastFetched.toLocaleDateString(),
+                    date: h.lastFetched.toLocaleDateString(locale),
                   })}
                 </span>
               </li>
@@ -181,6 +182,7 @@ function SnapshotPicker({
   onPick: (id: number) => void;
 }) {
   const t = useTranslations("tools.ui.robots-history");
+  const locale = useLocale();
   return (
     <div className="space-y-1">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -194,7 +196,7 @@ function SnapshotPicker({
         <option value="">{t("pick")}</option>
         {snapshots.map((s) => (
           <option key={s.id} value={s.id}>
-            #{s.id} · {s.fetchedAt.toLocaleString()} · {s.status} · {s.content.length}b
+            #{s.id} · {s.fetchedAt.toLocaleString(locale)} · {s.status} · {s.content.length}b
           </option>
         ))}
       </select>

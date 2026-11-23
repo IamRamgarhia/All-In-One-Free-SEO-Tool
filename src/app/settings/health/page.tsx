@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import Link from "next/link";
 import path from "node:path";
 import { statSync, existsSync } from "node:fs";
@@ -43,6 +43,7 @@ export default async function HealthPage() {
   await requireSettingsPage("/settings/health");
   const tx = await getTranslations("ui.app_settings_health_page");
   const tTime = await getTranslations("time");
+  const locale = await getLocale();
   const fmtAgo = (d: Date | null) =>
     d ? shortAgoDays(Date.now() - d.getTime(), tTime, { seconds: true }) : tTime("never");
   const dbPath = process.env.SEO_DB_PATH ?? path.join(process.cwd(), "data.db");
@@ -116,7 +117,7 @@ export default async function HealthPage() {
           icon={Clock}
           title={tx("dailyAgentLastRan")}
           value={fmtAgo(lastDailyAgent)}
-          subtitle={lastDailyAgent?.toLocaleString() ?? tx("neverRun")}
+          subtitle={lastDailyAgent?.toLocaleString(locale) ?? tx("neverRun")}
           tone={
             lastDailyAgent &&
             now - lastDailyAgent.getTime() < 30 * 60 * 60 * 1000

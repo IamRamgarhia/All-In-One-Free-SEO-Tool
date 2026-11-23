@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { ExternalLink, Eye, MessageSquare, ThumbsUp } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   researchOnYouTube,
   type YouTubeResearchState,
@@ -10,6 +10,7 @@ import {
 
 export function YouTubeResearch() {
   const t = useTranslations("tools.ui.youtube");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<
     YouTubeResearchState | null,
     FormData
@@ -112,7 +113,7 @@ export function YouTubeResearch() {
                     </a>
                     <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
                       {v.channelTitle} ·{" "}
-                      {new Date(v.publishedAt).toLocaleDateString()}
+                      {new Date(v.publishedAt).toLocaleDateString(locale)}
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground tabular-nums">
                       <span className="inline-flex items-center gap-1">

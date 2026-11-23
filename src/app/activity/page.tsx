@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { and, desc, eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +82,7 @@ export default async function ActivityPage({
   searchParams: Promise<SearchParams>;
 }) {
   const tx = await getTranslations("ui.app_activity_page");
+  const locale = await getLocale();
   const sp = await searchParams;
   const kindFilter = sp.kind ?? "";
   const levelFilter = sp.level ?? "";
@@ -157,7 +158,7 @@ export default async function ActivityPage({
   // Group by day
   const byDay = new Map<string, typeof rows>();
   for (const r of rows) {
-    const key = r.createdAt.toLocaleDateString();
+    const key = r.createdAt.toLocaleDateString(locale);
     const list = byDay.get(key) ?? [];
     list.push(r);
     byDay.set(key, list);
@@ -288,7 +289,7 @@ export default async function ActivityPage({
                       <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
                         <span className="font-mono">{r.kind}</span>
                         {r.clientName && <span>· {r.clientName}</span>}
-                        <span>· {r.createdAt.toLocaleTimeString()}</span>
+                        <span>· {r.createdAt.toLocaleTimeString(locale)}</span>
                       </div>
                     </div>
                   </li>

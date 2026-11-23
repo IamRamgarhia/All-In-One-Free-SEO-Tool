@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useStoredState } from "@/components/use-stored-state";
 import {
   Bell,
@@ -37,6 +37,7 @@ function parseLastSeen(raw: string): number {
  */
 export function NotificationsBell({ placement = "down" }: { placement?: "down" | "up" } = {}) {
   const t = useTranslations("shell.notifications");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -223,7 +224,7 @@ export function NotificationsBell({ placement = "down" }: { placement?: "down" |
                             {n.body}
                           </p>
                           <div className="text-[10px] text-muted-foreground">
-                            {n.at.toLocaleString()}
+                            {n.at.toLocaleString(locale)}
                           </div>
                         </div>
                       </div>

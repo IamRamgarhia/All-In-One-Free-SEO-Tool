@@ -1,7 +1,7 @@
 "use client";
 
 import type { Tx } from "@/lib/tx";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
 import {
   AlertCircle,
@@ -177,6 +177,7 @@ function QueueRow({
   clientId: number;
 }) {
   const tx = useTranslations("ui.app_clients_id_queue_queue-list");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(item.title ?? "");
@@ -316,7 +317,7 @@ function QueueRow({
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {KIND_LABEL(tx)[item.kind]} ·{" "}
             <Clock className="inline size-3 -mt-0.5" />{" "}
-            {new Date(item.generatedAt).toLocaleString().slice(0, 16)}
+            {new Date(item.generatedAt).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" })}
             {item.publishedRef && item.status === "published" && (
               <>
                 {" · "}

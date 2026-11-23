@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { eq, desc } from "drizzle-orm";
@@ -16,6 +16,7 @@ export default async function KeywordScreenshotsPage({
   params: Promise<{ id: string }>;
 }) {
   const tx = await getTranslations("ui.app_keywords_id_screenshots_page");
+  const locale = await getLocale();
   const { id } = await params;
   const keywordId = Number(id);
   if (!Number.isFinite(keywordId)) notFound();
@@ -81,7 +82,7 @@ export default async function KeywordScreenshotsPage({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`/screenshots/${s.id}`}
-                  alt={tx("serpForOn", { query: keyword.query, v: s.capturedAt.toLocaleDateString() })}
+                  alt={tx("serpForOn", { query: keyword.query, v: s.capturedAt.toLocaleDateString(locale) })}
                   className="aspect-[4/3] w-full object-cover object-top transition-opacity hover:opacity-90"
                   loading="lazy"
                 />
@@ -89,7 +90,7 @@ export default async function KeywordScreenshotsPage({
               <div className="flex items-center justify-between gap-3 px-4 py-3 text-xs">
                 <div>
                   <div className="font-medium">
-                    {s.capturedAt.toLocaleString()}
+                    {s.capturedAt.toLocaleString(locale)}
                   </div>
                   <div className="text-muted-foreground">
                     {tx("position", { v: s.position ?? "—" })}

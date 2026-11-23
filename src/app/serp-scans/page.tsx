@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { Globe } from "lucide-react";
@@ -17,6 +17,7 @@ export default async function SerpScansPage({
   searchParams: Promise<SearchParams>;
 }) {
   const tx = await getTranslations("ui.app_serp-scans_page");
+  const locale = await getLocale();
   const sp = await searchParams;
   const clientFilter = sp.client ? Number(sp.client) : null;
 
@@ -99,7 +100,7 @@ export default async function SerpScansPage({
                   </span>
                 )}
                 <span className="ml-auto text-[11px] text-muted-foreground">
-                  {new Date(s.scannedAt).toLocaleString()}
+                  {new Date(s.scannedAt).toLocaleString(locale)}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5 text-[10px]">

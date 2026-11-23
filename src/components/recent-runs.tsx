@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useEffect, useState, useTransition } from "react";
 import { Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
 import {
@@ -36,6 +36,7 @@ export function RecentRuns({
   limit?: number;
 }) {
   const tx = useTranslations("ui.components_recent-runs");
+  const locale = useLocale();
   const [runs, setRuns] = useState<ToolRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -142,7 +143,7 @@ export function RecentRuns({
                           dateTime={new Date(r.createdAt).toISOString()}
                           className="shrink-0"
                         >
-                          {new Date(r.createdAt).toLocaleString()}
+                          {new Date(r.createdAt).toLocaleString(locale)}
                         </time>
                       </div>
                     </>

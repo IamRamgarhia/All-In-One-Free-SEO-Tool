@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { AskAiButton } from "@/components/ask-ai-button";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { eq, desc } from "drizzle-orm";
@@ -52,6 +52,7 @@ export default async function SerpDetailPage({
 
   const latest = scans[0] ?? null;
   const tAsk = await getTranslations("askAi");
+  const locale = await getLocale();
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -107,7 +108,7 @@ export default async function SerpDetailPage({
               >
                 <div>
                   <div className="font-medium">
-                    {s.scannedAt.toLocaleString()}
+                    {s.scannedAt.toLocaleString(locale)}
                   </div>
                   <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
                     <span>{tx("results", { v: s.topResults?.length ?? 0 })}</span>
@@ -167,6 +168,7 @@ function ScanCard({
   client: { url: string; name: string } | null;
 }) {
   const tx = useTranslations("ui.app_keywords_id_serp_page");
+  const locale = useLocale();
   if (!scan.ok) {
     return (
       <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-200">
@@ -194,7 +196,7 @@ function ScanCard({
           label={tx("topResults")}
           value={String(scan.topResults?.length ?? 0)}
           tone="violet"
-          hint={scan.totalResults ? `of ~${scan.totalResults.toLocaleString()}` : undefined}
+          hint={scan.totalResults ? `of ~${scan.totalResults.toLocaleString(locale)}` : undefined}
         />
         <Tile
           label={tx("aiOverview2")}
@@ -214,9 +216,9 @@ function ScanCard({
         />
         <Tile
           label={tx("scanned")}
-          value={scan.scannedAt.toLocaleDateString()}
+          value={scan.scannedAt.toLocaleDateString(locale)}
           tone="neutral"
-          hint={scan.scannedAt.toLocaleTimeString()}
+          hint={scan.scannedAt.toLocaleTimeString(locale)}
         />
       </div>
 

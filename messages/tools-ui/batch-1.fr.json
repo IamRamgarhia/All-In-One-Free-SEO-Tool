@@ -26,7 +26,7 @@
     },
     "budget": "Budget USD/mois",
     "product": "Produit / service",
-    "landingUrl": "URL de la landing page",
+    "landingUrl": "URL de la page d’atterrissage",
     "audience": "Audience",
     "audiencePlaceholder": "Responsables marketing B2B dans des SaaS de 50 à 500 personnes, frustrés par leur outil d’attribution actuel",
     "offer": "Offre",
@@ -35,7 +35,7 @@
     "submit": "Générer la stratégie",
     "errors": {
       "noPlatform": "Choisissez au moins une plateforme.",
-      "noSubject": "Indiquez ce que vous promouvez : nom du produit/service, URL de landing page ou client connecté.",
+      "noSubject": "Indiquez ce que vous promouvez : nom du produit/service, URL de page d’atterrissage ou client connecté.",
       "aiNoResponse": "Le fournisseur d’IA n’a pas répondu. Vérifiez Paramètres → Fournisseur d’IA et qu’une clé est configurée.",
       "aiUnparseable": "L’IA a renvoyé une réponse impossible à lire en JSON. Réessayez ou raccourcissez vos saisies.",
       "platformOmitted": "(L’IA a omis cette plateforme — relancez pour une couverture complète)"
@@ -46,8 +46,8 @@
       "funnelMap": "Carte du funnel",
       "offer": "Offre :",
       "measure": "Mesure :",
-      "trackingPlaybook": "Plan de tracking",
-      "preflightChecklist": "Checklist avant lancement",
+      "trackingPlaybook": "Plan de suivi",
+      "preflightChecklist": "Liste de contrôle avant lancement",
       "suggestedBudget": "Budget suggéré : <strong>{budget}</strong>",
       "copyVariants": "Variantes d’annonce ({count})",
       "imagePrompts": "Prompts de génération d’images ({count})",
@@ -55,7 +55,7 @@
       "promptCopied": "Prompt copié",
       "copyPrompt": "Copier le prompt",
       "keywordBundle": "Lot de mots-clés",
-      "trackingSetup": "Configuration du tracking",
+      "trackingSetup": "Configuration du suivi",
       "pitfalls": "Pièges à éviter",
       "clipPrimary": "Texte principal :",
       "clipHeadlines": "Titres :",
@@ -167,7 +167,7 @@
     "urlLabel": "URL du site (page d’accueil ou une catégorie)",
     "running": "Crawl en cours… (60 à 120 s)",
     "submit": "Détecter les pièges à facettes",
-    "help": "Crawle jusqu’à 60 pages depuis la page d’accueil. Regroupe les URL selon la forme de leur query string et classe chaque groupe : filtre / pagination / tracking / propre.",
+    "help": "Crawle jusqu’à 60 pages depuis la page d’accueil. Regroupe les URL selon la forme de leur query string et classe chaque groupe : filtre / pagination / suivi / propre.",
     "risk": {
       "low": "faible",
       "medium": "moyen",
@@ -180,7 +180,7 @@
     "tags": {
       "filter": "paramètres de filtre",
       "pagination": "pagination",
-      "tracking": "tracking uniquement",
+      "tracking": "suivi uniquement",
       "canonicalAway": "canonical vers une autre URL ✓"
     },
     "errors": {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useActionState, useEffect, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { listKpSnapshots, runKpCapture, type CaptureState } from "./actions";
@@ -12,6 +12,7 @@ export function KnowledgePanelClient({
   clients: { id: number; name: string }[];
 }) {
   const tx = useTranslations("ui.app_knowledge-panel_client");
+  const locale = useLocale();
   const [clientId, setClientId] = useState<string>(
     clients[0]?.id?.toString() ?? "",
   );
@@ -175,7 +176,7 @@ export function KnowledgePanelClient({
                 key={s.id}
                 className="flex items-center justify-between gap-3 px-5 py-2 text-xs"
               >
-                <span>{new Date(s.capturedAt).toLocaleString()}</span>
+                <span>{new Date(s.capturedAt).toLocaleString(locale)}</span>
                 <span
                   className={
                     s.present ? "text-emerald-300" : "text-muted-foreground"

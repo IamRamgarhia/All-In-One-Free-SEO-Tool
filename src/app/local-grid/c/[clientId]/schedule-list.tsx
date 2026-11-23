@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarClock, Pause, Play, X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import {
   deleteGridSchedule,
   toggleGridSchedule,
@@ -21,6 +21,7 @@ type Schedule = {
 
 export function ScheduleList({ schedules }: { schedules: Schedule[] }) {
   const t = useTranslations("localTab.localGrid.scheduleList");
+  const locale = useLocale();
   if (schedules.length === 0) {
     return null;
   }
@@ -50,7 +51,7 @@ export function ScheduleList({ schedules }: { schedules: Schedule[] }) {
                 <span>· {s.spacingM}m</span>
                 <span>· ({(s.centerLat / 1_000_000).toFixed(4)}, {(s.centerLng / 1_000_000).toFixed(4)})</span>
                 {s.lastRanAt && (
-                  <span>· {t("lastRan", { date: new Date(s.lastRanAt).toLocaleDateString() })}</span>
+                  <span>· {t("lastRan", { date: new Date(s.lastRanAt).toLocaleDateString(locale) })}</span>
                 )}
               </div>
             </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { History } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Heatmap } from "./heatmap";
 
 type Cell = { lat: number; lng: number; position: number | null };
@@ -21,6 +21,7 @@ type GridSnapshot = {
 export function GridHistory({ grids }: { grids: GridSnapshot[] }) {
   const [openId, setOpenId] = useState<number | null>(null);
   const t = useTranslations("localTab.localGrid.history");
+  const locale = useLocale();
 
   return (
     <section className="glass-apple relative overflow-hidden rounded-2xl">
@@ -41,7 +42,7 @@ export function GridHistory({ grids }: { grids: GridSnapshot[] }) {
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{g.query}</div>
                 <div className="mt-0.5 text-[11px] text-muted-foreground">
-                  {new Date(g.ranAt).toLocaleString()} · {g.gridSize}×{g.gridSize} ·{" "}
+                  {new Date(g.ranAt).toLocaleString(locale)} · {g.gridSize}×{g.gridSize} ·{" "}
                   {t("spacing", { spacing: g.spacingM })}
                 </div>
               </div>

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import type { Tx } from "@/lib/tx";
 import { ExternalLink, Lock, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
@@ -39,10 +39,11 @@ const typeStyle = (tx: Tx): Record<RankingUpdateType, { label: string; tone: str
   },
 });
 
-const day = (iso: string) => new Date(iso).toLocaleDateString();
+const day = (iso: string, locale: string) => new Date(iso).toLocaleDateString(locale);
 
 export default async function AlgorithmUpdatesPage() {
   const tx = await getTranslations("ui.app_algorithm-updates_page");
+  const locale = await getLocale();
   const [updates, refreshedAt] = await Promise.all([
     getRankingUpdates(),
     rankingUpdatesRefreshedAt(),
@@ -73,8 +74,8 @@ export default async function AlgorithmUpdatesPage() {
           <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground">
             <RefreshCw className="size-3" />
             {refreshedAt
-              ? tx("lastChecked", { v: day(refreshedAt) })
-              : tx("notCheckedYetHistoryAs", { v: day(SHIPPED_UPDATES_FETCHED_AT) })}
+              ? tx("lastChecked", { v: day(refreshedAt, locale) })
+              : tx("notCheckedYetHistoryAs", { v: day(SHIPPED_UPDATES_FETCHED_AT, locale) })}
           </span>
         </div>
       </section>

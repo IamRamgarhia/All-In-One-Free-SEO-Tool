@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Tx } from "@/lib/tx";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { Sparkles, Sun } from "lucide-react";
 import { count, desc, eq, ne, gte } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -13,6 +13,7 @@ import { nextActions } from "@/lib/next-actions";
 
 export default async function MorningPage() {
   const tx = await getTranslations("ui.app_morning_page");
+  const locale = await getLocale();
   // Across every client. A freelancer's morning question is not "what is
   // wrong with client 4", it is "where does today go".
   const ranked = await nextActions({ limit: 12 });
@@ -81,7 +82,7 @@ export default async function MorningPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-        <Stat label={tx("openTasks")} value={openTasks.toLocaleString()} hint={tx("doneAllTime", { doneTasksWeek })} />
+        <Stat label={tx("openTasks")} value={openTasks.toLocaleString(locale)} hint={tx("doneAllTime", { doneTasksWeek })} />
         <Stat
           label={tx("auditsIn24h")}
           value={last24Audits.toString()}

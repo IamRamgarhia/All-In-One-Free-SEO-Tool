@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useState, useTransition } from "react";
 import {
   AlertCircle,
@@ -134,6 +134,7 @@ export function FeedRow({
   };
 }) {
   const tx = useTranslations("ui.app_news_add-feed-form");
+  const locale = useLocale();
   const [pending, startTransition] = useTransition();
   return (
     <li className="flex flex-wrap items-center gap-3 px-5 py-2.5 text-sm">
@@ -168,7 +169,7 @@ export function FeedRow({
         )}
         {feed.lastFetchedAt && !feed.lastError && (
           <div className="text-[11px] text-muted-foreground/70">
-            {tx("lastFetched", { v: feed.lastFetchedAt.toLocaleString() })}
+            {tx("lastFetched", { v: feed.lastFetchedAt.toLocaleString(locale) })}
           </div>
         )}
       </div>

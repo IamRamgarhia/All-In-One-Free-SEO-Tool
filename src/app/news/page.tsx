@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { db } from "@/db/client";
 import { newsFeeds } from "@/db/schema";
 import { desc } from "drizzle-orm";
@@ -17,6 +17,7 @@ import { markSectionSeen } from "@/lib/unread-counts";
 
 export default async function NewsPage() {
   const tx = await getTranslations("ui.app_news_page");
+  const locale = await getLocale();
   // Seed defaults on first visit so user has something to read immediately
   await seedDefaultFeedsIfEmpty();
   await markSectionSeen("news").catch(() => {});
@@ -84,7 +85,7 @@ export default async function NewsPage() {
                     {(it.publishedAt ?? it.capturedAt) && (
                       <span>
                         ·{" "}
-                        {(it.publishedAt ?? it.capturedAt).toLocaleString()}
+                        {(it.publishedAt ?? it.capturedAt).toLocaleString(locale)}
                       </span>
                     )}
                   </div>

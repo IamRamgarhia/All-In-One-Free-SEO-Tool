@@ -1,6 +1,6 @@
 {
   "ai-citation-tactics": {
-    "title": "Tactiques de citation IA — playbook par plateforme",
+    "title": "Tactiques de citation IA — méthode par plateforme",
     "description": "Seuls ~11 % des domaines cités sont communs à ChatGPT et Perplexity. Une stratégie unique « être utile » ne suffit pas : chaque plateforme récompense un travail différent. Choisissez votre niche pour voir l’ordre de priorité et des tactiques concrètes par plateforme.",
     "tuneForNiche": "Adapter à la niche",
     "niches": {
@@ -387,7 +387,7 @@
     "formats": {
       "transactional": "page produit / service",
       "commercial": "comparatif / liste",
-      "local": "landing page locale",
+      "local": "page d’atterrissage locale",
       "informational": "tutoriel / guide",
       "navigational": "page d’accueil / page de marque"
     },

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/shell/page-header";
 
 export default async function SnapshotsPage() {
   const tx = await getTranslations("ui.app_snapshots_page");
+  const locale = await getLocale();
   const all = await listSnapshots({ limit: 200 });
 
   // Group by label (URL/key) so users can compare snapshots of the same target
@@ -76,7 +77,7 @@ export default async function SnapshotsPage() {
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {tx("otherNewest", { length: rows.length, v: latest.capturedAt.toLocaleString() })}
+                      {tx("otherNewest", { length: rows.length, v: latest.capturedAt.toLocaleString(locale) })}
                     </div>
                   </div>
                   {rows.length >= 2 && (
@@ -98,7 +99,7 @@ export default async function SnapshotsPage() {
                       <div className="flex items-center gap-3">
                         <Calendar className="size-3.5 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground tabular-nums">
-                          {s.capturedAt.toLocaleString()}
+                          {s.capturedAt.toLocaleString(locale)}
                         </span>
                         {s.note && (
                           <span className="text-xs text-foreground/80">
