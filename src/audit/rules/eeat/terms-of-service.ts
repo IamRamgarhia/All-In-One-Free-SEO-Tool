@@ -12,7 +12,9 @@ export const TOS_PATTERNS = {
     /nutzungsbedingungen/i,
     // German
     /conditions\s*d'utilisation/i,
-    // French
+    // French: general terms of sale or use (CGV / CGU) are the usual names.
+    /conditions\s*g[eé]n[eé]rales/i,
+    /\bCG[UV]\b/,
     /t[eé]rminos\s*(y\s*condiciones|de\s*servicio)/i,
     // Spanish
     /termini\s*(di\s*servizio|e\s*condizioni)/i
@@ -27,7 +29,9 @@ export const TOS_PATTERNS = {
     /\/tos\/?$/i,
     /\/legal\/terms/i,
     /\/user[-_]?agreement/i,
-    /\/service[-_]?agreement/i
+    /\/service[-_]?agreement/i,
+    /\/cg[uv]\/?$/i,
+    /\/conditions[-_]generales/i
   ],
   // Common ToS URLs
   urls: [

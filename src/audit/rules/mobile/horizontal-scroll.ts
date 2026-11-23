@@ -1,4 +1,4 @@
-import { defineRule, fail, pass, warn } from "@/audit/engine/define-rule";
+import { defineRule, pass, warn } from "@/audit/engine/define-rule";
 
 export const horizontalScrollRule = defineRule({
   id: "mobile-horizontal-scroll",
@@ -29,44 +29,11 @@ export const horizontalScrollRule = defineRule({
         }
       }
     });
-    $("[width]").each((_, el) => {
-      const $el = $(el);
-      const width = $el.attr("width");
-      if (width && !width.includes("%")) {
-        const numWidth = parseInt(width, 10);
-        if (numWidth > MOBILE_WIDTH) {
-          const tag = el.tagName?.toLowerCase() || "element";
-          const src = $el.attr("src");
-          const alt = $el.attr("alt");
-          issues.push({
-            element: alt ? `${tag}: ${alt}` : src ? `${tag}: ${src.split("/").pop()}` : tag,
-            issue: "Width attribute exceeds mobile viewport",
-            cause: `width="${width}"`
-          });
-        }
-      }
-    });
-    $("img").each((_, el) => {
-      const $el = $(el);
-      const style = $el.attr("style") || "";
-      const width = $el.attr("width");
-      const hasMaxWidth = style.includes("max-width");
-      const hasWidth100 = style.includes("width: 100%") || style.includes("width:100%");
-      if (!hasMaxWidth && !hasWidth100) {
-        if (width && !width.includes("%")) {
-          const numWidth = parseInt(width, 10);
-          if (numWidth > MOBILE_WIDTH) {
-            const src = $el.attr("src") || "unknown";
-            const filename = src.split("/").pop()?.split("?")[0] || "image";
-            issues.push({
-              element: `img: ${filename}`,
-              issue: "Large image without max-width: 100%",
-              cause: `width="${width}" without responsive constraint`
-            });
-          }
-        }
-      }
-    });
+    // Image width attributes are not checked. They are what keeps the layout
+    // from shifting (images-dimensions asks for them), and every modern stylesheet
+    // caps images at their container (max-width: 100%), which this static
+    // reading of the HTML cannot see. Counting them made nd-prestige.com, which
+    // does not scroll sideways at 390 px, fail this rule on 18 pages.
     $("table").each((_, el) => {
       const $el = $(el);
       const style = $el.attr("style") || "";
@@ -139,11 +106,9 @@ export const horizontalScrollRule = defineRule({
         { note: "Static analysis - test on actual mobile devices" }
       );
     }
-    const criticalCount = issues.filter(
-      (i) => i.element.startsWith("img") || i.element.startsWith("iframe")
-    ).length;
-    if (criticalCount >= 3 || issues.length >= 5) {
-      return fail(
+    // A guess from the markup, never a measurement: it warns, it does not fail.
+    if (issues.length >= 5) {
+      return warn(
         "mobile-horizontal-scroll",
         `Found ${issues.length} element(s) that may cause horizontal scrolling`,
         {

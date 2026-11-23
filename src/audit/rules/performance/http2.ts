@@ -1,4 +1,4 @@
-import { defineRule, pass, warn } from "@/audit/engine/define-rule";
+import { defineRule, notMeasured, pass } from "@/audit/engine/define-rule";
 
 export const http2Rule = defineRule({
   id: "perf-http2",
@@ -26,9 +26,12 @@ export const http2Rule = defineRule({
         details
       );
     }
-    return warn(
+    // No alt-svc says nothing about HTTP/2: it is negotiated in the TLS
+    // handshake (ALPN), which these headers do not show, and alt-svc only
+    // advertises HTTP/3. nd-prestige.com serves HTTP/2 and was warned for it.
+    return notMeasured(
       "perf-http2",
-      "No alt-svc header found \u2014 server may not support HTTP/2 or HTTP/3 (informational)",
+      "HTTP/2 is negotiated in the TLS handshake, not visible in headers; no alt-svc header (no HTTP/3 advertised)",
       details
     );
   }

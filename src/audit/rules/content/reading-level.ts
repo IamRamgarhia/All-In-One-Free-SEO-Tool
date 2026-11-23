@@ -1,6 +1,6 @@
 import { calculateFleschKincaid, getReadingLevelDescription } from "@/audit/rules/content/utils/syllable-counter";
 import { countSentences, extractMainContent, tokenize } from "@/audit/rules/content/utils/text-extractor";
-import { defineRule, pass, warn } from "@/audit/engine/define-rule";
+import { defineRule, notMeasured, pass, warn } from "@/audit/engine/define-rule";
 
 export const OPTIMAL_MIN2 = 60;
 export const OPTIMAL_MAX2 = 70;
@@ -15,6 +15,17 @@ export const readingLevelRule = defineRule({
   weight: 3,
   run: async (context) => {
     const { $ } = context;
+    // Flesch-Kincaid counts English syllables and is calibrated on English
+    // sentences. On another language its grade means nothing: a plain French
+    // page came out "Very Difficult (college graduate)". Not measured there.
+    const lang = ($("html").attr("lang") || "").trim().toLowerCase();
+    if (lang && !lang.startsWith("en")) {
+      return notMeasured(
+        "content-reading-level",
+        `Readability formula is for English; page language is "${lang}"`,
+        { lang, reason: "Flesch-Kincaid is calibrated on English text" },
+      );
+    }
     const mainContent = extractMainContent($);
     const words3 = tokenize(mainContent);
     const sentenceCount = countSentences(mainContent);

@@ -8,6 +8,17 @@
  *
  * To regenerate after a deliberate change, run the reference package against
  * `fixture-site.mjs` on port 18765 and rewrite the golden file.
+ *
+ * Deliberate deviations from 7.0.0, written into the golden file by hand:
+ *   - perf-http2: "not-measured" instead of "warn" when there is no alt-svc
+ *     header (HTTP/2 is negotiated in TLS and cannot be read from headers);
+ *     perf category 93 -> 94.
+ *   - eeat-privacy-policy: "pass" on the privacy page itself (/privacy), which
+ *     need not link to itself; eeat category (crawl) 80 -> 81.
+ * Changes that do not move a status on the fixture site (French legal pages
+ * for eeat-privacy-policy / eeat-terms-of-service, content-reading-level not
+ * measured off English, mobile-horizontal-scroll without image width
+ * attributes and capped at warn) are covered by their own tests.
  */
 import { createServer, type Server } from "node:http";
 import { readFileSync } from "node:fs";

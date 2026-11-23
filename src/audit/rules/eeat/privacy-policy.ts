@@ -1,5 +1,5 @@
 import type { CheerioAPI, Element } from "cheerio";
-import { defineRule } from "@/audit/engine/define-rule";
+import { defineRule, pass } from "@/audit/engine/define-rule";
 
 export const PRIVACY_PATTERNS = {
   // Link text patterns (case insensitive)
@@ -11,7 +11,15 @@ export const PRIVACY_PATTERNS = {
     /datenschutz/i,
     // German
     /politique\s*de\s*confidentialit/i,
-    // French
+    // French. A French site usually covers personal data in its "mentions
+    // légales" (the legal notice the law requires), or on a page named after
+    // the GDPR: the rule read nd-prestige.com's /mentions-legales, which
+    // covers personal data and cookies, as "no privacy policy".
+    /mentions\s*l[eé]gales/i,
+    /donn[eé]es\s*personnelles/i,
+    /protection\s*des\s*donn[eé]es/i,
+    /confidentialit[eé]/i,
+    /\bRGPD\b/i,
     /politica\s*de\s*privacidad/i,
     // Spanish
     /informativa\s*privacy/i
@@ -24,7 +32,12 @@ export const PRIVACY_PATTERNS = {
     /\/privacy\/?$/i,
     /\/legal\/privacy/i,
     /\/data[-_]?protection/i,
-    /\/datenschutz/i
+    /\/datenschutz/i,
+    /\/mentions[-_]?legales/i,
+    /\/confidentialite/i,
+    /\/politique[-_]de[-_]confidentialite/i,
+    /\/donnees[-_]personnelles/i,
+    /\/rgpd\/?$/i
   ],
   // Common privacy policy URLs
   urls: [
@@ -45,6 +58,17 @@ export const privacyPolicyRule = defineRule({
   weight: 8,
   run(context) {
     const { $ } = context;
+    // The privacy page itself: it need not link to itself. nd-prestige.com's
+    // /mentions-legales was the one page still warned for "no privacy link".
+    let ownPath = "";
+    try {
+      ownPath = new URL(context.url).pathname;
+    } catch {
+      ownPath = "";
+    }
+    if (PRIVACY_PATTERNS.urlPaths.some((p) => p.test(ownPath))) {
+      return pass("eeat-privacy-policy", "This page is the privacy page", { url: context.url });
+    }
     const foundLinks: { href: string; text: string; location: string; }[] = [];
     $("a[href]").each((_, el) => {
       const href = $(el).attr("href") || "";

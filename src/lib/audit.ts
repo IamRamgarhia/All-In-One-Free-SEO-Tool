@@ -695,10 +695,17 @@ export function checkPage(page: FetchedPage): {
     });
   }
 
-  // Article pages should have author Person schema
+  // Article pages should have author Person schema.
+  //
+  // A page is an article when it says so: Article-type structured data or
+  // og:type "article". The <article> element alone is not enough: sites use
+  // it for any self-contained card (a service, a vehicle, a review), and it
+  // flagged every service page of a local business as an article without
+  // an author (nd-prestige.com: 25 of its findings, all wrong).
   const looksLikeArticle =
-    /<article\b/i.test(html) ||
-    /"@type"\s*:\s*"(?:Article|BlogPosting|NewsArticle)"/i.test(html);
+    /"@type"\s*:\s*"(?:Article|BlogPosting|NewsArticle)"/i.test(html) ||
+    /<meta[^>]+property=["']og:type["'][^>]+content=["']article["']/i.test(html) ||
+    /<meta[^>]+content=["']article["'][^>]+property=["']og:type["']/i.test(html);
   if (looksLikeArticle) {
     const hasAuthor =
       /"@type"\s*:\s*"Person"/i.test(html) ||
