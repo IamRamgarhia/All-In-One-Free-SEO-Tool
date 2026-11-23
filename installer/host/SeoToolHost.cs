@@ -29,6 +29,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -107,6 +108,23 @@ namespace SeoTool
                 return;
             }
 
+            // ONE WINDOW PER USER. Starting the app while it is already
+            // running used to open a second window that hung on
+            // "Starting the SEO tool…": both hosts share one database,
+            // so the second server could not come up cleanly. Bring the
+            // running window forward instead.
+            //
+            // The Local\ prefix scopes the name to this Windows session,
+            // so two people signed in on one PC (separate data
+            // directories) do not lock each other out.
+            using var single = new Mutex(true, @"Local\SeoToolHost-SingleInstance", out var firstInstance);
+            if (!firstInstance)
+            {
+                TryLog("second launch: focusing the running window");
+                FocusRunningWindow();
+                return;
+            }
+
             try
             {
                 Application.Run(new MainWindow(args));
@@ -124,6 +142,43 @@ namespace SeoTool
                     "SEO Tool",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
+            }
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        /// <summary>
+        /// Restore and focus the window of the copy that is already
+        /// running. Best-effort: if it cannot be found (it is still
+        /// starting, or another account owns it) the second launch just
+        /// exits quietly, which is still better than a second window
+        /// stuck on the splash.
+        /// </summary>
+        private static void FocusRunningWindow()
+        {
+            try
+            {
+                var me = Process.GetCurrentProcess();
+                foreach (var p in Process.GetProcessesByName(me.ProcessName))
+                {
+                    if (p.Id == me.Id) continue;
+                    var h = p.MainWindowHandle;
+                    if (h == IntPtr.Zero) continue;
+                    if (IsIconic(h)) ShowWindow(h, 9); // SW_RESTORE
+                    SetForegroundWindow(h);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                TryLog("focus running window: " + ex.Message);
             }
         }
 
@@ -368,7 +423,7 @@ namespace SeoTool
         {
             try
             {
-                _port = FreePort();
+                _port = StablePort();
 
                 // MIGRATE FIRST. The Docker entrypoint has always done
                 // this — `node scripts/migrate.cjs && node server.js` —
@@ -521,6 +576,59 @@ namespace SeoTool
             // centring has to be redone or the line drifts left as it
             // gets longer.
             LayOutSplash();
+        }
+
+        /// <summary>
+        /// The port this app used last time, if it is still free;
+        /// otherwise a fresh free one, remembered for next time.
+        /// </summary>
+        /// <remarks>
+        /// A new port on every launch broke Google sign-in: the OAuth
+        /// redirect URI is http://127.0.0.1:&lt;port&gt;/api/google/callback
+        /// and Google only accepts the exact URI registered in the
+        /// user's Cloud Console, so every restart ended in
+        /// "Error 400: redirect_uri_mismatch". Keeping the port stable
+        /// means the URI is registered once. It still changes if
+        /// something else is holding the saved port, and then the new
+        /// one is saved instead.
+        /// </remarks>
+        private static int StablePort()
+        {
+            var file = Path.Combine(DataDir(), "host-port");
+            try
+            {
+                if (File.Exists(file)
+                    && int.TryParse(File.ReadAllText(file).Trim(), out var saved)
+                    && saved >= 1024 && saved <= 65535
+                    && IsPortFree(saved))
+                {
+                    return saved;
+                }
+            }
+            catch (Exception ex)
+            {
+                Program.TryLog("saved port: " + ex.Message);
+            }
+
+            var port = FreePort();
+            try { File.WriteAllText(file, port.ToString()); }
+            catch (Exception ex) { Program.TryLog("save port: " + ex.Message); }
+            return port;
+        }
+
+        private static bool IsPortFree(int port)
+        {
+            try
+            {
+                var l = new TcpListener(IPAddress.Loopback, port);
+                l.Start();
+                l.Stop();
+                return true;
+            }
+            catch (SocketException)
+            {
+                return false;
+            }
         }
 
         /// <summary>Ask the OS for a port nobody is using.</summary>

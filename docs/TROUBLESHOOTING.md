@@ -442,6 +442,8 @@ http://localhost:3000/api/auth/google/callback
 
 If you're on a different port, swap `3000`. If you're remote-hosting, use your actual domain.
 
+**Windows desktop app:** it keeps the same port between launches (saved in `%LOCALAPPDATA%\SEO Tool\host-port`), so you register the redirect URI once. Open **Settings → Google** to see the exact URI for your install, then add it to your OAuth client. The port only changes if something else is already using the saved one; if that happens, register the new URI shown on the same page.
+
 ### "Insufficient permissions" on GSC / GA4
 
 - GSC: the Google account must be verified as owner OR delegated user with "Owner" or "Full" permission on the property
