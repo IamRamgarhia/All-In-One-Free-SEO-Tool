@@ -6407,7 +6407,7 @@
     },
     "app_leads_page": {
       "leads": "Leads",
-      "peopleWhoRanYourFree": "People who ran your free audit widget. Each one arrives with a score and a list of what's wrong with their site."
+      "peopleWhoRanYourFree": "The agency’s leads: visitors who ran your free audit widget and businesses found through local prospecting. Each arrives with a score and the list of what is wrong with their site."
     },
     "app_morning_page": {
       "morningBriefing": "Morning briefing",
@@ -8742,5 +8742,65 @@
     "articleContext": "Article: “{title}”, main keyword “{keyword}”.\nStart of the text:\n{start}",
     "offer": "Summarise this offer for the client, in plain words.",
     "offerContext": "Proposal “{title}” for {name}. Contents:\n{lines}"
+  },
+  "leads": {
+    "prospecting": {
+      "title": "Local prospecting",
+      "intro": "Open businesses of one trade in one postcode, from the official French company register (Sirene). For each: its site, then an express audit that files it in the leads below.",
+      "trade": "Trade",
+      "postcode": "Postcode",
+      "postcodePlaceholder": "Postcode",
+      "search": "Search",
+      "legal": "Companies that refuse commercial prospecting, and those whose data is not fully public, are left out.",
+      "found": "{shown, plural, =0 {No business to show} one {# business shown} other {# businesses shown}} out of {total, plural, one {# company found} other {# companies found}}.",
+      "none": "No open business of this trade in this postcode.",
+      "nextPage": "Next page ({page} of {pages})",
+      "since": "Since {year}",
+      "site": "Business website",
+      "sitePlaceholder": "Website address (or leave blank if none)",
+      "findSite": "Find the site",
+      "noSiteFound": "No likely site: paste its address if you know it. A business without a site is often the best prospect.",
+      "audit": "Express audit",
+      "audited": "Score {score}/100: {critical, plural, =0 {no critical issue} one {# critical issue} other {# critical issues}}, {high, plural, =0 {no high} one {# high} other {# high}}. Added to leads.",
+      "errorPostcode": "Enter a 5-digit postcode.",
+      "errorTrade": "Choose a trade.",
+      "errorRateLimited": "The register limits searches: try again in a minute.",
+      "errorRegister": "The company register did not answer. Try again.",
+      "errorNoApi": "Finding the site uses a Google results API: set it up in Settings → Google results.",
+      "errorSiteSearch": "The site search failed.",
+      "errorUrl": "This website address is not valid.",
+      "errorUnreachable": "The site does not answer. Check it opens in a browser.",
+      "trades": {
+        "bakery": "Bakery, pastry",
+        "butcher": "Butcher, deli",
+        "restaurant": "Restaurant",
+        "fastFood": "Fast food",
+        "bar": "Bar, café",
+        "hotel": "Hotel",
+        "hairdresser": "Hairdresser",
+        "beauty": "Beauty salon",
+        "florist": "Florist",
+        "optician": "Optician",
+        "pharmacy": "Pharmacy",
+        "plumber": "Plumber, heating",
+        "electrician": "Electrician",
+        "carpenter": "Carpenter",
+        "painter": "Painter and decorator",
+        "roofer": "Roofer",
+        "builder": "House builder",
+        "landscaper": "Landscaper",
+        "cleaning": "Cleaning",
+        "garage": "Car repair",
+        "taxi": "Taxi, private hire",
+        "drivingSchool": "Driving school",
+        "realEstate": "Estate agency",
+        "lawyer": "Lawyer",
+        "accountant": "Accountant",
+        "architect": "Architect",
+        "dentist": "Dentist",
+        "vet": "Vet",
+        "sport": "Gym"
+      }
+    }
   }
 }

@@ -8,6 +8,8 @@ import { graderLeads } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { LeadsInbox } from "./inbox";
 import { EmbedSnippet } from "./embed-snippet";
+import { LocalProspecting } from "./local-prospecting";
+import { serpApiConfig } from "@/lib/serp-api";
 
 export default async function LeadsPage() {
   const tx = await getTranslations("ui.app_leads_page");
@@ -25,6 +27,8 @@ export default async function LeadsPage() {
         icon={Inbox}
         accent="emerald"
       />
+
+      <LocalProspecting hasSerpApi={Boolean(await serpApiConfig())} />
 
       <EmbedSnippet />
 

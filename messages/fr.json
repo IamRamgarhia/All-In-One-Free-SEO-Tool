@@ -6407,7 +6407,7 @@
     },
     "app_leads_page": {
       "leads": "Prospects",
-      "peopleWhoRanYourFree": "Les personnes qui ont utilisé votre widget d’audit gratuit. Chacune arrive avec un score et la liste de ce qui ne va pas sur son site."
+      "peopleWhoRanYourFree": "Les prospects de l’agence : les visiteurs qui ont utilisé votre widget d’audit gratuit et les commerces trouvés par la prospection locale. Chacun arrive avec un score et la liste de ce qui ne va pas sur son site."
     },
     "app_morning_page": {
       "morningBriefing": "Briefing du matin",
@@ -8742,5 +8742,65 @@
     "articleContext": "Article : « {title} », mot-clé principal « {keyword} ».\nDébut du texte :\n{start}",
     "offer": "Résumez cette offre pour le client, en mots simples.",
     "offerContext": "Proposition « {title} » pour {name}. Contenu :\n{lines}"
+  },
+  "leads": {
+    "prospecting": {
+      "title": "Prospection locale",
+      "intro": "Les établissements ouverts d’un métier dans un code postal, tirés du registre officiel des entreprises (Sirene). Pour chacun : son site, puis un audit express qui le range dans les prospects ci-dessous.",
+      "trade": "Métier",
+      "postcode": "Code postal",
+      "postcodePlaceholder": "Code postal",
+      "search": "Chercher",
+      "legal": "Les entreprises qui refusent la prospection commerciale, et celles dont les données ne sont pas entièrement publiques, sont écartées.",
+      "found": "{shown, plural, =0 {Aucun établissement à afficher} one {# établissement affiché} other {# établissements affichés}} sur {total, plural, one {# entreprise trouvée} other {# entreprises trouvées}}.",
+      "none": "Aucun établissement ouvert de ce métier dans ce code postal.",
+      "nextPage": "Page suivante ({page} sur {pages})",
+      "since": "Depuis {year}",
+      "site": "Site du commerce",
+      "sitePlaceholder": "Adresse du site (ou laissez vide si aucun)",
+      "findSite": "Trouver le site",
+      "noSiteFound": "Aucun site probable : collez son adresse si vous la connaissez. Un commerce sans site est souvent le meilleur prospect.",
+      "audit": "Audit express",
+      "audited": "Score {score}/100 : {critical, plural, =0 {aucun problème critique} one {# problème critique} other {# problèmes critiques}}, {high, plural, =0 {aucun élevé} one {# élevé} other {# élevés}}. Ajouté aux prospects.",
+      "errorPostcode": "Indiquez un code postal à 5 chiffres.",
+      "errorTrade": "Choisissez un métier.",
+      "errorRateLimited": "Le registre limite le nombre de recherches : réessayez dans une minute.",
+      "errorRegister": "Le registre des entreprises n’a pas répondu. Réessayez.",
+      "errorNoApi": "La recherche du site passe par une API de résultats Google : configurez-la dans Réglages → Résultats Google.",
+      "errorSiteSearch": "La recherche du site a échoué.",
+      "errorUrl": "Cette adresse de site n’est pas valide.",
+      "errorUnreachable": "Le site ne répond pas. Vérifiez qu’il s’ouvre dans un navigateur.",
+      "trades": {
+        "bakery": "Boulangerie, pâtisserie",
+        "butcher": "Boucherie, charcuterie",
+        "restaurant": "Restaurant",
+        "fastFood": "Restauration rapide",
+        "bar": "Bar, café",
+        "hotel": "Hôtel",
+        "hairdresser": "Coiffure",
+        "beauty": "Institut de beauté",
+        "florist": "Fleuriste",
+        "optician": "Opticien",
+        "pharmacy": "Pharmacie",
+        "plumber": "Plombier, chauffagiste",
+        "electrician": "Électricien",
+        "carpenter": "Menuisier",
+        "painter": "Peintre en bâtiment",
+        "roofer": "Couvreur",
+        "builder": "Construction de maisons",
+        "landscaper": "Paysagiste",
+        "cleaning": "Nettoyage",
+        "garage": "Garage automobile",
+        "taxi": "Taxi, VTC",
+        "drivingSchool": "Auto-école",
+        "realEstate": "Agence immobilière",
+        "lawyer": "Avocat",
+        "accountant": "Expert-comptable",
+        "architect": "Architecte",
+        "dentist": "Dentiste",
+        "vet": "Vétérinaire",
+        "sport": "Salle de sport"
+      }
+    }
   }
 }
