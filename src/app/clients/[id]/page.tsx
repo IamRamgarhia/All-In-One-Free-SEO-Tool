@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { eq, desc, and, count } from "drizzle-orm";
+import { pickReferenceAudits } from "@/lib/reference-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -187,18 +188,21 @@ export default async function ClientDetailPage({
 
   // Health score from the latest site audit (or a legacy SEOmator one).
   // Never ai_full: a different scale.
-  const [latestCompleted = null] = await db
-    .select()
-    .from(audits)
-    .where(
-      and(
-        eq(audits.clientId, clientId),
-        eq(audits.status, "completed"),
-        inArray(audits.kind, ["crawler", "seomator"]),
-      ),
-    )
-    .orderBy(desc(audits.completedAt))
-    .limit(1);
+  // Same audit as the report and the client portal (lib/reference-audit.ts):
+  // the latest full crawl, otherwise the latest quick one.
+  const { latest: latestCompleted } = pickReferenceAudits(
+    await db
+      .select()
+      .from(audits)
+      .where(
+        and(
+          eq(audits.clientId, clientId),
+          eq(audits.status, "completed"),
+          inArray(audits.kind, ["crawler", "seomator"]),
+        ),
+      )
+      .orderBy(desc(audits.completedAt)),
+  );
 
   const [{ value: openTaskCount }] = await db
     .select({ value: count() })

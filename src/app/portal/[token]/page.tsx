@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { eq, desc, and, inArray, isNotNull } from "drizzle-orm";
+import { pickReferenceAudits } from "@/lib/reference-audit";
 import { getLocale, getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
@@ -83,19 +84,15 @@ export default async function PortalPage({
     .limit(1);
   if (!client) notFound();
 
-  const recentAudits = await db
-    .select()
-    .from(audits)
-    .where(eq(audits.clientId, client.id))
-    .orderBy(desc(audits.createdAt))
-    .limit(6);
-
-  const [latest] = await db
+  // What the client sees: crawls only (the AI checklist is an internal
+  // tool), and the score of the reference audit (lib/reference-audit.ts).
+  const completed = await db
     .select()
     .from(audits)
     .where(and(eq(audits.clientId, client.id), eq(audits.status, "completed")))
-    .orderBy(desc(audits.completedAt))
-    .limit(1);
+    .orderBy(desc(audits.completedAt));
+  const { latest, crawls } = pickReferenceAudits(completed);
+  const recentAudits = crawls.slice(0, 6);
 
   const allTasks = await db
     .select()

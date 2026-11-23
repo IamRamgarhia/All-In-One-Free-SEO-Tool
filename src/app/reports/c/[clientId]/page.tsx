@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { desc, eq, and } from "drizzle-orm";
+import { pickReferenceAudits } from "@/lib/reference-audit";
 import { getTranslations } from "next-intl/server";
 import {
   ArrowUpRight,
@@ -85,12 +86,14 @@ export default async function PerClientReportsPage({
   if (!client) notFound();
 
 
-  const [latest] = await db
-    .select()
-    .from(audits)
-    .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
-    .orderBy(desc(audits.completedAt))
-    .limit(1);
+  // The reference audit (lib/reference-audit.ts): the one the PDF is built on.
+  const { latest } = pickReferenceAudits(
+    await db
+      .select()
+      .from(audits)
+      .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
+      .orderBy(desc(audits.completedAt)),
+  );
 
   const allTasks = await db
     .select()

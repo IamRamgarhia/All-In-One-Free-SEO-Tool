@@ -12,6 +12,7 @@
  */
 
 import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
+import { pickReferenceAudits } from "./reference-audit";
 import { db } from "@/db/client";
 import {
   audits,
@@ -192,14 +193,13 @@ async function referenceAudit(
   clientId: number,
 ): Promise<{ id: number; score: number | null } | null> {
   const done = await db
-    .select({ id: audits.id, mode: audits.mode, score: audits.score })
+    .select({ id: audits.id, kind: audits.kind, mode: audits.mode, score: audits.score })
     .from(audits)
     .where(
       and(eq(audits.clientId, clientId), eq(audits.status, "completed"), eq(audits.kind, "crawler")),
     )
     .orderBy(desc(audits.completedAt));
-  // Rows written before the mode column existed have no mode: full crawls.
-  const ref = done.find((a) => a.mode !== "quick") ?? done[0] ?? null;
+  const { latest: ref } = pickReferenceAudits(done);
   return ref ? { id: ref.id, score: ref.score } : null;
 }
 

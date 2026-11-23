@@ -3,6 +3,7 @@
 import { requireSignedIn } from "@/lib/action-guard";
 
 import { eq, desc, and } from "drizzle-orm";
+import { OPEN_ISSUE_STATUS, pickReferenceAudits } from "@/lib/reference-audit";
 import { db } from "@/db/client";
 import { audits, auditIssues, clients, tasks } from "@/db/schema";
 import { generateExecSummary, type ExecSummaryDataPoint } from "@/lib/ai-summary";
@@ -59,14 +60,15 @@ export async function previewExecSummary(
     .from(audits)
     .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
     .orderBy(desc(audits.completedAt));
-  const latest = completedAudits[0] ?? null;
-  const previous = completedAudits[1] ?? null;
+  // The reference audit and the previous one of the same mode, never the
+  // AI checklist (lib/reference-audit.ts).
+  const { latest, previous } = pickReferenceAudits(completedAudits);
 
   const allIssues = latest
     ? await db
         .select()
         .from(auditIssues)
-        .where(eq(auditIssues.auditId, latest.id))
+        .where(and(eq(auditIssues.auditId, latest.id), eq(auditIssues.status, OPEN_ISSUE_STATUS)))
     : [];
 
   const allTasks = await db

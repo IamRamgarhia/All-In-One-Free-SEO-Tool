@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { eq, desc, and, gte } from "drizzle-orm";
+import { OPEN_ISSUE_STATUS, pickReferenceAudits } from "@/lib/reference-audit";
 import { db } from "@/db/client";
 import {
   aiSuggestions,
@@ -312,14 +313,15 @@ export async function generateReportPdf(
     .where(and(eq(audits.clientId, clientId), eq(audits.status, "completed")))
     .orderBy(desc(audits.completedAt));
 
-  const latest = completedAudits[0] ?? null;
-  const previous = completedAudits[1] ?? null;
+  // The reference audit and the previous one of the same mode, never the
+  // AI checklist (lib/reference-audit.ts).
+  const { latest, previous, crawls } = pickReferenceAudits(completedAudits);
 
   const allIssues = latest
     ? await db
         .select()
         .from(auditIssues)
-        .where(eq(auditIssues.auditId, latest.id))
+        .where(and(eq(auditIssues.auditId, latest.id), eq(auditIssues.status, OPEN_ISSUE_STATUS)))
     : [];
 
   const allTasks = await db
@@ -910,7 +912,7 @@ export async function generateReportPdf(
   if (!isTechnical(template)) {
     doc.addPage();
     drawSectionHeading(doc, L.highlights);
-    drawKeyValueRow(doc, L.auditsCompleted, String(completedAudits.length));
+    drawKeyValueRow(doc, L.auditsCompleted, String(crawls.length));
     drawKeyValueRow(doc, L.tasksCompleted, L.tasksOf(doneTasks.length, allTasks.length));
     drawKeyValueRow(doc, L.openIssues, String(allIssues.length));
     if (ga4Daily.length > 0) {

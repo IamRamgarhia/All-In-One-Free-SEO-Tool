@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { pickReferenceAudits } from "./reference-audit";
 import { db } from "@/db/client";
 import {
   auditIssues,
@@ -130,6 +131,7 @@ export async function auditFacts(projectId: number): Promise<AuditFacts> {
   const done = await db
     .select({
       id: audits.id,
+      kind: audits.kind,
       mode: audits.mode,
       score: audits.score,
       pagesCrawled: audits.pagesCrawled,
@@ -141,9 +143,9 @@ export async function auditFacts(projectId: number): Promise<AuditFacts> {
     .orderBy(desc(audits.completedAt));
 
   // Rows written before the mode column existed have no mode: they were
-  // full crawls.
+  // full crawls. The reference audit is the same everywhere (lib/reference-audit.ts).
   const full = done.find((a) => a.mode !== "quick") ?? null;
-  const latest = full ?? done[0] ?? null;
+  const { latest } = pickReferenceAudits(done);
   let critical = 0;
   let high = 0;
   if (latest) {
