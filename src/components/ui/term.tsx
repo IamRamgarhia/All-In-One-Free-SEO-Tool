@@ -1,4 +1,4 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { lookupTerm } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +22,12 @@ type TermProps = {
  */
 export function Term({ term, definition, className, children }: TermProps) {
   const tx = useTranslations("ui.components_ui_term");
+  const locale = useLocale();
   const resolvedTerm =
     term ?? (typeof children === "string" ? children : null);
   const def =
     definition ??
-    (resolvedTerm ? lookupTerm(resolvedTerm) : null);
+    (resolvedTerm ? lookupTerm(resolvedTerm, locale) : null);
 
   if (!def) {
     return <span className={className}>{children}</span>;

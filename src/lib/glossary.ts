@@ -9,6 +9,8 @@ export type Definition = {
   why?: string;
 };
 
+import { GLOSSARY_FR } from "./glossary.fr";
+
 const dict: Record<string, Definition> = {
   // Tags & markup
   "title tag": {
@@ -310,9 +312,19 @@ const lookup = new Map<string, Definition>();
 for (const [k, v] of Object.entries(dict)) {
   lookup.set(k.toLowerCase(), v);
 }
+const lookupFr = new Map<string, Definition>();
+for (const [k, v] of Object.entries(GLOSSARY_FR)) {
+  lookupFr.set(k.toLowerCase(), v);
+}
 
-export function lookupTerm(term: string): Definition | null {
-  return lookup.get(term.toLowerCase()) ?? null;
+/** The glossary's keys, for the French table's coverage test. */
+export const GLOSSARY_KEYS: readonly string[] = Object.keys(dict);
+
+/** A term's definition in the reader's language (French: glossary.fr.ts). */
+export function lookupTerm(term: string, locale = "en"): Definition | null {
+  const key = term.toLowerCase();
+  if (locale === "fr") return lookupFr.get(key) ?? lookup.get(key) ?? null;
+  return lookup.get(key) ?? null;
 }
 
 export function allTerms(): { term: string; definition: Definition }[] {
