@@ -46,8 +46,10 @@ function asDate(v: PlanTaskRow["dueDate"]): Date | null {
 
 const DAY = 86_400_000;
 
-function short(d: Date): string {
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+export type PlanLocale = "fr" | "en";
+
+function short(d: Date, locale: PlanLocale): string {
+  return d.toLocaleDateString(locale === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "short" });
 }
 
 /**
@@ -63,7 +65,8 @@ function short(d: Date): string {
  * parse is exactly the kind of quiet wrong answer this codebase keeps
  * finding.
  */
-export function groupPlanByWeek(rows: readonly PlanTaskRow[]): PlanView {
+export function groupPlanByWeek(rows: readonly PlanTaskRow[], locale: PlanLocale = "en"): PlanView {
+  const fr = locale === "fr";
   const dated: { row: PlanTaskRow; due: Date }[] = [];
   const undated: PlanTaskRow[] = [];
   for (const r of rows) {
@@ -88,17 +91,17 @@ export function groupPlanByWeek(rows: readonly PlanTaskRow[]): PlanView {
       const from = new Date(start + index * 7 * DAY);
       const to = new Date(start + ((index + 1) * 7 - 1) * DAY);
       weeks.push({
-        label: `Week ${index + 1}`,
-        range: `${short(from)} – ${short(to)}`,
-        items: items.map(({ row, due }) => ({ ...row, dueLabel: short(due) })),
+        label: fr ? `Semaine ${index + 1}` : `Week ${index + 1}`,
+        range: `${short(from, locale)} – ${short(to, locale)}`,
+        items: items.map(({ row, due }) => ({ ...row, dueLabel: short(due, locale) })),
       });
     }
   }
 
   if (undated.length > 0) {
     weeks.push({
-      label: "No date",
-      range: "not scheduled",
+      label: fr ? "Sans date" : "No date",
+      range: fr ? "non planifié" : "not scheduled",
       items: undated.map((row) => ({ ...row, dueLabel: "—" })),
     });
   }

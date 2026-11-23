@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
@@ -55,7 +55,7 @@ export default async function ClientPlanPage({
     .where(and(eq(tasks.clientId, clientId), eq(tasks.source, "auto_calendar")))
     .orderBy(asc(tasks.dueDate));
 
-  const plan = groupPlanByWeek(rows);
+  const plan = groupPlanByWeek(rows, (await getLocale()) === "fr" ? "fr" : "en");
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

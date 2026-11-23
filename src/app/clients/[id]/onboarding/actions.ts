@@ -20,7 +20,10 @@ import {
 } from "@/db/schema";
 import { appendResearchLog, ensureSiteRead } from "@/lib/client-knowledge";
 import { discoverKeywords, type DiscoveredKeyword } from "@/lib/auto-keywords";
-import { generateCalendar, summariseTopIssues } from "@/lib/seo-calendar";
+import { generateCalendar, summariseTopIssues, type TopIssue } from "@/lib/seo-calendar";
+import { OPEN_ISSUE_STATUS, pickReferenceAudits } from "@/lib/reference-audit";
+import { isAdvisoryFor, isAdvisoryGeoFinding, isSiteKind } from "@/lib/advisory-rules";
+import { getReportLocale } from "@/lib/report-i18n";
 import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { getGscQuickWins } from "@/lib/google-data";
 import { logActivity } from "@/lib/activity";
@@ -391,26 +394,22 @@ export async function generateMonthlyCalendar(
     }
   }
 
-  // Pull top open issues from the latest completed audit so days 3-5 of
-  // the calendar pin real findings. We grab severity-ranked issues that
-  // are still in "new" state (resolved/ignored/false_positive are skipped).
-  let topIssues: {
-    title: string;
-    severity: "critical" | "high" | "medium" | "low";
-  }[] = [];
+  // Findings of the reference audit (lib/reference-audit.ts): the latest
+  // full crawl, else the latest quick one. "Latest completed" could be the
+  // AI checklist, whose rows are not crawl findings. Good-practice rules
+  // for this kind of site are left out, as in the score and the findings
+  // list: a chauffeur's plan opened on "Fix: No author byline".
+  let topIssues: TopIssue[] = [];
+  let hasAudit = false;
   try {
-    const [latestAudit] = await db
-      .select({ id: audits.id })
+    const done = await db
+      .select({ id: audits.id, kind: audits.kind, mode: audits.mode })
       .from(audits)
-      .where(
-        and(
-          eq(audits.clientId, c.id),
-          eq(audits.status, "completed"),
-        ),
-      )
-      .orderBy(desc(audits.completedAt))
-      .limit(1);
-    if (latestAudit) {
+      .where(and(eq(audits.clientId, c.id), eq(audits.status, "completed")))
+      .orderBy(desc(audits.completedAt));
+    const { latest: reference } = pickReferenceAudits(done);
+    if (reference) {
+      hasAudit = true;
       // No limit before summarising. This took an arbitrary thirty rows
       // and THEN sorted them, so on a site with twenty heading-order rows
       // the critical findings could fall outside the thirty entirely.
@@ -424,11 +423,17 @@ export async function generateMonthlyCalendar(
         .from(auditIssues)
         .where(
           and(
-            eq(auditIssues.auditId, latestAudit.id),
-            eq(auditIssues.status, "new"),
+            eq(auditIssues.auditId, reference.id),
+            eq(auditIssues.status, OPEN_ISSUE_STATUS),
           ),
         );
-      topIssues = summariseTopIssues(withoutInfrastructure(rows), 5);
+      const kind = isSiteKind(c.niche) ? c.niche : null;
+      const problems = withoutInfrastructure(rows).filter(
+        (r) =>
+          !(r.type.startsWith("seomator:") && isAdvisoryFor(r.type.slice("seomator:".length), kind)) &&
+          !isAdvisoryGeoFinding(r.type, kind),
+      );
+      topIssues = summariseTopIssues(problems, 5);
     }
   } catch {
     topIssues = [];
@@ -447,6 +452,8 @@ export async function generateMonthlyCalendar(
     hasGbp: Boolean(c.gbpUrl),
     quickWins,
     topIssues,
+    hasAudit,
+    locale: (await getReportLocale()) === "fr" ? "fr" : "en",
   });
 
   // Wipe any prior auto-generated tasks for the same plan tag (re-run safety)

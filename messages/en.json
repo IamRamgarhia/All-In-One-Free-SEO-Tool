@@ -1585,7 +1585,7 @@
     },
     "plan": {
       "title": "Ready to generate your 30-day plan",
-      "intro": "Builds 30 daily tasks tailored to this client's niche, locale, tech stack, and (when connected) real GSC data. Tasks land directly in the Tasks board with due dates spread across the next month.",
+      "intro": "Builds a plan of about 28 tasks over 30 days, tailored to the kind of business, the city, the site's technology, its latest audit and, when connected, Search Console. Tasks land in the Tasks board with due dates spread across the month.",
       "learnedTitle": "What the tool has learned about your style",
       "learnedFooter": "These rules are auto-applied to AI output for this client. Manage them in <link>Settings → AI learning</link>.",
       "generated": "Generated {count} tasks under plan {planRef}.",

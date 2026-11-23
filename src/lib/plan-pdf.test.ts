@@ -50,8 +50,9 @@ const TASKS: PlanTaskRow[] = [
   },
 ];
 
-async function build() {
+async function build(locale: "fr" | "en" = "en") {
   const buf = await generatePlanPdf({
+    locale,
     clientName: "Prateek Tapes",
     clientUrl: "https://prateektapes.com",
     tasks: TASKS,
@@ -172,6 +173,25 @@ describe("what the reader will actually see", () => {
     expect(text).toContain("30-day SEO plan");
     expect(text).toContain("Prateek Tapes");
     expect(text).toContain("Connect Google Search Console");
+  });
+});
+
+describe("the plan in French", () => {
+  it("writes its own words in French, dates included", async () => {
+    const { streams } = await build("fr");
+    const text = [...streams.matchAll(/<([0-9A-Fa-f]+)>/g)]
+      .map((h) =>
+        h[1]
+          .match(/../g)!
+          .map((b) => String.fromCharCode(parseInt(b, 16)))
+          .join(""),
+      )
+      .join("");
+    expect(text).toContain("Plan SEO sur 30 jours");
+    expect(text).toContain("Semaine 1");
+    expect(text).toContain("sept.");
+    expect(text).not.toContain("30-day SEO plan");
+    expect(text).not.toContain("Week 1");
   });
 });
 

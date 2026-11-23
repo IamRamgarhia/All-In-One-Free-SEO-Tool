@@ -1585,7 +1585,7 @@
     },
     "plan": {
       "title": "Générer le plan sur 30 jours",
-      "intro": "Crée 30 tâches quotidiennes adaptées à la niche, à la locale, à la stack et (si connecté) aux données Search Console. Elles arrivent dans le board Tâches avec des échéances étalées sur le mois.",
+      "intro": "Crée un plan d’environ 28 tâches sur 30 jours, adapté au type d’activité, à la ville, à la technologie du site, à son dernier audit et, si elle est connectée, à Search Console. Les tâches arrivent dans le tableau Tâches avec des échéances étalées sur le mois.",
       "learnedTitle": "Ce que l’outil a appris de votre façon de travailler",
       "learnedFooter": "Règles appliquées automatiquement aux sorties IA pour ce client. Gérez-les dans <link>Paramètres → Apprentissage IA</link>.",
       "generated": "{count} tâches créées (plan {planRef}).",

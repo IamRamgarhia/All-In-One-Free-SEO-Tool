@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { guardClientRequest } from "@/lib/admin-auth";
 import { clients, tasks } from "@/db/schema";
 import { groupPlanByWeek } from "@/lib/plan-view";
+import { getReportLocale } from "@/lib/report-i18n";
 
 /**
  * The plan as a file, because "download it on the same page" is what
@@ -47,7 +48,8 @@ export async function GET(
     .where(and(eq(tasks.clientId, clientId), eq(tasks.source, "auto_calendar")))
     .orderBy(asc(tasks.dueDate));
 
-  const plan = groupPlanByWeek(rows);
+  const locale = (await getReportLocale()) === "fr" ? "fr" : "en";
+  const plan = groupPlanByWeek(rows, locale);
 
   /** Excel treats a leading = or + as a formula, so those are defused. */
   const cell = (v: unknown): string => {
@@ -57,7 +59,9 @@ export async function GET(
   };
 
   const lines = [
-    ["Week", "Due", "Task", "Why it matters", "Minutes", "Status"]
+    (locale === "fr"
+      ? ["Semaine", "Échéance", "Tâche", "Pourquoi c’est important", "Minutes", "Statut"]
+      : ["Week", "Due", "Task", "Why it matters", "Minutes", "Status"])
       .map(cell)
       .join(","),
   ];
@@ -70,7 +74,7 @@ export async function GET(
           t.title,
           t.whyItMatters ?? "",
           t.estimatedMinutes ?? "",
-          t.status,
+          locale === "fr" ? (STATUS_FR[t.status] ?? t.status) : t.status,
         ]
           .map(cell)
           .join(","),
@@ -86,3 +90,12 @@ export async function GET(
     },
   });
 }
+
+const STATUS_FR: Record<string, string> = {
+  todo: "À faire",
+  in_progress: "En cours",
+  doing: "En cours",
+  blocked: "Bloquée",
+  done: "Faite",
+  skipped: "Écartée",
+};

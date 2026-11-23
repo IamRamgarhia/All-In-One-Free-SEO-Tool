@@ -14,6 +14,9 @@
  */
 
 import { addDays, startOfDay } from "./utils-date";
+import { blueprintsFr, placeFr } from "./audit-to-task.fr";
+import { ruleNamesFr } from "./rule-names.fr";
+import { CALENDAR_FR, CRAWLER_FIX_FR, severityRationaleFr } from "./seo-calendar.fr";
 
 export type CalendarTask = {
   /** 1..30 */
@@ -50,12 +53,27 @@ export type CalendarInput = {
   hasGbp: boolean;
   /** Top 3 quick-win keywords from GSC (positions 4-15). */
   quickWins?: { query: string; impressions: number; position: number }[];
-  /** Highest-severity outstanding audit issues (titles only). */
-  topIssues?: { title: string; severity: "critical" | "high" | "medium" | "low" }[];
+  /** Highest-severity outstanding audit issues (summariseTopIssues). */
+  topIssues?: TopIssue[];
+  /** A crawl audit already exists: day 2 reviews it instead of running one. */
+  hasAudit?: boolean;
+  /** Workspace language; French writes every step in French. */
+  locale?: "fr" | "en";
   /** Niche-aware seed for content tasks. */
   contentSeeds?: string[];
   /** Optional start date — defaults to tomorrow. */
   startDate?: Date;
+};
+
+export type TopIssue = {
+  title: string;
+  severity: "critical" | "high" | "medium" | "low";
+  /** Finding type, e.g. `long_title` or `seomator:eeat-author-byline`. */
+  type?: string;
+  /** Pages it was found on. */
+  pages?: number;
+  /** The page, when there is only one. */
+  url?: string | null;
 };
 
 /**
@@ -70,15 +88,15 @@ export type CalendarInput = {
  * the total.
  */
 export function summariseTopIssues(
-  rows: readonly { severity: string; type: string; message: string | null }[],
+  rows: readonly { severity: string; type: string; message: string | null; url?: string | null }[],
   limit = 5,
-): NonNullable<CalendarInput["topIssues"]> {
+): TopIssue[] {
   const rank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-  const byType = new Map<string, { severity: string; message: string; pages: number }>();
+  const byType = new Map<string, { type: string; severity: string; message: string; pages: number; url: string | null }>();
   for (const r of rows) {
     const cur = byType.get(r.type);
     if (!cur) {
-      byType.set(r.type, { severity: r.severity, message: r.message ?? r.type, pages: 1 });
+      byType.set(r.type, { type: r.type, severity: r.severity, message: r.message ?? r.type, pages: 1, url: r.url ?? null });
       continue;
     }
     cur.pages++;
@@ -95,6 +113,9 @@ export function summariseTopIssues(
     .slice(0, limit)
     .map((i) => ({
       severity: i.severity as "critical" | "high" | "medium" | "low",
+      type: i.type,
+      pages: i.pages,
+      url: i.pages === 1 ? i.url : null,
       title:
         i.pages > 1
           ? `${issueHeadline(i.message, true)} (${i.pages} pages)`
@@ -151,6 +172,7 @@ export function severityRationale(severity: string): string {
 export function generateCalendar(input: CalendarInput): CalendarTask[] {
   const start = input.startDate ?? startOfDay(addDays(new Date(), 1));
   const cal: CalendarTask[] = [];
+  const fr = input.locale === "fr";
 
   // ============== Week 1: Foundation + Audit-driven fixes ==============
   push(cal, {
@@ -171,9 +193,14 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
   push(cal, {
     day: 2,
     date: addDays(start, 1),
-    title: "Run a full site audit + log critical issues",
-    whyItMatters:
-      "A baseline audit means every later improvement is measurable. Critical issues (broken indexability, mobile-fail, no sitemap) outweigh content work.",
+    // The quick audit runs when the client is added, so "run a full site
+    // audit" on day 2 asked for work already done.
+    title: input.hasAudit
+      ? "Review the site audit and pick the fixes to make first"
+      : "Run a full site audit + log critical issues",
+    whyItMatters: input.hasAudit
+      ? "The baseline audit is done: keep what blocks indexing or trust, the rest can wait."
+      : "A baseline audit means every later improvement is measurable. Critical issues (broken indexability, mobile-fail, no sitemap) outweigh content work.",
     category: "technical",
     priority: "high",
     estimatedMinutes: 30,
@@ -188,12 +215,16 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
       day: 3 + i,
       date: addDays(start, 2 + i),
       title: issue
-        ? `Fix: ${issue.title}`
+        ? fr
+          ? issueTitleFr(issue)
+          : `Fix: ${issue.title}`
         : ["Audit + fix all broken meta titles", "Audit image alt-text gaps", "Check & resolve mobile-friendliness errors"][i],
       // The fallback used to promise "every later content win 10-20%
       // bigger" — a figure with no source, in a document sent to clients.
       whyItMatters: issue
-        ? severityRationale(issue.severity)
+        ? fr
+          ? severityRationaleFr(issue.severity)
+          : severityRationale(issue.severity)
         : "Technical problems left open undercut the content work built on top of them, so they go first.",
       category: "technical",
       priority:
@@ -224,7 +255,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 6),
     title: "Generate sitemap.xml + submit to Bing/IndexNow",
     whyItMatters:
-      "Fresh sitemaps drop indexing time to hours. IndexNow tells Bing/Yandex about new URLs the same day.",
+      "An up-to-date sitemap helps engines find new pages; IndexNow tells Bing about new URLs the same day.",
     category: "technical",
     priority: "medium",
     estimatedMinutes: 15,
@@ -257,8 +288,12 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     push(cal, {
       day: 9 + i,
       date: addDays(start, 8 + i),
-      title: `Refresh page ranking for "${win.query}" (currently #${Math.round(win.position)})`,
-      whyItMatters: `${win.impressions.toLocaleString()} monthly impressions and you're already on page 2. Small intent / heading update can push it onto page 1.`,
+      title: fr
+        ? `Mettre à jour la page positionnée sur « ${win.query} » (actuellement n° ${Math.round(win.position)})`
+        : `Refresh page ranking for "${win.query}" (currently #${Math.round(win.position)})`,
+      whyItMatters: fr
+        ? `${win.impressions.toLocaleString("fr-FR")} impressions sur 28 jours et déjà en deuxième page : un ajustement de l’intention ou des titres peut la faire passer en première page.`
+        : `${win.impressions.toLocaleString("en-US")} impressions over 28 days and already on page 2. A small intent / heading update can push it onto page 1.`,
       category: "content",
       priority: "high",
       estimatedMinutes: 60,
@@ -308,7 +343,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 13),
     title: "Content decay scan + plan 2 refreshes for next week",
     whyItMatters:
-      "Refreshing decaying pages is 3-5x more efficient than writing new ones. Fix what already ranks first.",
+      "Updating a page that already ranks costs less than writing a new one. Fix what already ranks first.",
     category: "content",
     priority: "high",
     estimatedMinutes: 30,
@@ -323,7 +358,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
       date: addDays(start, 14),
       title: "GBP: reply to every unanswered review (positive + negative)",
       whyItMatters:
-        "Reply rate is a direct GBP ranking signal — and every reply is a chance to bake keywords into your profile naturally.",
+        "Replying to reviews shows an active listing, reassures future customers and counts for local ranking.",
       category: "gbp",
       priority: "high",
       estimatedMinutes: 30,
@@ -348,7 +383,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 15),
     title: "GBP: post 1 update + upload 3 fresh photos",
     whyItMatters:
-      "Posts and photos signal the listing is alive. Profiles updated weekly outrank dormant ones for the same keywords.",
+      "Posts and photos show the business is active.",
     category: "gbp",
     priority: "medium",
     estimatedMinutes: 20,
@@ -359,10 +394,14 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     day: 17,
     date: addDays(start, 16),
     title: input.niche === "local" && input.city
-      ? `Citation audit: NAP consistency across top ${input.country} directories for ${input.city}`
+      ? fr
+        ? `Annuaires : vérifier que nom, adresse et téléphone sont identiques partout (${input.city})`
+        : `Citation audit: NAP consistency across top ${input.country} directories for ${input.city}`
       : "Brand mention audit: top 10 places your brand is discussed online",
     whyItMatters: input.niche === "local"
-      ? "NAP inconsistencies (different addresses/phones across directories) directly hurt local pack rankings."
+      ? fr
+        ? "Des nom, adresse ou téléphone différents d’un annuaire à l’autre nuisent au classement local."
+        : "NAP inconsistencies (different addresses/phones across directories) directly hurt local pack rankings."
       : "Tracking unlinked mentions surfaces easy link-building targets and brand monitoring opportunities.",
     category: "local",
     priority: "medium",
@@ -375,7 +414,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 17),
     title: "AI visibility check: run brand queries through ChatGPT, Perplexity, Gemini",
     whyItMatters:
-      "AI search results are now ~30% of commercial queries. If your brand isn't cited, customers never see it — even if you rank #1 in Google.",
+      "AI assistants answer more and more searches themselves. Check whether they cite the site at all.",
     category: "ai_visibility",
     priority: "medium",
     estimatedMinutes: 25,
@@ -387,7 +426,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 18),
     title: "Optimize 1 page for AI Overview citation (chunked, factual, source-cited)",
     whyItMatters:
-      "AI Overviews favor chunked content with stats + sources. Restructuring 1 page can earn you a citation that drives more traffic than rank #1.",
+      "AI answers quote short, factual, sourced passages. Restructure one page that way.",
     category: "ai_visibility",
     priority: "medium",
     estimatedMinutes: 60,
@@ -424,7 +463,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 21),
     title: "Find 10 link prospects via free DuckDuckGo prospecting",
     whyItMatters:
-      "Outreach beats cold-email-blasts. 10 well-targeted resource pages > 100 generic submissions.",
+      "Ten well-chosen sites beat a hundred generic submissions.",
     category: "links",
     priority: "high",
     estimatedMinutes: 30,
@@ -436,7 +475,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 22),
     title: "Send 5 personalised outreach emails using a template",
     whyItMatters:
-      "Reply rate to truly personalised cold outreach is 8-15%. Generic templates: <2%. Three minutes per prospect makes the difference.",
+      "A message written for the site contacted gets far more replies than one template sent to everyone.",
     category: "links",
     priority: "high",
     estimatedMinutes: 45,
@@ -448,7 +487,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 23),
     title: "GBP: post a customer story or case study",
     whyItMatters:
-      "Story-format posts get higher engagement than generic offers — a direct ranking signal in GBP.",
+      "A concrete example says more than a generic offer.",
     category: "gbp",
     priority: "low",
     estimatedMinutes: 20,
@@ -472,7 +511,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 25),
     title: "Schema audit + add Organization, FAQPage, BreadcrumbList where missing",
     whyItMatters:
-      "Rich-result eligibility shows in 30%+ of SERPs now. Missing schema = missing visibility you can add for free.",
+      "Structured data makes pages eligible for Google's rich results, at no cost.",
     category: "technical",
     priority: "medium",
     estimatedMinutes: 40,
@@ -484,7 +523,7 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     date: addDays(start, 26),
     title: "Image audit: compress + add WebP/AVIF on top 5 pages",
     whyItMatters:
-      "Image weight is the #1 LCP killer. A 30% image reduction often moves CWV from FAIL → PASS.",
+      "Image weight is a frequent cause of a slow LCP.",
     category: "technical",
     priority: "medium",
     estimatedMinutes: 45,
@@ -527,7 +566,34 @@ export function generateCalendar(input: CalendarInput): CalendarTask[] {
     toolPath: `/clients/${input.clientId}/onboarding`,
   });
 
-  return cal;
+  return fr ? cal.map(localizeStep) : cal;
+}
+
+/** A fixed step in French; steps built from data are already French. */
+function localizeStep(task: CalendarTask): CalendarTask {
+  const t = CALENDAR_FR[task.title];
+  return t ? { ...task, title: t[0], whyItMatters: t[1] } : task;
+}
+
+/**
+ * The French title of an audit finding's fix. The finding messages are
+ * the engine's English sentences; the rule name (engine) or the task
+ * blueprint (crawler) has a French version. "Corriger : No author byline"
+ * would be no better than the English.
+ */
+export function issueTitleFr(issue: TopIssue): string {
+  const pages = issue.pages ?? 1;
+  const where = pages > 1 ? `${pages} pages` : placeFr(issue.url ? [issue.url] : []);
+  const type = issue.type ?? "";
+  const rule = ruleNamesFr[type.replace(/^seomator:/, "")];
+  if (type.startsWith("seomator:") && rule) {
+    return pages > 1 ? `Corriger : ${rule} (${pages} pages)` : `Corriger : ${rule} (${where})`;
+  }
+  const blueprint = blueprintsFr[type];
+  if (blueprint) return blueprint.title(where);
+  const crawler = CRAWLER_FIX_FR[type];
+  if (crawler) return crawler(where);
+  return `Corriger : ${issue.title}`;
 }
 
 function push(arr: CalendarTask[], task: CalendarTask) {

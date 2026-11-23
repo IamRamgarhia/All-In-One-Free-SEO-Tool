@@ -7,8 +7,10 @@
  * low-severity tidy-up described as capping the client's rankings.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { generateCalendar, severityRationale, summariseTopIssues } from "./seo-calendar";
+import { generateCalendar, issueTitleFr, severityRationale, summariseTopIssues } from "./seo-calendar";
+import { CALENDAR_FR } from "./seo-calendar.fr";
 
 const row = (type: string, severity: string, message: string) => ({ type, severity, message });
 
@@ -128,5 +130,65 @@ describe("the generated plan", () => {
     for (const t of cal) {
       expect(t.whyItMatters, t.title).not.toMatch(/double the traffic|10-20%/i);
     }
+  });
+});
+
+describe("the plan in French", () => {
+  const base = {
+    clientId: 2,
+    clientName: "ND Prestige",
+    niche: "local" as const,
+    techStack: [] as string[],
+    country: "FR",
+    city: "Paris",
+    hasGsc: false,
+    hasGbp: false,
+    hasAudit: true,
+    locale: "fr" as const,
+  };
+
+  it("has a French text for every fixed step", () => {
+    for (const hasGsc of [true, false]) {
+      for (const hasAudit of [true, false]) {
+        for (const niche of ["local", "saas"] as const) {
+          const en = generateCalendar({ ...base, hasGsc, hasAudit, niche, locale: "en", topIssues: [] });
+          for (const t of en) {
+            const dynamic = /^Citation audit|^Refresh page ranking/.test(t.title);
+            if (!dynamic) expect(CALENDAR_FR[t.title], t.title).toBeDefined();
+          }
+        }
+      }
+    }
+  });
+
+  it("writes no English step", () => {
+    const cal = generateCalendar({
+      ...base,
+      quickWins: [{ query: "chauffeur orly", impressions: 1200, position: 8 }],
+      topIssues: [
+        { title: "No author byline", severity: "medium", type: "seomator:eeat-author-byline", pages: 4 },
+        { title: "Title is 76 characters", severity: "low", type: "long_title", pages: 1, url: "https://x.fr/tarifs" },
+      ],
+    });
+    for (const t of cal) expect(Object.keys(CALENDAR_FR), t.title).not.toContain(t.title);
+    expect(cal.find((t) => t.day === 2)!.title).toMatch(/^Relire l’audit/);
+    expect(cal.find((t) => t.day === 3)!.title).toBe("Corriger : Signature des auteurs (4 pages)");
+    expect(cal.find((t) => t.day === 4)!.title).toContain("/tarifs");
+    expect(cal.find((t) => t.day === 9)!.title).toContain("« chauffeur orly »");
+  });
+
+  it("has a French fix for every crawler finding type", () => {
+    const source = readFileSync("src/lib/audit.ts", "utf8");
+    const types = new Set([...source.matchAll(/type: "([a-z_0-9]+)"/g)].map((m) => m[1]));
+    for (const type of types) {
+      const title = issueTitleFr({ title: "ENGLISH", severity: "low", type, pages: 2 });
+      expect(title, type).not.toContain("ENGLISH");
+    }
+  });
+
+  it("names the engine rule in French rather than the English message", () => {
+    const title = issueTitleFr({ title: "No author byline", severity: "medium", type: "seomator:eeat-author-byline", pages: 4 });
+    expect(title).not.toMatch(/author byline/i);
+    expect(title).toMatch(/^Corriger : .+ \(4 pages\)$/);
   });
 });

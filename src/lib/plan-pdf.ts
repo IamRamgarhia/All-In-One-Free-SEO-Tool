@@ -43,7 +43,7 @@
 
 import PDFDocument from "pdfkit";
 import { accentColor, isWhiteLabelled, loadBrand, type Brand } from "./brand";
-import { groupPlanByWeek, type PlanItem, type PlanTaskRow } from "./plan-view";
+import { groupPlanByWeek, type PlanItem, type PlanLocale, type PlanTaskRow } from "./plan-view";
 
 export type PlanPdfInput = {
   clientName: string;
@@ -52,7 +52,43 @@ export type PlanPdfInput = {
   /** Health score at the time the plan was made, when known. */
   score?: number | null;
   issueCount?: number | null;
+  /** Language of the document (the workspace language). */
+  locale?: PlanLocale;
 };
+
+const TEXT = {
+  en: {
+    title: "30-day SEO plan",
+    subject: (n: string) => `What happens in which week for ${n}`,
+    score: "Health score today",
+    issues: "Issues found in the audit",
+    tasks: (w: number) => `Tasks across ${w} weeks`,
+    work: "Estimated work",
+    intro:
+      "Each task says what it is and why it matters. Dates are a schedule, not a deadline — the order matters more than the day.",
+    continued: "continued",
+    count: (n: string) => `${n} task${n === "1" ? "" : "s"}`,
+    prepared: (a: string, d: string) => `Prepared by ${a} · ${d}`,
+    generated: (d: string) => `Generated ${d}`,
+    dateLocale: "en-GB",
+  },
+  fr: {
+    title: "Plan SEO sur 30 jours",
+    subject: (n: string) => `Ce qui est fait chaque semaine pour ${n}`,
+    score: "Score de santé aujourd’hui",
+    issues: "Problèmes relevés par l’audit",
+    tasks: (w: number) => `Tâches sur ${w} semaines`,
+    work: "Travail estimé",
+    intro:
+      "Chaque tâche dit ce qu’elle est et pourquoi elle compte. Les dates sont un calendrier, pas une échéance : l’ordre compte plus que le jour.",
+    continued: "suite",
+    count: (n: string) => `${n} tâche${n === "1" ? "" : "s"}`,
+    prepared: (a: string, d: string) => `Préparé par ${a} · ${d}`,
+    generated: (d: string) => `Créé le ${d}`,
+    dateLocale: "fr-FR",
+  },
+};
+type PlanText = (typeof TEXT)["en"];
 
 /**
  * The only two fonts used.
@@ -78,7 +114,9 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
   const brand = await loadBrand();
   const accent = accentColor(brand);
   const agency = isWhiteLabelled(brand) ? brand.name!.trim() : null;
-  const plan = groupPlanByWeek(input.tasks);
+  const locale: PlanLocale = input.locale === "fr" ? "fr" : "en";
+  const L: PlanText = TEXT[locale];
+  const plan = groupPlanByWeek(input.tasks, locale);
 
   const buffers: Buffer[] = [];
   const doc = new PDFDocument({
@@ -88,9 +126,9 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
     // whole document has been laid out.
     bufferPages: true,
     info: {
-      Title: `30-day SEO plan — ${input.clientName}`,
+      Title: `${L.title} — ${input.clientName}`,
       Author: agency ?? "SEO Tool",
-      Subject: `What happens in which week for ${input.clientName}`,
+      Subject: L.subject(input.clientName),
     },
   });
   doc.on("data", (b: Buffer) => buffers.push(b));
@@ -107,7 +145,7 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
     .font(BOLD)
     .fillColor(INK)
     .fontSize(26)
-    .text("30-day SEO plan", { width });
+    .text(L.title, { width });
   doc
     .font(REGULAR)
     .fillColor(MUTED)
@@ -126,14 +164,14 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
   // cannot later be shown to have worked.
   drawStats(doc, width, accent, [
     typeof input.score === "number"
-      ? { value: `${input.score}`, unit: "/100", label: "Health score today" }
+      ? { value: `${input.score}`, unit: "/100", label: L.score }
       : null,
     typeof input.issueCount === "number"
-      ? { value: `${input.issueCount}`, label: "Issues found in the audit" }
+      ? { value: `${input.issueCount}`, label: L.issues }
       : null,
-    { value: `${plan.total}`, label: `Tasks across ${plan.weeks.length} weeks` },
+    { value: `${plan.total}`, label: L.tasks(plan.weeks.length) },
     plan.totalMinutes > 0
-      ? { value: `${Math.round(plan.totalMinutes / 60)}`, unit: "h", label: "Estimated work" }
+      ? { value: `${Math.round(plan.totalMinutes / 60)}`, unit: "h", label: L.work }
       : null,
   ]);
 
@@ -143,7 +181,7 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
     .fillColor(MUTED)
     .fontSize(9.5)
     .text(
-      "Each task says what it is and why it matters. Dates are a schedule, not a deadline — the order matters more than the day.",
+      L.intro,
       { width },
     );
 
@@ -154,7 +192,7 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
     // Breaking early costs a little paper and saves the reader.
     if (doc.y > bottom() - 150) doc.addPage();
 
-    drawWeekBand(doc, w.label, w.range, `${w.items.length}`, accent, width);
+    drawWeekBand(doc, w.label, w.range, `${w.items.length}`, accent, width, false, L);
 
     let stripe = false;
     for (const t of w.items) {
@@ -163,7 +201,7 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
         doc.addPage();
         // Repeat the band so a week split across pages still says which
         // week the reader is in.
-        drawWeekBand(doc, w.label, w.range, `${w.items.length}`, accent, width, true);
+        drawWeekBand(doc, w.label, w.range, `${w.items.length}`, accent, width, true, L);
         stripe = false;
       }
       drawTask(doc, t, width, accent, stripe);
@@ -171,7 +209,7 @@ export async function generatePlanPdf(input: PlanPdfInput): Promise<Buffer> {
     }
   }
 
-  drawFooters(doc, agency, accent);
+  drawFooters(doc, agency, accent, L);
 
   doc.end();
   return done;
@@ -238,6 +276,7 @@ function drawWeekBand(
   accent: string,
   width: number,
   continued = false,
+  L: PlanText = TEXT.en,
 ) {
   const h = 26;
   const y = doc.y;
@@ -247,7 +286,7 @@ function drawWeekBand(
     .font(BOLD)
     .fillColor("#ffffff")
     .fontSize(11)
-    .text(continued ? `${label} (continued)` : label, MARGIN + 10, y + 8, {
+    .text(continued ? `${label} (${L.continued})` : label, MARGIN + 10, y + 8, {
       lineBreak: false,
     });
 
@@ -255,7 +294,7 @@ function drawWeekBand(
     .font(REGULAR)
     .fillColor("#ffffff")
     .fontSize(9)
-    .text(`${range}  ·  ${count} task${count === "1" ? "" : "s"}`, MARGIN, y + 9, {
+    .text(`${range}  ·  ${L.count(count)}`, MARGIN, y + 9, {
       width: width - 10,
       align: "right",
       lineBreak: false,
@@ -354,15 +393,16 @@ function drawFooters(
   doc: PDFKit.PDFDocument,
   agency: string | null,
   accent: string,
+  L: PlanText = TEXT.en,
 ) {
-  const generated = new Date().toLocaleDateString("en-GB", {
+  const generated = new Date().toLocaleDateString(L.dateLocale, {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
   const left = agency
-    ? `Prepared by ${agency} · ${generated}`
-    : `Generated ${generated}`;
+    ? L.prepared(agency, generated)
+    : L.generated(generated);
 
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
