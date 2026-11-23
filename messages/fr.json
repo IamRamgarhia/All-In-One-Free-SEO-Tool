@@ -3445,7 +3445,7 @@
       "stage_auditing_hint": "L'audit rapide donne un premier score. L'audit complet est la base de décision : lancez-le pour pouvoir proposer une mission.",
       "stage_audited": "Site audité",
       "stage_audited_hint": "Le projet est audité : vous pouvez proposer une mission au client.",
-      "facts": "Score {score}/100 · {critical} critiques · {high} élevés",
+      "facts": "Score {score}/100 · {critical, plural, =0 {aucun problème critique} one {# problème critique} other {# problèmes critiques}} · {high, plural, =0 {aucun problème élevé} one {# problème élevé} other {# problèmes élevés}}",
       "runAudit": "Lancer l'audit",
       "suggested": "Mission suggérée : {kind}",
       "then": "Ensuite : {kind}.",

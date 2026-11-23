@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { pickReferenceAudits } from "./reference-audit";
+import { OPEN_ISSUE_STATUS, pickReferenceAudits } from "./reference-audit";
 import { db } from "@/db/client";
 import {
   auditIssues,
@@ -149,10 +149,12 @@ export async function auditFacts(projectId: number): Promise<AuditFacts> {
   let critical = 0;
   let high = 0;
   if (latest) {
+    // Open problems, each counted once (lib/missions.ts, AuditFacts): a
+    // rule that fails on many pages is one problem.
     const rows = await db
-      .select({ severity: auditIssues.severity, n: sql<number>`count(*)` })
+      .select({ severity: auditIssues.severity, n: sql<number>`count(distinct ${auditIssues.type})` })
       .from(auditIssues)
-      .where(eq(auditIssues.auditId, latest.id))
+      .where(and(eq(auditIssues.auditId, latest.id), eq(auditIssues.status, OPEN_ISSUE_STATUS)))
       .groupBy(auditIssues.severity);
     critical = rows.find((r) => r.severity === "critical")?.n ?? 0;
     high = rows.find((r) => r.severity === "high")?.n ?? 0;

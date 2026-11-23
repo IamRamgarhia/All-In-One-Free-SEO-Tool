@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { ArrowRight, ClipboardCheck } from "lucide-react";
 import { auditFacts, listMissions } from "@/lib/projects";
-import { canCreateMission, projectStage, suggestMission } from "@/lib/missions";
+import { canCreateMission, pendingSuggestion, projectStage, suggestMission } from "@/lib/missions";
 import { MissionsPanel } from "./missions-panel";
 
 /**
@@ -14,7 +14,8 @@ export async function ProjectMissions({ projectId }: { projectId: number }) {
   const t = await getTranslations("clientPage.missions");
   const [facts, rows] = await Promise.all([auditFacts(projectId), listMissions(projectId)]);
   const stage = projectStage(facts);
-  const suggestion = suggestMission(facts);
+  // No suggestion for a mission already under way: it would only be created twice.
+  const suggestion = pendingSuggestion(suggestMission(facts), rows);
 
   return (
     <div className="space-y-5">

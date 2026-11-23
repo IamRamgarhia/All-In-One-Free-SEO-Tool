@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { canCreateMission, isRecurring, projectStage, suggestMission, type AuditFacts } from "./missions";
+import {
+  canCreateMission,
+  HIGH_PROBLEMS_FOR_FULL,
+  isRecurring,
+  pendingSuggestion,
+  projectStage,
+  suggestMission,
+  type AuditFacts,
+} from "./missions";
 
 const facts = (over: Partial<AuditFacts> = {}): AuditFacts => ({
   fullAuditDone: true,
@@ -58,6 +66,14 @@ describe("suggestMission", () => {
     expect(suggestMission(facts({ score: 0, pagesCrawled: 0 }))).toBeNull();
   });
 
+  it("a high score with several distinct high problems is not called healthy", () => {
+    expect(suggestMission(facts({ score: 95, high: 2 }))?.kind).toBe("monitoring");
+    expect(suggestMission(facts({ score: 95, high: HIGH_PROBLEMS_FOR_FULL }))).toEqual({
+      kind: "full",
+      reason: "many_fixable",
+    });
+  });
+
   it("the thresholds are the report's: 50 and 80", () => {
     expect(suggestMission(facts({ score: 49 }))?.kind).toBe("redesign");
     expect(suggestMission(facts({ score: 50 }))?.kind).toBe("full");
@@ -72,5 +88,21 @@ describe("isRecurring", () => {
     expect(isRecurring("full")).toBe(true);
     expect(isRecurring("audit")).toBe(false);
     expect(isRecurring("redesign")).toBe(false);
+  });
+});
+
+describe("pendingSuggestion", () => {
+  const full = { kind: "full" as const, reason: "many_fixable" as const };
+
+  it("hides the suggestion while that mission is proposed, active or paused", () => {
+    for (const status of ["proposed", "active", "paused"] as const) {
+      expect(pendingSuggestion(full, [{ kind: "full", status }])).toBeNull();
+    }
+  });
+
+  it("keeps it when the project's mission is of another kind, cancelled or done", () => {
+    expect(pendingSuggestion(full, [{ kind: "monitoring", status: "proposed" }])).toEqual(full);
+    expect(pendingSuggestion(full, [{ kind: "full", status: "cancelled" }])).toEqual(full);
+    expect(pendingSuggestion(full, [{ kind: "full", status: "done" }])).toEqual(full);
   });
 });

@@ -6,7 +6,7 @@
  * and writes are in projects.ts.
  */
 
-import type { MissionKind } from "./mission-kinds";
+import type { MissionKind, MissionStatus } from "./mission-kinds";
 
 /** What the rules need to know about a project's audits. */
 export type AuditFacts = {
@@ -22,7 +22,11 @@ export type AuditFacts = {
    * there is one, otherwise the latest quick audit. Never the AI audit.
    */
   score: number | null;
-  /** Open findings of the latest completed audit, by severity. */
+  /**
+   * Open problems of the reference audit, by severity, counted once each:
+   * a rule that fails on 18 pages is one problem, not 18. Counting findings
+   * made one repeated rule look like a site in trouble, or many.
+   */
   critical: number;
   high: number;
   /** Pages the latest audit crawled; 0 means the site was unreachable. */
@@ -65,11 +69,15 @@ export type MissionSuggestion = {
  *
  *   the site could not be crawled                     -> no suggestion
  *   score below 50                                    -> redesign, then monitoring
- *   score below 80, or any critical finding           -> the whole circuit
+ *   score below 80, any critical problem,
+ *   or HIGH_PROBLEMS_FOR_FULL high problems or more   -> the whole circuit
  *   otherwise                                         -> monthly monitoring
  *
- * The thresholds follow the report's own colours (below 50 red, below 80
- * amber), so the suggestion never contradicts what the client reads.
+ * The score thresholds follow the report's own colours (below 50 red, below
+ * 80 amber), so the suggestion never contradicts what the client reads. The
+ * score alone is not enough: it averages hundreds of rules, so a site can
+ * keep 95 with several serious problems, and be called "healthy" next to
+ * them.
  */
 export function suggestMission(a: AuditFacts): MissionSuggestion | null {
   if (!auditDone(a) || a.score === null) return null;
@@ -77,8 +85,29 @@ export function suggestMission(a: AuditFacts): MissionSuggestion | null {
   // may only be refusing the crawler (firewall, bot protection).
   if (a.pagesCrawled === 0) return null;
   if (a.score < 50) return { kind: "redesign", reason: "weak_site", then: "monitoring" };
-  if (a.score < 80 || a.critical > 0) return { kind: "full", reason: "many_fixable" };
+  if (a.score < 80 || a.critical > 0 || a.high >= HIGH_PROBLEMS_FOR_FULL) {
+    return { kind: "full", reason: "many_fixable" };
+  }
   return { kind: "monitoring", reason: "healthy" };
+}
+
+/** Distinct high-severity problems from which a site needs the whole circuit. */
+export const HIGH_PROBLEMS_FOR_FULL = 3;
+
+/**
+ * The suggestion, unless the project already has that mission under way
+ * (proposed, active or paused): offering it again only invites a second
+ * copy. A cancelled or finished one brings the suggestion back.
+ */
+export function pendingSuggestion(
+  suggestion: MissionSuggestion | null,
+  missions: ReadonlyArray<{ kind: MissionKind; status: MissionStatus }>,
+): MissionSuggestion | null {
+  if (!suggestion) return null;
+  const underWay = missions.some(
+    (m) => m.kind === suggestion.kind && m.status !== "cancelled" && m.status !== "done",
+  );
+  return underWay ? null : suggestion;
 }
 
 /** Recurring missions have no end; the others are finished at some point. */
