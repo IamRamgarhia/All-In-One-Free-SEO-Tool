@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  collapseSiteWide,
   mapSeomatorResult,
   seomatorFindingsToTasks,
 } from "./seomator-audit";
@@ -228,5 +229,35 @@ describe("seomatorFindingsToTasks", () => {
     expect(tasks[0]?.title).toMatch(/^\[P0\]/);
     expect(tasks.some((t) => t.title.startsWith("[P3]"))).toBe(true);
     expect(tasks.every((t) => t.toolPath === "/audits")).toBe(true);
+  });
+});
+
+describe("collapseSiteWide", () => {
+  const f = (type: string, message: string, url: string) => ({ type, message, url });
+  const site = "https://example.com/";
+
+  it("keeps a site-wide fact once, on the site URL, with its page count", () => {
+    const out = collapseSiteWide(
+      [
+        f("seomator:security-csp", "Content-Security-Policy header is missing.", "https://example.com/"),
+        f("seomator:security-csp", "Content-Security-Policy header is missing.", "https://example.com/a"),
+        f("seomator:security-csp", "Content-Security-Policy header is missing.", "https://example.com/b"),
+      ],
+      site,
+    );
+    expect(out).toEqual([f("seomator:security-csp", "Content-Security-Policy header is missing. (3 pages)", site)]);
+  });
+
+  it("leaves page-specific messages per page", () => {
+    const input = [
+      f("seomator:core-title-length", "Title is 66 chars.", "https://example.com/"),
+      f("seomator:core-title-length", "Title is 71 chars.", "https://example.com/a"),
+    ];
+    expect(collapseSiteWide(input, site)).toEqual(input);
+  });
+
+  it("does not touch a finding seen on a single page", () => {
+    const input = [f("seomator:content-word-count", "Thin content detected: 141 words", "https://example.com/a")];
+    expect(collapseSiteWide(input, site)).toEqual(input);
   });
 });

@@ -107,6 +107,43 @@ function fixStepsOf(result: RuleResult, ruleId: string): string {
 }
 
 /**
+ * One finding for a fact about the whole site, not one per page.
+ *
+ * A crawl reads every rule on every page, so a site-wide fact (a missing
+ * security header, a sitemap without dates, no llms.txt) came back as the
+ * same message on each of the 20 pages: on nd-prestige.com, 498 of 844
+ * findings were 25 such facts copied page by page. When a rule gives the
+ * very same message on two pages or more, it is one problem: it is kept
+ * once, on the site's own URL, with the number of pages it was seen on.
+ * A message that differs from page to page ("13 images", "Title is 66
+ * chars") is about each page and stays per page.
+ *
+ * Pure, exported for tests.
+ */
+export function collapseSiteWide<T extends { type: string; message: string; url: string }>(
+  findings: readonly T[],
+  siteUrl: string,
+): T[] {
+  const groups = new Map<string, T[]>();
+  for (const f of findings) {
+    const key = `${f.type}\u0000${f.message}`;
+    const group = groups.get(key);
+    if (group) group.push(f);
+    else groups.set(key, [f]);
+  }
+  const out: T[] = [];
+  for (const group of groups.values()) {
+    const pages = new Set(group.map((f) => f.url));
+    if (pages.size < 2) {
+      out.push(...group);
+      continue;
+    }
+    out.push({ ...group[0], url: siteUrl, message: `${group[0].message} (${pages.size} pages)` });
+  }
+  return out;
+}
+
+/**
  * Map a finished SEOmator AuditResult into findings this app can store.
  * Exported so unit tests can assert mapping without a network crawl.
  */
@@ -146,6 +183,7 @@ export function mapSeomatorResult(
     medium: 2,
     low: 3,
   };
+  findings.splice(0, findings.length, ...collapseSiteWide(findings, result.url));
   findings.sort(
     (a, b) => severityRank[a.severity] - severityRank[b.severity],
   );
