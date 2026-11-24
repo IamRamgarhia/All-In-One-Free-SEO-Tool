@@ -8837,7 +8837,15 @@
       "nextBody": "Un audit complet du site, puis un plan d’action sur 30 jours avec les priorités chiffrées, à valider avant de commencer.",
       "errorQuery": "Indiquez la recherche que font vos clients (3 caractères au moins).",
       "errorNoApi": "Configurez une API de résultats Google dans Réglages → Résultats Google.",
-      "open": "Argumentaire"
+      "open": "Argumentaire",
+      "serious": "{count, plural, one {# problème sérieux} other {# problèmes sérieux}}"
+    },
+    "status": {
+      "new": "Nouveau",
+      "contacted": "Contacté",
+      "won": "Gagné",
+      "lost": "Perdu",
+      "spam": "Indésirable"
     }
   }
 }

@@ -103,6 +103,7 @@ function LeadRow({
 }) {
   const tx = useTranslations("ui.app_leads_inbox");
   const tPitch = useTranslations("leads.pitch");
+  const tStatus = useTranslations("leads.status");
   const locale = useLocale();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -139,7 +140,7 @@ function LeadRow({
             <span
               className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${statusTone[status] ?? ""}`}
             >
-              {status}
+              {tStatus(status)}
             </span>
           </div>
           <div className="truncate text-xs text-muted-foreground">
@@ -152,7 +153,7 @@ function LeadRow({
             >
               {domain}
             </a>
-            {serious > 0 && ` · ${serious} serious issue${serious === 1 ? "" : "s"}`}
+            {serious > 0 && ` · ${tPitch("serious", { count: serious })}`}
             {" · "}
             {new Date(lead.createdAt).toLocaleDateString(locale)}
           </div>
@@ -173,7 +174,7 @@ function LeadRow({
         >
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {tStatus(s)}
             </option>
           ))}
         </select>
