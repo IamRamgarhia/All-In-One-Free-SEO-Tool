@@ -4,7 +4,6 @@ import { isLocale } from "@/i18n/config";
 import { loadBrand } from "@/lib/brand";
 import { BRAND_GRADIENT, INK, PRODUCT_NAME, ProductLogo } from "@/components/brand/product-logo";
 import { LocaleToggle } from "@/components/locale-toggle";
-import { AUTH_THEME_SCRIPT } from "./auth-theme-script";
 import { AuthThemeToggle } from "./auth-theme-toggle";
 
 /**
@@ -35,7 +34,6 @@ export async function AuthShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="grid min-h-dvh bg-background lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-      <script dangerouslySetInnerHTML={{ __html: AUTH_THEME_SCRIPT }} />
       <aside
         className="relative hidden overflow-hidden p-10 text-white lg:flex lg:flex-col lg:justify-between"
         style={{

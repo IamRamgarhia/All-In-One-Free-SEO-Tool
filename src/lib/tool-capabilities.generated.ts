@@ -3,7 +3,7 @@
 // graph (see tool-capabilities.derive.ts) and by reading the tool copy out
 // of tools-grid.tsx. tool-capabilities.test.ts fails when this drifts.
 //
-// 247 routes · 98 need AI · 69 use a browser.
+// 247 routes · 99 need AI · 69 use a browser.
 // 89 are /tools/* · 30 need AI · 89 carry copy.
 
 export const TOOL_CAPABILITIES = [
@@ -93,7 +93,7 @@ export const TOOL_CAPABILITIES = [
   { route: "/keywords", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/keywords/[id]/screenshots", needsAI: false, aiUsage: "none", usesBrowser: false },
   { route: "/keywords/[id]/serp", needsAI: true, aiUsage: "required", usesBrowser: true },
-  { route: "/keywords/c/[clientId]", needsAI: false, aiUsage: "none", usesBrowser: true },
+  { route: "/keywords/c/[clientId]", needsAI: true, aiUsage: "required", usesBrowser: true },
   { route: "/knowledge", needsAI: true, aiUsage: "required", usesBrowser: false, title: "SEO knowledge hub", description: "Ranking signals, topical authority, blogging rules, page-speed by stack, GBP playbook, knowledge graph, rich snippets, E-E-A-T — the in-app reference." },
   { route: "/knowledge-panel", needsAI: false, aiUsage: "none", usesBrowser: true },
   { route: "/knowledge/c/[clientId]", needsAI: true, aiUsage: "required", usesBrowser: false },
