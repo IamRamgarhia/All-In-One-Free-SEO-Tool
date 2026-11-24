@@ -25,11 +25,16 @@ import {
 } from "@/lib/auth";
 import { isAuthPage, isPublicPage, PATHNAME_HEADER, RETURN_TO_HEADER } from "@/lib/auth-routes";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { AUTH_THEME_SCRIPT } from "@/components/auth/auth-theme-script";
+import { ThemeScript } from "@/components/shell/theme-script";
 import { getThemePreference } from "./settings/theme-actions";
 import { FONT_SCALES, FONT_SIZE_COOKIE, parseFontSize } from "@/lib/font-size";
 import "./globals.css";
 // GsKnora window and sheet styles (settings window, side sheets).
 import "./settings/settings-window.css";
+
+/** Static text, no user input; written into <head> by ThemeScript. */
+const SYSTEM_THEME_SCRIPT = `(function(){try{var t=document.documentElement.dataset.theme;if(t==="system"){var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d);}}catch(e){}})();`;
 
 // Inter is warmer + more readable at small sizes than Geist's precise grotesk.
 // Same web-safe quality; same variable-weight support.
@@ -156,11 +161,7 @@ export default async function RootLayout({
           white flash before the dark class lands (or vice versa).
           Deliberately tiny and dependency-free — it blocks rendering.
         */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=document.documentElement.dataset.theme;if(t==="system"){var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d);}}catch(e){}})();`,
-          }}
-        />
+        <ThemeScript code={onAuthPage ? `${SYSTEM_THEME_SCRIPT}${AUTH_THEME_SCRIPT}` : SYSTEM_THEME_SCRIPT} />
       </head>
       <body
         className={
