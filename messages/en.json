@@ -6104,6 +6104,28 @@
         "manual": "manual"
       }
     },
+    "app_agent_autopilot_outcomes": {
+      "title": "Did these changes help?",
+      "intro": "Each confirmed change is compared against the same page’s Search Console numbers for the {window} days before and the {window} days after (Google’s last {lag} days, still being counted, are left out). Measurements, not attributions — Google, your competitors and the season all moved in the same period.",
+      "unavailableNoProperty": "{count, plural, one {# change has} other {# changes have}} been applied, but no Search Console property is connected to this client, so their effect cannot be measured. Connect one and the before/after comparison will appear here.",
+      "unavailableGsc": "Search Console did not answer for this client (or returned no data), so the effect of {count, plural, one {this change} other {these # changes}} could not be measured. This is usually a property the connected Google account cannot read.",
+      "notRead": "{count, plural, one {# change} other {# changes}} could not be read: Search Console did not answer for that period.",
+      "rollupNoneMeasurable": "{total, plural, one {# change} other {# changes}} applied, none measurable yet — {tooEarly, plural, =0 {} other {# still inside the {window}-day window}}{both, select, yes { and } other {}}{thin, plural, =0 {} other {# on pages with too little search traffic to read}}.",
+      "rollupMeasured": "{measured, plural, one {# change has} other {# changes have}} {window} days of data either side. {improved, plural, one {# page} other {# pages}} gained clicks, {declined} lost, {flat} unchanged — a net {clicks} clicks and {impressions} impressions. These are measurements, not attributions: Google, competitors and seasonality all moved in the same period.",
+      "rollupRemainder": "A further {tooEarly, plural, =0 {} one {# change is too recent to judge} other {# changes are too recent to judge}}{both, select, yes { and } other {}}{thin, plural, =0 {} one {# change is on a page with too little traffic to measure} other {# changes are on pages with too little traffic to measure}}.",
+      "rowTooEarly": "Applied {daysAgo, plural, =0 {today} =1 {yesterday} other {# days ago}}. Needs {window} full days of data before the effect can be read — about {daysToGo, plural, one {# day} other {# days}} to go.",
+      "rowThin": "Too little search traffic on this page to tell — {before} impressions before, {after} after. The change may still be right; there just is not enough data to measure it.",
+      "rowMeasured": "In the {window} days after this change, clicks were {clicks} ({clicksBefore} → {clicksAfter}) and impressions {impressions} ({imprBefore} → {imprAfter}).{position} Measured, not attributed — other things changed in those {window} days too.",
+      "positionImproved": "Average position improved by {delta}.",
+      "positionSlipped": "Average position slipped by {delta}.",
+      "changeUp": "up {pct}",
+      "changeDown": "down {pct}",
+      "changeFlat": "flat",
+      "changeFromZero": "up from zero",
+      "changeZero": "at zero",
+      "andMore": "and {count} more.",
+      "seeClient": "See the client"
+    },
     "app_automations_new-form": {
       "name": "Name",
       "alertOnLowScores": "Alert on low scores",

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { getTranslations } from "next-intl/server";
 import { and, desc, inArray, isNull, or } from "drizzle-orm";
 import { Bot } from "lucide-react";
+import { Suspense } from "react";
 import { db } from "@/db/client";
 import { agentActions, agentRuns, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
@@ -10,6 +11,7 @@ import { getAgentSettings } from "@/lib/agent/autonomy";
 import { clientScope } from "@/lib/client-scope";
 import { AutopilotPanel } from "./panel";
 import { BulkPanel } from "./bulk-panel";
+import { OutcomesPanel } from "./outcomes-panel";
 import { groupForBulk } from "@/lib/agent/bulk";
 
 export default async function AutopilotPage() {
@@ -98,6 +100,12 @@ export default async function AutopilotPage() {
         accent="violet"
         crumbs={[{ href: "/agent", label: tx("agent") }, { label: tx("autopilot") }]}
       />
+      {/* Au-dessus de la file d'approbation : « le dernier lot a-t-il
+          aidé ? » est ce qui décide d'approuver le suivant. */}
+      <Suspense fallback={null}>
+        <OutcomesPanel clients={visibleClients} />
+      </Suspense>
+
       {bulkByClient.map(({ client, groups }) => (
         <div key={client.id} className="space-y-2">
           <p className="px-1 text-xs text-muted-foreground">{client.name}</p>
