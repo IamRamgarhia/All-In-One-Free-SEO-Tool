@@ -9,6 +9,7 @@ import { contentPosts } from "@/db/schema";
 import { displayName, loadBrand } from "@/lib/brand";
 import { markdownToHtml } from "@/lib/content-studio/exports/common";
 import { portalClient } from "../../portal-client";
+import { ReviewDecision } from "../../review-section";
 
 export const dynamic = "force-dynamic";
 
@@ -62,14 +63,20 @@ export default async function PortalArticlePage({
   if (!found) notFound();
   const { post } = found;
 
-  const [t, locale, brand] = await Promise.all([getTranslations("portal.article"), getLocale(), loadBrand()]);
+  const [t, tr, locale, brand] = await Promise.all([
+    getTranslations("portal.article"),
+    getTranslations("portal.review"),
+    getLocale(),
+    loadBrand(),
+  ]);
+  const longDay = (d: Date) => d.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
   // markdownToHtml escapes the text before adding its own tags.
   const html = markdownToHtml(post.draftMarkdown ?? "");
   const published = post.status === "published";
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
-      <div className="relative mx-auto max-w-3xl space-y-6 px-6 py-10">
+      <div className="relative mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
         <Link
           href={`/portal/${token}`}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -113,6 +120,30 @@ export default async function PortalArticlePage({
           className="portal-article rounded-2xl border border-border bg-card/40 p-5 sm:p-8"
           dangerouslySetInnerHTML={{ __html: html }}
         />
+
+        {!published && (
+          <section id="avis" className="space-y-3 rounded-2xl border border-border bg-card/40 p-4 sm:p-5">
+            <h2 className="text-base font-semibold">{tr("articleQuestion")}</h2>
+            {post.clientDecision === "approved" && post.clientDecidedAt ? (
+              <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                {tr("approvedOn", { date: longDay(post.clientDecidedAt) })}
+              </p>
+            ) : post.clientDecision === "changes" && post.clientDecidedAt ? (
+              <div className="space-y-1.5">
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  {tr("changesOn", { date: longDay(post.clientDecidedAt) })}
+                </p>
+                {post.clientComment && (
+                  <blockquote className="whitespace-pre-line break-words border-l-2 border-amber-500/40 pl-3 text-sm text-muted-foreground">
+                    {post.clientComment}
+                  </blockquote>
+                )}
+              </div>
+            ) : (
+              <ReviewDecision token={token} kind="article" id={post.id} />
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

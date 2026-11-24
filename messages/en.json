@@ -2280,15 +2280,20 @@
       }
     },
     "review": {
-      "title": "Client review",
+      "title": "Client approval",
       "on": "The client can read this article in their client space.",
-      "off": "Open the article to the client so they can read it before it goes live.",
+      "off": "Send the article to the client: they approve it or ask for changes from their client portal.",
       "needsDraft": "Write and save the article before opening it to the client.",
-      "share": "Open for review",
+      "share": "Send to client for approval",
       "copy": "Copy the link",
       "copied": "Copied",
       "open": "See the page",
-      "stop": "Close the review"
+      "stop": "Remove from client portal",
+      "sentOn": "Sent to the client on {date} · waiting for their answer",
+      "approvedOn": "Approved by the client on {date}",
+      "changesOn": "Changes requested by the client on {date}:",
+      "approvedHint": "Approval publishes nothing: schedule the article when you are ready.",
+      "sendAgain": "Send to client again"
     }
   },
   "docs": {
@@ -2624,8 +2629,7 @@
         "sent": "to pay",
         "paid": "paid",
         "overdue": "overdue"
-      },
-      "toReview": "Articles to review"
+      }
     },
     "footerDefault": "Read-only client portal · Powered by rank_forge",
     "article": {
@@ -2635,8 +2639,46 @@
       "plannedFor": "Planned for {date}",
       "publishedOn": "Published on {date}",
       "noDate": "Publication date to be set",
-      "hint": "Here is the article before it goes live. Send your remarks to your contact.",
+      "hint": "Here is the article before it goes live. Approve it or ask for changes at the bottom of the page.",
       "google": "Preview in Google"
+    },
+    "review": {
+      "title": "For your approval",
+      "hint": "{count, plural, one {# item is waiting for your approval. Approve it or tell us what to change.} other {# items are waiting for your approval. Approve them or tell us what to change.}}",
+      "hintNone": "Nothing is waiting for your approval right now.",
+      "answered": "Your answers",
+      "type": {
+        "blog_draft": "Blog article",
+        "gbp_post": "Google post",
+        "social_post": "Social media post",
+        "article": "Article"
+      },
+      "sentOn": "Sent on {date}",
+      "readArticle": "Read the article",
+      "emptyText": "(empty text)",
+      "showAll": "Show all",
+      "showLess": "Show less",
+      "approvedOn": "Approved on {date}",
+      "changesOn": "Changes requested on {date}",
+      "approve": "Approve",
+      "askChanges": "Ask for changes",
+      "commentLabel": "What would you like to change?",
+      "commentPlaceholder": "For example: mention the area you serve, soften the tone, remove a sentence…",
+      "commentCount": "{count} / {max}",
+      "sendRequest": "Send the request",
+      "cancel": "Cancel",
+      "thanksApproved": "Thank you, noted: you approved this content.",
+      "thanksChanges": "Thank you, your request has been passed on to the team.",
+      "articleQuestion": "Is this article right for you?",
+      "errors": {
+        "invalid": "Your answer could not be read. Reload the page and try again.",
+        "notFound": "This content is no longer available.",
+        "answered": "An answer has already been given for this content.",
+        "comment": "Say what should be changed (1,000 characters at most)."
+      },
+      "notifyApproved": "{client} approved a piece of content",
+      "notifyChanges": "{client} is asking for changes",
+      "notifyComment": "Comment"
     }
   },
   "invoices": {
@@ -6323,7 +6365,7 @@
     "app_clients_id_queue_page": {
       "backTo": "Back to {name}",
       "reviewQueue": "Review queue · {name}",
-      "aiGeneratedItemsWaitingFor": "AI-generated items waiting for your review. Approve to publish on the next agent tick — or approve + publish now for immediate posting. Reject anything that isn't on-brand.",
+      "aiGeneratedItemsWaitingFor": "AI-generated items waiting for your review. Approve to publish on the planned date, send to the client for approval, or approve and publish now. Reject anything that isn't on-brand.",
       "schedules": "Schedules"
     },
     "app_clients_id_queue_queue-list": {
@@ -6342,7 +6384,7 @@
       "title": "Title",
       "body": "Body",
       "approvePublishNow": "Approve + publish now",
-      "approvePublishOnNextTick": "Approve (publish on next tick)",
+      "approvePublishOnNextTick": "Approve (publish on the planned date)",
       "reject": "Reject",
       "cancelEdit": "Cancel edit",
       "editBeforeApproving": "Edit before approving",
@@ -6362,7 +6404,20 @@
       "approved": "Approved",
       "published": "Published",
       "skipped": "Skipped",
-      "failed": "Failed"
+      "failed": "Failed",
+      "filterAll": "All",
+      "deleted": "Deleted.",
+      "copiedBody": "Text copied to the clipboard.",
+      "copiedMarkdown": "Copied as Markdown.",
+      "untitled": "(untitled)",
+      "empty": "(empty)",
+      "createPortalLink": "Create the link",
+      "sendToClient": "Send to client",
+      "sendAgainToClient": "Send to client again",
+      "clientApprovedOn": "Approved by the client on {date}",
+      "clientAskedChangesOn": "Changes requested by the client on {date}:",
+      "changesHint": "Edit the text, then send it to the client again or approve it directly.",
+      "sentToClientOn": "Sent to the client on {date} · waiting for their answer"
     },
     "app_clients_import-form": {
       "importCsv": "Import CSV",
@@ -8149,10 +8204,17 @@
     },
     "app_clients_id_queue_actions": {
       "queueItemNotFound": "Queue item not found.",
-      "approvedPublishesOnTheNext": "Approved. Publishes on the next daily-agent tick (≤24h).",
+      "approvedPublishesOnTheNext": "Approved. Publishes on the planned date, at the first daily-agent run after it.",
       "alreadyPublished": "Already published.",
       "published": "Published.",
-      "approvedButNotPickedUp": "Approved but not picked up immediately. Will retry on the next tick."
+      "approvedButNotPickedUp": "Approved but not picked up immediately. Will retry on the next tick.",
+      "noLongerPending": "This item is no longer waiting for review.",
+      "publishFailed": "Publishing failed: {error}",
+      "unknownError": "unknown error",
+      "noPortalLink": "This client has no client portal link yet. Create it in Project settings, under “Client portal”.",
+      "sentToClient": "Sent to the client. They can approve it or ask for changes from their client portal.",
+      "sentAgainToClient": "Sent to the client again: their previous answer is cleared and a new one is requested.",
+      "notForClient": "The daily checklist is an internal document: it is not sent to the client."
     },
     "app_clients_id_schedule-actions": {
       "invalidInput": "Invalid input",

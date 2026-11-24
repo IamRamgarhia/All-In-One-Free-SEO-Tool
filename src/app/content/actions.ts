@@ -789,7 +789,8 @@ export async function resetClientVoice(input: { clientId: number }): Promise<Voi
 }
 
 /**
- * Open an article to the client for review in their portal, or close it.
+ * Send an article to the client for approval in their portal (again
+ * after an edit), or close the review.
  * Returns the path of the review page. The portal link is created when
  * the project has none yet: the article is read through it.
  */
@@ -824,7 +825,15 @@ export async function setArticleReview(input: {
     }
     path = `/portal/${token}/articles/${postId}`;
   }
-  await updatePost(clientId, postId, { reviewSharedAt: shared ? new Date() : null });
+  // Sending (again) asks the client for a fresh answer: the previous one
+  // was about an earlier version. Closing the review keeps the answer.
+  await updatePost(
+    clientId,
+    postId,
+    shared
+      ? { reviewSharedAt: new Date(), clientDecision: null, clientComment: null, clientDecidedAt: null }
+      : { reviewSharedAt: null },
+  );
   revalidatePath(postPath(clientId, postId));
   return { ok: true, path };
 }

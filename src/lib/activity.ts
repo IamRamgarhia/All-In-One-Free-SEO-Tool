@@ -35,7 +35,9 @@ export type ActivityKind =
   | "automation.paused"
   | "team.reactivated"
   | "team.access_changed"
-  | "account.password_changed";
+  | "account.password_changed"
+  // The client approved a draft, or asked for changes, from their portal.
+  | "portal.client_review";
 
 export type ActivityLevel = "info" | "success" | "warning" | "error";
 
