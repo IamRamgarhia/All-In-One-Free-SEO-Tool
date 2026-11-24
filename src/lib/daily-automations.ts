@@ -242,12 +242,18 @@ async function generateForSchedule(
     );
   }
   if (s.kind === "gbp_post") {
+    const maxChars = clampGbpMaxChars(cfg.max_chars);
+    if (cfg.gbp_source === "woo_product") {
+      const product = await pickWooProduct(s, client);
+      return generateGbpProductPost({ client, tone, product, maxChars });
+    }
     return generateGbpPost({
       client,
       topicSeed,
       tone,
       context,
       postType: String(cfg.post_type ?? "STANDARD"),
+      maxChars,
     });
   }
   if (s.kind === "social_post") {
@@ -351,15 +357,116 @@ Output strict JSON only — no markdown fences, no preamble:
   };
 }
 
+/**
+ * Schedule's `max_chars` → a post length Google accepts (it caps posts at
+ * 1500). Schedules created before the setting existed keep their 1300.
+ */
+function clampGbpMaxChars(raw: unknown): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.max(150, Math.min(1500, n)) : 1300;
+}
+
+/** "360–600 characters total, hard limit 600" for a 600 cap. */
+function gbpLengthRule(maxChars: number): string {
+  return `${Math.round(maxChars * 0.6)}–${maxChars} characters total, hard limit ${maxChars}`;
+}
+
+/**
+ * Most popular in-stock product with a photo that this schedule hasn't
+ * posted in its last 20 items, so a daily schedule walks the catalogue
+ * instead of repeating the best-seller. Throws (logged by the tick) when
+ * the shop can't be read or has nothing to show.
+ */
+async function pickWooProduct(
+  s: DailySchedule,
+  client: Client,
+): Promise<import("./woo-products").WooProduct> {
+  const { listWooProducts } = await import("./woo-products");
+  const products = (
+    await listWooProducts(client.url, { locale: client.language ?? "en" })
+  ).filter((p) => p.imageUrl);
+  if (products.length === 0) {
+    throw new Error("the WooCommerce shop has no in-stock product with a photo");
+  }
+  const recent = await db
+    .select({ payloadJson: publishQueue.payloadJson })
+    .from(publishQueue)
+    .where(eq(publishQueue.scheduleId, s.id))
+    .orderBy(desc(publishQueue.createdAt))
+    .limit(20);
+  const used = new Set(
+    recent.map((r) => (r.payloadJson as { productId?: number } | null)?.productId),
+  );
+  return products.find((p) => !used.has(p.id)) ?? products[0];
+}
+
+async function generateGbpProductPost(opts: {
+  client: Client;
+  tone: string;
+  product: import("./woo-products").WooProduct;
+  maxChars: number;
+}): Promise<GeneratedItem | null> {
+  const { product } = opts;
+  const system = `You write Google Business Profile posts that showcase ONE product from an online shop. Constraints:
+- ${gbpLengthRule(opts.maxChars)}
+- 1–3 short paragraphs separated by a blank line
+- Plain text: no markdown, no bullet symbols, at most 2 hashtags
+- Name the product and the one or two benefits a buyer cares about most
+- Mention the price only if it is given below; never invent prices, discounts or stock levels
+- No [placeholder] brackets, no "we are excited to" filler
+- End by inviting the reader to buy — the post's button opens the product page
+- Write in the same language as the product name and description
+- Tone: ${opts.tone}`;
+  const user = `[Shop]
+${opts.client.name} — ${opts.client.url ?? ""}
+
+[Product]
+Name: ${product.name}
+Price: ${product.price ?? "not shown"}
+Description: ${product.shortDescription || "(none)"}
+
+Output strict JSON only — no markdown fences:
+
+{ "summary": "the post text, paragraphs separated by \\n\\n" }`;
+  const raw = await callAI({
+    purpose: "background",
+    system,
+    user,
+    maxTokens: 600,
+    temperature: 0.6,
+    timeoutMs: 60_000,
+    feature: "general",
+    clientId: opts.client.id,
+  });
+  if (!raw) return null;
+  const parsed = extractJson(raw) as { summary?: string } | null;
+  if (!parsed?.summary) return null;
+  const { trimToLength } = await import("./woo-products");
+  return {
+    title: product.name.slice(0, 80),
+    body: trimToLength(parsed.summary, opts.maxChars),
+    payload: {
+      callToAction: "SHOP",
+      // The button opens the product, the photo is the product's own.
+      ctaUrl: product.permalink,
+      mediaUrl: product.imageUrl,
+      productId: product.id,
+      productName: product.name,
+      postType: "STANDARD",
+    },
+  };
+}
+
 async function generateGbpPost(opts: {
   client: Client;
   topicSeed: string;
   tone: string;
   context: string;
   postType: string;
+  maxChars: number;
 }): Promise<GeneratedItem | null> {
   const system = `You write Google Business Profile posts for local businesses. Constraints:
-- ≤ 1300 characters (Google caps at 1500; leave room)
+- ${gbpLengthRule(opts.maxChars)}
 - Lead with the benefit, not a greeting
 - Specific over generic — name a service, a season, a price range, an actual menu item
 - No emoji spam (1 emoji max, only if it adds clarity)
@@ -375,7 +482,7 @@ Post type: ${opts.postType}
 Pick the most timely angle for this business. Output strict JSON only — no markdown fences:
 
 {
-  "summary": "the post text, ≤1300 chars",
+  "summary": "the post text, at most ${opts.maxChars} chars",
   "callToAction": "BOOK"|"ORDER"|"SHOP"|"LEARN_MORE"|"SIGN_UP"|"CALL"|null
 }`;
   const raw = await callAI({
@@ -394,9 +501,10 @@ Pick the most timely angle for this business. Output strict JSON only — no mar
     callToAction?: string | null;
   } | null;
   if (!parsed || !parsed.summary) return null;
+  const { trimToLength } = await import("./woo-products");
   return {
     title: parsed.summary.slice(0, 80),
-    body: parsed.summary.slice(0, 1300),
+    body: trimToLength(parsed.summary, opts.maxChars),
     payload: {
       callToAction: parsed.callToAction ?? null,
       postType: opts.postType,
@@ -688,7 +796,14 @@ async function publishGbp(
   const payload = (item.payloadJson ?? {}) as {
     callToAction?: string | null;
     postType?: string;
+    /** Product posts: the button opens the product page… */
+    ctaUrl?: string | null;
+    /** …and the post shows the product's photo. */
+    mediaUrl?: string | null;
   };
+  const httpsUrl = (u: string | null | undefined) =>
+    typeof u === "string" && /^https?:\/\//i.test(u) ? u : undefined;
+  const ctaUrl = httpsUrl(payload.ctaUrl);
   const cta =
     payload.callToAction && payload.callToAction !== ""
       ? {
@@ -699,12 +814,14 @@ async function publishGbp(
             | "LEARN_MORE"
             | "SIGN_UP"
             | "CALL",
+          ...(payload.callToAction !== "CALL" && ctaUrl ? { url: ctaUrl } : {}),
         }
       : undefined;
   const r = await createGbpLocalPost({
     locationName,
     summary: item.body ?? "",
     callToAction: cta,
+    mediaUrl: httpsUrl(payload.mediaUrl),
     clientIdScope: item.clientId,
   });
   if (!r.ok) return { ok: false, error: r.error };
