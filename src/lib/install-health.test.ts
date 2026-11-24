@@ -165,7 +165,7 @@ describe("the report reaches somewhere people look", () => {
     expect(page).toContain("InstallHealthBanner");
     // Owners and managers only: a member or a client viewer sees only
     // some clients, and the banner names every client.
-    expect(page).toMatch(/!scoped && \(\s*<Suspense fallback=\{null\}>\s*<InstallHealthBanner/);
+    expect(page).toMatch(/!scoped && \(\s*(?:<>\s*)?<Suspense fallback=\{null\}>\s*<InstallHealthBanner/);
   });
 
   it("the scheduler runs the checks", () => {

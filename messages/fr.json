@@ -98,70 +98,70 @@
     }
   },
   "dashboard": {
-    "badge": "Local · mono-utilisateur · tout sur cette machine",
+    "badge": "Auto-hébergé · vos données sont stockées sur votre serveur",
     "greetingLate": "Encore au travail",
     "greetingMorning": "Bonjour",
     "greetingAfternoon": "Bon après-midi",
     "greetingEvening": "Bonsoir",
     "welcomeTitle": "Bienvenue. On configure vos 5 premières minutes.",
-    "returningTitle": "{greeting}, voici ce qui demande votre attention.",
-    "welcomeBody": "Collez une URL et obtenez un audit technique en environ une minute — pas de clé API, pas d’inscription. Suivi de positions, contenu et IA sont là aussi, à activer après le premier audit.",
-    "returningBody": "SEO gratuit, moderne et accessible pour freelances et petites agences — sans l’abonnement SaaS à 140 $/mois.",
+    "returningTitle": "{greeting}, voici ce qui demande votre attention aujourd’hui.",
+    "welcomeBody": "Collez une URL et obtenez un audit technique complet, sans clé API ni inscription. Suivi de positions, contenu et IA sont là aussi, à activer une fois l’audit lu.",
+    "returningBody": "Le SEO de vos clients au même endroit : audits, tâches, positions et rapports, gratuit et sans abonnement.",
     "addFirstSite": "Ajouter votre premier site",
     "orConnectAi": "Ou connecter un fournisseur IA",
     "addClient": "Ajouter un client",
     "viewClients": "Voir les clients",
     "latestAudit": "Dernier audit",
-    "vsPrevious": "vs précédent",
+    "vsPrevious": "par rapport au précédent",
     "firstMeasurement": "Première mesure",
     "openTasks": "Tâches ouvertes",
-    "openTasksHint": "Triées par priorité ci-dessous",
+    "openTasksHint": "Les plus récentes ci-dessous",
     "allCaughtUp": "Tout est à jour",
     "clients": "Clients",
-    "clientsHint": "Actifs",
-    "auditsRun": "Audits lancés",
+    "clientsHint": "Suivis dans cet espace",
+    "auditsRun": "Audits réalisés",
     "scoreHint": "Score {score} ({delta})",
     "latestScoreHint": "Dernier {score}",
     "runFirst": "Lancez le premier",
     "latestScore": "Dernier score",
-    "completedCount": "{count} terminés",
+    "completedCount": "{count, plural, one {# terminé} other {# terminés}}",
     "runAuditFirst": "Lancez d’abord un audit",
     "priorityTasks": "Tâches prioritaires",
-    "priorityTasksHint": "Générées depuis les audits et modèles de niche",
+    "priorityTasksHint": "Tâches à faire, les plus récentes d’abord",
     "viewAll": "Tout voir",
     "recentAudits": "Audits récents",
-    "recentAuditsHint": "5 derniers, tous clients",
-    "issues": "{count} problèmes",
+    "recentAuditsHint": "Les 5 derniers, tous clients confondus",
+    "issues": "{count, plural, =0 {aucun problème} one {# problème} other {# problèmes}}",
     "scoreTrend": "Tendance des scores d’audit",
-    "scoreTrendHint": "{count} derniers audits terminés, tous clients.",
+    "scoreTrendHint": "{count, plural, one {Dernier audit terminé, tous clients confondus.} other {Les # derniers audits terminés, tous clients confondus.}}",
     "quickActions": "Actions rapides",
     "bento": {
       "auditsTitle": "Lancer un audit",
-      "auditsDesc": "30 contrôles SEO, sévérité, résumé IA.",
+      "auditsDesc": "Contrôles techniques classés par gravité, résumé IA en option.",
       "keywordsTitle": "Suivre des mots-clés",
-      "keywordsDesc": "Positions quotidiennes, mode navigateur gratuit.",
+      "keywordsDesc": "Positions suivies dans le temps, projet par projet.",
       "reportsTitle": "Générer un rapport",
-      "reportsDesc": "PDF white-label, résumé IA.",
+      "reportsDesc": "PDF à vos couleurs, avec résumé.",
       "agentTitle": "Agent IA",
-      "agentDesc": "Détecte les problèmes + applique via le pont WP.",
+      "agentDesc": "Repère les problèmes et applique les corrections via l’extension WordPress.",
       "backlinksTitle": "Backlinks",
-      "backlinksDesc": "GSC + Common Crawl, récupération de liens perdus.",
+      "backlinksDesc": "Liens entrants, nouveaux et perdus.",
       "toolsTitle": "Tous les outils",
-      "toolsDesc": "100+ outils dans une grille searchable."
+      "toolsDesc": "Tous les outils dans une grille avec recherche."
     },
     "unlockEyebrow": "Ce que vous débloquez",
     "unlockTitle": "Toute la stack SEO, gratuite",
-    "unlockBody": "Remplace 140 $+ /mois de SaaS. Tout tourne sur cette machine.",
+    "unlockBody": "Tout tourne sur votre serveur, sans abonnement.",
     "highlights": {
-      "audits": "30+ contrôles d’audit",
-      "ranks": "Suivi de positions quotidien",
+      "audits": "Contrôles d’audit techniques",
+      "ranks": "Suivi de positions",
       "reports": "Rapports white-label",
       "agent": "Agent IA + chat",
       "backlinks": "Moniteur de backlinks",
-      "tools": "100+ outils gratuits"
+      "tools": "Outils gratuits"
     },
     "noPaidApis": "Pas d’API payantes",
-    "noPaidApisBody": "Mode navigateur + APIs Google gratuites suffisent. Apportez une clé seulement pour des données SERP premium.",
+    "noPaidApisBody": "Les fonctions de base n’exigent aucun service payant. Une clé n’est utile que pour des options facultatives.",
     "briefing": {
       "title": "Briefing du jour",
       "subtitle": "Ce qui a changé ces dernières 24 h sur vos clients.",
@@ -270,13 +270,13 @@
       },
       "audit": {
         "title": "Lancer votre premier audit",
-        "description": "Plus de 370 règles : indexabilité, schema, Core Web Vitals, hreflang, en-têtes de sécurité, liens cassés… Local et gratuit.",
+        "description": "Indexabilité, schema, Core Web Vitals, hreflang, en-têtes de sécurité, liens cassés… : tout est contrôlé sur votre serveur, gratuitement.",
         "view": "Voir les audits",
         "run": "Lancer un audit"
       },
       "report": {
         "title": "Générer votre premier rapport",
-        "description": "Résumé IA, PDF en marque blanche et portail client par lien magique. De 6 heures par mois à 25 minutes.",
+        "description": "Résumé IA, PDF à vos couleurs et portail client par lien magique, pour envoyer un rapport sans le monter à la main.",
         "view": "Voir les rapports",
         "generate": "Générer un rapport"
       }
@@ -295,7 +295,11 @@
       "pageviews": "Pages vues",
       "movers": "Plus fortes variations",
       "vsPrior": "vs période précédente"
-    }
+    },
+    "clientFallback": "Client {id}",
+    "projectsTitle": "Projets",
+    "projectsHint": "Chaque projet : étape, score, tâches ouvertes et dernier audit.",
+    "unchanged": "Inchangé par rapport au précédent"
   },
   "settings": {
     "title": "Paramètres",
@@ -8508,6 +8512,9 @@
       "clientNotFound2": "Projet introuvable",
       "pageNotFound": "Page introuvable",
       "completedTask2": "Tâche terminée : {title}"
+    },
+    "components_ui_area-chart": {
+      "notEnoughDataYet": "Pas encore assez de données."
     }
   },
   "integrations": {

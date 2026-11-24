@@ -98,15 +98,15 @@
     }
   },
   "dashboard": {
-    "badge": "Local · single-user · everything on this machine",
+    "badge": "Self-hosted · your data is stored on your server",
     "greetingLate": "Working late",
     "greetingMorning": "Good morning",
     "greetingAfternoon": "Good afternoon",
     "greetingEvening": "Good evening",
     "welcomeTitle": "Welcome. Let's set up your first 5 minutes.",
     "returningTitle": "{greeting}, here's what needs attention today.",
-    "welcomeBody": "Paste a URL and get a full technical audit in about a minute — no API keys, no signup, nothing to configure. Rank tracking, content tools and AI features are all here too, and you can turn them on once you've seen the audit.",
-    "returningBody": "Free, modern, beginner-friendly SEO for freelancers and small agencies — without the $140/mo SaaS bills.",
+    "welcomeBody": "Paste a URL and get a full technical audit — no API keys, no signup. Rank tracking, content tools and AI features are here too, to turn on once you've read the audit.",
+    "returningBody": "Your clients' SEO in one place: audits, tasks, rankings and reports — free, with no subscription.",
     "addFirstSite": "Add your first site",
     "orConnectAi": "Or connect an AI provider",
     "addClient": "Add a client",
@@ -115,53 +115,53 @@
     "vsPrevious": "vs previous",
     "firstMeasurement": "First measurement",
     "openTasks": "Open tasks",
-    "openTasksHint": "Sorted by priority below",
+    "openTasksHint": "Newest listed below",
     "allCaughtUp": "All caught up",
     "clients": "Clients",
-    "clientsHint": "Active",
+    "clientsHint": "Tracked in this workspace",
     "auditsRun": "Audits run",
     "scoreHint": "Score {score} ({delta})",
     "latestScoreHint": "Latest {score}",
     "runFirst": "Run your first",
     "latestScore": "Latest score",
-    "completedCount": "{count} completed",
+    "completedCount": "{count, plural, one {# completed} other {# completed}}",
     "runAuditFirst": "Run an audit first",
     "priorityTasks": "Priority tasks",
-    "priorityTasksHint": "Auto-generated from audits and niche templates",
+    "priorityTasksHint": "Tasks to do, newest first",
     "viewAll": "View all",
     "recentAudits": "Recent audits",
-    "recentAuditsHint": "Last 5 across all clients",
-    "issues": "{count} issues",
+    "recentAuditsHint": "The last 5, across all clients",
+    "issues": "{count, plural, =0 {no issues} one {# issue} other {# issues}}",
     "scoreTrend": "Audit score trend",
-    "scoreTrendHint": "Last {count} completed audits across all clients.",
+    "scoreTrendHint": "{count, plural, one {Last completed audit, across all clients.} other {Last # completed audits, across all clients.}}",
     "quickActions": "Quick actions",
     "bento": {
       "auditsTitle": "Run an audit",
-      "auditsDesc": "30 SEO checks, severity-classified, AI-summarized.",
+      "auditsDesc": "Technical checks sorted by severity, optional AI summary.",
       "keywordsTitle": "Track keywords",
-      "keywordsDesc": "Daily ranks, free browser mode.",
+      "keywordsDesc": "Rankings tracked over time, project by project.",
       "reportsTitle": "Generate report",
-      "reportsDesc": "PDF, white-label, AI summary.",
+      "reportsDesc": "Branded PDF, with a summary.",
       "agentTitle": "AI agent",
-      "agentDesc": "Auto-detects issues + applies fixes via WP bridge.",
+      "agentDesc": "Finds issues and applies fixes through the WordPress plugin.",
       "backlinksTitle": "Backlinks",
-      "backlinksDesc": "GSC + Common Crawl, lost-link recovery.",
+      "backlinksDesc": "Inbound links, new and lost.",
       "toolsTitle": "All tools",
-      "toolsDesc": "100+ tools in one searchable grid."
+      "toolsDesc": "Every tool in one searchable grid."
     },
     "unlockEyebrow": "What you'll unlock",
     "unlockTitle": "The full SEO stack, free",
-    "unlockBody": "Replaces $140+/mo SaaS. Everything runs on this machine.",
+    "unlockBody": "Everything runs on your server, with no subscription.",
     "highlights": {
-      "audits": "30+ audit checks",
-      "ranks": "Daily rank tracker",
+      "audits": "Technical audit checks",
+      "ranks": "Rank tracking",
       "reports": "White-label reports",
       "agent": "AI agent + chat",
       "backlinks": "Backlink monitor",
-      "tools": "100+ free tools"
+      "tools": "Free tools"
     },
     "noPaidApis": "No paid APIs",
-    "noPaidApisBody": "Browser mode + free Google APIs cover everything. BYO key only if you want premium SERP data.",
+    "noPaidApisBody": "The core features need no paid service. A key is only useful for optional extras.",
     "briefing": {
       "title": "Today's briefing",
       "subtitle": "What changed in the last 24h across your portfolio.",
@@ -270,13 +270,13 @@
       },
       "audit": {
         "title": "Run your first audit",
-        "description": "370+ rules for indexability, schema, Core Web Vitals, hreflang, security headers, broken links — local and free.",
+        "description": "Indexability, schema, Core Web Vitals, hreflang, security headers, broken links — all checked on your server, for free.",
         "view": "View audits",
         "run": "Run audit"
       },
       "report": {
         "title": "Generate your first report",
-        "description": "AI executive summary + white-label PDF + magic-link client portal. Goes from 6 hours/month to 25 minutes/month.",
+        "description": "AI summary, branded PDF and a magic-link client portal, so a report goes out without being assembled by hand.",
         "view": "View reports",
         "generate": "Generate report"
       }
@@ -295,7 +295,11 @@
       "pageviews": "Pageviews",
       "movers": "Biggest movers",
       "vsPrior": "vs prior"
-    }
+    },
+    "clientFallback": "Client {id}",
+    "projectsTitle": "Projects",
+    "projectsHint": "Each project: stage, score, open tasks and last audit.",
+    "unchanged": "Unchanged from the previous one"
   },
   "settings": {
     "title": "Settings",
@@ -8508,6 +8512,9 @@
       "clientNotFound2": "Client not found",
       "pageNotFound": "Page not found",
       "completedTask2": "Completed task: {title}"
+    },
+    "components_ui_area-chart": {
+      "notEnoughDataYet": "Not enough data yet."
     }
   },
   "integrations": {
