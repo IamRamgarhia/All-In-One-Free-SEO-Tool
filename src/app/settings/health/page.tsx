@@ -29,6 +29,7 @@ import { getSetting } from "@/lib/settings-store";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
 import { requireSettingsPage } from "../access";
 import { InstallHealthSection } from "./install-health-section";
+import { NightlyJobs } from "./nightly-jobs";
 import { shortAgoDays } from "@/lib/relative-time";
 
 export const dynamic = "force-dynamic";
@@ -110,6 +111,10 @@ export default async function HealthPage() {
           result the dashboard banner reads, so the two cannot disagree
           about whether the install is healthy. */}
       <InstallHealthSection />
+
+      {/* Right under the install verdict: a nightly job that keeps failing
+          is the explanation for half of what that verdict reports. */}
+      <NightlyJobs />
 
       <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         <Card

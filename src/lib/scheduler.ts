@@ -35,6 +35,7 @@ import { getSetting, setSetting } from "./settings-store";
 // with no database or tool imports behind it.
 import { summariseSweep } from "./sweep-summary";
 import { summariseGbp } from "./gbp-summary";
+import { summariseDailyReport } from "./daily-report";
 
 type Runner = {
   id: string;
@@ -83,6 +84,12 @@ function runners(): Runner[] {
       label: "Daily agent",
       everyMs: 24 * HOUR,
       run: async () => (await import("./daily-agent")).tickDailyAgent(),
+      // Without this the runner that does the most work said nothing in
+      // its note while about twenty jobs ran inside it. Names failures.
+      summarise: (r) => {
+        const rep = r as { steps?: { name: string; ok: boolean }[] } | null;
+        return rep?.steps ? summariseDailyReport({ steps: rep.steps }) : null;
+      },
     },
     {
       // The autonomous loop: plan work per client, apply what the user's

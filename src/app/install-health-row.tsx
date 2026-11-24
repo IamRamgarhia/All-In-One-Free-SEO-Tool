@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowRight, Clock, PauseCircle } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { HealthIssue } from "@/lib/install-health";
 import { issueText, type IssueText, type LooseT } from "@/lib/install-health-text";
+import { stepMessageKey } from "@/lib/daily-report";
 
 /**
  * What the banner and Settings → System health share: one way to word an
@@ -15,6 +16,9 @@ export async function getHealthText() {
     has?: (key: string) => boolean;
   };
   const tTools = (await getTranslations("tools.catalog")) as unknown as LooseT & {
+    has: (key: string) => boolean;
+  };
+  const tJobs = (await getTranslations("nightlyJobs.steps")) as unknown as LooseT & {
     has: (key: string) => boolean;
   };
   const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: "long", timeStyle: "short" });
@@ -34,6 +38,10 @@ export async function getHealthText() {
           return Number.isFinite(d.getTime()) ? dateOnly.format(d) : "—";
         },
         listFormat: (items) => list.format(items),
+        jobName: (name) => {
+          const key = stepMessageKey(name);
+          return tJobs.has(key) ? tJobs(key) : name;
+        },
       }),
   };
 }

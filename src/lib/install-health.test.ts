@@ -311,6 +311,21 @@ describe("evidence is specific enough to act on", () => {
     expect(words("fr", sweep).evidence).toContain("headers, hreflang");
   });
 
+  it("failing nightly jobs are named, not counted", () => {
+    const nightly: HealthIssue = {
+      id: "nightly_jobs_failing",
+      severity: "stalled",
+      kind: "nightly_jobs_failing",
+      params: { failed: 2, total: 20, date: "2026-11-24T03:00:00.000Z" },
+      jobs: ["rank.weekly_sweep", "sitemap.health"],
+      fixHref: "/settings/health#nightly-jobs",
+    };
+    expect(words("fr", nightly).title).toBe("2 tâches nocturnes sur 20 ont échoué");
+    expect(words("fr", nightly).evidence).toContain("2026-11-24");
+    expect(words("fr", nightly).evidence).toContain("rank.weekly_sweep, sitemap.health");
+    expect(words("en", nightly).title).toBe("2 of 20 nightly jobs failed");
+  });
+
   it("no check is registered without being defined, and none defined without being run", () => {
     const src = readFileSync(
       join(process.cwd(), "src/lib/install-health.ts"),
