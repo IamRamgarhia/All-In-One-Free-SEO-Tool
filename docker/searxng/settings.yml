@@ -1,0 +1,85 @@
+# Configuration SearXNG pour le relevé des positions de l'outil.
+#
+# Pourquoi ce fichier : l'outil essaie les sources dans cet ordre —
+# Search Console, SearXNG, Brave, l'API payante facultative, Google dans
+# un navigateur, puis DuckDuckGo. Depuis un serveur, Google bloque le
+# navigateur dès la première recherche et DuckDuckGo renvoie souvent une
+# page de vérification anti-robot. SearXNG, hébergé à côté de l'outil,
+# interroge plusieurs moteurs et continue de répondre quand l'un d'eux
+# bloque.
+#
+# Il doit être auto-hébergé ET répondre en JSON : `json` ne figure PAS
+# dans `search.formats` par défaut, et une instance d'origine répond à
+# toute requête d'API par une page HTML d'erreur.
+#
+# Utilisé par le profil compose `searxng` :
+#   docker compose --profile searxng up -d
+#
+# Adapté de la configuration de l'auteur du projet (6b4d6f6) ; vérifié le
+# 24/11/2026 avec l'image searxng/searxng (version 2026.11.23).
+
+use_default_settings:
+  engines:
+    # Moteurs retirés parce qu'ils ne peuvent pas se charger ici, et qu'ils
+    # ne servent pas au relevé des positions. Sans ce retrait, chaque
+    # démarrage écrit des erreurs dans le journal, ce qui apprend à
+    # ignorer ce journal :
+    #  - ahmia et torch passent par Tor, absent de ce conteneur ;
+    #  - wikipedia, wikidata et openstreetmap exigent une adresse de
+    #    contact réelle (règles d'usage de Wikimedia et d'OSM). Plutôt que
+    #    d'en fournir une fausse, on ne les charge pas.
+    remove:
+      - ahmia
+      - torch
+      - wikipedia
+      - wikidata
+      - openstreetmap
+
+general:
+  debug: false
+  instance_name: "Relevé des positions"
+  # Pas de statistiques publiques : cette instance ne sert qu'à l'outil,
+  # sur un réseau privé.
+  enable_metrics: false
+  contact_url: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+  # La raison d'être de ce fichier. Sans `json` ici, l'outil reçoit une
+  # page HTML, qu'il ne peut pas distinguer d'un blocage.
+  formats:
+    - html
+    - json
+
+server:
+  # Remplacé au démarrage par la variable d'environnement SEARXNG_SECRET
+  # (générée dans .env, voir docs/HOSTING.md). Aucun secret n'est écrit
+  # dans ce dépôt ; cette valeur est le marqueur de SearXNG lui-même.
+  secret_key: "ultrasecretkey"
+  # Limiteur coupé : le seul client est l'outil, sur le même réseau
+  # compose. L'instance n'est PAS publiée sur l'hôte (pas de `ports:`) :
+  # un SearXNG ouvert sans limiteur serait un proxy ouvert.
+  limiter: false
+  image_proxy: false
+  bind_address: "0.0.0.0"
+  port: 8080
+
+ui:
+  static_use_hash: true
+
+# Les moteurs restent ceux de SearXNG par défaut, volontairement.
+#
+# L'outil ne présente jamais une position SearXNG comme une position
+# Google : chaque relevé enregistre les moteurs qui ont répondu, le badge
+# les nomme, et comparePositions refuse de soustraire deux sources
+# différentes. Restreindre la liste à « Google seul » donnerait des
+# résultats d'apparence plus officielle mais plus fragiles : un seul
+# moteur bloqué, et plus aucune réponse.
+
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 12.0
+  pool_connections: 20
+  pool_maxsize: 10
