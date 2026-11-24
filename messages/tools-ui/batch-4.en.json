@@ -403,7 +403,7 @@
     "noKeywords": "No tracked keywords yet. Add some on /keywords first.",
     "noMovements": "No keywords have ≥2 rank checks in the last {days} days. Run rank checks for a few keywords and come back.",
     "scoreLabel": "Volatility ({days}d window)",
-    "withChecks": "<b>{count}</b> keywords with ≥2 checks",
+    "withChecks": "<b>{count}</b> keywords with at least 2 comparable checks",
     "improvedDropped": "<g>{up}</g> improved · <r>{down}</r> dropped",
     "daysShort": "{days}d",
     "gainers": "Top gainers",
@@ -412,7 +412,8 @@
     "droppersEmpty": "No keywords dropped in this window.",
     "colQuery": "Query",
     "colClient": "Client",
-    "colFromTo": "From → To"
+    "colFromTo": "From → To",
+    "excludedSources": "{count, plural, one {# keyword excluded: the window starts and ends on different sources} other {# keywords excluded: the window starts and ends on different sources}}"
   },
   "sitemap": {
     "title": "Sitemap generator",

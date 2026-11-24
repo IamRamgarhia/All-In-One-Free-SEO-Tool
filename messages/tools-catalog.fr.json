@@ -349,7 +349,7 @@
   },
   "rank-where": {
     "title": "Où suis-je positionné ? (par pays) ⭐",
-    "description": "Trouvez votre position exacte pour n’importe quel couple mot-clé × pays dans le top 100 de Google. Voyez qui vous devance, la présence d’un AI Overview et votre citation éventuelle, et les corrections pour progresser."
+    "description": "Cherchez votre position pour un couple mot-clé × pays dans les résultats de Google, jusqu’au top 100, quand Google accepte la recherche (depuis un serveur, il la bloque souvent). Voyez qui vous devance, la présence d’un AI Overview et votre citation éventuelle, et les corrections pour progresser."
   },
   "wp-hack-scan": {
     "title": "Détection de piratage / malware WordPress ⭐",

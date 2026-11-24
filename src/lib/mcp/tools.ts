@@ -52,6 +52,8 @@ import {
   topPagesByImpressions,
   windowTotals,
 } from "@/lib/gsc-insights";
+import { comparePositions } from "@/lib/rank-comparison";
+import { rankProvenance } from "@/lib/serp/sources";
 import { db } from "@/db/client";
 import {
   agentActions,
@@ -75,19 +77,6 @@ function freshness(at: Date | null | undefined): string {
   if (days < 14) return `${days} days ago`;
   if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
   return `${Math.floor(days / 30)} months ago`;
-}
-
-/**
- * What a rank number actually is.
- *
- * These are not interchangeable and a model must not average them. GSC
- * is an impression-weighted daily average across everyone who saw the
- * result; a scrape is one position our IP was shown at one moment.
- */
-function rankProvenance(source: string): string {
-  return source === "gsc"
-    ? "Google Search Console — impression-weighted average position for the day, across real searchers"
-    : "browser scrape — the position this server was shown at one moment, from one location";
 }
 
 async function resolveClient(clientId: number) {
@@ -296,17 +285,12 @@ export async function getKeywordRankings(opts: {
           latestPosition: latest?.position ?? null,
           checkedAt: latest?.checkedAt ?? null,
           freshness: freshness(latest?.checkedAt),
-          // Movement only where both ends came from the same source.
-          // A "rise" that is really a switch from scrape to GSC is an
-          // invented result, and it reads exactly like a real one.
-          change:
-            latest && oldest && latest.source === oldest.source && latest.position && oldest.position
-              ? oldest.position - latest.position
-              : null,
-          changeNote:
-            latest && oldest && latest.source !== oldest.source
-              ? "Not comparable — the start and end of this window came from different sources."
-              : undefined,
+          // Movement only where both ends came from the same source —
+          // lib/rank-comparison.ts, shared with the rank-drop alert and the
+          // volatility score. `gain` is positive for an improvement, the
+          // sign this field has always had.
+          change: comparePositions(oldest, latest).gain,
+          changeNote: comparePositions(oldest, latest).note,
           source: latest?.source ?? null,
           provenance: latest ? rankProvenance(latest.source) : "never checked",
         };

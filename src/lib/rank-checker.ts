@@ -3,6 +3,19 @@ import { withBrowserContext } from "./browser-pool";
 import { captchaUserMessage, detectCaptcha, emptyResultsReason } from "./captcha-detect";
 import { normaliseCountry } from "./countries";
 import { fetchSerpViaApi, serpApiConfig, type SerpProvider } from "./serp-api";
+import {
+  failureFromCaptcha,
+  failureFromError,
+  type RankEngine,
+  type RankFailure,
+} from "./serp/failure";
+import {
+  acceptLanguageFor,
+  browserLocaleFor,
+  duckDuckGoRegion,
+  timezoneForCountry,
+} from "./serp/locale";
+import { urlMatchesDomain } from "./serp/match";
 
 export type RankCheckResult = {
   query: string;
@@ -19,6 +32,12 @@ export type RankCheckResult = {
   provider?: SerpProvider;
   /** The SERP API was set up but failed; the browser answered instead. */
   apiError?: string;
+  /**
+   * Why each engine tried gave no answer, as codes the interface can
+   * word (see serp/failure.ts). Set whenever `error` is; may also be set
+   * on a success, for the engines that failed before one answered.
+   */
+  failures?: RankFailure[];
 };
 
 /**
@@ -45,14 +64,67 @@ function normalizeDomain(input: string): string {
     .toLowerCase();
 }
 
-function urlMatches(href: string, domain: string): boolean {
-  try {
-    const u = new URL(href);
-    const host = u.hostname.replace(/^www\./i, "").toLowerCase();
-    return host === domain || host.endsWith("." + domain);
-  } catch {
-    return false;
+/**
+ * Moved to serp/match.ts, which SearXNG and Brave also use: one
+ * implementation of "does this URL belong to the domain", not three.
+ */
+const urlMatches = urlMatchesDomain;
+
+/**
+ * Decide what a finished Google scan actually means.
+ *
+ * Ported from the upstream project (15c000f). The paging loop below
+ * exists because Google stopped honouring `&num=100`, which made
+ * everything ranking 11+ report as "not found". A captcha part-way
+ * through the paging reintroduces exactly that: blocked on page 3, we
+ * have seen results 1-20 and never looked at 21-100, so a domain at #34
+ * would come back as `position: null` with no error — identical to a
+ * completed scan. Not finding it in a truncated scan is not evidence of
+ * absence, so it carries a failure and the caller tries another engine.
+ *
+ * Finding it is unaffected: a position seen is a position, however early
+ * the scan stopped.
+ */
+export function resolveGoogleScan(opts: {
+  hrefs: string[];
+  domain: string;
+  /** Captcha reason the scan stopped on before the end, if it did. */
+  truncatedBy: string | null;
+}): { position: number | null; url: string | null; failure?: RankFailure } {
+  for (let i = 0; i < opts.hrefs.length; i++) {
+    if (urlMatches(opts.hrefs[i], opts.domain)) {
+      return { position: i + 1, url: opts.hrefs[i] };
+    }
   }
+  if (opts.truncatedBy) {
+    return {
+      position: null,
+      url: null,
+      failure: {
+        engine: "google",
+        code: "truncated",
+        scanned: opts.hrefs.length,
+        detail: opts.truncatedBy,
+      },
+    };
+  }
+  return { position: null, url: null };
+}
+
+/**
+ * Why a results page yielded no results, as a failure — or null when the
+ * engine said it genuinely had none. Wraps `emptyResultsReason`, which
+ * decides; this only gives the answer a code.
+ */
+export function emptyResultsFailure(
+  engine: "google" | "duckduckgo",
+  html: string,
+): RankFailure | null {
+  const reason = emptyResultsReason(engine, html);
+  if (!reason) return null;
+  const cap = detectCaptcha(html);
+  if (cap.blocked) return failureFromCaptcha(engine, cap.reason);
+  return { engine, code: "unreadable", detail: reason };
 }
 
 /**
@@ -226,163 +298,137 @@ async function checkOnGoogle(
   locale?: { country?: string; language?: string; city?: string },
   device: "desktop" | "mobile" = "desktop",
 ): Promise<RankCheckResult> {
-  return withBrowserContext(
-    async (context) => {
-      const page = await context.newPage();
-      const checkedAt = new Date();
-      let resultsScanned = 0;
+  const country = (locale?.country ?? "US").toUpperCase();
+  const lang = locale?.language ?? "en";
+  const base = { query, domain, engine: "google" as const, device };
+  const fail = (
+    checkedAt: Date,
+    failure: RankFailure,
+    extra: Partial<RankCheckResult> = {},
+  ): RankCheckResult => ({
+    ...base,
+    position: null,
+    url: null,
+    checkedAt,
+    resultsScanned: 0,
+    ...extra,
+    error: failure.detail ?? `${failure.engine}: ${failure.code}`,
+    failures: [failure],
+  });
 
-      try {
-    const country = (locale?.country ?? "US").toUpperCase();
-    const lang = locale?.language ?? "en";
-    // For city-level checks, prepend the city to the query — that's what
-    // produces a localised SERP without needing IP-spoofing infrastructure.
-    const finalQuery = locale?.city ? `${query} ${locale.city}` : query;
+  try {
+    return await withBrowserContext(
+      async (context) => {
+        const page = await context.newPage();
+        const checkedAt = new Date();
+        let resultsScanned = 0;
 
-    const collected: string[] = [];
-    let screenshotBuffer: Buffer | undefined;
+        try {
+          // For city-level checks, prepend the city to the query — that's what
+          // produces a localised SERP without needing IP-spoofing infrastructure.
+          const finalQuery = locale?.city ? `${query} ${locale.city}` : query;
 
-    // Google stopped honouring &num=100 in late 2025 — it now returns one
-    // page of ~10 results no matter what you ask for. Requesting 100 and
-    // calling the result "top 100" meant anything ranking 11+ came back
-    // as "not found", indistinguishable from a genuine drop-off. Page
-    // through with &start= instead, stopping as soon as a page yields no
-    // new results (end of index) or we find the domain.
-    for (let pageIndex = 0; pageIndex < GOOGLE_PAGES_TO_SCAN; pageIndex++) {
-      const start = pageIndex * GOOGLE_RESULTS_PER_PAGE;
-      const url =
-        `https://www.google.com/search?q=${encodeURIComponent(finalQuery)}` +
-        `&hl=${encodeURIComponent(lang)}&gl=${normaliseCountry(country)}&pws=0` +
-        (start > 0 ? `&start=${start}` : "");
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
-      // small delay so client-side hydration has a chance to render
-      await page.waitForTimeout(500);
+          const collected: string[] = [];
+          let screenshotBuffer: Buffer | undefined;
+          // Why we stopped paging early, when stopping early leaves the
+          // answer incomplete. See resolveGoogleScan.
+          let truncatedBy: string | null = null;
 
-      // Detect captcha / consent / unusual-traffic
-      const html = await page.content();
-      const cap = detectCaptcha(html);
-      if (cap.blocked) {
-        // Blocked mid-scan: if earlier pages produced results, report what
-        // we have rather than throwing the whole check away.
-        if (collected.length === 0) {
+          // Google stopped honouring &num=100 in late 2025 — it now returns one
+          // page of ~10 results no matter what you ask for. Page through with
+          // &start= instead, stopping as soon as a page yields no new results
+          // (end of index) or we find the domain.
+          for (let pageIndex = 0; pageIndex < GOOGLE_PAGES_TO_SCAN; pageIndex++) {
+            const start = pageIndex * GOOGLE_RESULTS_PER_PAGE;
+            const url =
+              `https://www.google.com/search?q=${encodeURIComponent(finalQuery)}` +
+              `&hl=${encodeURIComponent(lang)}&gl=${normaliseCountry(country)}&pws=0` +
+              (start > 0 ? `&start=${start}` : "");
+            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+            // small delay so client-side hydration has a chance to render
+            await page.waitForTimeout(500);
+
+            // Detect captcha / consent / unusual-traffic
+            const html = await page.content();
+            const cap = detectCaptcha(html);
+            if (cap.blocked) {
+              if (collected.length === 0) {
+                return fail(checkedAt, {
+                  ...failureFromCaptcha("google", cap.reason),
+                  detail: captchaUserMessage(cap.reason),
+                });
+              }
+              truncatedBy = captchaUserMessage(cap.reason);
+              break;
+            }
+
+            const pageHrefs = await extractGoogleOrganicHrefs(page);
+
+            // Screenshot the first page only — that's the one users recognise.
+            if (withScreenshot && pageIndex === 0) {
+              screenshotBuffer = await captureScreenshot(page);
+            }
+
+            const before = collected.length;
+            collected.push(...pageHrefs);
+            // Dedupe as we go so "did this page add anything?" is measured on
+            // real results, not repeated sitelinks from the previous page.
+            const merged = dedupeResults(collected);
+            collected.length = 0;
+            collected.push(...merged);
+
+            // No new results → we've reached the end of what Google will serve.
+            if (collected.length === before) break;
+
+            // Found it — no need to keep paging.
+            if (collected.some((h) => urlMatches(h, domain))) break;
+          }
+
+          const filtered = collected;
+          resultsScanned = filtered.length;
+
+          // Zero results is only "not ranking" when Google said it had none.
+          if (filtered.length === 0) {
+            const failure = emptyResultsFailure("google", await page.content());
+            if (failure) return fail(checkedAt, failure, { screenshotBuffer });
+          }
+
+          const scan = resolveGoogleScan({ hrefs: filtered, domain, truncatedBy });
           return {
-            query,
-            domain,
-            engine: "google",
-            position: null,
-            url: null,
+            ...base,
+            position: scan.position,
+            url: scan.url,
             checkedAt,
-            device,
-            resultsScanned: 0,
-            error: captchaUserMessage(cap.reason),
+            resultsScanned,
+            screenshotBuffer,
+            ...(scan.failure
+              ? { error: scan.failure.detail, failures: [scan.failure] }
+              : {}),
           };
+        } catch (err) {
+          return fail(checkedAt, failureFromError("google", err), { resultsScanned });
+        } finally {
+          await page.close().catch(() => {});
         }
-        break;
-      }
-
-      const pageHrefs = await extractGoogleOrganicHrefs(page);
-
-      // Screenshot the first page only — that's the one users recognise.
-      if (withScreenshot && pageIndex === 0) {
-        screenshotBuffer = await captureScreenshot(page);
-      }
-
-      const before = collected.length;
-      collected.push(...pageHrefs);
-      // Dedupe as we go so "did this page add anything?" is measured on
-      // real results, not repeated sitelinks from the previous page.
-      const merged = dedupeResults(collected);
-      collected.length = 0;
-      collected.push(...merged);
-
-      // No new results → we've reached the end of what Google will serve.
-      if (collected.length === before) break;
-
-      // Found it — no need to keep paging.
-      if (collected.some((h) => urlMatches(h, domain))) break;
-    }
-
-    const filtered = collected;
-    resultsScanned = filtered.length;
-
-    // Zero results is only "not ranking" when Google said it had none.
-    // Otherwise the page was an interstitial or a layout the selectors no
-    // longer match, and "not ranking" would put a drop in the history
-    // that never happened.
-    if (filtered.length === 0) {
-      const reason = emptyResultsReason("google", await page.content());
-      if (reason) {
-        return {
-          query,
-          domain,
-          engine: "google",
-          position: null,
-          url: null,
-          checkedAt,
-          device,
-          resultsScanned: 0,
-          screenshotBuffer,
-          error: reason,
-        };
-      }
-    }
-
-    for (let i = 0; i < filtered.length; i++) {
-      if (urlMatches(filtered[i], domain)) {
-        return {
-          query,
-          domain,
-          engine: "google",
-          position: i + 1,
-          url: filtered[i],
-          checkedAt,
-          device,
-          resultsScanned,
-          screenshotBuffer,
-        };
-      }
-    }
-
-    return {
-      query,
-      domain,
-      engine: "google",
-      position: null,
-      url: null,
-      checkedAt,
-      device,
-      resultsScanned,
-      screenshotBuffer,
-    };
+      },
+      // The client's market, not en-US/UTC: Google adapts the page to the
+      // browser's language and clock as well as to &hl/&gl.
+      {
+        ...(device === "mobile"
+          ? { viewport: MOBILE_VIEWPORT, userAgent: MOBILE_UA }
+          : { viewport: { width: 1280, height: 900 } }),
+        // If we're capturing a screenshot we need images to load; otherwise
+        // block heavy resources to keep memory low on rank checks.
+        blockHeavyResources: !withScreenshot,
+        locale: browserLocaleFor(lang, country),
+        acceptLanguage: acceptLanguageFor(lang, country),
+        timezoneId: timezoneForCountry(country),
+      },
+    );
   } catch (err) {
-    return {
-          query,
-          domain,
-          engine: "google",
-          position: null,
-          url: null,
-          checkedAt,
-          device,
-          resultsScanned,
-          error: (err as Error).message,
-        };
-      } finally {
-        await page.close().catch(() => {});
-      }
-    },
-    // If we're capturing a screenshot we need images to load; otherwise
-    // block heavy resources to keep memory low on rank checks.
-    device === "mobile"
-      ? {
-          viewport: MOBILE_VIEWPORT,
-          userAgent: MOBILE_UA,
-          blockHeavyResources: !withScreenshot,
-        }
-      : {
-          viewport: { width: 1280, height: 900 },
-          blockHeavyResources: !withScreenshot,
-        },
-  );
+    // The browser could not even start (not installed, CDP refused…).
+    return fail(new Date(), failureFromError("google", err));
+  }
 }
 
 /**
@@ -421,24 +467,44 @@ export function extractDuckDuckGoHrefs(html: string): string[] {
 }
 
 /**
+ * The DuckDuckGo request for a query in the client's market.
+ *
+ * `kl` is DuckDuckGo's region (fr-fr, be-fr, uk-en…) and accept-language
+ * the language. Without them every check ran as an American search in
+ * English, whatever the client's country. A city is appended to the query,
+ * as for Google, since DuckDuckGo has no location parameter.
+ *
+ * Exported for tests.
+ */
+export function duckDuckGoRequest(
+  query: string,
+  locale: { country?: string; language?: string; city?: string } = {},
+): { url: string; acceptLanguage: string; region: string } {
+  const region = duckDuckGoRegion(locale.country, locale.language);
+  const finalQuery = locale.city ? `${query} ${locale.city}` : query;
+  const params = new URLSearchParams({ q: finalQuery, kl: region });
+  return {
+    url: `https://duckduckgo.com/html/?${params}`,
+    acceptLanguage: acceptLanguageFor(locale.language, locale.country),
+    region,
+  };
+}
+
+/**
  * DuckDuckGo rank check over plain HTTP — deliberately NOT the browser
  * pool.
  *
  * `duckduckgo.com/html/` is DDG's no-JavaScript endpoint. Driving a
- * headless browser at it returns **HTTP 403**: verified live, the
- * Playwright request gets a 273-byte error page while a plain fetch with
- * the same user-agent gets 200 and ten results. So the previous
- * implementation could never have worked regardless of selectors — the
- * page it parsed was an error page.
- *
- * Using fetch is also strictly better here: no browser launch (seconds
- * saved per keyword), no context from the concurrency-capped pool held
- * while a fallback runs, and no headless fingerprint to detect.
+ * headless browser at it returns **HTTP 403**, while a plain fetch with
+ * the same user-agent gets 200 and ten results. It only ever serves that
+ * first page of about ten results, so a miss here means "not in those
+ * ten", never "not in the top 100" — the interface says so.
  */
 async function checkOnDuckDuckGo(
   query: string,
   domain: string,
   device: "desktop" | "mobile" = "desktop",
+  locale: { country?: string; language?: string; city?: string } = {},
 ): Promise<RankCheckResult> {
   const checkedAt = new Date();
   const base = {
@@ -449,30 +515,30 @@ async function checkOnDuckDuckGo(
     device,
   };
 
+  const req = duckDuckGoRequest(query, locale);
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 20_000);
   try {
-    const res = await fetch(
-      `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
-      {
-        signal: ctl.signal,
-        headers: {
-          "user-agent": device === "mobile" ? MOBILE_UA : DESKTOP_UA,
-          accept: "text/html,application/xhtml+xml",
-          "accept-language": "en-US,en;q=0.9",
-        },
+    const res = await fetch(req.url, {
+      signal: ctl.signal,
+      headers: {
+        "user-agent": device === "mobile" ? MOBILE_UA : DESKTOP_UA,
+        accept: "text/html,application/xhtml+xml",
+        "accept-language": req.acceptLanguage,
       },
-    );
+    });
 
     const html = await res.text();
     return { ...base, ...readDuckDuckGoResponse(res.status, html, domain) };
   } catch (err) {
+    const failure = failureFromError("duckduckgo", err);
     return {
       ...base,
       position: null,
       url: null,
       resultsScanned: 0,
       error: (err as Error).message,
+      failures: [failure],
     };
   } finally {
     clearTimeout(timer);
@@ -485,31 +551,34 @@ async function checkOnDuckDuckGo(
  * Separate from the fetch so it can be run against captured pages. The
  * bug it exists for: DuckDuckGo's bot challenge arrives as HTTP 202,
  * which passed the old `res.ok` check, parsed to zero results, and was
- * returned as "not ranking" with no error — on the fallback that runs
- * whenever Google blocks the browser.
+ * returned as "not ranking" with no error.
  */
 export function readDuckDuckGoResponse(
   status: number,
   html: string,
   domain: string,
-): Pick<RankCheckResult, "position" | "url" | "resultsScanned" | "error"> {
-  const failed = (error: string) => ({
+): Pick<RankCheckResult, "position" | "url" | "resultsScanned" | "error" | "failures"> {
+  const failed = (error: string, failure: RankFailure) => ({
     position: null,
     url: null,
     resultsScanned: 0,
     error,
+    failures: [failure],
   });
 
   const cap = detectCaptcha(html);
-  if (cap.blocked) return failed(captchaUserMessage(cap.reason));
+  if (cap.blocked) {
+    return failed(captchaUserMessage(cap.reason), failureFromCaptcha("duckduckgo", cap.reason));
+  }
   if (status < 200 || status >= 300) {
-    return failed(`DuckDuckGo returned HTTP ${status}.`);
+    return failed(`DuckDuckGo returned HTTP ${status}.`, {
+      engine: "duckduckgo",
+      code: "http",
+      status,
+    });
   }
 
-  // Unwrap DDG's /l/?uddg= redirector and drop ad slots. Without this
-  // every href looks like a duckduckgo.com link and the old filter
-  // discarded all of them — which is why DDG checks always returned
-  // "not ranking".
+  // Unwrap DDG's /l/?uddg= redirector and drop ad slots.
   const filtered = dedupeResults(
     extractDuckDuckGoHrefs(html)
       .map(unwrapDuckDuckGoUrl)
@@ -517,8 +586,8 @@ export function readDuckDuckGoResponse(
   );
 
   if (filtered.length === 0) {
-    const reason = emptyResultsReason("duckduckgo", html);
-    if (reason) return failed(reason);
+    const failure = emptyResultsFailure("duckduckgo", html);
+    if (failure) return failed(failure.detail ?? "DuckDuckGo: unreadable", failure);
   }
 
   const i = filtered.findIndex((h) => urlMatches(h, domain));
@@ -527,30 +596,48 @@ export function readDuckDuckGoResponse(
     : { position: null, url: null, resultsScanned: filtered.length };
 }
 
+export type CheckRankOptions = {
+  screenshot?: boolean;
+  country?: string;
+  language?: string;
+  city?: string;
+  device?: "desktop" | "mobile";
+  /**
+   * Do not ask Google this time: a batch sets it after Google has
+   * blocked one of its keywords, because asking again a few seconds
+   * later only gets the same captcha and deepens the block. The check
+   * goes straight to DuckDuckGo, and the skip is recorded.
+   */
+  skipGoogle?: boolean;
+  /** The paid API was already tried by the caller; do not ask twice. */
+  skipApi?: boolean;
+  /**
+   * Google or nothing: no DuckDuckGo fallback. For the local grid, where
+   * the question is Google's local pack and another engine's page would
+   * answer a different question.
+   */
+  googleOnly?: boolean;
+};
+
 /**
- * Look up the rank of `domain` for `query`. Tries Google first, falls back
- * to DuckDuckGo if Google blocks (which it often does for headless browsers).
+ * Look up the rank of `domain` for `query`: the paid results API when
+ * one is configured, else Google in a browser, then DuckDuckGo if Google
+ * gave no answer.
  */
 export async function checkRank(
   query: string,
   rawDomain: string,
-  options: {
-    screenshot?: boolean;
-    country?: string;
-    language?: string;
-    city?: string;
-    device?: "desktop" | "mobile";
-  } = {},
+  options: CheckRankOptions = {},
 ): Promise<RankCheckResult> {
   const domain = normalizeDomain(rawDomain);
   const device = options.device ?? "desktop";
+  const failures: RankFailure[] = [];
 
   // A SERP API, when one is set up: Google's own results for the
-  // client's country, with no browser, no captcha and no fallback to
-  // another engine. Lean mode does not apply, it launches nothing. On
-  // failure the browser path below still runs, and says why.
+  // client's country, with no browser and no captcha. On failure the
+  // browser path below still runs, and says why.
   let apiError: string | undefined;
-  const api = domain ? await serpApiConfig() : null;
+  const api = domain && !options.skipApi ? await serpApiConfig() : null;
   if (api) {
     const r = await fetchSerpViaApi(api, {
       query,
@@ -571,68 +658,100 @@ export async function checkRank(
       };
     }
     apiError = `${r.provider === "serper" ? "Serper" : "DataForSEO"}: ${r.error}`;
+    failures.push(apiFailure(r.error, apiError));
   }
 
-  // Lean-mode short-circuit. When the user has disabled rank checking
-  // in Settings → Browser pool, we return a clear error instead of
-  // launching Chrome. Saves the user from a 30s wait + the browser
-  // RAM hit.
-  const { getSetting } = await import("./settings-store");
-  if (await getSetting<boolean>("browser.disable_rank_check")) {
-    return {
-      query,
-      domain: rawDomain,
-      engine: "google",
-      position: null,
-      url: null,
-      checkedAt: new Date(),
-      device,
-      resultsScanned: 0,
-      error:
-        "Rank checking is disabled in Settings → Browser pool (lean mode).",
-    };
-  }
+  const failedEarly = (engine: RankEngine, code: RankFailure["code"], error: string): RankCheckResult => ({
+    query,
+    domain: rawDomain,
+    engine: "google",
+    position: null,
+    url: null,
+    checkedAt: new Date(),
+    device,
+    resultsScanned: 0,
+    error,
+    failures: [...failures, { engine, code }],
+    ...(apiError ? { apiError } : {}),
+  });
 
-  if (!domain) {
-    return {
-      query,
-      domain: rawDomain,
-      engine: "google",
-      position: null,
-      url: null,
-      checkedAt: new Date(),
-      device,
-      resultsScanned: 0,
-      error: "Empty domain",
-    };
-  }
+  if (!domain) return failedEarly("google", "emptyDomain", "Empty domain");
 
   const locale = {
     country: options.country,
     language: options.language,
     city: options.city,
   };
-  const google = await checkOnGoogle(
-    query,
-    domain,
-    options.screenshot ?? false,
-    locale,
-    device,
-  );
-  if (google.error || google.resultsScanned === 0) {
-    const ddg = await checkOnDuckDuckGo(query, domain, device);
-    // Prefer DDG result if Google was blocked, else return Google's null result
-    if (!ddg.error) return withApiError(ddg, apiError);
-    // Both failed: name both. The fallback's reason alone hides that
-    // Google was the first thing to go wrong.
+
+  // Lean mode switches off the BROWSER only. DuckDuckGo is a plain HTTP
+  // request and costs no memory, so it still runs.
+  const { getSetting } = await import("./settings-store");
+  const browserDisabled = Boolean(await getSetting<boolean>("browser.disable_rank_check"));
+
+  let google: RankCheckResult | null = null;
+  if (browserDisabled) {
+    failures.push({ engine: "google", code: "disabled" });
+  } else if (options.skipGoogle) {
+    failures.push({ engine: "google", code: "skipped" });
+  } else {
+    google = await checkOnGoogle(query, domain, options.screenshot ?? false, locale, device);
+    // A completed Google scan, found or not, is the answer.
+    if (!google.error && google.resultsScanned > 0) {
+      return withApiError({ ...google, ...(failures.length ? { failures } : {}) }, apiError);
+    }
+    // A position seen before a block is still a position.
+    if (google.position !== null) return withApiError(google, apiError);
+    // Google answering "no results at all" is not a failure; it still
+    // earns a look at DuckDuckGo, but nothing is reported against Google.
     if (google.error) {
-      return withApiError({
-        ...ddg,
-        error: `Google: ${google.error} DuckDuckGo fallback: ${ddg.error}`,
-      }, apiError);
+      failures.push(...(google.failures ?? [{ engine: "google", code: "unknown" as const }]));
     }
   }
-  return withApiError(google, apiError);
+
+  if (options.googleOnly) {
+    return withApiError(
+      google
+        ? { ...google, failures }
+        : {
+            query,
+            domain: rawDomain,
+            engine: "google",
+            position: null,
+            url: null,
+            checkedAt: new Date(),
+            device,
+            resultsScanned: 0,
+            error: failures.map((f) => `${f.engine}: ${f.code}`).join(" "),
+            failures,
+          },
+      apiError,
+    );
+  }
+
+  const ddg = await checkOnDuckDuckGo(query, domain, device, locale);
+  if (!ddg.error) {
+    return withApiError({ ...ddg, failures }, apiError);
+  }
+  failures.push(...(ddg.failures ?? [{ engine: "duckduckgo", code: "unknown" as const }]));
+  // Both failed: name both. The fallback's reason alone hides that
+  // Google was the first thing to go wrong.
+  return withApiError(
+    {
+      ...ddg,
+      error: google?.error ? `Google: ${google.error} DuckDuckGo: ${ddg.error}` : ddg.error,
+      failures,
+    },
+    apiError,
+  );
+}
+
+/** The paid API's failure as a code, recognising the usual causes. */
+function apiFailure(raw: string, detail: string): RankFailure {
+  const status = /HTTP (\d{3})/.exec(raw)?.[1];
+  if (status === "401" || status === "403") return { engine: "api", code: "badKey", detail };
+  if (status === "429") return { engine: "api", code: "rateLimited", detail };
+  if (status) return { engine: "api", code: "http", status: Number(status), detail };
+  return { ...failureFromError("api", new Error(raw)), detail };
 }
 
 /** Keep the API's failure visible when the browser path answered instead. */
@@ -651,6 +770,39 @@ export function rankInResults(
   return i >= 0
     ? { position: i + 1, url: results[i], resultsScanned: results.length }
     : { position: null, url: null, resultsScanned: results.length };
+}
+
+/**
+ * One real search on each live engine, separately — for the settings
+ * screen's "Test" button, which must report what each engine actually
+ * did rather than what the chain ended up with.
+ */
+export async function testLiveEngines(opts: {
+  query: string;
+  country?: string;
+  language?: string;
+}): Promise<{
+  google: { ok: boolean; resultsScanned: number; failure?: RankFailure };
+  duckduckgo: { ok: boolean; resultsScanned: number; failure?: RankFailure; region: string };
+}> {
+  const locale = { country: opts.country, language: opts.language };
+  // A domain nobody ranks with: the test is about getting results back.
+  const probe = "example.invalid";
+  const google = await checkOnGoogle(opts.query, probe, false, locale, "desktop");
+  const ddg = await checkOnDuckDuckGo(opts.query, probe, "desktop", locale);
+  return {
+    google: {
+      ok: !google.error && google.resultsScanned > 0,
+      resultsScanned: google.resultsScanned,
+      failure: google.failures?.[0],
+    },
+    duckduckgo: {
+      ok: !ddg.error,
+      resultsScanned: ddg.resultsScanned,
+      failure: ddg.failures?.[0],
+      region: duckDuckGoRegion(opts.country, opts.language),
+    },
+  };
 }
 
 /** Close the cached browser. Call this when the process is shutting down. */

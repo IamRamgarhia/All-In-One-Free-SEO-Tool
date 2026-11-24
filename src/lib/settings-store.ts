@@ -89,6 +89,14 @@ export type SettingKey =
   | "serp.serper_key"
   | "serp.dataforseo_login"
   | "serp.dataforseo_password"
+  /**
+   * Keyless rank sources, tried between Search Console and the paid API
+   * (lib/serp). Both optional; the tool works with neither. The SearXNG
+   * address falls back to SEARXNG_URL, which docker-compose sets for the
+   * bundled `searxng` profile. The Brave key is encrypted at rest.
+   */
+  | "serp.searxng_url"
+  | "serp.brave_key"
   | "ai.active_provider"
   // Google OAuth — user supplies their own Cloud OAuth client (free, ~5 min).
   // Tokens stored encrypted-at-rest at the SQLite layer (the file lives on
@@ -201,6 +209,10 @@ export type SettingKey =
   // Cookie jar for logged-in scraping. Stored as JSON array of
   // { domain, name, value, path?, expires?, secure?, httpOnly? }.
   | "browser.cookies"
+  // Attach to a Chrome the USER started (--remote-debugging-port), instead
+  // of launching our own: their profile, their consent choices, their real
+  // fingerprint. Loopback only — see isLoopbackCdpUrl in browser-pool.ts.
+  | "browser.cdp_url"
   // Monthly USD cap for AI calls. When set, calls past the cap return null
   // (with a "cap reached" error), so a runaway workflow can't drain credits.
   | "ai.monthly_cap_usd"
