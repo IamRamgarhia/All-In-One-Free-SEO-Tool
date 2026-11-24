@@ -53,6 +53,30 @@ export const clients = sqliteTable("clients", {
    * two — replies would go wherever Google happened to list first.
    */
   gbpLocationName: text("gbp_location_name"),
+  /**
+   * The site's source code, for fixing it with a coding assistant
+   * (lib/code-agent). Where the source lives on the machine running the
+   * app; the app never reads or writes there by itself.
+   */
+  localPath: text("local_path"),
+  /** GitHub repo as "owner/name"; pull requests go through `gh`, never a stored token. */
+  githubRepo: text("github_repo"),
+  /** Branch pull requests target. Never pushed to directly. */
+  baseBranch: text("base_branch").notNull().default("main"),
+  /**
+   * How Claude Code hands work back: "off" edits files only, "pr" one
+   * pull request per task, "pr_batch" one pull request per queue run.
+   */
+  prMode: text("pr_mode", { enum: ["off", "pr", "pr_batch"] })
+    .notNull()
+    .default("off"),
+  /**
+   * Claude Code on the host for this client. Off unless an owner or a
+   * manager switches it on; SEO_TOOL_HOST_AGENT=0 forces it off everywhere.
+   */
+  codeAgentEnabled: integer("code_agent_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
   // Targeting — every recommendation, rank check, SERP scan, autocomplete
   // fan-out, and citation suggestion uses these. country defaults to "US"
   // for back-compat with rows created before this column existed.
@@ -317,6 +341,40 @@ export const tasks = sqliteTable("tasks", {
   }),
   ...timestamps,
 });
+
+/**
+ * One Claude Code conversation per task, run headless in the client's
+ * project folder. `sessionId` is Claude's own id, which `--resume` needs.
+ */
+export const taskChats = sqliteTable("task_chats", {
+  taskId: integer("task_id")
+    .primaryKey()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  sessionId: text("session_id"),
+  status: text("status", { enum: ["idle", "running", "error"] })
+    .notNull()
+    .default("idle"),
+  ...timestamps,
+});
+
+/** What the chat shows, in order. `data` is JSON, shape set by `kind`. */
+export const taskChatEvents = sqliteTable(
+  "task_chat_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    kind: text("kind", {
+      enum: ["user", "text", "tool", "tool_result", "result", "error", "suggestion"],
+    }).notNull(),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (t) => [index("task_chat_events_task_idx").on(t.taskId, t.id)],
+);
 
 export const keywords = sqliteTable("keywords", {
   id: integer("id").primaryKey({ autoIncrement: true }),

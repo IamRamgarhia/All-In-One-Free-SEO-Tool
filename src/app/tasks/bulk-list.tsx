@@ -25,6 +25,14 @@ import {
 } from "./actions";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { isOpenTask, isClosedTask } from "@/lib/task-status";
+import { ClaudeChatLink, CopyPromptButton } from "@/components/claude/prompt-actions";
+
+/**
+ * The client's code circuit on each task, for owners and managers (null
+ * for everyone else): "Copy the prompt" always, the Claude Code chat only
+ * for the clients in `runnable` (decided on the server).
+ */
+export type TaskCodeAccess = { runnable: number[] } | null;
 
 export type BulkTask = {
   id: number;
@@ -102,9 +110,11 @@ function dueBadgeProps(
 export function TasksBulkList({
   tasks,
   nowMs,
+  code = null,
 }: {
   tasks: BulkTask[];
   nowMs: number;
+  code?: TaskCodeAccess;
 }) {
   const t = useTranslations("tasks");
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -298,6 +308,14 @@ export function TasksBulkList({
                   {urgent > 0 ? ` · ${t("urgentCount", { count: urgent })}` : ""}
                 </p>
               </div>
+              {code && g.id ? (
+                <Link
+                  href={`/tasks?client=${g.id}`}
+                  className="inline-flex min-h-8 items-center rounded-md px-2 text-xs text-violet-300 hover:bg-violet-500/10 hover:underline"
+                >
+                  {t("siteCode")}
+                </Link>
+              ) : null}
             </header>
             <ul className="divide-y divide-border">
               {g.tasks.map((task) => (
@@ -307,6 +325,7 @@ export function TasksBulkList({
                   selected={selected.has(task.id)}
                   onToggle={() => toggle(task.id)}
                   nowMs={nowMs}
+                  code={code}
                 />
               ))}
             </ul>
@@ -340,6 +359,7 @@ export function TasksBulkList({
                 selected={selected.has(task.id)}
                 onToggle={() => toggle(task.id)}
                 nowMs={nowMs}
+                code={code}
               />
             ))}
           </ul>
@@ -354,11 +374,13 @@ function Row({
   selected,
   onToggle,
   nowMs,
+  code,
 }: {
   task: BulkTask;
   selected: boolean;
   onToggle: () => void;
   nowMs: number;
+  code: TaskCodeAccess;
 }) {
   const t = useTranslations("tasks");
   const [pending, startTransition] = useTransition();
@@ -381,7 +403,7 @@ function Row({
     <li
       className={`px-5 py-4 transition-colors ${selected ? "bg-primary/5" : "hover:bg-accent/40"}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap">
         <input
           type="checkbox"
           checked={selected}
@@ -408,7 +430,7 @@ function Row({
             <Circle className="size-4" />
           )}
         </button>
-        <div className="min-w-0 flex-1 space-y-1">
+        <div className="min-w-0 flex-1 basis-[calc(100%-4.5rem)] space-y-1 sm:basis-0">
           <div
             className={`text-sm font-medium leading-snug ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}
           >
@@ -438,6 +460,12 @@ function Row({
                 <ArrowUpRight className="size-3" />
               </Link>
             )}
+            {code && task.clientId && isOpenTask(task.status) ? (
+              <>
+                <CopyPromptButton kind="task" id={task.id} />
+                {code.runnable.includes(task.clientId) ? <ClaudeChatLink taskId={task.id} /> : null}
+              </>
+            ) : null}
             {task.clientName && task.clientId && (
               <Link
                 href={`/clients/${task.clientId}`}
@@ -461,7 +489,7 @@ function Row({
             )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {task.status !== "done" && task.status !== "skipped" ? (
             <span
               className={

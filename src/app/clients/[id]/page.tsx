@@ -47,6 +47,10 @@ import { QuickWinsPanel } from "./quick-wins-panel";
 import { SnapshotSparklines } from "@/components/snapshot-sparklines";
 import { OrganicTrafficPanel } from "./organic-traffic-panel";
 import { ProjectSettings } from "./project-settings";
+import { ClientCodeSettings } from "./code-settings";
+import { mayUseClientCode } from "@/lib/code-agent-access";
+import { clientCodeView } from "@/lib/code-agent-view";
+import { CopyPromptButton } from "@/components/claude/prompt-actions";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
 import { getSetting } from "@/lib/settings-store";
 import { getSmtpConfig } from "@/lib/mailer";
@@ -179,6 +183,8 @@ export default async function ClientDetailPage({
     .limit(1);
 
   if (!client) notFound();
+  // The client's code circuit (copy the prompt, Claude Code): owners and managers.
+  const canUseCode = await mayUseClientCode();
 
   const recentAudits = await db
     .select()
@@ -1044,6 +1050,21 @@ export default async function ClientDetailPage({
         }}
       />
 
+      {/* THE SITE'S CODE — folder, GitHub, Claude Code switch (owners and managers) */}
+      {canUseCode && (
+        <ClientCodeSettings
+          projectId={client.id}
+          settings={{
+            localPath: client.localPath,
+            githubRepo: client.githubRepo,
+            baseBranch: client.baseBranch,
+            prMode: client.prMode,
+            enabled: client.codeAgentEnabled,
+          }}
+          view={clientCodeView(client)}
+        />
+      )}
+
       {/* DAILY AUTOMATION ENTRY — schedules + queue, per client */}
       <DailyAutomationCard clientId={client.id} />
 
@@ -1237,7 +1258,7 @@ export default async function ClientDetailPage({
               {recentAudits.map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between gap-3 px-5 py-3.5 text-sm transition-colors hover:bg-white/[0.03]"
+                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-sm transition-colors hover:bg-white/[0.03]"
                 >
                   <Link
                     href={`/audits/${a.id}`}
@@ -1256,7 +1277,7 @@ export default async function ClientDetailPage({
                               : t("audits.kind.crawl")}
                     </span>
                   </Link>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs text-muted-foreground">
                       {t.has(`audits.status.${a.status}`) ? t(`audits.status.${a.status}`) : a.status}
                     </span>
@@ -1267,6 +1288,9 @@ export default async function ClientDetailPage({
                       {(a.completedAt ?? a.createdAt).toLocaleDateString(locale)}
                     </span>
                     <ScoreBadge score={a.score ?? null} />
+                    {canUseCode && Array.isArray((a.rawReport as { categoryResults?: unknown } | null)?.categoryResults) ? (
+                      <CopyPromptButton kind="audit" id={a.id} />
+                    ) : null}
                   </div>
                 </li>
               ))}

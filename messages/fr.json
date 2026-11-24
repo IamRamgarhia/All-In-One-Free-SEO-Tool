@@ -1432,7 +1432,8 @@
     "time": {
       "subtract15": "Retirer 15 min",
       "add15": "Ajouter 15 min"
-    }
+    },
+    "siteCode": "Code du site"
   },
   "keywords": {
     "title": "Mots-clés",
@@ -9299,6 +9300,219 @@
         "title": "Un contrôle de l’installation n’a pas pu tourner",
         "evidence": "Le contrôle {check} s’est interrompu ; les autres ont tourné normalement.",
         "fix": "Ouvrir Santé du système"
+      }
+    }
+  },
+  "clientCode": {
+    "reasons": {
+      "env_off": "Claude Code est désactivé sur ce serveur (SEO_TOOL_HOST_AGENT=0) : l’application ne peut pas le lancer, quel que soit le client.",
+      "client_off": "Claude Code est désactivé pour ce client. Il ne s’active que depuis l’onglet Réglages de la fiche du client, par un propriétaire ou un gestionnaire.",
+      "no_client": "Ce client est introuvable.",
+      "claude_missing": "Claude Code n’est pas installé sur l’ordinateur qui fait tourner l’application (commande « claude » introuvable).",
+      "no_folder": "Aucun dossier de projet n’est indiqué pour ce client. Renseignez-le dans l’onglet Réglages de sa fiche.",
+      "folder_missing": "Le dossier de projet indiqué pour ce client n’existe pas sur cet ordinateur.",
+      "folder_not_absolute": "Le dossier de projet doit être un chemin complet (par exemple /home/vous/sites/client).",
+      "folder_holds_documents": "Le dossier de projet contient le dossier de documents de l’application : choisissez le dossier du site lui-même, pour que les documents internes restent hors du dépôt du client.",
+      "task_not_found": "Cette tâche est introuvable.",
+      "not_local": "Claude Code ne se lance que depuis l’ordinateur qui fait tourner l’application, pas depuis un autre appareil du réseau.",
+      "role": "Réservé aux propriétaires et aux gestionnaires.",
+      "not_found": "Introuvable.",
+      "busy": "Claude Code travaille déjà sur cette tâche.",
+      "empty_message": "Écrivez d’abord un message.",
+      "switched_off": "Claude Code vient d’être désactivé pour ce client.",
+      "start_failed": "Claude Code n’a pas pu démarrer.",
+      "already_running": "La file est déjà en cours pour ce client.",
+      "no_open_tasks": "Ce client n’a aucune tâche ouverte.",
+      "no_gh": "L’outil GitHub en ligne de commande (gh) n’est pas installé sur cet ordinateur : les demandes de fusion ne peuvent pas être listées ici. Installez-le puis connectez-vous avec « gh auth login ».",
+      "no_repo": "Aucun dépôt GitHub n’est indiqué pour ce client."
+    },
+    "manual": {
+      "body": "Sans Claude Code, copiez le prompt de la tâche (ou téléchargez-le en .md) et collez-le dans l’assistant de code de votre choix, dans VS Code ou dans un terminal ouvert sur le code du client. Rien n’est lancé sur cet ordinateur.",
+      "settings": "Réglages du code de ce client",
+      "short": "Sans Claude Code, le bouton « Copier le prompt » de chaque tâche ouverte donne des instructions prêtes à coller dans n’importe quel assistant de code."
+    },
+    "panel": {
+      "title": "Code du site de {client}",
+      "manual": "Le chemin manuel reste disponible : « Copier le prompt » sur chaque tâche ouverte ci-dessous."
+    },
+    "prompt": {
+      "copy": "Copier le prompt",
+      "copyHint": "Instructions précises pour un assistant de code : quoi faire, pages concernées, comment vérifier",
+      "copied": "Prompt copié. Collez-le dans votre assistant de code.",
+      "copyFailed": "Impossible de copier le prompt. Téléchargez-le en .md à la place.",
+      "download": ".md",
+      "downloadHint": "Télécharger le prompt en fichier Markdown",
+      "claude": "Claude Code"
+    },
+    "chat": {
+      "crumbTasks": "Tâches",
+      "working": "Claude Code travaille…",
+      "workingFor": "(depuis {secs} s ; bouton « Arrêter » ci-dessous)",
+      "intro": "Claude Code lit la tâche, travaille dans ce dossier, peut modifier des fichiers et lancer la compilation du projet. Rien ne démarre avant que vous ne cliquiez. La conversation est enregistrée : vous pouvez partir et revenir.",
+      "start": "Lancer cette tâche",
+      "emptyOff": "Aucune conversation pour cette tâche.",
+      "connecting": "Connexion…",
+      "startFailed": "Claude Code n’a pas pu démarrer.",
+      "unreachable": "L’application ne répond pas.",
+      "inputLabel": "Message pour Claude Code",
+      "placeholder": "Dites à Claude Code quoi faire ensuite",
+      "placeholderRunning": "Claude Code travaille…",
+      "keys": "Entrée pour envoyer · Maj+Entrée pour aller à la ligne",
+      "stop": "■ Arrêter",
+      "send": "Envoyer",
+      "toolError": "Erreur : ",
+      "moreLines": "… {count, plural, one {+# ligne} other {+# lignes}}",
+      "resultOk": "Terminé",
+      "resultError": "Terminé avec une erreur",
+      "steps": "{count, plural, one {# étape} other {# étapes}}",
+      "reviewHint": "Relisez les modifications, puis marquez la tâche comme terminée dans la liste des tâches.",
+      "denied": "Claude Code n’a pas eu le droit de lancer :",
+      "errors": {
+        "interrupted": "Le travail a été interrompu (l’application a redémarré). Envoyez un message pour reprendre.",
+        "stopped": "Arrêté.",
+        "timeout": "Arrêté au bout de 30 minutes sans avoir fini.",
+        "claude_missing": "Claude Code est introuvable sur cet ordinateur. Installez-le et vérifiez que la commande « claude » fonctionne dans un terminal.",
+        "start_failed": "Claude Code n’a pas pu démarrer.",
+        "exit": "Claude Code s’est arrêté sur une erreur.",
+        "switched_off": "Claude Code a été désactivé pour ce client."
+      }
+    },
+    "queue": {
+      "confirmTitle": "Lancer Claude Code sur les tâches ouvertes ?",
+      "confirmBody": "Claude Code va traiter {count, plural, one {la tâche ouverte} other {les # tâches ouvertes}} de {client}, l’une après l’autre, dans le dossier du projet. Chaque tâche garde sa propre conversation. Vous pouvez arrêter à tout moment.",
+      "start": "Lancer la file",
+      "cancel": "Annuler",
+      "failed": "Cela n’a pas fonctionné.",
+      "unreachable": "L’application ne répond pas.",
+      "running": "Claude Code travaille pour {client} : tâche {n} sur {total}",
+      "failedCount": "{count, plural, one {# échec} other {# échecs}}",
+      "now": "En cours : {title}",
+      "idleTitle": "Traiter les tâches de {client} avec Claude Code",
+      "idleBody": "Priorité haute d’abord, puis moyenne, puis basse. {count, plural, =0 {Aucune tâche ouverte.} one {# tâche ouverte.} other {# tâches ouvertes.}} Rien ne démarre sans votre clic.",
+      "stop": "Arrêter la file",
+      "notes": {
+        "all_done": "Dernière file : toutes les tâches ouvertes ont été traitées.",
+        "stopped": "Dernière file : arrêtée.",
+        "three_failures": "Dernière file : arrêtée après trois échecs de suite. Ouvrez la dernière conversation pour voir pourquoi."
+      },
+      "batch": {
+        "pending": "Ouverture de la demande de fusion de la file…",
+        "opened": "Une seule demande de fusion pour toute la file : {url}",
+        "invalid": "Pas de demande de fusion : le dépôt ou la branche enregistrés ne sont pas valides.",
+        "switched_off": "Pas de demande de fusion : Claude Code a été désactivé pour ce client pendant la file.",
+        "no_branch": "Pas de demande de fusion : Claude Code n’a rien enregistré sur la branche de la file.",
+        "nothing_committed": "Pas de demande de fusion : aucun changement enregistré sur la branche de la file.",
+        "failed": "La demande de fusion n’a pas pu être ouverte ({detail}). Les changements sont sur la branche {branch} du dossier du projet."
+      }
+    },
+    "prs": {
+      "loading": "Lecture des demandes de fusion…",
+      "count": "{count, plural, =0 {Aucune demande de fusion ouverte par Claude Code} one {# demande de fusion ouverte} other {# demandes de fusion ouvertes}}",
+      "hint": "Fusionnez quand vous êtes prêt : le site est reconstruit à chaque fusion. Seules les branches seo/task-… et seo/batch-… sont listées.",
+      "refresh": "Actualiser",
+      "mergeAll": "Tout fusionner ({count})",
+      "merge": "Fusionner",
+      "cancel": "Annuler",
+      "unreachable": "L’application ne répond pas.",
+      "confirmOneTitle": "Fusionner la demande n° {number} ?",
+      "confirmOneBody": "Elle sera fusionnée dans la branche principale du client (squash) et sa branche supprimée, seulement si GitHub la dit fusionnable et que ses vérifications sont au vert au moment du clic.",
+      "confirmAllTitle": "Fusionner {count, plural, one {la demande prête} other {les # demandes prêtes}} ?",
+      "confirmAllBody": "Elles seront fusionnées une par une dans la branche principale du client, la plus ancienne d’abord. Chacune est vérifiée de nouveau juste avant : une demande devenue conflictuelle est signalée et laissée ouverte.",
+      "resultLine": "N° {number} : {text}",
+      "checks": {
+        "passing": "vérifications au vert",
+        "pending": "vérifications en cours",
+        "failing": "une vérification a échoué",
+        "none": "aucune vérification"
+      },
+      "codes": {
+        "merged": "fusionnée.",
+        "bad_request": "demande invalide.",
+        "not_open": "ce n’est plus une demande ouverte de Claude Code.",
+        "draft": "brouillon",
+        "conflicts": "conflits, ou état pas encore calculé par GitHub",
+        "check_failed": "une vérification a échoué",
+        "checks_pending": "vérifications en cours",
+        "no_gh": "l’outil gh n’est pas installé sur cet ordinateur.",
+        "gh_error": "GitHub a refusé ou n’a pas répondu",
+        "bad_repo": "le dépôt GitHub enregistré n’est pas valide.",
+        "no_repo": "aucun dépôt GitHub n’est indiqué pour ce client.",
+        "env_off": "Claude Code est désactivé sur ce serveur.",
+        "client_off": "Claude Code est désactivé pour ce client.",
+        "not_local": "uniquement depuis l’ordinateur qui fait tourner l’application.",
+        "role": "réservé aux propriétaires et aux gestionnaires.",
+        "not_found": "introuvable."
+      }
+    },
+    "settings": {
+      "title": "Code du site",
+      "description": "Pour corriger le site dans son code source, avec un assistant de code. Le dossier et le dépôt servent aux prompts copiés et, s’il est activé, à Claude Code sur cet ordinateur.",
+      "edit": "Modifier",
+      "status": "Claude Code sur cet ordinateur",
+      "statusHint": {
+        "on": "Activé pour ce client. Il ne démarre que lorsqu’un propriétaire ou un gestionnaire clique dans la page Tâches.",
+        "off": "Désactivé par défaut. Le chemin manuel (« Copier le prompt ») fonctionne sans lui.",
+        "forcedOff": "Désactivé sur ce serveur par SEO_TOOL_HOST_AGENT=0 : ce réglage ne se change pas depuis l’application."
+      },
+      "statusValue": {
+        "on": "Activé",
+        "off": "Désactivé",
+        "forcedOff": "Bloqué par le serveur"
+      },
+      "folder": "Dossier du projet",
+      "notSet": "Non renseigné",
+      "repo": "Dépôt GitHub",
+      "handBack": "Remise du travail",
+      "mode": {
+        "off": "Fichiers seulement",
+        "pr": "Une demande de fusion par tâche",
+        "pr_batch": "Une demande de fusion par file"
+      },
+      "modeHint": {
+        "off": "Claude Code modifie les fichiers du dossier et ne touche pas à git.",
+        "pr": "Une branche et une demande de fusion par tâche. Vous relisez et fusionnez depuis la page Tâches.",
+        "pr_batch": "Toutes les tâches d’une file sont enregistrées sur une seule branche ; l’application ouvre une seule demande de fusion à la fin. Une seule prévisualisation et un seul déploiement pour toute la file."
+      },
+      "machine": "Programmes sur cet ordinateur",
+      "machineHint": "Recherchés dans le PATH, sans rien lancer.",
+      "tools": {
+        "claude": "Claude Code",
+        "gh": "gh",
+        "git": "git"
+      },
+      "found": "trouvé",
+      "notFound": "introuvable",
+      "openTasks": "Ouvrir les tâches de ce client",
+      "sheetTitle": "Code du site",
+      "sheetSubtitle": "Dossier, dépôt GitHub et Claude Code pour ce client",
+      "cancel": "Annuler",
+      "save": "Enregistrer et fermer",
+      "saving": "Enregistrement…",
+      "saved": "Enregistré.",
+      "stepSource": "Code source",
+      "folderHelp": "Chemin complet du code du site sur l’ordinateur qui fait tourner l’application. Facultatif pour copier les prompts, indispensable pour Claude Code.",
+      "folderPlaceholder": "/home/vous/sites/client",
+      "repoHelp": "Facultatif. « propriétaire/nom » ou un lien github.com. GitHub passe par l’outil gh déjà connecté sur cet ordinateur : aucun jeton n’est demandé ni enregistré.",
+      "branch": "Branche principale",
+      "branchHelp": "La branche visée par les demandes de fusion, en général main. Claude Code n’y pousse jamais directement.",
+      "needRepo": "Indiquez un dépôt GitHub pour passer par des demandes de fusion.",
+      "stepAgent": "Claude Code sur cet ordinateur",
+      "switchLabel": "Activer Claude Code pour ce client",
+      "switchHelp": "Désactivé par défaut. Activé, il permet de lancer Claude Code sur une tâche, ou sur la file des tâches, dans le dossier du projet.",
+      "safety": {
+        "click": "Rien ne se lance sans un clic d’un propriétaire ou d’un gestionnaire, et seulement depuis cet ordinateur.",
+        "branch": "Avec un dépôt : une branche et une demande de fusion par tâche ou par file, jamais de poussée sur la branche principale ; la fusion se fait dans la page Tâches, après confirmation.",
+        "documents": "Les documents internes (rapports, brouillons, notes) sont écrits à côté de la base de l’application, jamais dans le dépôt du client.",
+        "token": "Aucun jeton GitHub n’est enregistré : gh et git utilisent la connexion déjà faite sur cet ordinateur."
+      },
+      "claudeMissing": "Claude Code n’est pas installé sur cet ordinateur : même activé, il ne pourra pas démarrer. Le bouton « Copier le prompt » reste disponible.",
+      "errors": {
+        "role": "Réservé aux propriétaires et aux gestionnaires.",
+        "bad_folder": "Indiquez un chemin complet (par exemple /home/vous/sites/client).",
+        "bad_repo": "Indiquez « propriétaire/nom » ou un lien github.com.",
+        "bad_branch": "Ce nom de branche n’est pas valide.",
+        "env_off": "Claude Code est désactivé sur ce serveur (SEO_TOOL_HOST_AGENT=0) : impossible de l’activer depuis l’application.",
+        "need_folder": "Indiquez le dossier du projet avant d’activer Claude Code."
       }
     }
   }
