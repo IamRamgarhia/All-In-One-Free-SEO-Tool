@@ -47,6 +47,26 @@ export type SettingKey =
   // opposed to silently receiving the cautious default. See
   // hasChosenAutonomy in agent/autonomy.ts.
   | "agent.level_chosen"
+  /**
+   * The last install-health result: `{ at, issues }`.
+   *
+   * Stored rather than computed per render because the checks ping each
+   * client's WordPress site, and a dashboard that waits on the network
+   * is a dashboard people stop opening. The timestamp travels with the
+   * result so a surface can say how old its evidence is instead of
+   * implying it is live. See lib/install-health.ts.
+   */
+  | "install_health.last"
+  /**
+   * The last unattended sweep's failures: `{ at, total, failures }`.
+   *
+   * `tool_runs` has no status column, so a failed check writes no row:
+   * the tool and the error were captured by the sweep and thrown away by
+   * its one-line summary. Kept so the health report can say "9 checks
+   * fail on this client, the site does not resolve" instead of "11 could
+   * not". See lib/tool-sweep.ts and lib/sweep-failures.ts.
+   */
+  | "tool_sweep.last_failures"
   // Bearer token an edge worker authenticates with. See edge-token.ts.
   | "edge.token"
   /**

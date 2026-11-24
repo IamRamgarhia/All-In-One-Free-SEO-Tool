@@ -98,70 +98,70 @@
     }
   },
   "dashboard": {
-    "badge": "Local · mono-utilisateur · tout sur cette machine",
+    "badge": "Auto-hébergé · vos données sont stockées sur votre serveur",
     "greetingLate": "Encore au travail",
     "greetingMorning": "Bonjour",
     "greetingAfternoon": "Bon après-midi",
     "greetingEvening": "Bonsoir",
     "welcomeTitle": "Bienvenue. On configure vos 5 premières minutes.",
-    "returningTitle": "{greeting}, voici ce qui demande votre attention.",
-    "welcomeBody": "Collez une URL et obtenez un audit technique en environ une minute — pas de clé API, pas d’inscription. Suivi de positions, contenu et IA sont là aussi, à activer après le premier audit.",
-    "returningBody": "SEO gratuit, moderne et accessible pour freelances et petites agences — sans l’abonnement SaaS à 140 $/mois.",
+    "returningTitle": "{greeting}, voici ce qui demande votre attention aujourd’hui.",
+    "welcomeBody": "Collez une URL et obtenez un audit technique complet, sans clé API ni inscription. Suivi de positions, contenu et IA sont là aussi, à activer une fois l’audit lu.",
+    "returningBody": "Le SEO de vos clients au même endroit : audits, tâches, positions et rapports, gratuit et sans abonnement.",
     "addFirstSite": "Ajouter votre premier site",
     "orConnectAi": "Ou connecter un fournisseur IA",
     "addClient": "Ajouter un client",
     "viewClients": "Voir les clients",
     "latestAudit": "Dernier audit",
-    "vsPrevious": "vs précédent",
+    "vsPrevious": "par rapport au précédent",
     "firstMeasurement": "Première mesure",
     "openTasks": "Tâches ouvertes",
-    "openTasksHint": "Triées par priorité ci-dessous",
+    "openTasksHint": "Les plus récentes ci-dessous",
     "allCaughtUp": "Tout est à jour",
     "clients": "Clients",
-    "clientsHint": "Actifs",
-    "auditsRun": "Audits lancés",
+    "clientsHint": "Suivis dans cet espace",
+    "auditsRun": "Audits réalisés",
     "scoreHint": "Score {score} ({delta})",
     "latestScoreHint": "Dernier {score}",
     "runFirst": "Lancez le premier",
     "latestScore": "Dernier score",
-    "completedCount": "{count} terminés",
+    "completedCount": "{count, plural, one {# terminé} other {# terminés}}",
     "runAuditFirst": "Lancez d’abord un audit",
     "priorityTasks": "Tâches prioritaires",
-    "priorityTasksHint": "Générées depuis les audits et modèles de niche",
+    "priorityTasksHint": "Tâches à faire, les plus récentes d’abord",
     "viewAll": "Tout voir",
     "recentAudits": "Audits récents",
-    "recentAuditsHint": "5 derniers, tous clients",
-    "issues": "{count} problèmes",
+    "recentAuditsHint": "Les 5 derniers, tous clients confondus",
+    "issues": "{count, plural, =0 {aucun problème} one {# problème} other {# problèmes}}",
     "scoreTrend": "Tendance des scores d’audit",
-    "scoreTrendHint": "{count} derniers audits terminés, tous clients.",
+    "scoreTrendHint": "{count, plural, one {Dernier audit terminé, tous clients confondus.} other {Les # derniers audits terminés, tous clients confondus.}}",
     "quickActions": "Actions rapides",
     "bento": {
       "auditsTitle": "Lancer un audit",
-      "auditsDesc": "30 contrôles SEO, sévérité, résumé IA.",
+      "auditsDesc": "Contrôles techniques classés par gravité, résumé IA en option.",
       "keywordsTitle": "Suivre des mots-clés",
-      "keywordsDesc": "Positions quotidiennes, mode navigateur gratuit.",
+      "keywordsDesc": "Positions suivies dans le temps, projet par projet.",
       "reportsTitle": "Générer un rapport",
-      "reportsDesc": "PDF white-label, résumé IA.",
+      "reportsDesc": "PDF à vos couleurs, avec résumé.",
       "agentTitle": "Agent IA",
-      "agentDesc": "Détecte les problèmes + applique via le pont WP.",
+      "agentDesc": "Repère les problèmes et applique les corrections via l’extension WordPress.",
       "backlinksTitle": "Backlinks",
-      "backlinksDesc": "GSC + Common Crawl, récupération de liens perdus.",
+      "backlinksDesc": "Liens entrants, nouveaux et perdus.",
       "toolsTitle": "Tous les outils",
-      "toolsDesc": "100+ outils dans une grille searchable."
+      "toolsDesc": "Tous les outils dans une grille avec recherche."
     },
     "unlockEyebrow": "Ce que vous débloquez",
     "unlockTitle": "Toute la stack SEO, gratuite",
-    "unlockBody": "Remplace 140 $+ /mois de SaaS. Tout tourne sur cette machine.",
+    "unlockBody": "Tout tourne sur votre serveur, sans abonnement.",
     "highlights": {
-      "audits": "30+ contrôles d’audit",
-      "ranks": "Suivi de positions quotidien",
+      "audits": "Contrôles d’audit techniques",
+      "ranks": "Suivi de positions",
       "reports": "Rapports white-label",
       "agent": "Agent IA + chat",
       "backlinks": "Moniteur de backlinks",
-      "tools": "100+ outils gratuits"
+      "tools": "Outils gratuits"
     },
     "noPaidApis": "Pas d’API payantes",
-    "noPaidApisBody": "Mode navigateur + APIs Google gratuites suffisent. Apportez une clé seulement pour des données SERP premium.",
+    "noPaidApisBody": "Les fonctions de base n’exigent aucun service payant. Une clé n’est utile que pour des options facultatives.",
     "briefing": {
       "title": "Briefing du jour",
       "subtitle": "Ce qui a changé ces dernières 24 h sur vos clients.",
@@ -218,6 +218,31 @@
           "hint": "Applique tout ce qu’il propose, rédaction comprise. Vous relisez après coup.",
           "description": "Applique tout ce qu’il propose, y compris les réécritures qui relèvent du jugement. Toujours journalisé et annulable, mais vous relisez après coup plutôt qu’avant."
         }
+      },
+      "waiting": {
+        "today": "{count, plural, one {# modification attend déjà, trouvée aujourd’hui.} other {# modifications attendent déjà, trouvées aujourd’hui.}}",
+        "yesterday": "{count, plural, one {# modification attend depuis hier.} other {# modifications attendent depuis hier.}}",
+        "days": "{count, plural, one {# modification attend} other {# modifications attendent}} depuis {n} jours.",
+        "weeks": "{count, plural, one {# modification attend} other {# modifications attendent}} depuis {n, plural, one {# semaine} other {# semaines}}.",
+        "months": "{count, plural, one {# modification attend} other {# modifications attendent}} depuis {n} mois.",
+        "unknown": "{count, plural, one {# modification attend une réponse.} other {# modifications attendent une réponse.}}"
+      },
+      "bodyAfterWaiting": "L’agent trouve du travail chaque nuit sans rien modifier, car personne n’a encore répondu. Chaque modification est journalisée avec la valeur précédente et peut être annulée en un clic. Vous pouvez changer ce choix à tout moment dans les réglages de l’agent.",
+      "trial": {
+        "title": "Pas encore décidé ? Essayez sur {size}.",
+        "body": "{waiting, plural, one {# modification sûre attend} other {# modifications sûres attendent}}. L’agent en applique {size} maintenant, parmi celles qui sont fausses selon une règle mesurable (jamais une réécriture de vos textes), et vous montre exactement ce qui a changé. Aucun réglage ne change, et chacune s’annule en un clic.",
+        "bodyWithAge": "{waiting, plural, one {# modification sûre attend} other {# modifications sûres attendent}}, la plus ancienne depuis {days, plural, one {# jour} other {# jours}}. L’agent en applique {size} maintenant, parmi celles qui sont fausses selon une règle mesurable (jamais une réécriture de vos textes), et vous montre exactement ce qui a changé. Aucun réglage ne change, et chacune s’annule en un clic.",
+        "apply": "Appliquer {size} et me montrer",
+        "applying": "Application en cours…",
+        "doneTitle": "C’est fait : jetez un œil",
+        "nothingTitle": "Rien n’a changé",
+        "seeChanges": "Voir chaque modification, avec sa valeur précédente",
+        "outcome": {
+          "none": "Rien en attente ne peut être appliqué sans une décision de votre part : il n’y a donc rien à essayer pour l’instant.",
+          "failed": "{attempted, plural, one {La modification n’est pas passée} other {Aucune des # modifications n’est passée}} : le site a refusé. Rien n’a été modifié, et le motif est indiqué sur chacune.",
+          "all": "{applied, plural, one {# modification appliquée et relue sur le site.} other {# modifications appliquées et relues sur le site.}} Chacune est listée avec sa valeur précédente et s’annule en un clic. Rien d’autre n’a été touché, et aucun réglage n’a changé.",
+          "partial": "{applied} sur {attempted} appliquées ; {failed, plural, one {# refusée} other {# refusées}} par le site. Celles qui sont passées sont listées avec leur valeur précédente et s’annulent une par une."
+        }
       }
     },
     "checklist": {
@@ -245,13 +270,13 @@
       },
       "audit": {
         "title": "Lancer votre premier audit",
-        "description": "Plus de 370 règles : indexabilité, schema, Core Web Vitals, hreflang, en-têtes de sécurité, liens cassés… Local et gratuit.",
+        "description": "Indexabilité, schema, Core Web Vitals, hreflang, en-têtes de sécurité, liens cassés… : tout est contrôlé sur votre serveur, gratuitement.",
         "view": "Voir les audits",
         "run": "Lancer un audit"
       },
       "report": {
         "title": "Générer votre premier rapport",
-        "description": "Résumé IA, PDF en marque blanche et portail client par lien magique. De 6 heures par mois à 25 minutes.",
+        "description": "Résumé IA, PDF à vos couleurs et portail client par lien magique, pour envoyer un rapport sans le monter à la main.",
         "view": "Voir les rapports",
         "generate": "Générer un rapport"
       }
@@ -270,7 +295,11 @@
       "pageviews": "Pages vues",
       "movers": "Plus fortes variations",
       "vsPrior": "vs période précédente"
-    }
+    },
+    "clientFallback": "Client {id}",
+    "projectsTitle": "Projets",
+    "projectsHint": "Chaque projet : étape, score, tâches ouvertes et dernier audit.",
+    "unchanged": "Inchangé par rapport au précédent"
   },
   "settings": {
     "title": "Paramètres",
@@ -2378,15 +2407,20 @@
       }
     },
     "review": {
-      "title": "Relecture par le client",
+      "title": "Validation par le client",
       "on": "Le client peut lire cet article dans son espace client.",
-      "off": "Ouvrez l’article au client pour qu’il le lise avant publication.",
+      "off": "Envoyez l’article au client : il l’approuve ou demande des modifications depuis son espace client.",
       "needsDraft": "Rédigez et enregistrez l’article avant de l’ouvrir au client.",
-      "share": "Ouvrir à la relecture",
+      "share": "Envoyer au client pour validation",
       "copy": "Copier le lien",
       "copied": "Copié",
       "open": "Voir la page",
-      "stop": "Fermer la relecture"
+      "stop": "Retirer de l’espace client",
+      "sentOn": "Envoyé au client le {date} · en attente de sa réponse",
+      "approvedOn": "Approuvé par le client le {date}",
+      "changesOn": "Modifications demandées par le client le {date} :",
+      "approvedHint": "L’approbation ne publie rien : planifiez la publication quand vous le souhaitez.",
+      "sendAgain": "Renvoyer au client"
     }
   },
   "docs": {
@@ -2722,8 +2756,7 @@
         "sent": "à régler",
         "paid": "payée",
         "overdue": "en retard"
-      },
-      "toReview": "Articles à relire"
+      }
     },
     "footerDefault": "Espace client en lecture seule · Propulsé par rank_forge",
     "article": {
@@ -2733,8 +2766,46 @@
       "plannedFor": "Publication prévue le {date}",
       "publishedOn": "Publié le {date}",
       "noDate": "Date de publication à définir",
-      "hint": "Voici l’article avant sa mise en ligne. Faites part de vos remarques à votre interlocuteur.",
+      "hint": "Voici l’article avant sa mise en ligne. Donnez votre accord ou demandez des modifications en bas de la page.",
       "google": "Aperçu dans Google"
+    },
+    "review": {
+      "title": "À valider",
+      "hint": "{count, plural, one {# contenu attend votre accord. Approuvez-le ou dites-nous ce qu’il faut changer.} other {# contenus attendent votre accord. Approuvez-les ou dites-nous ce qu’il faut changer.}}",
+      "hintNone": "Rien n’attend votre accord pour le moment.",
+      "answered": "Vos réponses",
+      "type": {
+        "blog_draft": "Article de blog",
+        "gbp_post": "Publication Google",
+        "social_post": "Publication réseaux sociaux",
+        "article": "Article"
+      },
+      "sentOn": "Envoyé le {date}",
+      "readArticle": "Lire l’article",
+      "emptyText": "(texte vide)",
+      "showAll": "Afficher tout",
+      "showLess": "Réduire",
+      "approvedOn": "Approuvé le {date}",
+      "changesOn": "Modifications demandées le {date}",
+      "approve": "Approuver",
+      "askChanges": "Demander des modifications",
+      "commentLabel": "Qu’aimeriez-vous changer ?",
+      "commentPlaceholder": "Par exemple : préciser la zone desservie, adoucir le ton, retirer une phrase…",
+      "commentCount": "{count} / {max}",
+      "sendRequest": "Envoyer la demande",
+      "cancel": "Annuler",
+      "thanksApproved": "Merci, c’est noté : vous avez approuvé ce contenu.",
+      "thanksChanges": "Merci, votre demande a bien été transmise à l’équipe.",
+      "articleQuestion": "Cet article vous convient-il ?",
+      "errors": {
+        "invalid": "Votre réponse n’a pas pu être lue. Rechargez la page et réessayez.",
+        "notFound": "Ce contenu n’est plus disponible.",
+        "answered": "Une réponse a déjà été donnée pour ce contenu.",
+        "comment": "Précisez ce qu’il faut modifier (1 000 caractères au plus)."
+      },
+      "notifyApproved": "{client} a approuvé un contenu",
+      "notifyChanges": "{client} demande des modifications",
+      "notifyComment": "Commentaire"
     }
   },
   "invoices": {
@@ -6446,7 +6517,7 @@
     "app_clients_id_queue_page": {
       "backTo": "Retour à {name}",
       "reviewQueue": "File de relecture · {name}",
-      "aiGeneratedItemsWaitingFor": "Les éléments générés par l’IA qui attendent votre relecture. Approuvez pour publier au prochain passage de l’agent, ou approuvez et publiez tout de suite. Rejetez ce qui ne correspond pas à la marque.",
+      "aiGeneratedItemsWaitingFor": "Les éléments générés par l’IA qui attendent votre relecture. Approuvez pour publier à la date prévue, envoyez au client pour validation, ou approuvez et publiez tout de suite. Rejetez ce qui ne correspond pas à la marque.",
       "schedules": "Planifications"
     },
     "app_clients_id_queue_queue-list": {
@@ -6465,7 +6536,7 @@
       "title": "Titre",
       "body": "Texte",
       "approvePublishNow": "Approuver et publier maintenant",
-      "approvePublishOnNextTick": "Approuver (publication au prochain passage)",
+      "approvePublishOnNextTick": "Approuver (publication à la date prévue)",
       "reject": "Rejeter",
       "cancelEdit": "Annuler la modification",
       "editBeforeApproving": "Modifier avant d’approuver",
@@ -6485,7 +6556,20 @@
       "approved": "Approuvé",
       "published": "Publié",
       "skipped": "Ignoré",
-      "failed": "En échec"
+      "failed": "En échec",
+      "filterAll": "Tout",
+      "deleted": "Supprimé.",
+      "copiedBody": "Texte copié dans le presse-papiers.",
+      "copiedMarkdown": "Copié en Markdown.",
+      "untitled": "(sans titre)",
+      "empty": "(vide)",
+      "createPortalLink": "Créer le lien",
+      "sendToClient": "Envoyer au client",
+      "sendAgainToClient": "Renvoyer au client",
+      "clientApprovedOn": "Approuvé par le client le {date}",
+      "clientAskedChangesOn": "Modifications demandées par le client le {date} :",
+      "changesHint": "Modifiez le texte, puis renvoyez-le au client ou approuvez-le directement.",
+      "sentToClientOn": "Envoyé au client le {date} · en attente de sa réponse"
     },
     "app_clients_import-form": {
       "importCsv": "Importer un CSV",
@@ -8126,7 +8210,10 @@
       "thatChangeHasNothingTo": "Cette modification n’a rien à appliquer.",
       "supersededApprovedAndApplied": "Remplacée : validée et appliquée.",
       "rejectedByYou": "Refusée par vous.",
-      "noSuchRun": "Exécution introuvable."
+      "noSuchRun": "Exécution introuvable.",
+      "trialForbidden": "Seuls le propriétaire et les gestionnaires peuvent lancer cet essai.",
+      "trialLogged": "Essai de l’agent : {applied} sur {attempted} modifications appliquées, {failed} refusées. Aucun réglage modifié.",
+      "trialNothing": "Essai de l’agent : rien de sûr en attente, aucune modification."
     },
     "app_ai-visibility_actions": {
       "invalidKeywordId": "Identifiant de mot-clé invalide",
@@ -8272,10 +8359,17 @@
     },
     "app_clients_id_queue_actions": {
       "queueItemNotFound": "Élément de la file introuvable.",
-      "approvedPublishesOnTheNext": "Validé. La publication se fera au prochain passage de l’agent quotidien (24 h au plus).",
+      "approvedPublishesOnTheNext": "Validé. La publication se fera à la date prévue, au premier passage de l’agent quotidien qui suit.",
       "alreadyPublished": "Déjà publié.",
       "published": "Publié.",
-      "approvedButNotPickedUp": "Validé, mais pas encore pris en charge. Nouvel essai au prochain passage."
+      "approvedButNotPickedUp": "Validé, mais pas encore pris en charge. Nouvel essai au prochain passage.",
+      "noLongerPending": "Cet élément n’est plus en attente de relecture.",
+      "publishFailed": "Échec de la publication : {error}",
+      "unknownError": "erreur inconnue",
+      "noPortalLink": "Ce client n’a pas encore de lien vers son espace client. Créez-le dans Réglages du projet, rubrique « Portail client ».",
+      "sentToClient": "Envoyé au client. Il peut l’approuver ou demander des modifications depuis son espace client.",
+      "sentAgainToClient": "Renvoyé au client : sa réponse précédente est effacée, une nouvelle lui est demandée.",
+      "notForClient": "La liste du jour est un document interne : elle ne s’envoie pas au client."
     },
     "app_clients_id_schedule-actions": {
       "invalidInput": "Saisie invalide",
@@ -8603,6 +8697,9 @@
       "clientNotFound2": "Projet introuvable",
       "pageNotFound": "Page introuvable",
       "completedTask2": "Tâche terminée : {title}"
+    },
+    "components_ui_area-chart": {
+      "notEnoughDataYet": "Pas encore assez de données."
     }
   },
   "integrations": {
@@ -8763,7 +8860,8 @@
     "tool_sweep_weekly": "Contrôles hebdomadaires par exploration",
     "backlink_sync": "Découverte de backlinks",
     "google_updates": "Mises à jour du classement Google",
-    "retention_cleanup": "Nettoyage des données anciennes"
+    "retention_cleanup": "Nettoyage des données anciennes",
+    "install_health": "Contrôles de l’installation"
   },
   "settingsProfile": {
     "title": "Mon profil",
@@ -9104,6 +9202,104 @@
       "skipped": "{engine} : non interrogé, car il avait déjà bloqué une vérification de ce lot.",
       "emptyDomain": "{engine} : le projet n’a pas d’adresse de site à rechercher.",
       "unknown": "{engine} : la vérification a échoué pour une raison inconnue."
+    }
+  },
+  "installHealth": {
+    "banner": {
+      "titleBroken": "Une partie de l’installation ne fonctionne pas",
+      "titleStalled": "Du travail est trouvé, mais rien n’aboutit",
+      "checkedAt": "Vérifié le {date}. Ces contrôles tournent toutes les 6 heures, pas à l’ouverture de cette page.",
+      "more": "{count, plural, one {Et # autre point.} other {Et # autres points.}}",
+      "seeAll": "Tout voir dans Santé du système"
+    },
+    "section": {
+      "title": "Cette installation fonctionne-t-elle ?",
+      "checkedAt": "Vérifié le {date}",
+      "neverTitle": "Les contrôles de l’installation n’ont pas encore tourné",
+      "neverBody": "Ils tournent toutes les 6 heures et interrogent le site WordPress de chaque projet connecté : ils ne se lancent donc pas à l’ouverture de cette page. Une liste vide ici veut dire que rien n’a encore été vérifié, pas que tout va bien.",
+      "allClear": "Chaque connexion a répondu, et le travail avance.",
+      "idleTitle": "Pas encore en place (ce ne sont pas des pannes)"
+    },
+    "detail": "Message d’origine : {detail}",
+    "network": {
+      "dns": "l’adresse ne se résout pas : le domaine est peut-être mal orthographié, expiré, ou c’était un site de préproduction qui n’existe plus",
+      "refused": "l’adresse se résout mais rien n’a répondu : le site est peut-être arrêté, ou derrière un pare-feu qui bloque cette machine",
+      "timeout": "le site a accepté la connexion mais n’a jamais fini de répondre",
+      "tls": "le site a répondu, mais son certificat HTTPS a été refusé",
+      "offline": "cette machine semble privée de connexion internet, rien n’a donc pu être vérifié",
+      "no_response": "la requête vers le site n’a jamais abouti, et la cause n’a pas été enregistrée"
+    },
+    "issues": {
+      "wp_no_creds": {
+        "title": "{client} : connexion WordPress incomplète",
+        "evidence": "Une adresse est enregistrée, mais la clé de connexion manque ou ne peut pas être lue : rien ne peut être écrit sur le site.",
+        "fix": "Réparer la connexion"
+      },
+      "wp_unreachable": {
+        "title": "{client} : l’extension WordPress ne répond pas",
+        "evidence": "{endpoint} n’a pas répondu comme prévu. Si le message d’origine contient « rest_no_route », l’extension compagnon n’est pas installée ou pas activée sur le site.",
+        "fix": "Vérifier la connexion"
+      },
+      "gsc_other_property": {
+        "title": "{client} : données Search Console indisponibles",
+        "evidence": "Le projet demande « {stored} » à Google, que le compte connecté ne peut pas lire. Ce compte détient « {suggestion} » pour le même site : choisissez-la dans les réglages Google du projet.",
+        "fix": "Ouvrir les réglages du projet"
+      },
+      "gsc_account_empty": {
+        "title": "{client} : données Search Console indisponibles",
+        "evidence": "Le projet demande « {stored} » à Google, mais le compte Google connecté n’a aucune propriété Search Console. Soit ce n’est pas le bon compte, soit le site n’a jamais été validé. Les fonctions Search Console échouent (erreur 403) tant que ce n’est pas réglé.",
+        "fix": "Ouvrir les réglages du projet"
+      },
+      "gsc_not_in_account": {
+        "title": "{client} : données Search Console indisponibles",
+        "evidence": "Le projet demande « {stored} » à Google, et cette propriété n’est pas dans le compte connecté. Reconnectez Google, ou choisissez une propriété que ce compte peut lire.",
+        "fix": "Ouvrir les réglages du projet"
+      },
+      "fix_queue_stale": {
+        "title": "{count, plural, one {# modification attend une décision} other {# modifications attendent une décision}}",
+        "evidence": "{days, plural, one {La plus ancienne attend depuis # jour.} other {La plus ancienne attend depuis # jours.}} L’agent les a préparées et les garde en attente de votre validation : rien ne se passe tant que personne ne décide.",
+        "fix": "Examiner et appliquer"
+      },
+      "nothing_completed": {
+        "title": "{open, plural, one {# tâche ouverte} other {# tâches ouvertes}}, et rien de terminé depuis {days} jours",
+        "evidence": "{runs, plural, =0 {Aucun passage de l’agent} one {# passage de l’agent} other {# passages de l’agent}}, {applied, plural, =0 {aucune modification appliquée et vérifiée} one {# modification appliquée et vérifiée} other {# modifications appliquées et vérifiées}}. Trouver du travail ne suffit pas : encore faut-il qu’il soit fait.",
+        "fix": "Voir les tâches"
+      },
+      "rank_none": {
+        "title": "{tracked, plural, one {# mot-clé suivi} other {# mots-clés suivis}}, aucune position relevée depuis {days} jours",
+        "evidence": "Les courbes de positions restent vides, sans message d’erreur. Les positions viennent de la source réglée dans Paramètres → Résultats Google : vérifiez qu’elle répond depuis cette machine.",
+        "fix": "Régler une source"
+      },
+      "rank_partial": {
+        "title": "{current, plural, one {Seul # mot-clé suivi sur {tracked} a une position récente} other {Seuls # mots-clés suivis sur {tracked} ont une position récente}}",
+        "evidence": "{pct} % de votre liste a une position relevée ces {days} derniers jours{never, plural, =0 {} one {, et # mot-clé n’a jamais été vérifié} other {, et # mots-clés n’ont jamais été vérifiés}}. Les autres affichent une courbe vide plutôt qu’une erreur. Les positions viennent de la source réglée dans Paramètres → Résultats Google.",
+        "fix": "Régler une source"
+      },
+      "never_audited": {
+        "title": "{client} n’a encore jamais été audité",
+        "evidence": "Chaque passage de l’agent sur ce projet ne trouve rien à faire, faute de constats sur lesquels agir.",
+        "fix": "Lancer le premier audit"
+      },
+      "audit_failed": {
+        "title": "{client} : le dernier audit a échoué",
+        "evidence": "La dernière tentative ({date}) n’a pas abouti. La fiche du projet affiche encore le dernier audit réussi : les constats que vous voyez sont plus anciens qu’ils n’en ont l’air.",
+        "fix": "Relancer l’audit"
+      },
+      "sweep_unreachable": {
+        "title": "{client} : le site est injoignable, {count} contrôles nocturnes échouent",
+        "evidence": "Chaque contrôle qui doit charger une page a échoué : {cause}. Contrôles concernés : {tools}.",
+        "fix": "Vérifier l’adresse du site"
+      },
+      "sweep_failing": {
+        "title": "{client} : {count, plural, one {# contrôle nocturne en échec} other {# contrôles nocturnes en échec}}",
+        "evidence": "Contrôles concernés : {tools}.",
+        "fix": "Ouvrir le projet"
+      },
+      "check_failed": {
+        "title": "Un contrôle de l’installation n’a pas pu tourner",
+        "evidence": "Le contrôle {check} s’est interrompu ; les autres ont tourné normalement.",
+        "fix": "Ouvrir Santé du système"
+      }
     }
   }
 }

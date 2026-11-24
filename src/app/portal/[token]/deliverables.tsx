@@ -24,19 +24,16 @@ export async function Deliverables({
   accepted,
   reports,
   posts,
-  reviews,
   invoices,
 }: {
   token: string;
   accepted: Accepted[];
   reports: Report[];
   posts: Post[];
-  /** Drafts opened for the client to read: portal/[token]/articles/[id]. */
-  reviews: { id: number; title: string; date: string | null }[];
   invoices: Bill[];
 }) {
   const t = await getTranslations("portal.deliverables");
-  if (accepted.length + reports.length + posts.length + reviews.length + invoices.length === 0) return null;
+  if (accepted.length + reports.length + posts.length + invoices.length === 0) return null;
   const base = `/portal/${token}`;
 
   return (
@@ -95,14 +92,6 @@ export async function Deliverables({
           <List title={t("reports")} icon={FileText}>
             {reports.map((r) => (
               <Row key={r.id} href={`${base}/reports/${r.id}/pdf`} label={r.title} meta={r.date} />
-            ))}
-          </List>
-        )}
-
-        {reviews.length > 0 && (
-          <List title={t("toReview")} icon={Newspaper}>
-            {reviews.map((p) => (
-              <Row key={p.id} href={`${base}/articles/${p.id}`} label={p.title} meta={p.date} />
             ))}
           </List>
         )}

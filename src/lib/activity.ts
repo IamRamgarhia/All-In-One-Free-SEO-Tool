@@ -24,6 +24,13 @@ export type ActivityKind =
   | "google.service_account_saved"
   | "google.service_account_cleared"
   | "agent.level_chosen"
+  /**
+   * A bounded trial was run: a few queued safe changes applied on
+   * request, granting the agent nothing. Logged so the activity trail
+   * distinguishes "the user pressed try it" from the agent acting on a
+   * standing permission.
+   */
+  | "agent.trial_run"
   | "edge.token_rotated"
   // Who may do what, for the journal on Settings → Team.
   | "team.invited"
@@ -35,7 +42,9 @@ export type ActivityKind =
   | "automation.paused"
   | "team.reactivated"
   | "team.access_changed"
-  | "account.password_changed";
+  | "account.password_changed"
+  // The client approved a draft, or asked for changes, from their portal.
+  | "portal.client_review";
 
 export type ActivityLevel = "info" | "success" | "warning" | "error";
 

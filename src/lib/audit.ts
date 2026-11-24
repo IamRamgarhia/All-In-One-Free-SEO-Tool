@@ -238,6 +238,15 @@ async function fetchPage(
   }
 }
 
+/** The site asks us to slow down; says nothing about the page. */
+export function isThrottled(status: number): boolean {
+  return status === 429 || status === 503;
+}
+
+const THROTTLE_WAIT_MS = 2_000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 async function fetchUrlStatus(
   url: string,
   timeoutMs = 8_000,
@@ -1144,7 +1153,7 @@ async function checkSiteWide(
   return findings;
 }
 
-async function checkBrokenLinks(
+export async function checkBrokenLinks(
   pages: FetchedPage[],
   origin: string,
   maxToCheck = 30,
@@ -1176,7 +1185,17 @@ async function checkBrokenLinks(
 
   let broken = 0;
   for (const u of toCheck) {
-    const r = await fetchUrlStatus(u, 8_000, allowPrivate);
+    let r = await fetchUrlStatus(u, 8_000, allowPrivate);
+    // 429 (too many requests) and 503 say the site is slowing us down,
+    // not that the page is gone: orlimmo.fr answered 429 to four links in
+    // a row and the express audit called them broken in a sales pitch.
+    // Wait once and ask again; if it still refuses, the link and every
+    // one after it are left unchecked rather than reported broken.
+    if (r && isThrottled(r.status)) {
+      await sleep(THROTTLE_WAIT_MS);
+      r = await fetchUrlStatus(u, 8_000, allowPrivate);
+      if (r && isThrottled(r.status)) break;
+    }
     if (r && r.status >= 400) {
       broken++;
       if (broken <= 5) {

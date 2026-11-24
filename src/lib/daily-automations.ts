@@ -38,6 +38,14 @@ const KIND_LABEL = {
   internal_checklist: "Daily checklist",
 } as const;
 
+/** The same labels for the activity log of a French workspace. */
+const KIND_LABEL_FR: Record<keyof typeof KIND_LABEL, string> = {
+  blog_draft: "brouillon d’article",
+  gbp_post: "publication Google",
+  social_post: "publication réseaux sociaux",
+  internal_checklist: "liste du jour",
+};
+
 export type ScheduleKind = keyof typeof KIND_LABEL;
 
 /**
@@ -486,7 +494,11 @@ export async function tickQueuePublish(): Promise<{
   const pending = await db
     .select()
     .from(publishQueue)
-    .where(eq(publishQueue.status, "approved"))
+    // Approved is not "now": an item approved today for next Tuesday
+    // waits for Tuesday. Before, every approved item went out on the next
+    // tick, so a client approving a post scheduled for later published it
+    // at once.
+    .where(and(eq(publishQueue.status, "approved"), lte(publishQueue.scheduledFor, new Date())))
     .orderBy(asc(publishQueue.scheduledFor))
     .limit(20); // safety cap per tick
 
@@ -511,7 +523,7 @@ export async function tickQueuePublish(): Promise<{
         clientId: item.clientId,
         level: "success",
         message: `Auto-published ${KIND_LABEL[item.kind]}: ${item.title ?? "untitled"}`,
-        messageFr: `Publié automatiquement (${KIND_LABEL[item.kind]}) : ${item.title ?? "sans titre"}`,
+        messageFr: `Publié automatiquement (${KIND_LABEL_FR[item.kind]})\u00a0: ${item.title ?? "sans titre"}`,
       });
       published++;
     } else {
@@ -528,7 +540,7 @@ export async function tickQueuePublish(): Promise<{
         clientId: item.clientId,
         level: "warning",
         message: `Auto-publish failed (${KIND_LABEL[item.kind]}): ${result.error.slice(0, 200)}`,
-        messageFr: `Échec de la publication automatique (${KIND_LABEL[item.kind]}) : ${result.error.slice(0, 200)}`,
+        messageFr: `Échec de la publication automatique (${KIND_LABEL_FR[item.kind]})\u00a0: ${result.error.slice(0, 200)}`,
       });
       failed++;
     }

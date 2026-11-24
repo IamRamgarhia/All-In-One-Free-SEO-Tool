@@ -28,6 +28,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { getSetting } from "@/lib/settings-store";
 import { configuredProviders, getActiveProvider } from "@/lib/api-keys";
 import { requireSettingsPage } from "../access";
+import { InstallHealthSection } from "./install-health-section";
 import { shortAgoDays } from "@/lib/relative-time";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +104,12 @@ export default async function HealthPage() {
         icon={Activity}
         accent="emerald"
       />
+
+      {/* Above the metric cards: "the plugin on your live site does not
+          answer" matters more than the database size. The same stored
+          result the dashboard banner reads, so the two cannot disagree
+          about whether the install is healthy. */}
+      <InstallHealthSection />
 
       <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         <Card

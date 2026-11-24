@@ -13,8 +13,9 @@ import {
   List,
   SkipForward,
 } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
+import { taskTitle } from "@/lib/issue-display";
 import { tasks, clients } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { clientScope } from "@/lib/client-scope";
@@ -59,7 +60,7 @@ export default async function TasksPage({
   const onlyClient = sp.client && /^d+$/.test(sp.client) ? Number(sp.client) : null;
   const scopeWhere = await clientScope();
 
-  const all = await db
+  const rows = await db
     .select({
       id: tasks.id,
       title: tasks.title,
@@ -81,6 +82,10 @@ export default async function TasksPage({
     // list used to load every task of the agency for them.
     .where(and(scopeWhere, onlyClient === null ? undefined : eq(tasks.clientId, onlyClient)))
     .orderBy(desc(tasks.createdAt));
+  // Titles written from a finding before the audit spoke French were
+  // stored in English: read them in the workspace language.
+  const locale = await getLocale();
+  const all = rows.map((task) => ({ ...task, title: taskTitle(task.title, locale) }));
 
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
