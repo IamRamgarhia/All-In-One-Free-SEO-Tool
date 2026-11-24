@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq, asc, sql } from "drizzle-orm";
+import { and, eq, asc, inArray, like, or, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { db } from "@/db/client";
-import { audits, auditIssues, clients } from "@/db/schema";
+import { audits, auditIssues, clients, tasks } from "@/db/schema";
 import { ScoreGauge } from "@/components/ui/score-gauge";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { Term } from "@/components/ui/term";
@@ -50,6 +50,8 @@ import { loadPageTraffic, PAGE_TRAFFIC_DAYS } from "@/lib/page-traffic";
 import { isPageRecheckable } from "@/lib/audit";
 import { DevTicketButton } from "./dev-ticket-button";
 import { VerifyFixedButton } from "./verify-fixed-button";
+import { FindingToolLink } from "@/components/tools/task-tool-link";
+import { findingFromSourceRef } from "@/lib/finding-tool-map";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -190,6 +192,32 @@ export default async function AuditDetailPage({
   // the main view shows everything except resolved/ignored/false-positive.
   const issues = allIssues.filter((i) => i.status === "new");
   const closedCount = allIssues.length - issues.length;
+
+  // The open task each finding already has, so "Fix with…" opens the tool
+  // with that task attached and the tool's banner can close it.
+  const openTasks = await db
+    .select({ id: tasks.id, sourceRef: tasks.sourceRef })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.clientId, client.id),
+        inArray(tasks.status, ["todo", "in_progress"]),
+        or(like(tasks.sourceRef, "audit:%"), like(tasks.sourceRef, "seomator:%")),
+      ),
+    );
+  const taskIdByType = new Map<string, number>();
+  for (const t of openTasks) {
+    const type = findingFromSourceRef(t.sourceRef);
+    if (type && !taskIdByType.has(type)) taskIdByType.set(type, t.id);
+  }
+  const findingToolLink = (type: string, url?: string | null) => (
+    <FindingToolLink
+      type={type}
+      clientId={client.id}
+      url={url || client.url}
+      taskId={taskIdByType.get(type) ?? null}
+    />
+  );
 
   // The engine's full per-rule report, drawn like SEOmator's. When it is
   // there, its findings are shown by rule and category, and the list
@@ -713,6 +741,7 @@ export default async function AuditDetailPage({
                             pages and resolves only where the problem is
                             gone. Shown only for findings one page can
                             confirm — never for a check it cannot run. */}
+                        {findingToolLink(g.type, g.affectedUrls.find(Boolean))}
                         {isPageRecheckable(g.type) && g.affectedUrls.some(Boolean) && (
                           <VerifyFixedButton auditId={auditId} issueIds={g.issueIds} />
                         )}
@@ -955,6 +984,9 @@ export default async function AuditDetailPage({
           report={report}
           auditId={auditId}
           activeTypes={new Set(issues.map((i) => i.type))}
+          toolLinkFor={(type) =>
+            findingToolLink(type, issues.find((i) => i.type === type && i.url)?.url)
+          }
           pagesCrawled={pagesCrawled}
           issuesCount={audit.issuesCount}
           badge={sourceBadge}
