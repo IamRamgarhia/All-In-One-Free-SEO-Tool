@@ -1,7 +1,8 @@
 /**
  * Google results from a paid SERP API, when the workspace has set one up
- * (Settings → Google results). Optional: without a key, rank checks keep
- * driving a browser on Google, then DuckDuckGo.
+ * (Settings → Rank sources). Optional, and asked after the free sources
+ * (Search Console, SearXNG, Brave): without a key, rank checks go on with
+ * a browser on Google, then DuckDuckGo.
  *
  * Why it exists: a browser on Google from a server gets captchas and
  * personalised or partial pages, and the fallback is another engine. A

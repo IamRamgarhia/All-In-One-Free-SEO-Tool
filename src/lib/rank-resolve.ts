@@ -1,21 +1,37 @@
 /**
  * Decides where a ranking number comes from, and records which.
  *
- * The order is GSC first, scrape second, and that order is the point of
- * this file. Scraping was the only source until now: a headless browser
- * per keyword, parsing Google's HTML, liable to captchas, rate limits
- * and silent selector drift. Search Console has the same numbers, from
- * Google, for free, in one call for the whole keyword set — wherever the
- * client has connected it.
+ * The chain, best first:
  *
- * What this deliberately does NOT do is hide which source answered. The
- * two measure different things (see rank-gsc.ts), so a chart that mixed
- * them silently would show movement that never happened the day a
- * keyword crossed from one source to the other. Every result carries its
- * source, and the UI shows it.
+ *   1. Search Console — Google's own figure for a site the client owns,
+ *      free, one call for the whole keyword set, cannot be captcha'd.
+ *   2. SearXNG — a metasearch instance the user hosts (docker-compose
+ *      profile `searxng`). Free, no key, no browser.
+ *   3. Brave Search — official API, free tier behind a key. Its own
+ *      index, not Google's.
+ *   4. The paid results API (Serper / DataForSEO), if one is set up —
+ *      an option, never required.
+ *   5. Google in a headless browser — blocked from a server on the first
+ *      request more often than not.
+ *   6. DuckDuckGo's HTML page — answers, but only its first ~10 results,
+ *      and it is not Google.
+ *
+ * A source that FAILS falls through to the next. A source that answers
+ * "you are not in these results" does NOT: that is an answer, and asking
+ * the next engine would quietly return whichever one flattered the
+ * client most.
+ *
+ * What this deliberately does NOT do is hide which source answered.
+ * They measure different things, so every result carries its source,
+ * the engine(s) behind it and how many results were read, and the UI
+ * shows all three — "absent from the first 10 results (DuckDuckGo)" is
+ * a very different claim from "not in Google's top 100".
  */
 
 import { checkRank, type RankCheckResult } from "./rank-checker";
+import { configuredKeylessProviders } from "./serp";
+import { failureFromError, isGoogleBlock, type RankFailure } from "./serp/failure";
+import type { RankSource } from "./serp/sources";
 import {
   fetchGscRankForQuery,
   fetchGscRankSnapshot,
@@ -23,58 +39,56 @@ import {
   type GscRankLookup,
 } from "./rank-gsc";
 
-export type RankSource = "gsc" | "scrape" | "api";
+export type { RankSource } from "./serp/sources";
+
+/** Why Search Console did not give the number, when it did not. */
+export type GscNote = "notConnected" | "noImpressions" | "error" | "forced";
 
 export type ResolvedRank = {
   query: string;
   position: number | null;
   url: string | null;
   device: "desktop" | "mobile";
-  source: RankSource;
+  /** Null when no source answered (then `failures` says why). */
+  source: RankSource | null;
+  /**
+   * The engine(s) actually behind the number, as stored in
+   * keyword_rankings.engine: "google", "duckduckgo", "brave", or for
+   * SearXNG the engines that answered ("brave, duckduckgo, google").
+   */
+  engine: string | null;
   checkedAt: Date;
   /** GSC only: the day the figure describes, which is not today. */
   dataDate: string | null;
   /** GSC only: how many impressions the average rests on. */
   impressions: number | null;
-  /** Scrape only. */
+  /** Browser only. */
   screenshotBuffer?: Buffer;
   resultsScanned: number;
-  error?: string;
   /**
-   * Why GSC wasn't used, when it wasn't. Shown to the user, because
-   * "connect Search Console and this gets better" is the single most
-   * valuable thing we can tell someone looking at a scraped number.
+   * Every source that was tried and gave no answer, in order. Empty when
+   * the first source tried answered. When `source` is null, this is the
+   * whole story of a failed check.
    */
-  gscSkipReason?: string;
+  failures: RankFailure[];
+  /** True when Google refused this server during this check. */
+  googleBlocked: boolean;
+  gscNote?: GscNote;
 };
 
 /**
  * Is this client set up such that GSC can answer rank questions?
  *
- * Deliberately a separate, cheap check: the keywords UI wants to show
- * "connect GSC for real ranking data" without attempting a fetch.
+ * A separate, cheap check: the keywords UI wants to suggest connecting
+ * Search Console without attempting a fetch.
  */
 export function gscRankAvailability(client: {
   gscProperty: string | null | undefined;
-}): { available: boolean; reason?: string } {
-  if (!client.gscProperty) {
-    return {
-      available: false,
-      reason:
-        "Search Console isn't connected for this client. Connecting it replaces scraped rankings with Google's own numbers — free, more accurate, and it can't get rate-limited.",
-    };
-  }
-  return { available: true };
+}): { available: boolean } {
+  return { available: Boolean(client.gscProperty) };
 }
 
-/**
- * Resolve one keyword.
- *
- * `snapshot` lets a batch caller pass the single GSC response it already
- * fetched, so tracking fifty keywords costs one API call rather than
- * fifty. Without it this falls back to a per-query fetch.
- */
-export async function resolveRank(opts: {
+export type ResolveRankOptions = {
   query: string;
   domain: string;
   device: "desktop" | "mobile";
@@ -87,116 +101,179 @@ export async function resolveRank(opts: {
   /** Pre-fetched GSC data for the whole property. */
   snapshot?: GscRankLookup | null;
   /**
-   * Skip GSC even when available. The rank-where tool and the local grid
-   * genuinely need a live SERP — they are answering "what does the page
-   * look like right now", not "where did we rank".
+   * Skip GSC even when available, for callers that genuinely need a live
+   * results page ("what does the page look like right now").
    */
   forceScrape?: boolean;
-}): Promise<ResolvedRank> {
+  /** A batch already got blocked by Google: go past it. */
+  skipGoogle?: boolean;
+};
+
+/**
+ * Resolve one keyword.
+ *
+ * `snapshot` lets a batch caller pass the single GSC response it already
+ * fetched, so tracking fifty keywords costs one API call rather than
+ * fifty. Without it this falls back to a per-query fetch.
+ */
+export async function resolveRank(opts: ResolveRankOptions): Promise<ResolvedRank> {
   const now = new Date();
+  const failures: RankFailure[] = [];
 
-  if (!opts.forceScrape) {
-    const availability = gscRankAvailability({ gscProperty: opts.gscProperty });
-    if (availability.available && opts.gscProperty) {
-      try {
-        const row = opts.snapshot
-          ? (opts.snapshot.rows.get(rankKey(opts.query, opts.device)) ?? null)
-          : await fetchGscRankForQuery({
-              siteUrl: opts.gscProperty,
-              query: opts.query,
-              device: opts.device,
-              clientIdScope: opts.clientIdScope,
-            });
-
-        if (row) {
-          return {
-            query: opts.query,
-            // GSC positions are 1-indexed averages like 7.4. Rounding to
-            // the nearest whole position is what every rank tracker
-            // shows; the raw average is kept in `impressions`-adjacent
-            // context via the confidence badge rather than displayed as
-            // false precision.
-            position: Math.round(row.position),
-            url: null,
-            device: opts.device,
-            source: "gsc",
-            checkedAt: now,
-            dataDate: row.dataDate,
-            impressions: row.impressions,
-            resultsScanned: 0,
-          };
-        }
-
-        // The property answered, but this query wasn't in it. That means
-        // zero impressions — the site did not appear for this search at
-        // all in the window. Genuinely useful information, and NOT the
-        // same as "we failed to check", so fall through to a scrape to
-        // find out whether it ranks somewhere nobody clicks.
-      } catch (err) {
-        // Token expired, property removed, quota — any of these should
-        // degrade to scraping rather than leaving the user with nothing.
-        return scrapeFallback(opts, now, gscErrorReason(err));
-      }
-      return scrapeFallback(
-        opts,
-        now,
-        "No Search Console impressions for this query in the last 10 days, so there was no position to read. Checked the live SERP instead.",
-      );
-    }
-    return scrapeFallback(opts, now, availability.reason);
+  if (opts.forceScrape) return liveChain(opts, now, failures, "forced");
+  if (!gscRankAvailability({ gscProperty: opts.gscProperty }).available || !opts.gscProperty) {
+    return liveChain(opts, now, failures, "notConnected");
   }
 
-  return scrapeFallback(opts, now, undefined);
+  try {
+    const row = opts.snapshot
+      ? (opts.snapshot.rows.get(rankKey(opts.query, opts.device)) ?? null)
+      : await fetchGscRankForQuery({
+          siteUrl: opts.gscProperty,
+          query: opts.query,
+          device: opts.device,
+          clientIdScope: opts.clientIdScope,
+        });
+
+    if (row) {
+      return {
+        query: opts.query,
+        // GSC positions are averages like 7.4; rounded, as every rank
+        // tracker shows them. The badge says it is an average.
+        position: Math.round(row.position),
+        url: null,
+        device: opts.device,
+        source: "gsc",
+        engine: "google",
+        checkedAt: now,
+        dataDate: row.dataDate,
+        impressions: row.impressions,
+        resultsScanned: 0,
+        failures,
+        googleBlocked: false,
+      };
+    }
+    // The property answered, but this query is not in it: zero
+    // impressions in the window. Useful, and NOT the same as "we failed
+    // to check" — so look at a live page to see whether it ranks
+    // somewhere nobody clicks.
+    return liveChain(opts, now, failures, "noImpressions");
+  } catch (err) {
+    // Token expired, property removed, quota — degrade to the live
+    // sources rather than leaving the user with nothing.
+    failures.push(gscFailure(err));
+    return liveChain(opts, now, failures, "error");
+  }
 }
 
-function gscErrorReason(err: unknown): string {
+function gscFailure(err: unknown): RankFailure {
   const msg = err instanceof Error ? err.message : String(err);
   if (/401|403|invalid_grant|unauthor/i.test(msg)) {
-    return "Search Console rejected our access — reconnect it in Settings → Google. Fell back to checking the live SERP.";
+    return { engine: "gsc", code: "badKey", detail: msg };
   }
-  if (/429|quota|rate/i.test(msg)) {
-    return "Search Console is rate-limiting us right now. Fell back to checking the live SERP.";
-  }
-  return "Couldn't reach Search Console, so this came from a live SERP check instead.";
+  if (/429|quota|rate/i.test(msg)) return { engine: "gsc", code: "rateLimited", detail: msg };
+  return { ...failureFromError("gsc", err), detail: msg };
 }
 
-async function scrapeFallback(
-  opts: Parameters<typeof resolveRank>[0],
+/** Steps 2 to 6 of the chain. */
+async function liveChain(
+  opts: ResolveRankOptions,
   now: Date,
-  reason: string | undefined,
+  failures: RankFailure[],
+  gscNote: GscNote,
 ): Promise<ResolvedRank> {
+  for (const provider of await configuredKeylessProviders()) {
+    let hit: Awaited<ReturnType<typeof provider.lookup>>;
+    try {
+      hit = await provider.lookup({
+        query: opts.query,
+        domain: opts.domain,
+        country: opts.country,
+        language: opts.language,
+      });
+    } catch (err) {
+      // A provider throwing must not end the chain.
+      failures.push(failureFromError(provider.id, err));
+      continue;
+    }
+
+    if (hit.ok) {
+      return {
+        query: opts.query,
+        position: hit.position,
+        url: hit.url,
+        device: opts.device,
+        source: provider.id,
+        engine: hit.engine,
+        checkedAt: now,
+        dataDate: null,
+        impressions: null,
+        resultsScanned: hit.resultsScanned,
+        failures,
+        googleBlocked: false,
+        gscNote,
+      };
+    }
+    failures.push(hit.failure);
+  }
+
   const r: RankCheckResult = await checkRank(opts.query, opts.domain, {
     screenshot: opts.screenshot,
     device: opts.device,
     country: opts.country,
     language: opts.language,
     city: opts.city,
+    skipGoogle: opts.skipGoogle,
   });
+  return fromCheckRank(r, opts, now, failures, gscNote);
+}
+
+/**
+ * Map the browser/DuckDuckGo/API result onto a resolved rank. Exported
+ * for tests: the source has to follow the engine that answered, which is
+ * the bug this replaced (DuckDuckGo readings stored as "scrape" and shown
+ * as Google).
+ */
+export function fromCheckRank(
+  r: RankCheckResult,
+  opts: Pick<ResolveRankOptions, "query" | "device">,
+  now: Date,
+  earlier: RankFailure[],
+  gscNote?: GscNote,
+): ResolvedRank {
+  const failures = [...earlier, ...(r.failures ?? [])];
+  const googleBlocked = failures.some(isGoogleBlock);
+  const answered = !r.error || r.position !== null;
+  const source: RankSource | null = !answered
+    ? null
+    : r.provider
+      ? "api"
+      : r.engine === "duckduckgo"
+        ? "duckduckgo"
+        : "scrape";
 
   return {
     query: opts.query,
-    position: r.position,
-    url: r.url,
-    device: r.device,
-    source: r.provider ? "api" : "scrape",
+    position: answered ? r.position : null,
+    url: answered ? r.url : null,
+    device: r.device ?? opts.device,
+    source,
+    engine: answered ? r.engine : null,
     checkedAt: r.checkedAt ?? now,
     dataDate: null,
     impressions: null,
     screenshotBuffer: r.screenshotBuffer,
-    resultsScanned: r.resultsScanned,
-    error: r.error,
-    gscSkipReason: reason,
+    resultsScanned: answered ? r.resultsScanned : 0,
+    failures: answered && failures.length === 0 ? [] : failures,
+    googleBlocked,
+    gscNote,
   };
 }
 
 /**
  * Fetch the GSC snapshot once for a batch of keywords, or null if this
- * client can't use it. Callers pass the result into `resolveRank` for
- * every keyword.
- *
- * Returns null rather than throwing: a batch rank run must not die
- * because Search Console had a bad minute. Each keyword then falls back
- * to scraping on its own.
+ * client can't use it. Returns null rather than throwing: a batch must
+ * not die because Search Console had a bad minute.
  */
 export async function prefetchGscSnapshot(opts: {
   gscProperty?: string | null;

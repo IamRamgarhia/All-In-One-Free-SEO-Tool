@@ -356,7 +356,7 @@
         "tools": "Tools",
         "profile": "My profile",
         "memory": "My memory",
-        "serp": "Google results"
+        "serp": "Rank sources"
       }
     },
     "general": {
@@ -498,8 +498,8 @@
       "cookiesHint": "To scan pages only signed-in members can see. One cookie per line: domain, name and value separated by a tab, or header style.",
       "leanTitle": "Lean mode",
       "leanHint": "Turns off some browser-based tools to save memory on a small server.",
-      "disableRank": "Disable rank tracking",
-      "disableRankHint": "No more daily Google results scrape.",
+      "disableRank": "Don't use the browser for rank checks",
+      "disableRankHint": "Rankings go through the other sources (Search Console, SearXNG, DuckDuckGo…); no browser is launched for them.",
       "disableCwv": "Disable local Core Web Vitals",
       "disableCwvHint": "Measuring through the PageSpeed Insights API still works.",
       "disableSerp": "Disable SERP feature scan",
@@ -1104,35 +1104,101 @@
       }
     },
     "serp": {
-      "title": "Google results",
-      "description": "Where keyword positions come from: a browser on Google (default, free), or a pay-per-use results API, more reliable.",
-      "statusApi": "API set up",
-      "statusBrowser": "Browser",
-      "sourceTitle": "Results source",
-      "source": "Source",
-      "sourceApiHint": "Positions come from Google, for the client’s country, with no browser. If the API fails, the browser takes over.",
-      "sourceBrowserHint": "A browser searches Google, then DuckDuckGo when Google blocks it. Free, but Google often blocks servers.",
-      "browser": "Browser (default)",
+      "title": "Rank sources",
+      "description": "Where keyword positions come from, in the order the tool tries them. Everything works with no key and no subscription; SearXNG, hosted with the tool, is the most reliable free source when Search Console can't answer.",
+      "statusSearxng": "SearXNG set up",
+      "statusDefault": "Browser and DuckDuckGo",
+      "orderTitle": "Order used",
+      "orderDescription": "For each keyword, the tool asks these sources in this order and keeps the first answer.",
+      "orderRule": "A source that fails hands over to the next. A source that answers \"absent\" has given a real answer: the next one is not asked. Every position names the source and engine it came from.",
+      "order": {
+        "gsc": "Search Console",
+        "gscHint": "Google's own numbers for your clients' sites. Connected project by project, in each project's settings.",
+        "searxng": "SearXNG",
+        "searxngHint": "Free, no key, hosted by you. Asks several engines and keeps answering when one of them blocks.",
+        "brave": "Brave Search",
+        "braveHint": "Official API behind a key; Brave's own index, not Google's.",
+        "api": "Paid results API",
+        "apiHint": "Paid per search. Google results by country (Serper or DataForSEO).",
+        "google": "Google in a browser",
+        "googleHint": "Free, but Google often blocks servers from the very first search.",
+        "duckduckgo": "DuckDuckGo",
+        "duckduckgoHint": "Free, in the client's region, but only its first page (about ten results): an absence there is weaker information."
+      },
+      "tagGsc": "Projects connected: {connected} of {total}",
+      "tagConfigured": "Set up",
+      "tagRecommended": "Recommended",
+      "tagOptional": "Optional",
+      "tagDisabled": "Off",
+      "tagActive": "On",
+      "notConfigured": "Not set up",
       "edit": "Edit",
       "setUp": "Set up",
       "check": "Check",
-      "checkHint": "Runs a real search, billed by the provider like any other.",
-      "checkButton": "Test the connection",
       "checking": "Testing…",
-      "checkOk": "Connected: {count, plural, one {# result received} other {# results received}}.",
-      "whyTitle": "Why an API",
-      "why": "A browser started from a server often gets a Google captcha or a partial page, and the tool then falls back to DuckDuckGo. A position in a client report has to be Google’s, in the client’s country, every time. A results API answers without captchas, for a few cents per search. Nothing is required: without a key, the tool keeps using the browser.",
-      "sheetTitle": "Google results source",
-      "sheetSubtitle": "The key is encrypted on this server and never shown again after saving.",
+      "checkButton": "Test",
+      "searxngTitle": "SearXNG (recommended)",
+      "searxngDescription": "A free metasearch engine you host: it asks several engines from your server and merges their results. No key, no browser.",
+      "searxngUrl": "Instance address",
+      "searxngFromEnv": "Provided by docker-compose (SEARXNG_URL). An address entered here replaces it.",
+      "searxngHostHint": "The address of your SearXNG instance, as seen from the tool's server.",
+      "searxngCheckHint": "Runs a real search on the instance and reports what it answered.",
+      "searxngOk": "SearXNG answered: {count} results, via {engines}.",
+      "searxngHowTo": "With Docker, the tool ships a ready-to-use instance (already set to answer in JSON). Start it from the tool's folder, then press Test:",
+      "searxngPublicWarning": "Public instances won't do: they rate-limit automated queries quickly and often disable JSON output. The hosting guide (docs/HOSTING.md) covers the setup.",
+      "searxngSheetTitle": "SearXNG instance",
+      "searxngSheetSubtitle": "Leave blank to fall back to the address docker-compose provides, if any.",
+      "searxngUrlHelp": "For example http://searxng:8080 with docker-compose, or http://localhost:8888 for an instance on this computer.",
+      "braveTitle": "Brave Search (optional)",
+      "braveDescription": "Brave's official API. It needs a key, created on Brave's site; Brave includes a monthly credit, then bills per search, and asks for a card at sign-up (see their pricing). Its index is not Google's: its positions are a separate series.",
+      "braveKey": "API key",
+      "braveKeyHint": "Encrypted on this server, never shown again.",
+      "braveKeySaved": "Saved",
+      "braveKeyEnv": "Provided by BRAVE_SEARCH_API_KEY",
+      "braveCheckHint": "Runs a real search, counted against your Brave credit.",
+      "braveOk": "Brave Search answered: {count} results.",
+      "braveSheetTitle": "Brave Search key",
+      "braveSheetSubtitle": "The key is encrypted on this server and not shown again once saved.",
+      "braveKeyHelp": "Create it in your Brave Search API dashboard (api-dashboard.search.brave.com).",
+      "browserTitle": "Browser and DuckDuckGo",
+      "browserDescription": "The last two sources, free and always available. Google rarely answers a server; DuckDuckGo answers, but only with its first page.",
+      "googleRow": "Google in a browser",
+      "googleHint": "The headless browser loads Google's results in the client's language, country and time zone. After a first block, a batch check stops asking it.",
+      "googleDisabledHint": "Off in lean mode: no browser is launched for rank checks.",
+      "browserSettingsLink": "Browser settings",
+      "duckduckgoRow": "DuckDuckGo",
+      "duckduckgoHint": "A plain request, no browser, set to the client's country and language.",
+      "cdpRow": "Your own Chrome",
+      "cdpHint": "Optional, and only when the tool runs on your computer: it then drives your open Chrome, with your profile, instead of an automated browser.",
+      "cdpNone": "Not used",
+      "browserCheckHint": "Runs one search on Google, then one on DuckDuckGo, and reports what each answered.",
+      "testRunsAnyway": "The test launches the browser even in lean mode; rank checks do not.",
+      "googleOk": "Google answered: {count} results read.",
+      "duckduckgoOk": "DuckDuckGo answered: {count} results (region {region}).",
+      "cdpSheetTitle": "Drive your own Chrome",
+      "cdpSheetSubtitle": "Start Chrome with --remote-debugging-port=9222, then enter its address. Leave blank to go back to the built-in browser.",
+      "cdpUrl": "Debugging address",
+      "cdpUrlHelp": "This computer only: http://127.0.0.1:9222 or http://localhost:9222.",
+      "cdpRisks": "Worth knowing: while that port is open, any program on this computer can drive your Chrome; the tool acts in your signed-in session; closing Chrome stops browser checks. The tool never closes your Chrome.",
+      "apiTitle": "Paid results API (optional)",
+      "apiDescription": "For those who want Google's results for a given country on every reading and accept paying per search. Nothing here is required: without a subscription, the free sources above are enough.",
+      "apiProvider": "Provider",
+      "apiConfiguredHint": "Asked after SearXNG and Brave, before the browser. If it fails, the next source takes over.",
+      "apiNoneHint": "No paid API: the tool only uses the free sources.",
+      "apiNone": "None",
+      "apiCheckHint": "Runs a real search, billed by the provider like any other.",
+      "apiOk": "Connected: {count, plural, one {# result received} other {# results received}}.",
+      "sheetTitle": "Paid results API",
+      "sheetSubtitle": "The key is encrypted on this server and not shown again once saved.",
       "step1": "1. Provider",
       "step2": "2. Credentials",
       "provider_serper": "Serper",
       "provider_dataforseo": "DataForSEO",
-      "provider_none": "None (browser)",
+      "provider_none": "None",
       "pricing_serper": "One API key, Google results by country and language, paid per search.",
       "pricing_dataforseo": "API login and password, Google results by country, language and device, paid per search.",
       "pricingLink": "See pricing",
-      "noneHint": "Positions will be checked with the browser. Credentials already saved are kept.",
+      "noneHint": "No paid API will be asked. Credentials already entered are kept.",
       "serperKey": "Serper API key",
       "dataforseoLogin": "API login",
       "dataforseoPassword": "API password",
@@ -1145,7 +1211,16 @@
       "errorSerperKey": "Enter the Serper API key.",
       "errorDataforseoLogin": "Enter the DataForSEO API login.",
       "errorDataforseoPassword": "Enter the DataForSEO API password.",
-      "errorNotConfigured": "No results API is set up."
+      "errorNotConfigured": "No results API is set up.",
+      "errorSearxngUrl": "That address can't be used. It should look like http://searxng:8080 or https://searx.example.com.",
+      "errorSearxngNotConfigured": "No SearXNG instance is set up.",
+      "errorBraveKey": "Enter the Brave Search API key.",
+      "errorBraveNotConfigured": "No Brave Search key is saved.",
+      "errorCdpUrl": "Only an address on this computer is accepted (http://127.0.0.1:9222 or http://localhost:9222): a debugging port gives full control of the browser, with no password.",
+      "errorUnknown": "The test failed without giving a reason.",
+      "testQuery": "search engine optimization",
+      "testCountry": "US",
+      "testLanguage": "en"
     }
   },
   "reports": {
@@ -1371,19 +1446,19 @@
     "quickWinBadge": "{count} QW",
     "clientTitle": "Keywords · {name}",
     "clientDescriptionGsc": "Research, track ranks, find quick wins. Rankings come from Search Console — Google's own numbers, free, no API costs.",
-    "clientDescriptionBrowser": "Research, track ranks, find quick wins. Rank checks run in a headless browser — free, but connect Search Console for Google's own numbers.",
+    "clientDescriptionBrowser": "Research, track ranks, find quick wins. Without Search Console, rankings come from engines checked live; connect it for Google's own numbers.",
     "exportCsv": "Export CSV",
     "quickWinsTitle": "Quick wins",
     "quickWinsDescription": "Tracked keywords currently sitting at positions 4-15 — push them onto page 1.",
     "emptyTracked": "No keywords tracked yet. Use the research form above to find some, or paste a CSV.",
     "trackedTitle": "Tracked keywords ({count})",
-    "trackedHintGsc": "Rankings come from Search Console where Google has data, and a live SERP check where it doesn't.",
-    "trackedHintBrowser": "Rank checks run through a headless browser — slow but free.",
-    "needsConnectionBecause": "Rankings here come from loading search results in a browser.",
+    "trackedHintGsc": "Rankings come from Search Console where Google has data, otherwise from the first live source that answers (Settings → Rank sources).",
+    "trackedHintBrowser": "Rankings come from the first live source that answers: SearXNG if you host it, then Google in a browser, then DuckDuckGo. Every position names its engine.",
+    "needsConnectionBecause": "Rankings here come from engines checked live, not Google's own numbers.",
     "colQuery": "Query",
     "colDevice": "Device",
     "colPosition": "Position",
-    "colPositionTitle": "Every position says where it came from. Search Console numbers are Google's own, averaged over a day, lagging 2-3 days. Live checks are current but carry ~±1-2 positions of noise from personalisation and rotating SERP features. Either way, the Trend column is the stronger signal than any single reading.",
+    "colPositionTitle": "Every position says where it came from. Search Console gives the average real users saw over a day, lagging two to three days. The other sources give the current position on one named engine; an absence only covers the number of results read. Either way, the Trend column is a stronger signal than any single reading.",
     "colSerpFeatures": "SERP features",
     "colTrend": "Trend",
     "colActions": "Actions",
@@ -1454,6 +1529,29 @@
       "viewLatest": "View latest SERP scan",
       "aiOverviewPresent": "AI Overview present",
       "resultsCaptured": "{count} results captured"
+    },
+    "notChecked": "Not checked",
+    "notCheckedAt": "Failed on {date}",
+    "lastReading": "last reading: {position}",
+    "absentGsc": "No Search Console impressions in the period.",
+    "absentFromFirst": "{count, plural, one {Absent from the first result ({engine})} other {Absent from the first # results ({engine})}}",
+    "absentFromRead": "Absent from the results read ({engine})",
+    "engineUnknown": "engine not recorded",
+    "checkFailed": "Not checked.",
+    "checkingAllHint": "Live searches are a few seconds apart so as not to get blocked: this can take a few minutes.",
+    "summaryError": "The check could not finish. Reload the page to see the positions already read.",
+    "summaryNone": "No tracked keyword to check.",
+    "summaryChecked": "Checked: {checked} of {total}",
+    "summarySource": "{source}: {count}",
+    "summaryFailed": "{count, plural, one {# keyword not checked: no source answered. The reason is shown on its row.} other {# keywords not checked: no source answered. The reason is shown on their rows.}}",
+    "summaryGoogleAbandoned": "Google blocked this server: it was not asked again for the rest of the run, and the other sources took over.",
+    "sourceName": {
+      "gsc": "Search Console",
+      "searxng": "SearXNG",
+      "brave": "Brave Search",
+      "api": "Results API",
+      "scrape": "Google (browser)",
+      "duckduckgo": "DuckDuckGo"
     }
   },
   "common": {
@@ -4395,18 +4493,38 @@
       "thin": " That's a small sample, so the average can swing a few positions day to day.",
       "lag": " Search Console data lags two to three days."
     },
-    "live": {
-      "label": "Live check",
-      "title": "Checked by loading the live search results page. Fresher than Search Console, but it's what one server was shown rather than what your visitors saw — expect ±1-2 positions of noise from personalisation and rotating SERP features. Connect Search Console for this client to get Google's own numbers instead."
-    },
     "nudge": {
-      "lead": "These rankings come from live SERP checks.",
+      "lead": "These rankings come from engines checked live.",
       "body": "Connecting Search Console for this client gives you Google's own numbers instead — more accurate, they cover every query you actually appear for, and they can't be rate-limited or blocked.",
       "cta": "Connect it"
     },
     "api": {
       "label": "Google (API)",
-      "title": "Checked on Google through the results API set up in Settings → Google results, for the client’s country. A point-in-time position without personalisation; Search Console gives the average real users saw."
+      "title": "Checked on Google through the results API set up in Settings → Rank sources, for the client's country. A point-in-time position without personalisation; Search Console gives the average real users saw."
+    },
+    "searxng": {
+      "label": "SearXNG",
+      "title": "Checked through your SearXNG instance: the merged ranking of the engines that answered ({engines}), at one moment. Not Google's position on its own.",
+      "enginesUnknown": "engines not recorded"
+    },
+    "brave": {
+      "label": "Brave Search",
+      "title": "Checked in Brave's own index, not Google's: a page can sit far higher or lower there. Follow it as a separate series."
+    },
+    "duckduckgo": {
+      "label": "DuckDuckGo",
+      "title": "Checked on DuckDuckGo's first page (about ten results), in the client's region. Not Google: absent only means \"not in these results\"."
+    },
+    "google": {
+      "label": "Google (browser)",
+      "title": "Checked by loading Google's results page in a browser, from this server. A point-in-time position seen by a server, not by your visitors: expect a few positions of difference."
+    },
+    "legacy": {
+      "label": "Browser",
+      "title": "Checked by browser before the tool recorded which engine answered: Google or DuckDuckGo, there is no way to tell."
+    },
+    "unknown": {
+      "title": "A source this version of the tool doesn't know: treat the number as unverified."
     }
   },
   "linksTab": {
@@ -4992,14 +5110,17 @@
         "run": "Run grid",
         "tip": "Tip: drop a Google Maps pin on the centre of your service area, copy the coordinates from the URL.",
         "resultTitle": "Result: \"{query}\"",
-        "resultSummary": "In-pack at <strong>{pct}%</strong> of cells · avg position <strong>{avg}</strong>",
-        "notRanked": "(not ranked)"
+        "notRanked": "(not ranked)",
+        "resultSummaryConclusive": "In-pack at <strong>{pct}%</strong> of the {cells} points checked · avg position <strong>{avg}</strong>",
+        "resultNotMeasured": "No point could be checked, so the in-pack share is unknown.",
+        "resultFailedCells": "{failed} of {total} points gave no answer (blocked or unreachable): they are left out, not counted as absent."
       },
       "history": {
         "title": "Recent grid runs ({count})",
         "spacing": "{spacing}m spacing",
         "inPack": "{pct}% in pack",
-        "avg": "avg #{avg}"
+        "avg": "avg #{avg}",
+        "notMeasured": "not measured"
       },
       "heatmap": {
         "empty": "No cells to display.",
@@ -5008,7 +5129,9 @@
         "new": "new",
         "lost": "lost",
         "legendInPack": "1-3 (in pack)",
-        "legendNotRanked": "Not ranked"
+        "legendNotRanked": "Not ranked",
+        "noAnswer": "no answer (blocked or unreachable)",
+        "legendNoAnswer": "? No answer"
       },
       "scheduleForm": {
         "title": "Schedule recurring grid",
@@ -8952,7 +9075,7 @@
       "errorTrade": "Choose a trade.",
       "errorRateLimited": "The register limits searches: try again in a minute.",
       "errorRegister": "The company register did not answer. Try again.",
-      "errorNoApi": "Finding the site uses a Google results API: set it up in Settings → Google results.",
+      "errorNoApi": "Finding the site uses a Google results API: set it up in Settings → Rank sources (paid results API).",
       "errorSiteSearch": "The site search failed.",
       "errorUrl": "This website address is not valid.",
       "errorUnreachable": "The site does not answer. Check it opens in a browser.",
@@ -9002,7 +9125,7 @@
       "quickWinsTitle": "Quick wins",
       "weDo": "What we do:",
       "compareTitle": "Against competitors on Google",
-      "compareNoApi": "The comparison uses a Google results API: set it up in Settings → Google results.",
+      "compareNoApi": "The comparison uses a Google results API: set it up in Settings → Rank sources (paid results API).",
       "compareQuery": "Your customers’ search",
       "compareQueryPlaceholder": "e.g. bakery Orly",
       "compareRun": "Compare",
@@ -9015,7 +9138,7 @@
       "nextTitle": "Next step",
       "nextBody": "A full audit of the site, then a 30-day action plan with priorities, to approve before work starts.",
       "errorQuery": "Enter the search your customers make (at least 3 characters).",
-      "errorNoApi": "Set up a Google results API in Settings → Google results.",
+      "errorNoApi": "Set up a Google results API in Settings → Rank sources (paid results API).",
       "open": "Pitch",
       "serious": "{count, plural, one {# serious issue} other {# serious issues}}"
     },
@@ -9052,6 +9175,34 @@
     "paypalHint": "International · cards / PayPal balance / bank",
     "donatePaypal": "Donate via PayPal →",
     "starInstead": "Prefer not to send money? A <link>⭐ on GitHub</link> helps too — surfaces the project to other agencies looking for a self-hosted SEO tool."
+  },
+  "rankCheck": {
+    "engine": {
+      "gsc": "Search Console",
+      "searxng": "SearXNG",
+      "brave": "Brave Search",
+      "api": "Results API",
+      "google": "Google",
+      "duckduckgo": "DuckDuckGo"
+    },
+    "failure": {
+      "blocked": "{engine}: the search was stopped by an anti-bot check (captcha). It usually lifts on its own after a while.",
+      "consent": "{engine}: a cookie consent page was shown instead of results.",
+      "rateLimited": "{engine}: too many requests in a short time; the service asked us to slow down. Try again later.",
+      "unreadable": "{engine}: the page had no result we could read (a block page or an unknown layout). Nothing was recorded as \"absent\".",
+      "truncated": "{engine}: blocked after the first {scanned} results, and the site was not among them, so its absence could not be confirmed.",
+      "network": "{engine}: unreachable (network, address or timeout).",
+      "http": "{engine}: unexpected answer from the service (HTTP {status}).",
+      "disabled": "{engine}: the browser is switched off for rank checks (Settings → Browser, lean mode).",
+      "browserMissing": "{engine}: the headless browser isn't installed on this server.",
+      "badConfig": "{engine}: the saved address or key can't be used. Check it in Settings → Rank sources.",
+      "jsonDisabled": "{engine}: the instance answers with HTML, not JSON. Add \"json\" under search.formats in its settings.yml, then restart it.",
+      "noResults": "{engine}: no results at all; every engine it asked was probably blocked.",
+      "badKey": "{engine}: access refused (key or authorisation). Check it in Settings.",
+      "skipped": "{engine}: not asked, because it had already blocked a check in this run.",
+      "emptyDomain": "{engine}: the project has no website address to look for.",
+      "unknown": "{engine}: the check failed for an unknown reason."
+    }
   },
   "installHealth": {
     "banner": {

@@ -186,6 +186,80 @@ it hosted and effortless, a $5 VPS is the shortest path.
 
 ---
 
+## Relevé des positions sans clé (SearXNG)
+
+L'outil relève la position des mots-clés en essayant ces sources dans
+l'ordre, et garde la première réponse (Réglages → Sources de positions) :
+
+1. **Google Search Console** — les chiffres de Google pour un site que le
+   client possède. Gratuit, officiel, sans blocage. Se connecte projet par
+   projet.
+2. **SearXNG** — un métamoteur libre, hébergé à côté de l'outil. Gratuit,
+   sans clé, il interroge plusieurs moteurs depuis votre serveur.
+3. **Brave Search** — facultatif. API officielle avec une clé (Brave inclut
+   un crédit mensuel puis facture à la recherche ; voir leurs tarifs). Son
+   index n'est pas celui de Google.
+4. **API de résultats payante** (Serper ou DataForSEO) — facultative.
+5. **Google dans un navigateur sans interface** — gratuit, mais Google le
+   bloque en général dès la première recherche venue d'un serveur.
+6. **DuckDuckGo** — gratuit, réglé sur le pays et la langue du client,
+   mais il ne donne que sa première page (une dizaine de résultats) et
+   renvoie lui aussi souvent une vérification anti-robot à un serveur.
+
+Une source qui échoue passe la main à la suivante. Une source qui répond
+« absent » donne une vraie réponse : la suivante n'est pas interrogée.
+Chaque position enregistre la source, le ou les moteurs qui ont répondu
+et le nombre de résultats lus, et l'écran l'affiche (« absent des 27
+premiers résultats (SearXNG : duckduckgo, google cse) » n'est pas
+« absent du top 100 de Google »).
+
+Sans Search Console ni clé, SearXNG est donc la source qui répond. Il est
+fourni, prêt à l'emploi, derrière un profil Docker :
+
+```bash
+# Une seule fois : générer le secret de l'instance (jamais dans le dépôt)
+echo "SEARXNG_SECRET=$(openssl rand -hex 32)" >> .env
+
+docker compose --profile searxng up -d
+```
+
+C'est tout : `SEARXNG_URL` pointe déjà l'application vers ce service.
+Ouvrez ensuite Réglages → Sources de positions et cliquez sur **Tester**
+dans le bloc SearXNG ; le test lance une vraie recherche et dit ce que
+l'instance a répondu.
+
+Mesuré le 24/11/2026 depuis une machine que DuckDuckGo bloquait
+(`scripts/searxng-check.ts`, 14 vérifications sur 14) : SearXNG a répondu
+en 1,6 à 1,9 s par requête, avec 24 à 29 résultats fusionnés venant de
+DuckDuckGo et de Google CSE, pendant que la requête directe à DuckDuckGo
+recevait une page de vérification anti-robot.
+
+À savoir :
+
+- **Le profil n'est pas actif par défaut.** C'est un second conteneur ;
+  une installation qui n'utilise que Search Console n'en a pas besoin.
+  `docker compose up -d` sans profil n'est pas concerné.
+- **L'instance n'est pas publiée sur l'hôte, volontairement.** Son
+  limiteur est coupé parce que son seul client est l'outil, sur le même
+  réseau compose ; publiée, elle serait un proxy ouvert. N'ajoutez pas de
+  `ports:`.
+- **`json` doit figurer dans `search.formats`.** Ce n'est pas le cas par
+  défaut ; `docker/searxng/settings.yml` s'en charge. C'est aussi pourquoi
+  une instance publique convient rarement : elles désactivent souvent le
+  JSON et limitent vite les requêtes automatiques.
+- **Wikipedia, Wikidata, OpenStreetMap et les moteurs Tor sont retirés.**
+  Les premiers exigent une adresse de contact réelle, les seconds un accès
+  Tor ; aucun ne sert au relevé des positions.
+- **Vérifier une instance :**
+  `SEARXNG_NETWORK=<dossier>_default pnpm exec tsx scripts/searxng-check.ts`
+  (le nom du réseau est celui du dossier de l'outil suivi de `_default`).
+
+Sans Docker (installation avec le lanceur), installez SearXNG à part en
+activant `json` dans ses formats, puis indiquez son adresse dans
+Réglages → Sources de positions.
+
+---
+
 ## When to migrate to PostgreSQL
 
 Stay on SQLite while:

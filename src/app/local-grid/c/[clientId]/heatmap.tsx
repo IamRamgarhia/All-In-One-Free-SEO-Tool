@@ -2,11 +2,16 @@
 
 import { useTranslations } from "next-intl";
 
-type Cell = { lat: number; lng: number; position: number | null };
+// Type-only import, not another copy of this shape.
+import type { GridCell as Cell } from "@/lib/local-grid";
 
 /**
- * Render the grid as a square SVG heatmap. Position 1-3 = green (in pack),
+ * Render the grid as a square heatmap. Position 1-3 = green (in pack),
  * 4-10 = amber (page 1), 11-20 = orange, 21+ = red, null = grey.
+ *
+ * A point whose check never completed is slate with a "?", not grey with
+ * a dash: it is not a ranking of any kind, and gets no delta — calling
+ * it "lost" against the previous run was a claim on no evidence.
  */
 export function Heatmap({
   cells,
@@ -43,6 +48,7 @@ export function Heatmap({
 
   return (
     <div className="space-y-3">
+      <div className="overflow-x-auto">
       <div
         style={{ width: total, height: total }}
         className="relative mx-auto"
@@ -51,18 +57,21 @@ export function Heatmap({
           row.map((cell, cIdx) => {
             const x = cIdx * (tile + gap);
             const y = rIdx * (tile + gap);
-            const tone = positionTone(cell.position);
+            const unknown = cell.position === null && !!cell.error;
+            const tone = unknown ? UNKNOWN_TONE : positionTone(cell.position);
             const priorCell = priorRows[rIdx]?.[cIdx];
-            const delta = computeDelta(priorCell?.position ?? null, cell.position);
+            const delta = computeDelta(priorCell ?? null, cell);
             return (
               <div
                 key={`${rIdx}-${cIdx}`}
-                title={`(${cell.lat.toFixed(4)}, ${cell.lng.toFixed(4)}) — ${cell.position ?? t("notRanked")}${delta ? t("was", { prior: priorCell?.position ?? "—" }) : ""}`}
+                title={`(${cell.lat.toFixed(4)}, ${cell.lng.toFixed(4)}) — ${
+                  unknown ? t("noAnswer") : (cell.position ?? t("notRanked"))
+                }${delta ? t("was", { prior: priorCell?.position ?? "—" }) : ""}`}
                 style={{ left: x, top: y, width: tile, height: tile }}
                 className={`absolute grid place-items-center rounded-md text-xs font-bold tabular-nums ring-1 ring-inset ${tone}`}
               >
                 <div className="flex flex-col items-center justify-center leading-tight">
-                  <span>{cell.position ?? "—"}</span>
+                  <span>{unknown ? "?" : (cell.position ?? "—")}</span>
                   {delta && (
                     <span
                       className={`text-[9px] font-bold ${
@@ -84,15 +93,25 @@ export function Heatmap({
           }),
         )}
       </div>
+      </div>
       <Legend />
     </div>
   );
 }
 
+/**
+ * Compare a point with the same point in the previous run. Takes whole
+ * cells so it can tell "not ranked" from "we never found out": a point
+ * with no answer, now or then, gets no delta at all.
+ */
 function computeDelta(
-  prior: number | null,
-  current: number | null,
+  priorCell: Cell | null,
+  currentCell: Cell,
 ): { label: string; tone: "up" | "down" | "flat" } | null {
+  if (currentCell.error && currentCell.position === null) return null;
+  if (priorCell?.error && priorCell.position === null) return null;
+  const prior = priorCell ? priorCell.position : null;
+  const current = currentCell.position;
   if (prior === null && current === null) return null;
   if (prior === null) return { label: "new", tone: "up" };
   if (current === null) return { label: "lost", tone: "down" };
@@ -103,6 +122,9 @@ function computeDelta(
     tone: diff > 0 ? "up" : "down",
   };
 }
+
+/** Not grey: grey is "checked, not ranking", a real and different result. */
+const UNKNOWN_TONE = "bg-slate-500/20 text-slate-300 ring-slate-400/40 border-dashed";
 
 function positionTone(p: number | null): string {
   if (p === null) return "bg-white/5 text-muted-foreground ring-white/10";
@@ -121,6 +143,7 @@ function Legend() {
       <LegendDot tone="bg-orange-500/30 ring-orange-400/50" label="11-20" />
       <LegendDot tone="bg-rose-500/25 ring-rose-400/40" label="21+" />
       <LegendDot tone="bg-white/5 ring-white/10" label={t("legendNotRanked")} />
+      <LegendDot tone="bg-slate-500/20 ring-slate-400/40" label={t("legendNoAnswer")} />
     </div>
   );
 }

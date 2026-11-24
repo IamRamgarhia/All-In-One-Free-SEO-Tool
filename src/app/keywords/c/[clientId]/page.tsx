@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { desc, eq, inArray } from "drizzle-orm";
 import { Search, X, Camera, Activity } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 import { db } from "@/db/client";
-import { clients, keywords, keywordRankings } from "@/db/schema";
+import { clients, keywordRankFailures, keywords, keywordRankings } from "@/db/schema";
 import { PageHeader } from "@/components/shell/page-header";
 import { ResearchForm } from "@/app/keywords/research-form";
 import { CsvImportExport } from "@/app/keywords/import-form";
@@ -18,6 +18,9 @@ import {
   RankSourceBadge,
 } from "@/components/ui/rank-source-badge";
 import { NeedsConnection } from "@/components/ui/needs-connection";
+import { describeRankFailures, type RankTx } from "@/lib/serp/describe";
+import { parseStoredFailures } from "@/lib/serp/failure";
+import type { RankSource } from "@/lib/serp/sources";
 import { RankSparkline } from "./rank-sparkline";
 
 const deviceTone: Record<string, string> = {
@@ -152,7 +155,9 @@ export default async function PerClientKeywordsPage({
       hasFeaturedSnippet: boolean;
       hasLocalPack: boolean;
       paaCount: number;
-      source: "scrape" | "gsc" | "api";
+      source: RankSource | string;
+      engine: string | null;
+      resultsScanned: number | null;
       impressions: number | null;
       dataDate: string | null;
     }[]
@@ -168,11 +173,63 @@ export default async function PerClientKeywordsPage({
       hasLocalPack: !!r.hasLocalPack,
       paaCount: r.paaCount ?? 0,
       source: r.source,
+      engine: r.engine,
+      resultsScanned: r.resultsScanned,
       impressions: r.impressions,
       dataDate: r.dataDate,
     });
     ranksByKeyword.set(r.keywordId, list);
   }
+
+  // The most recent failed check per keyword. When it is newer than the
+  // last reading, the list says "not checked" rather than showing that
+  // older reading as if it were today's.
+  const failureRows =
+    tracked.length === 0
+      ? []
+      : await db
+          .select()
+          .from(keywordRankFailures)
+          .where(
+            inArray(
+              keywordRankFailures.keywordId,
+              tracked.map((k) => k.id),
+            ),
+          )
+          .orderBy(keywordRankFailures.checkedAt);
+  const lastFailure = new Map<number, (typeof failureRows)[number]>();
+  for (const f of failureRows) lastFailure.set(f.keywordId, f);
+  const rt = (await getTranslations("rankCheck")) as unknown as RankTx;
+  const dateFmt = new Intl.DateTimeFormat((await getLocale()) === "fr" ? "fr-FR" : "en-GB", {
+    timeZone: await getTimeZone(),
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  // "Absent from the first N results (engine)", never a bare "not
+  // ranked": DuckDuckGo reads about ten results, Google up to a hundred.
+  const absentText = (r: {
+    source: string;
+    engine: string | null;
+    resultsScanned: number | null;
+  }): string => {
+    if (r.source === "gsc") return t("absentGsc");
+    const engine =
+      r.source === "searxng"
+        ? `SearXNG${r.engine ? ` : ${r.engine}` : ""}`
+        : r.source === "brave"
+          ? rt("engine.brave")
+          : r.source === "duckduckgo"
+            ? rt("engine.duckduckgo")
+            : r.source === "api" || r.engine === "google"
+              ? rt("engine.google")
+              : t("engineUnknown");
+    return r.resultsScanned && r.resultsScanned > 0
+      ? t("absentFromFirst", { count: r.resultsScanned, engine })
+      : t("absentFromRead", { engine });
+  };
 
   // Quick wins
   type Keyword = (typeof tracked)[number];
@@ -262,8 +319,8 @@ export default async function PerClientKeywordsPage({
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">
-          <header className="flex items-center justify-between border-b border-white/5 px-5 py-4">
-            <div>
+          <header className="flex flex-col gap-3 border-b border-white/5 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <h2 className="text-base font-semibold">
                 {t("trackedTitle", { count: tracked.length })}
               </h2>
@@ -273,7 +330,7 @@ export default async function PerClientKeywordsPage({
                   : t("trackedHintBrowser")}
               </p>
             </div>
-            <CheckAllRanksButton />
+            <CheckAllRanksButton clientId={clientId} />
           </header>
           {!client.gscProperty && (
             <div className="space-y-2 border-b border-white/5 px-5 py-3">
@@ -284,11 +341,12 @@ export default async function PerClientKeywordsPage({
               />
             </div>
           )}
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="px-5 py-3 text-left font-medium">{t("colQuery")}</th>
-                <th className="px-3 py-3 text-left font-medium">{t("colDevice")}</th>
+                <th className="px-3 py-3 text-left font-medium sm:px-5">{t("colQuery")}</th>
+                <th className="hidden px-3 py-3 text-left font-medium sm:table-cell">{t("colDevice")}</th>
                 <th className="px-3 py-3 text-center font-medium">
                   <span
                     className="inline-flex items-center gap-1"
@@ -303,8 +361,8 @@ export default async function PerClientKeywordsPage({
                     </span>
                   </span>
                 </th>
-                <th className="px-3 py-3 text-left font-medium">{t("colSerpFeatures")}</th>
-                <th className="px-3 py-3 text-left font-medium">{t("colTrend")}</th>
+                <th className="hidden px-3 py-3 text-left font-medium md:table-cell">{t("colSerpFeatures")}</th>
+                <th className="hidden px-3 py-3 text-left font-medium sm:table-cell">{t("colTrend")}</th>
                 <th className="px-3 py-3 text-right font-medium">{t("colActions")}</th>
               </tr>
             </thead>
@@ -313,19 +371,27 @@ export default async function PerClientKeywordsPage({
                 const history = ranksByKeyword.get(k.id) ?? [];
                 const latest = history[history.length - 1];
                 const removeAction = untrackKeyword.bind(null, k.id);
+                const failure = lastFailure.get(k.id);
+                const failedLast =
+                  !!failure && (!latest || failure.checkedAt > latest.checkedAt);
+                const failedText = failedLast
+                  ? describeRankFailures(rt, parseStoredFailures(failure!.failures))
+                  : "";
                 const deviceKey =
                   k.device === "desktop" || k.device === "mobile"
                     ? k.device
                     : "desktop";
                 return (
                   <tr key={k.id} className="hover:bg-white/[0.03]">
-                    <td className="px-5 py-3">
+                    <td className="px-3 py-3 sm:px-5">
                       <div className="font-medium">{k.query}</div>
                       <div className="text-[11px] text-muted-foreground">
                         {k.country}
+                        {/* The device column is hidden on a phone; say it here. */}
+                        <span className="sm:hidden"> · {t(`device.${deviceKey}`)}</span>
                       </div>
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="hidden px-3 py-3 sm:table-cell">
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${deviceTone[k.device]}`}
                       >
@@ -333,18 +399,49 @@ export default async function PerClientKeywordsPage({
                       </span>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <PositionBadge position={latest?.position ?? null} />
-                      {latest && (
-                        <div className="mt-1 flex justify-center">
-                          <RankSourceBadge
-                            source={latest.source}
-                            dataDate={latest.dataDate}
-                            impressions={latest.impressions}
-                          />
+                      {failedLast ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <span
+                            className="inline-flex h-7 items-center justify-center rounded-lg bg-amber-500/10 px-2 text-[11px] font-medium text-amber-200 ring-1 ring-inset ring-amber-500/30"
+                            title={failedText}
+                          >
+                            {t("notChecked")}
+                          </span>
+                          <p className="max-w-[14rem] text-[10px] leading-snug text-amber-200/80">
+                            {failedText}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {t("notCheckedAt", { date: dateFmt.format(failure!.checkedAt) })}
+                            {latest
+                              ? ` · ${t("lastReading", {
+                                  position:
+                                    latest.position === null ? "—" : `#${latest.position}`,
+                                })}`
+                              : ""}
+                          </p>
                         </div>
+                      ) : (
+                        <>
+                          <PositionBadge position={latest?.position ?? null} />
+                          {latest && latest.position === null && (
+                            <p className="mx-auto mt-1 max-w-[12rem] text-[10px] leading-snug text-muted-foreground">
+                              {absentText(latest)}
+                            </p>
+                          )}
+                          {latest && (
+                            <div className="mt-1 flex justify-center">
+                              <RankSourceBadge
+                                source={latest.source}
+                                engine={latest.engine}
+                                dataDate={latest.dataDate}
+                                impressions={latest.impressions}
+                              />
+                            </div>
+                          )}
+                        </>
                       )}
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="hidden px-3 py-3 md:table-cell">
                       <SerpFeaturePills
                         hasAiOverview={!!latest?.hasAiOverview}
                         hasFeaturedSnippet={!!latest?.hasFeaturedSnippet}
@@ -352,7 +449,7 @@ export default async function PerClientKeywordsPage({
                         paaCount={latest?.paaCount ?? 0}
                       />
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="hidden px-3 py-3 sm:table-cell">
                       <RankSparkline
                         history={history.map((h) => ({
                           checkedAt: h.checkedAt,
@@ -361,7 +458,7 @@ export default async function PerClientKeywordsPage({
                       />
                     </td>
                     <td className="px-3 py-3 text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex flex-wrap items-center justify-end gap-1">
                         <CheckRankButton keywordId={k.id} />
                         <ScanSerpButton keywordId={k.id} />
                         <Link
@@ -387,6 +484,7 @@ export default async function PerClientKeywordsPage({
               })}
             </tbody>
           </table>
+          </div>
         </section>
       )}
     </div>
