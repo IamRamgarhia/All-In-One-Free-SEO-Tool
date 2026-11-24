@@ -20,11 +20,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  checkWooShop,
   createSchedule,
   deleteSchedule,
   runScheduleNow,
   toggleScheduleEnabled,
   type CreateScheduleState,
+  type WooShopCheck,
 } from "./actions";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import type { DailySchedule } from "@/db/schema";
@@ -54,7 +56,7 @@ const KIND_META = (tx: Tx): Record<
   },
   gbp_post: {
     label: tx("googleBusinessProfilePost"),
-    description: "≤1300 char local post published via GBP API. Needs a location set.",
+    description: tx("gbpPostDescription"),
     icon: Globe,
     iconCls: "text-cyan-300",
     activeBorder: "border-cyan-500/40 bg-cyan-500/[0.04]",
@@ -116,6 +118,22 @@ export function SchedulesEditor({
     CreateScheduleState,
     FormData
   >(createSchedule, null);
+  const [gbpSource, setGbpSource] = useState<"topic" | "woo_product">("topic");
+  // Whether the client's site can feed product posts — read once, the
+  // first time a Google post is picked, so the option is only offered
+  // when it will work.
+  const [wooCheck, setWooCheck] = useState<WooShopCheck | "checking" | null>(null);
+
+  function selectKind(k: Kind) {
+    setSelectedKind(k);
+    if (k === "gbp_post" && wooCheck === null) {
+      setWooCheck("checking");
+      checkWooShop(clientId)
+        .then(setWooCheck)
+        .catch(() => setWooCheck({ ok: false, site: null, code: "unreachable" }));
+    }
+  }
+  const wooReady = wooCheck !== null && wooCheck !== "checking" && wooCheck.ok;
 
   // What destinations are valid for the selected kind? Social + checklist
   // are local-only by design.
@@ -213,7 +231,7 @@ export function SchedulesEditor({
                       name="kind"
                       value={k}
                       checked={active}
-                      onChange={() => setSelectedKind(k)}
+                      onChange={() => selectKind(k)}
                       className="sr-only"
                     />
                     <Icon className={`size-4 shrink-0 mt-0.5 ${meta.iconCls}`} />
@@ -353,6 +371,41 @@ export function SchedulesEditor({
             </label>
           )}
 
+          {selectedKind === "gbp_post" && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1 text-xs">
+                <span className="text-muted-foreground">{tx("gbpSource")}</span>
+                <select
+                  name="gbpSource"
+                  value={wooReady ? gbpSource : "topic"}
+                  onChange={(e) =>
+                    setGbpSource(e.target.value === "woo_product" ? "woo_product" : "topic")
+                  }
+                  className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  <option value="topic">{tx("gbpSourceTopic")}</option>
+                  {wooReady && (
+                    <option value="woo_product">{tx("gbpSourceWoo")}</option>
+                  )}
+                </select>
+                <WooStatus check={wooCheck} />
+              </label>
+              <label className="block space-y-1 text-xs">
+                <span className="text-muted-foreground">{tx("postLength")}</span>
+                <select
+                  name="maxChars"
+                  defaultValue="600"
+                  className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  <option value="300">{tx("length300")}</option>
+                  <option value="600">{tx("length600")}</option>
+                  <option value="1000">{tx("length1000")}</option>
+                  <option value="1500">{tx("length1500")}</option>
+                </select>
+              </label>
+            </div>
+          )}
+
           {selectedKind === "gbp_post" && selectedDestination === "gbp" && (
             <>
               <label className="space-y-1 text-xs">
@@ -461,6 +514,8 @@ function ScheduleRow({
     ai_brief?: string;
     gbp_location_name?: string;
     post_type?: string;
+    gbp_source?: string;
+    max_chars?: number;
   };
 
   return (
@@ -586,6 +641,18 @@ function ScheduleRow({
               </code>
             </div>
           )}
+          {schedule.kind === "gbp_post" && (
+            <div>
+              <span className="text-foreground/80">{tx("gbpSource2")}</span>{" "}
+              {cfg.gbp_source === "woo_product" ? tx("sourceWoo") : tx("sourceTopic")}
+            </div>
+          )}
+          {schedule.kind === "gbp_post" && typeof cfg.max_chars === "number" && (
+            <div>
+              <span className="text-foreground/80">{tx("maxChars2")}</span>{" "}
+              {tx("nChars", { n: cfg.max_chars })}
+            </div>
+          )}
           {cfg.post_type && (
             <div>
               <span className="text-foreground/80">{tx("postType2")}</span>{" "}
@@ -601,6 +668,43 @@ function ScheduleRow({
         </div>
       )}
     </li>
+  );
+}
+
+/** What the WooCommerce check found, in one line under the content picker. */
+function WooStatus({ check }: { check: WooShopCheck | "checking" | null }) {
+  const tx = useTranslations("ui.app_clients_id_automations_editor");
+  if (check === null) return null;
+  if (check === "checking") {
+    return (
+      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <Loader2 className="size-3 animate-spin" />
+        {tx("wooChecking")}
+      </span>
+    );
+  }
+  if (check.ok) {
+    return (
+      <span className="block text-[10px] text-muted-foreground">
+        <span className="text-emerald-300">
+          {check.count >= 50
+            ? tx("wooOkMany", { site: check.site, count: check.count })
+            : tx("wooOk", { site: check.site, count: check.count })}
+        </span>{" "}
+        {tx("gbpSourceHint")}
+      </span>
+    );
+  }
+  const key = {
+    no_url: "wooNoUrl",
+    unreachable: "wooUnreachable",
+    not_woo: "wooNotWoo",
+    no_products: "wooNoProducts",
+  } as const;
+  return (
+    <span className="block break-words text-[10px] text-muted-foreground">
+      {tx(key[check.code], { site: check.site ?? "" })}
+    </span>
   );
 }
 

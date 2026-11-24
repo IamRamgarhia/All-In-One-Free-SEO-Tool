@@ -393,6 +393,8 @@ function QueueRow({
             </pre>
           )}
 
+          <ProductLinks item={item} />
+
           <div className="flex flex-wrap items-center gap-2">
             {canApprove && (
               <>
@@ -535,6 +537,35 @@ function QueueRow({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * A WooCommerce product post carries the product's page (the post's
+ * button) and photo; shown so they can be checked, or copied by hand when
+ * the schedule keeps posts in the tool.
+ */
+function ProductLinks({ item }: { item: PublishQueueItem }) {
+  const tx = useTranslations("ui.app_clients_id_queue_queue-list");
+  const payload = (item.payloadJson ?? {}) as { ctaUrl?: unknown; mediaUrl?: unknown };
+  const link = (u: unknown) =>
+    typeof u === "string" && /^https?:\/\//i.test(u) ? u : null;
+  const page = link(payload.ctaUrl);
+  const photo = link(payload.mediaUrl);
+  if (item.kind !== "gbp_post" || (!page && !photo)) return null;
+  return (
+    <p className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+      {page && (
+        <a href={page} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+          {tx("productPage")} <ExternalLink className="size-3" />
+        </a>
+      )}
+      {photo && (
+        <a href={photo} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
+          {tx("productPhoto")} <ExternalLink className="size-3" />
+        </a>
+      )}
+    </p>
   );
 }
 

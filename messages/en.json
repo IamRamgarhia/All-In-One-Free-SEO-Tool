@@ -6494,7 +6494,29 @@
       "aiBriefHint": "Written into the “.md for AI” file so another AI knows how to enrich the draft (Astro, Next.js, any static site).",
       "aiBrief2": "AI brief:",
       "everyNDays": "Every {n} days",
-      "quotedTopic": "“{v}”"
+      "quotedTopic": "“{v}”",
+      "wooNoUrl": "This project has no website address: add it in the project settings to post products.",
+      "wooNotWoo": "{site} has no public WooCommerce catalogue: product posts are not available for this project.",
+      "wooUnreachable": "{site} did not answer: the shop can't be read right now. Try again later.",
+      "wooNoProducts": "The WooCommerce shop at {site} has no in-stock product with a photo: product posts are not available.",
+      "gbpPostDescription": "Local post of 300 to 1,500 characters (your choice), published via the Google Business Profile API. Needs a location.",
+      "gbpSource": "Content",
+      "gbpSourceTopic": "Topic post (the AI picks the angle)",
+      "gbpSourceWoo": "Product from the WooCommerce shop (photo + Shop button)",
+      "gbpSourceHint": "Product posts read the public WooCommerce catalogue on the client's website, with no key, and rotate through in-stock products.",
+      "wooChecking": "Checking the WooCommerce shop…",
+      "wooOk": "WooCommerce shop found at {site}: {count, plural, one {# in-stock product with a photo} other {# in-stock products with a photo}}.",
+      "wooOkMany": "WooCommerce shop found at {site}: at least {count} in-stock products with a photo.",
+      "postLength": "Maximum length",
+      "length300": "Short (up to 300 characters)",
+      "length600": "Medium (up to 600 characters)",
+      "length1000": "Long (up to 1,000 characters)",
+      "length1500": "Maximum (up to 1,500 characters)",
+      "gbpSource2": "Content:",
+      "sourceTopic": "topic picked by the AI",
+      "sourceWoo": "WooCommerce product",
+      "maxChars2": "Maximum length:",
+      "nChars": "{n, plural, one {# character} other {# characters}}"
     },
     "app_clients_id_automations_page": {
       "backTo": "Back to {name}",
@@ -6612,7 +6634,9 @@
       "sentToClientOn": "Sent to the client on {date} · waiting for their answer",
       "downloadMdForAi": ".md for AI",
       "downloadMdForAiTitle": "A .md file with frontmatter (title, description, slug, keywords) and a brief telling an AI how to enrich the article: for Astro, Next.js and other static sites",
-      "exportFailed": "Export failed."
+      "exportFailed": "Export failed.",
+      "productPage": "Product page",
+      "productPhoto": "Product photo"
     },
     "app_clients_import-form": {
       "importCsv": "Import CSV",
@@ -8382,7 +8406,11 @@
       "pickAKind": "Pick a kind.",
       "scheduleNotFound": "Schedule not found.",
       "generatedOtherCheckTheReview": "Generated {generated} {generated, plural, one {item} other {items}}. Check the review queue.",
-      "nothingWasGeneratedCheckThe": "Nothing was generated. Check the activity log for the reason."
+      "nothingWasGeneratedCheckThe": "Nothing was generated. Check the activity log for the reason.",
+      "wooNoUrl": "This project has no website address: add it in the project settings to post products.",
+      "wooNotWoo": "{site} has no public WooCommerce catalogue: product posts are not available for this project.",
+      "wooUnreachable": "{site} did not answer: the shop can't be read right now. Try again later.",
+      "wooNoProducts": "The WooCommerce shop at {site} has no in-stock product with a photo: product posts are not available."
     },
     "app_clients_id_google-actions": {
       "invalidClient": "Invalid client"

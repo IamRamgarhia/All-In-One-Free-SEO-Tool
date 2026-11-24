@@ -6494,7 +6494,29 @@
       "aiBriefHint": "Écrite dans le fichier « .md pour IA » pour qu’une autre IA sache comment enrichir le brouillon (Astro, Next.js, tout site statique).",
       "aiBrief2": "Consigne pour l’IA :",
       "everyNDays": "Tous les {n} jours",
-      "quotedTopic": "« {v} »"
+      "quotedTopic": "« {v} »",
+      "wooNoUrl": "Ce projet n’a pas d’adresse de site : ajoutez-la dans les réglages du projet pour publier des produits.",
+      "wooNotWoo": "Le site {site} n’expose pas de catalogue WooCommerce public : les publications produit ne sont pas disponibles pour ce projet.",
+      "wooUnreachable": "Le site {site} n’a pas répondu : impossible de lire la boutique pour l’instant. Réessayez plus tard.",
+      "wooNoProducts": "La boutique WooCommerce de {site} n’a aucun produit en stock avec photo : les publications produit ne sont pas disponibles.",
+      "gbpPostDescription": "Publication locale de 300 à 1 500 caractères selon la longueur choisie, publiée via l’API Google Business Profile. Demande un établissement.",
+      "gbpSource": "Contenu",
+      "gbpSourceTopic": "Publication sur un sujet (l’IA choisit l’angle)",
+      "gbpSourceWoo": "Produit de la boutique WooCommerce (photo + bouton Acheter)",
+      "gbpSourceHint": "Les publications produit lisent le catalogue WooCommerce public du site du client, sans clé, et passent d’un produit en stock à l’autre.",
+      "wooChecking": "Vérification de la boutique WooCommerce…",
+      "wooOk": "Boutique WooCommerce trouvée sur {site} : {count, plural, one {# produit en stock avec photo} other {# produits en stock avec photo}}.",
+      "wooOkMany": "Boutique WooCommerce trouvée sur {site} : au moins {count} produits en stock avec photo.",
+      "postLength": "Longueur maximale",
+      "length300": "Courte (300 caractères au plus)",
+      "length600": "Moyenne (600 caractères au plus)",
+      "length1000": "Longue (1 000 caractères au plus)",
+      "length1500": "Maximale (1 500 caractères au plus)",
+      "gbpSource2": "Contenu :",
+      "sourceTopic": "sujet choisi par l’IA",
+      "sourceWoo": "produit WooCommerce",
+      "maxChars2": "Longueur maximale :",
+      "nChars": "{n, plural, one {# caractère} other {# caractères}}"
     },
     "app_clients_id_automations_page": {
       "backTo": "Retour à {name}",
@@ -6612,7 +6634,9 @@
       "sentToClientOn": "Envoyé au client le {date} · en attente de sa réponse",
       "downloadMdForAi": ".md pour IA",
       "downloadMdForAiTitle": "Fichier .md avec en-tête (titre, description, slug, mots-clés) et une consigne qui dit à une IA comment enrichir l’article : pour Astro, Next.js et les autres sites statiques",
-      "exportFailed": "Export impossible."
+      "exportFailed": "Export impossible.",
+      "productPage": "Page du produit",
+      "productPhoto": "Photo du produit"
     },
     "app_clients_import-form": {
       "importCsv": "Importer un CSV",
@@ -8382,7 +8406,11 @@
       "pickAKind": "Choisissez un type.",
       "scheduleNotFound": "Planification introuvable.",
       "generatedOtherCheckTheReview": "{generated, plural, one {# élément généré} other {# éléments générés}}. Consultez la file de relecture.",
-      "nothingWasGeneratedCheckThe": "Rien n’a été généré. La raison figure dans le journal d’activité."
+      "nothingWasGeneratedCheckThe": "Rien n’a été généré. La raison figure dans le journal d’activité.",
+      "wooNoUrl": "Ce projet n’a pas d’adresse de site : ajoutez-la dans les réglages du projet pour publier des produits.",
+      "wooNotWoo": "Le site {site} n’expose pas de catalogue WooCommerce public : les publications produit ne sont pas disponibles pour ce projet.",
+      "wooUnreachable": "Le site {site} n’a pas répondu : impossible de lire la boutique pour l’instant. Réessayez plus tard.",
+      "wooNoProducts": "La boutique WooCommerce de {site} n’a aucun produit en stock avec photo : les publications produit ne sont pas disponibles."
     },
     "app_clients_id_google-actions": {
       "invalidClient": "Projet invalide"

@@ -26,6 +26,8 @@ describe("isPrivateIp", () => {
     ["fe80::1", "IPv6 link-local"],
     ["fd00::1", "IPv6 unique-local"],
     ["::ffff:127.0.0.1", "IPv4-mapped loopback"],
+    ["192.0.0.8", "IETF protocol assignments"],
+    ["192.0.2.10", "TEST-NET-1"],
   ])("blocks %s (%s)", (ip) => {
     expect(isPrivateIp(ip)).toBe(true);
   });
@@ -45,6 +47,7 @@ describe("isPrivateIp", () => {
     ["100.63.0.1", "just below CGNAT"],
     ["100.128.0.1", "just above CGNAT"],
     ["2606:4700::1111", "public IPv6"],
+    ["192.0.66.5", "WordPress.com / WooCommerce.com hosting"],
   ])("allows %s (%s)", (ip) => {
     expect(isPrivateIp(ip)).toBe(false);
   });

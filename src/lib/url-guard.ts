@@ -50,7 +50,7 @@ export function isPrivateIp(ip: string): boolean {
   if (/^\d+\.\d+\.\d+\.\d+$/.test(v4)) {
     const p = v4.split(".").map(Number);
     if (p.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
-    const [a, b] = p;
+    const [a, b, c] = p;
     if (a === 0) return true; // 0.0.0.0/8
     if (a === 10) return true; // RFC1918
     if (a === 127) return true; // loopback
@@ -58,7 +58,10 @@ export function isPrivateIp(ip: string): boolean {
     if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
     if (a === 192 && b === 168) return true; // RFC1918
     if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-    if (a === 192 && b === 0) return true; // 192.0.0.0/24 + test nets
+    // 192.0.0.0/24 (IETF) and 192.0.2.0/24 (TEST-NET-1) only: the rest of
+    // 192.0.0.0/16 is public (WordPress.com and WooCommerce.com sites
+    // answer from 192.0.64.0/18).
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return true;
     if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
     if (a >= 224) return true; // multicast + reserved + broadcast
     return false;

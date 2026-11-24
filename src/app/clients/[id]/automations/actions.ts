@@ -2,11 +2,61 @@
 
 import { actionTx } from "@/lib/action-tx";
 import { requireSignedIn } from "@/lib/action-guard";
+import { requireClientAccess } from "@/lib/auth";
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { dailySchedules, type NewDailySchedule } from "@/db/schema";
+import { clients, dailySchedules, type NewDailySchedule } from "@/db/schema";
+import type { WooShopErrorCode } from "@/lib/woo-products";
+
+/** Google Business Profile post lengths offered in the editor (Google's own cap is 1500). */
+const GBP_LENGTHS = [300, 600, 1000, 1500] as const;
+
+export type WooShopCheck =
+  | { ok: true; site: string; count: number }
+  | { ok: false; site: string | null; code: WooShopErrorCode | "no_products" };
+
+/**
+ * Can this client's site feed product posts? Reads the public WooCommerce
+ * Store API (no keys) and counts in-stock products that have a photo.
+ */
+async function wooShopCheck(clientId: number): Promise<WooShopCheck> {
+  const [client] = await db
+    .select({ url: clients.url, language: clients.language })
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+  const { listWooProducts, shopBaseUrl, WooShopError } = await import("@/lib/woo-products");
+  const site = shopBaseUrl(client?.url);
+  try {
+    const products = (
+      await listWooProducts(client?.url, { locale: client?.language ?? "en" })
+    ).filter((p) => p.imageUrl);
+    return products.length > 0
+      ? { ok: true, site: site ?? "", count: products.length }
+      : { ok: false, site, code: "no_products" };
+  } catch (err) {
+    return {
+      ok: false,
+      site,
+      code: err instanceof WooShopError ? err.code : "unreachable",
+    };
+  }
+}
+
+export async function checkWooShop(clientId: number): Promise<WooShopCheck> {
+  await requireSignedIn();
+  await requireClientAccess(clientId);
+  return wooShopCheck(clientId);
+}
+
+const WOO_ERROR_KEY = {
+  no_url: "wooNoUrl",
+  unreachable: "wooUnreachable",
+  not_woo: "wooNotWoo",
+  no_products: "wooNoProducts",
+} as const;
 
 export type CreateScheduleState =
   | { ok: true; id: number }
@@ -29,6 +79,12 @@ export async function createSchedule(
   const aiBrief = String(formData.get("aiBrief") ?? "").trim().slice(0, 2000);
   const gbpLocationName = String(formData.get("gbpLocationName") ?? "").slice(0, 200);
   const postType = String(formData.get("postType") ?? "STANDARD");
+  const gbpSource =
+    formData.get("gbpSource") === "woo_product" ? "woo_product" : "topic";
+  const maxCharsRaw = Number(formData.get("maxChars") ?? 600);
+  const maxChars = (GBP_LENGTHS as readonly number[]).includes(maxCharsRaw)
+    ? maxCharsRaw
+    : 600;
   // Where the approved item ultimately goes:
   //   "local"     — save in the tool's queue; copy/paste yourself (no integration needed)
   //   "wordpress" — publish via WP bridge plugin
@@ -53,6 +109,18 @@ export async function createSchedule(
     return { ok: false, error: tx("pickAKind") };
   }
 
+  // Product posts need a readable WooCommerce shop with something to show;
+  // refuse now rather than fail every night.
+  if (kind === "gbp_post" && gbpSource === "woo_product") {
+    const shop = await wooShopCheck(clientId);
+    if (!shop.ok) {
+      return {
+        ok: false,
+        error: tx(WOO_ERROR_KEY[shop.code], { site: shop.site ?? "" }),
+      };
+    }
+  }
+
   const config: Record<string, unknown> = { destination };
   if (topicSeed) config.topic_seed = topicSeed;
   if (tone) config.tone = tone;
@@ -61,6 +129,8 @@ export async function createSchedule(
   if (kind === "gbp_post") {
     if (gbpLocationName) config.gbp_location_name = gbpLocationName;
     config.post_type = postType;
+    config.gbp_source = gbpSource;
+    config.max_chars = maxChars;
   }
 
   const insert: NewDailySchedule = {
