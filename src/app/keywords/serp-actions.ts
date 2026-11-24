@@ -56,8 +56,7 @@ export async function runSerpScan(
     .returning({ id: serpScans.id });
 
   // Mirror SERP feature flags onto the latest keyword_rankings row so the
-  // keyword table can render them inline next to the rank. If no ranking row
-  // exists yet (haven't checked rank), insert a stub so the flags persist.
+  // keyword table can render them inline next to the rank.
   if (result.ok) {
     const [latest] = await db
       .select({ id: keywordRankings.id })
@@ -72,18 +71,14 @@ export async function runSerpScan(
       hasLocalPack: result.localPackPresent,
       paaCount: result.paaQuestions.length,
     };
+    // Only onto a real reading. Inserting a stub row with no position for
+    // a keyword never checked put "not in the results" into its history
+    // and charts. The scan itself stays on the keyword's SERP page.
     if (latest) {
       await db
         .update(keywordRankings)
         .set(flags)
         .where(eq(keywordRankings.id, latest.id));
-    } else {
-      await db.insert(keywordRankings).values({
-        keywordId: k.id,
-        position: null,
-        url: null,
-        ...flags,
-      });
     }
   }
 
