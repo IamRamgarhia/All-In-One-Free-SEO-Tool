@@ -8808,6 +8808,36 @@
         "vet": "Vet",
         "sport": "Gym"
       }
+    },
+    "pitch": {
+      "back": "Leads",
+      "print": "Print or save as PDF",
+      "eyebrow": "Express SEO check",
+      "measured": "measured on {date}",
+      "preparedBy": "prepared by {agency}",
+      "scoreTitle": "Home page score",
+      "scoreBody": "{critical, plural, =0 {No critical issue} one {# critical issue} other {# critical issues}} and {high, plural, =0 {no high issue} one {# high issue} other {# high issues}} found.",
+      "scoreScope": "Express audit of the home page only: a full audit covers the whole site.",
+      "problemsTitle": "The problems that matter",
+      "problemsEmpty": "No serious problem on the home page: the gains will come from content and local SEO.",
+      "quickWinsTitle": "Quick wins",
+      "weDo": "What we do:",
+      "compareTitle": "Against competitors on Google",
+      "compareNoApi": "The comparison uses a Google results API: set it up in Settings → Google results.",
+      "compareQuery": "Your customers’ search",
+      "compareQueryPlaceholder": "e.g. bakery Orly",
+      "compareRun": "Compare",
+      "compareHint": "The first three sites Google shows for this search (directories left out), run through the same express audit. One search billed by the provider.",
+      "compareSite": "Site",
+      "compareScore": "Score",
+      "compareSerious": "Serious issues",
+      "compareNone": "No competitor site found for this search.",
+      "unreachable": "unreachable",
+      "nextTitle": "Next step",
+      "nextBody": "A full audit of the site, then a 30-day action plan with priorities, to approve before work starts.",
+      "errorQuery": "Enter the search your customers make (at least 3 characters).",
+      "errorNoApi": "Set up a Google results API in Settings → Google results.",
+      "open": "Pitch"
     }
   }
 }

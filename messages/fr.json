@@ -8808,6 +8808,36 @@
         "vet": "Vétérinaire",
         "sport": "Salle de sport"
       }
+    },
+    "pitch": {
+      "back": "Prospects",
+      "print": "Imprimer ou enregistrer en PDF",
+      "eyebrow": "Diagnostic SEO express",
+      "measured": "mesuré le {date}",
+      "preparedBy": "préparé par {agency}",
+      "scoreTitle": "Score de la page d’accueil",
+      "scoreBody": "{critical, plural, =0 {Aucun problème critique} one {# problème critique} other {# problèmes critiques}} et {high, plural, =0 {aucun problème élevé} one {# problème élevé} other {# problèmes élevés}} relevés.",
+      "scoreScope": "Audit express de la page d’accueil seulement : un audit complet couvre tout le site.",
+      "problemsTitle": "Les problèmes qui comptent",
+      "problemsEmpty": "Aucun problème sérieux sur la page d’accueil : les gains viendront des contenus et du référencement local.",
+      "quickWinsTitle": "Gains rapides",
+      "weDo": "Ce que nous faisons :",
+      "compareTitle": "Face aux concurrents sur Google",
+      "compareNoApi": "La comparaison passe par une API de résultats Google : configurez-la dans Réglages → Résultats Google.",
+      "compareQuery": "Recherche de vos clients",
+      "compareQueryPlaceholder": "ex. boulangerie Orly",
+      "compareRun": "Comparer",
+      "compareHint": "Les trois premiers sites affichés par Google pour cette recherche (annuaires écartés), passés au même audit express. Une recherche facturée par le fournisseur.",
+      "compareSite": "Site",
+      "compareScore": "Score",
+      "compareSerious": "Problèmes sérieux",
+      "compareNone": "Aucun site concurrent trouvé pour cette recherche.",
+      "unreachable": "injoignable",
+      "nextTitle": "Prochaine étape",
+      "nextBody": "Un audit complet du site, puis un plan d’action sur 30 jours avec les priorités chiffrées, à valider avant de commencer.",
+      "errorQuery": "Indiquez la recherche que font vos clients (3 caractères au moins).",
+      "errorNoApi": "Configurez une API de résultats Google dans Réglages → Résultats Google.",
+      "open": "Argumentaire"
     }
   }
 }

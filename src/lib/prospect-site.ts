@@ -34,7 +34,7 @@ function hostOf(url: string): string | null {
   }
 }
 
-function isDirectory(host: string): boolean {
+export function isDirectory(host: string): boolean {
   return NOT_A_SITE.some((d) => host === d || host.endsWith(`.${d}`));
 }
 
