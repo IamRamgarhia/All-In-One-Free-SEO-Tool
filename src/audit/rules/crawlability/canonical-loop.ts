@@ -11,7 +11,7 @@ export const canonicalLoopRule2 = defineRule({
     if (!context.site?.pages) {
       return notMeasured(
         "crawl-canonical-loop",
-        "Following the canonical chain needs per-page crawl state - run with --crawl to build it"
+        "Following the canonical chain needs per-page crawl state - only available in a site audit, not a single-page check"
       );
     }
     const walk = walkCanonical(context);

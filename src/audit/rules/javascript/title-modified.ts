@@ -13,7 +13,7 @@ export const titleModifiedRule = defineRule({
     if (!rendered$) {
       return notMeasured(
         "js-title-modified",
-        "Rendered DOM not available - run without --no-cwv to enable JavaScript rendering checks"
+        "Rendered DOM not available - available in a full audit, which renders the page in a browser, to enable JavaScript rendering checks"
       );
     }
     const comparison = compareDomElement(context.$, rendered$, DOCUMENT_TITLE);

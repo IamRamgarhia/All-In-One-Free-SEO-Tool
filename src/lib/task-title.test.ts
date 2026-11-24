@@ -31,3 +31,14 @@ describe("taskTitle", () => {
     expect(taskTitle("The site publishes no llms.txt", "en")).toBe("The site publishes no llms.txt");
   });
 });
+
+describe("decimals in French task titles", () => {
+  it("writes 67,2 % with a comma and a no-break space", () => {
+    expect(taskTitle("39 sitemap URL(s) (67.2%) are not linked from any crawled page", "fr")).toBe(
+      "39 URL du sitemap (67,2\u00a0%) ne sont liées depuis aucune page explorée",
+    );
+    expect(taskTitle("12/40 images have alt text (30.5%)", "fr")).toBe(
+      "12 images sur 40 ont un texte alternatif (30,5\u00a0%)",
+    );
+  });
+});

@@ -12,7 +12,7 @@ export const hreflangToNoindexRule2 = defineRule({
     if (!site?.pages) {
       return notMeasured(
         "crawl-hreflang-to-noindex",
-        "Checking hreflang targets needs per-page crawl state - run with --crawl to build it"
+        "Checking hreflang targets needs per-page crawl state - only available in a site audit, not a single-page check"
       );
     }
     const annotations = Object.entries(resolveHreflangOut(context));

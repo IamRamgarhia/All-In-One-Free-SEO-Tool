@@ -12,7 +12,7 @@ export const resourceBrokenRedirectRule = defineRule({
     if (!assets) {
       return notMeasured(
         "redirect-resource-broken",
-        "Rendered page assets not captured - run without --no-cwv to measure resource redirects"
+        "Rendered page assets not captured - available in a full audit, which renders the page in a browser, to measure resource redirects"
       );
     }
     const redirected = assets.filter((asset) => asset.redirectChain.length > 0);

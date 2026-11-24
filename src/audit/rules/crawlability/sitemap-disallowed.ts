@@ -14,7 +14,7 @@ export const sitemapDisallowedRule = defineRule({
     if (!site || !pages) {
       return notMeasured(
         "crawl-sitemap-disallowed",
-        "Per-page crawl data needs a multi-page crawl - run with --crawl to build it"
+        "Per-page crawl data needs a multi-page crawl - only available in a site audit, not a single-page check"
       );
     }
     if (!sitemapUrls || sitemapUrls.length === 0) {

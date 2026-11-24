@@ -28,7 +28,7 @@ export const sitemapOrphanUrlsRule = defineRule({
   weight: 7,
   run: async (context) => {
     if (!context.site) {
-      return notMeasured("crawl-sitemap-orphan-urls", "Orphan detection needs the links of crawled pages - run with --crawl to build them");
+      return notMeasured("crawl-sitemap-orphan-urls", "Orphan detection needs the links of crawled pages - only available in a site audit, not a single-page check");
     }
     const { links, url } = context;
     const sitemapUrls = context.sitemapUrls;

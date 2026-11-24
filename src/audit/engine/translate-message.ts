@@ -248,7 +248,15 @@ export function translateCrawlerMessage(message: string): string {
   const body = message.slice(prefix.length);
   for (const c of crawler) {
     const m = c.re.exec(body);
-    if (m) return prefix + c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => m[Number(i) + 1] ?? "");
+    // A bare decimal reads "30,5" in French, as in the engine's messages.
+    if (m) {
+      return prefix + frenchSpacing(
+        c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => {
+          const v = m[Number(i) + 1] ?? "";
+          return DECIMAL.test(v) ? v.replace(".", ",") : v;
+        }),
+      );
+    }
   }
   return message;
 }
@@ -298,7 +306,7 @@ export function translateStoredTitle(title: string): string {
     if (viaCrawler !== candidate) return sentenceOne(viaCrawler);
     for (const c of engineTitles()) {
       const m = c.re.exec(candidate);
-      if (m) return sentenceOne(c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => translateValue(m[Number(i) + 1] ?? "")));
+      if (m) return sentenceOne(frenchSpacing(c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => translateValue(m[Number(i) + 1] ?? ""))));
     }
   }
   return title;

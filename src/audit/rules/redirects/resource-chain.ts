@@ -12,7 +12,7 @@ export const resourceChainRedirectRule = defineRule({
     if (!assets) {
       return notMeasured(
         "redirect-resource-chain",
-        "Rendered page assets not captured - run without --no-cwv to measure resource redirects"
+        "Rendered page assets not captured - available in a full audit, which renders the page in a browser, to measure resource redirects"
       );
     }
     const singleHopCount = assets.filter((asset) => asset.redirectChain.length === 1).length;

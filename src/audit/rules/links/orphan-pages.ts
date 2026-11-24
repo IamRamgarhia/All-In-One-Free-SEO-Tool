@@ -11,7 +11,7 @@ export const orphanPagesRule = defineRule({
     if (!site) {
       return notMeasured(
         "links-orphan-pages",
-        "Inbound link counting needs the site-wide link graph - run with --crawl to build it"
+        "Inbound link counting needs the site-wide link graph - only available in a site audit, not a single-page check"
       );
     }
     const url = site.normalize(context.url);

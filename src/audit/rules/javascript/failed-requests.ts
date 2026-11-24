@@ -23,7 +23,7 @@ export const failedRequestsRule = defineRule({
     if (!diagnostics) {
       return notMeasured(
         "js-failed-requests",
-        "Rendered DOM not available - run without --no-cwv to capture failed resource requests"
+        "Rendered DOM not available - available in a full audit, which renders the page in a browser, to capture failed resource requests"
       );
     }
     const failures = diagnostics.failedRequests;

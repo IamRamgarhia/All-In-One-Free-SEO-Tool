@@ -243,7 +243,8 @@
     "again": "vérifier à nouveau"
   },
   "devTicket": {
-    "copy": "Copier les instructions pour le développeur",
+    "copy": "Copier pour le développeur",
+    "copyTitle": "Copier les instructions pour le développeur",
     "copied": "Copié",
     "download": "Télécharger le .md",
     "downloadTitle": "Markdown : se colle dans GitHub, Linear, Jira, Slack ou un e-mail",

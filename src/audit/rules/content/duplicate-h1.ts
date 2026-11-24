@@ -11,7 +11,7 @@ export const duplicateH1Rule = defineRule({
     if (!site?.pages) {
       return notMeasured(
         "content-duplicate-h1",
-        "Cross-page H1 comparison needs the crawl page inventory - run with --crawl to build it"
+        "Cross-page H1 comparison needs the crawl page inventory - only available in a site audit, not a single-page check"
       );
     }
     const url = site.normalize(context.url);

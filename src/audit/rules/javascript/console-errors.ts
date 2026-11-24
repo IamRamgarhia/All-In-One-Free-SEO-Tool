@@ -28,7 +28,7 @@ export const consoleErrorsRule = defineRule({
     if (!diagnostics) {
       return notMeasured(
         "js-console-errors",
-        "Rendered DOM not available - run without --no-cwv to capture JavaScript errors"
+        "Rendered DOM not available - available in a full audit, which renders the page in a browser, to capture JavaScript errors"
       );
     }
     const pageErrors = diagnostics.pageErrors.map(summarise);

@@ -28,7 +28,7 @@ export const duplicateDescriptionRule = defineRule({
       });
     }
     if (!context.site) {
-      return notMeasured("content-duplicate-description", "Description uniqueness needs other pages to compare against - run with --crawl");
+      return notMeasured("content-duplicate-description", "Description uniqueness needs other pages to compare against - only available in a site audit, not a single-page check");
     }
     if (description.length < 50) {
       const normalizedDescription2 = normalizeDescription(description);
