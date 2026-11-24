@@ -42,6 +42,11 @@ export async function GET(req: Request) {
       hasAiOverview: keywordRankings.hasAiOverview,
       hasFeaturedSnippet: keywordRankings.hasFeaturedSnippet,
       hasLocalPack: keywordRankings.hasLocalPack,
+      // A null position is "absent from the first resultsScanned results
+      // of this engine", not "not ranked" (lib/serp/absence).
+      source: keywordRankings.source,
+      engine: keywordRankings.engine,
+      resultsScanned: keywordRankings.resultsScanned,
     })
     .from(keywordRankings)
     .leftJoin(keywords, eq(keywordRankings.keywordId, keywords.id))

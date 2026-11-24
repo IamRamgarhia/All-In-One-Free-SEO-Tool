@@ -44,10 +44,10 @@ export default async function MorningPage() {
     .from(keywordRankings)
     .where(gte(keywordRankings.checkedAt, weekAgo))
     .orderBy(keywordRankings.checkedAt);
+  // The latest reading, empty or not: a keyword that has since dropped
+  // out of the results read is absent now, not still at its old place.
   const latestPos = new Map<number, number | null>();
-  for (const r of allRanks) {
-    if (r.position !== null) latestPos.set(r.keywordId, r.position);
-  }
+  for (const r of allRanks) latestPos.set(r.keywordId, r.position);
   let striking = 0;
   for (const p of latestPos.values()) {
     if (p !== null && p >= 4 && p <= 15) striking += 1;
