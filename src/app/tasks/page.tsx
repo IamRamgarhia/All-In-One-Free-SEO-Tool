@@ -24,6 +24,10 @@ import { NewTaskTrigger } from "./new-task-form";
 import { TasksBulkList, type BulkTask } from "./bulk-list";
 import { KanbanBoard } from "./kanban-board";
 import { isOpenTask } from "@/lib/task-status";
+import { mayUseClientCode } from "@/lib/code-agent-access";
+import { clientCodeView } from "@/lib/code-agent-view";
+import { queueFor } from "@/lib/task-chat/queue";
+import { ClientCodePanel, type QueueView } from "./code-panel";
 
 /** Filter query values stay English technical ids. */
 const filterMap = {
@@ -57,7 +61,7 @@ export default async function TasksPage({
   const view: ViewMode = sp.view === "kanban" ? "kanban" : "list";
   // ?client= narrows the list to one project (links from the dashboard,
   // the project plan and onboarding). Still inside the user's scope.
-  const onlyClient = sp.client && /^d+$/.test(sp.client) ? Number(sp.client) : null;
+  const onlyClient = sp.client && /^\d+$/.test(sp.client) ? Number(sp.client) : null;
   const scopeWhere = await clientScope();
 
   const rows = await db
@@ -87,11 +91,43 @@ export default async function TasksPage({
   const locale = await getLocale();
   const all = rows.map((task) => ({ ...task, title: taskTitle(task.title, locale) }));
 
-  const allClients = await db
-    .select({ id: clients.id, name: clients.name })
+  const clientRows = await db
+    .select({
+      id: clients.id,
+      name: clients.name,
+      localPath: clients.localPath,
+      githubRepo: clients.githubRepo,
+      prMode: clients.prMode,
+      codeAgentEnabled: clients.codeAgentEnabled,
+    })
     .from(clients)
     .where(scopeWhere)
     .orderBy(clients.name);
+  const allClients = clientRows.map((c) => ({ id: c.id, name: c.name }));
+
+  // The client's code circuit (copy the prompt, Claude Code): owners and
+  // managers only. Which clients may run Claude Code is decided here.
+  const canUseCode = await mayUseClientCode();
+  const codeViews = new Map(
+    canUseCode ? clientRows.map((c) => [c.id, clientCodeView(c)] as const) : [],
+  );
+  const runnable = [...codeViews].filter(([, v]) => v.canRun).map(([id]) => id);
+  const selected = onlyClient !== null ? clientRows.find((c) => c.id === onlyClient) ?? null : null;
+  const selectedView = selected ? codeViews.get(selected.id) ?? null : null;
+  const q = selected && selectedView?.canRun ? queueFor(selected.id) : null;
+  const queueView: QueueView | null = q
+    ? {
+        active: q.active,
+        total: q.total,
+        attempted: q.attempted.length,
+        failed: q.failed.length,
+        current: q.current,
+        currentTitle: all.find((task) => task.id === q.current)?.title ?? null,
+        note: q.note?.code ?? null,
+        noteReason: q.note?.code === "blocked" ? q.note.reason : null,
+        batch: q.batchOutcome ?? null,
+      }
+    : null;
 
   const filtered = all.filter((task) => inFilter(task, filter));
   // Skipped is a decision, not outstanding work — counting it as open
@@ -145,7 +181,7 @@ export default async function TasksPage({
         }
         meta={
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <FilterTabs current={filter} view={view} />
+            <FilterTabs current={filter} view={view} clientId={onlyClient} />
             <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-muted-foreground ring-1 ring-inset ring-white/10">
               <Clock className="size-3" />
               {t("openCount", { count: open.length })}
@@ -163,6 +199,16 @@ export default async function TasksPage({
           </div>
         }
       />
+
+      {selected && selectedView && (
+        <ClientCodePanel
+          clientId={selected.id}
+          clientName={selected.name}
+          view={selectedView}
+          openCount={all.filter((task) => task.clientId === selected.id && isOpenTask(task.status)).length}
+          queue={queueView}
+        />
+      )}
 
       {filtered.length === 0 ? (
         <div className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 px-6 py-16 text-center backdrop-blur-md">
@@ -182,7 +228,11 @@ export default async function TasksPage({
       ) : view === "kanban" ? (
         <KanbanBoard initialTasks={filtered as TaskRowData[]} nowMs={nowMs} />
       ) : (
-        <TasksBulkList tasks={filtered as BulkTask[]} nowMs={nowMs} />
+        <TasksBulkList
+          tasks={filtered as BulkTask[]}
+          nowMs={nowMs}
+          code={canUseCode ? { runnable } : null}
+        />
       )}
     </div>
   );
@@ -191,9 +241,11 @@ export default async function TasksPage({
 async function FilterTabs({
   current,
   view,
+  clientId,
 }: {
   current: Filter;
   view: ViewMode;
+  clientId: number | null;
 }) {
   const t = await getTranslations("tasks");
   return (
@@ -201,7 +253,7 @@ async function FilterTabs({
       {(Object.keys(filterMap) as Filter[]).map((f) => (
         <Link
           key={f}
-          href={`/tasks?filter=${f}&view=${view}`}
+          href={`/tasks?filter=${f}&view=${view}${clientId ? `&client=${clientId}` : ""}`}
           className={
             current === f
               ? "rounded-full bg-foreground/10 px-2.5 py-1 text-xs font-medium text-foreground"

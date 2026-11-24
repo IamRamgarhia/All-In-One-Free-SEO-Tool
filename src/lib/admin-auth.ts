@@ -47,7 +47,7 @@ function isLocalIp(ip: string): boolean {
   return false;
 }
 
-function isLocalRequest(req: Request): boolean {
+export function isLocalRequest(req: Request): boolean {
   // 1. Forwarding headers ONLY trusted when TRUSTED_PROXY=1.
   //    Without a known reverse proxy, x-forwarded-for / x-real-ip are
   //    fully caller-controlled — any local process can `curl -H

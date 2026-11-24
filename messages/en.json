@@ -1357,7 +1357,8 @@
     "time": {
       "subtract15": "Subtract 15 min",
       "add15": "Add 15 min"
-    }
+    },
+    "siteCode": "Site code"
   },
   "keywords": {
     "title": "Keywords",
@@ -9148,6 +9149,219 @@
         "title": "An install check could not run",
         "evidence": "The {check} check stopped; the others ran normally.",
         "fix": "Open System health"
+      }
+    }
+  },
+  "clientCode": {
+    "reasons": {
+      "env_off": "Claude Code is switched off on this server (SEO_TOOL_HOST_AGENT=0): the app cannot start it, for any client.",
+      "client_off": "Claude Code is switched off for this client. Only an owner or a manager can switch it on, from the Settings tab of the client's page.",
+      "no_client": "This client was not found.",
+      "claude_missing": "Claude Code is not installed on the computer that runs the app (the “claude” command was not found).",
+      "no_folder": "No project folder is set for this client. Set it in the Settings tab of its page.",
+      "folder_missing": "The project folder set for this client does not exist on this computer.",
+      "folder_not_absolute": "The project folder must be a full path (for example /home/you/sites/client).",
+      "folder_holds_documents": "The project folder contains the app's documents folder: choose the site's own folder, so internal documents stay out of the client's repository.",
+      "task_not_found": "This task was not found.",
+      "not_local": "Claude Code only starts from the computer that runs the app, not from another device on the network.",
+      "role": "Owners and managers only.",
+      "not_found": "Not found.",
+      "busy": "Claude Code is already working on this task.",
+      "empty_message": "Write a message first.",
+      "switched_off": "Claude Code was just switched off for this client.",
+      "start_failed": "Claude Code could not start.",
+      "already_running": "The queue is already running for this client.",
+      "no_open_tasks": "This client has no open tasks.",
+      "no_gh": "The GitHub command-line tool (gh) is not installed on this computer, so pull requests cannot be listed here. Install it, then sign in with “gh auth login”.",
+      "no_repo": "No GitHub repository is set for this client."
+    },
+    "manual": {
+      "body": "Without Claude Code, copy the task's prompt (or download it as a .md) and paste it into the coding assistant of your choice, in VS Code or in a terminal opened on the client's code. Nothing runs on this computer.",
+      "settings": "This client's code settings",
+      "short": "Without Claude Code, the “Copy the prompt” button on each open task gives instructions ready to paste into any coding assistant."
+    },
+    "panel": {
+      "title": "{client}'s site code",
+      "manual": "The manual path is still there: “Copy the prompt” on each open task below."
+    },
+    "prompt": {
+      "copy": "Copy the prompt",
+      "copyHint": "Precise instructions for a coding assistant: what to do, the pages concerned, how to check",
+      "copied": "Prompt copied. Paste it into your coding assistant.",
+      "copyFailed": "Could not copy the prompt. Download it as a .md instead.",
+      "download": ".md",
+      "downloadHint": "Download the prompt as a Markdown file",
+      "claude": "Claude Code"
+    },
+    "chat": {
+      "crumbTasks": "Tasks",
+      "working": "Claude Code is working…",
+      "workingFor": "({secs}s so far; “Stop” button below)",
+      "intro": "Claude Code reads the task, works in this folder, can edit files and run the project's build. Nothing starts until you click. The conversation is saved: you can leave and come back.",
+      "start": "Start this task",
+      "emptyOff": "No conversation for this task.",
+      "connecting": "Connecting…",
+      "startFailed": "Claude Code could not start.",
+      "unreachable": "The app is not answering.",
+      "inputLabel": "Message for Claude Code",
+      "placeholder": "Tell Claude Code what to do next",
+      "placeholderRunning": "Claude Code is working…",
+      "keys": "Enter to send · Shift+Enter for a new line",
+      "stop": "■ Stop",
+      "send": "Send",
+      "toolError": "Error: ",
+      "moreLines": "… {count, plural, one {+# line} other {+# lines}}",
+      "resultOk": "Done",
+      "resultError": "Finished with an error",
+      "steps": "{count, plural, one {# step} other {# steps}}",
+      "reviewHint": "Review the changes, then mark the task done in the task list.",
+      "denied": "Claude Code was not allowed to run:",
+      "errors": {
+        "interrupted": "The run was interrupted (the app restarted). Send a message to continue.",
+        "stopped": "Stopped.",
+        "timeout": "Stopped after 30 minutes without finishing.",
+        "claude_missing": "Claude Code was not found on this computer. Install it and make sure the “claude” command works in a terminal.",
+        "start_failed": "Claude Code could not start.",
+        "exit": "Claude Code stopped with an error.",
+        "switched_off": "Claude Code was switched off for this client."
+      }
+    },
+    "queue": {
+      "confirmTitle": "Run Claude Code on the open tasks?",
+      "confirmBody": "Claude Code will work {count, plural, one {the open task} other {the # open tasks}} of {client}, one after another, in the project folder. Each task keeps its own conversation. You can stop at any time.",
+      "start": "Start the queue",
+      "cancel": "Cancel",
+      "failed": "That did not work.",
+      "unreachable": "The app is not answering.",
+      "running": "Claude Code is working for {client}: task {n} of {total}",
+      "failedCount": "{count, plural, one {# failed} other {# failed}}",
+      "now": "Now: {title}",
+      "idleTitle": "Work {client}'s tasks with Claude Code",
+      "idleBody": "High priority first, then medium, then low. {count, plural, =0 {No open tasks.} one {# open task.} other {# open tasks.}} Nothing starts without your click.",
+      "stop": "Stop the queue",
+      "notes": {
+        "all_done": "Last queue: every open task was worked through.",
+        "stopped": "Last queue: stopped.",
+        "three_failures": "Last queue: stopped after three failures in a row. Open the last conversation to see why."
+      },
+      "batch": {
+        "pending": "Opening the queue's pull request…",
+        "opened": "One pull request for the whole queue: {url}",
+        "invalid": "No pull request: the saved repository or branch is not valid.",
+        "switched_off": "No pull request: Claude Code was switched off for this client during the queue.",
+        "no_branch": "No pull request: Claude Code did not commit anything on the queue's branch.",
+        "nothing_committed": "No pull request: nothing was committed on the queue's branch.",
+        "failed": "The pull request could not be opened ({detail}). The changes are on the {branch} branch in the project folder."
+      }
+    },
+    "prs": {
+      "loading": "Reading the pull requests…",
+      "count": "{count, plural, =0 {No pull requests opened by Claude Code} one {# open pull request} other {# open pull requests}}",
+      "hint": "Merge when you are ready: the site is rebuilt once per merge. Only seo/task-… and seo/batch-… branches are listed.",
+      "refresh": "Refresh",
+      "mergeAll": "Merge all ({count})",
+      "merge": "Merge",
+      "cancel": "Cancel",
+      "unreachable": "The app is not answering.",
+      "confirmOneTitle": "Merge pull request #{number}?",
+      "confirmOneBody": "It is merged into the client's main branch (squash) and its branch deleted, only if GitHub says it can be merged and its checks are green at the time of the click.",
+      "confirmAllTitle": "Merge {count, plural, one {the ready pull request} other {the # ready pull requests}}?",
+      "confirmAllBody": "They are merged one by one into the client's main branch, oldest first. Each is checked again just before: one that now conflicts is reported and left open.",
+      "resultLine": "#{number}: {text}",
+      "checks": {
+        "passing": "checks passed",
+        "pending": "checks running",
+        "failing": "a check failed",
+        "none": "no checks"
+      },
+      "codes": {
+        "merged": "merged.",
+        "bad_request": "bad request.",
+        "not_open": "no longer an open Claude Code pull request.",
+        "draft": "draft",
+        "conflicts": "conflicts, or not computed by GitHub yet",
+        "check_failed": "a check failed",
+        "checks_pending": "checks running",
+        "no_gh": "gh is not installed on this computer.",
+        "gh_error": "GitHub refused or did not answer",
+        "bad_repo": "the saved GitHub repository is not valid.",
+        "no_repo": "no GitHub repository is set for this client.",
+        "env_off": "Claude Code is switched off on this server.",
+        "client_off": "Claude Code is switched off for this client.",
+        "not_local": "only from the computer that runs the app.",
+        "role": "owners and managers only.",
+        "not_found": "not found."
+      }
+    },
+    "settings": {
+      "title": "Site code",
+      "description": "For fixing the site in its source code, with a coding assistant. The folder and the repository go into the copied prompts and, when it is switched on, to Claude Code on this computer.",
+      "edit": "Edit",
+      "status": "Claude Code on this computer",
+      "statusHint": {
+        "on": "On for this client. It only starts when an owner or a manager clicks on the Tasks page.",
+        "off": "Off by default. The manual path (“Copy the prompt”) works without it.",
+        "forcedOff": "Switched off on this server by SEO_TOOL_HOST_AGENT=0: this cannot be changed from the app."
+      },
+      "statusValue": {
+        "on": "On",
+        "off": "Off",
+        "forcedOff": "Blocked by the server"
+      },
+      "folder": "Project folder",
+      "notSet": "Not set",
+      "repo": "GitHub repository",
+      "handBack": "How work comes back",
+      "mode": {
+        "off": "Files only",
+        "pr": "One pull request per task",
+        "pr_batch": "One pull request per queue"
+      },
+      "modeHint": {
+        "off": "Claude Code changes files in the folder and leaves git alone.",
+        "pr": "A branch and a pull request per task. You review and merge from the Tasks page.",
+        "pr_batch": "Every task of a queue is committed on one branch; the app opens a single pull request at the end. One preview and one deploy for the whole queue."
+      },
+      "machine": "Programs on this computer",
+      "machineHint": "Looked up in PATH, without running anything.",
+      "tools": {
+        "claude": "Claude Code",
+        "gh": "gh",
+        "git": "git"
+      },
+      "found": "found",
+      "notFound": "not found",
+      "openTasks": "Open this client's tasks",
+      "sheetTitle": "Site code",
+      "sheetSubtitle": "Folder, GitHub repository and Claude Code for this client",
+      "cancel": "Cancel",
+      "save": "Save and close",
+      "saving": "Saving…",
+      "saved": "Saved.",
+      "stepSource": "Source code",
+      "folderHelp": "Full path of the site's code on the computer that runs the app. Optional for copied prompts, required for Claude Code.",
+      "folderPlaceholder": "/home/you/sites/client",
+      "repoHelp": "Optional. “owner/name” or a github.com link. GitHub goes through the gh tool already signed in on this computer: no token is asked for or stored.",
+      "branch": "Main branch",
+      "branchHelp": "The branch pull requests target, usually main. Claude Code never pushes to it directly.",
+      "needRepo": "Set a GitHub repository to work through pull requests.",
+      "stepAgent": "Claude Code on this computer",
+      "switchLabel": "Switch Claude Code on for this client",
+      "switchHelp": "Off by default. When on, Claude Code can be started on a task, or on the task queue, in the project folder.",
+      "safety": {
+        "click": "Nothing starts without a click from an owner or a manager, and only from this computer.",
+        "branch": "With a repository: a branch and a pull request per task or per queue, never a push to the main branch; merging happens on the Tasks page, after a confirmation.",
+        "documents": "Internal documents (reports, drafts, notes) are written next to the app's database, never into the client's repository.",
+        "token": "No GitHub token is stored: gh and git use the sign-in already done on this computer."
+      },
+      "claudeMissing": "Claude Code is not installed on this computer: even when switched on, it cannot start. The “Copy the prompt” button is still available.",
+      "errors": {
+        "role": "Owners and managers only.",
+        "bad_folder": "Enter a full path (for example /home/you/sites/client).",
+        "bad_repo": "Enter “owner/name” or a github.com link.",
+        "bad_branch": "That is not a valid branch name.",
+        "env_off": "Claude Code is switched off on this server (SEO_TOOL_HOST_AGENT=0): it cannot be switched on from the app.",
+        "need_folder": "Set the project folder before switching Claude Code on."
       }
     }
   }
