@@ -204,9 +204,12 @@ export async function EngineReportView({
   hero,
   afterSnapshot,
   extra = [],
+  toolLinkFor,
 }: {
   report: EngineReport;
   auditId: number;
+  /** "Fix with…" / "Dig into it with…" for a finding type; null when no tool helps */
+  toolLinkFor?: (type: string) => React.ReactNode;
   /** Issue types still open on this audit, for the per-rule actions */
   activeTypes: Set<string>;
   pagesCrawled: number | null;
@@ -308,6 +311,7 @@ export async function EngineReportView({
             id: `cat-${c.id}`,
             content: (
               <CategoryCard
+                toolLinkFor={toolLinkFor}
                 category={c}
                 name={catLabel(c)}
                 verdict={verdictOf(c.score)}
@@ -717,7 +721,9 @@ function CategoryCard({
   activeTypes,
   multiPage,
   t,
+  toolLinkFor,
 }: {
+  toolLinkFor?: (type: string) => React.ReactNode;
   category: CategoryRow;
   name: string;
   verdict: string;
@@ -754,7 +760,7 @@ function CategoryCard({
 
       <ul className="space-y-2.5">
         {c.issues.map((r) => (
-          <RuleItem key={r.ruleId} rule={r} auditId={auditId} open={activeTypes.has(`seomator:${r.ruleId}`)} multiPage={multiPage} t={t} />
+          <RuleItem key={r.ruleId} rule={r} auditId={auditId} open={activeTypes.has(`seomator:${r.ruleId}`)} multiPage={multiPage} t={t} toolLinkFor={toolLinkFor} />
         ))}
       </ul>
 
@@ -801,7 +807,9 @@ function RuleItem({
   open,
   multiPage,
   t,
+  toolLinkFor,
 }: {
+  toolLinkFor?: (type: string) => React.ReactNode;
   rule: RuleRow;
   auditId: number;
   /** An open issue exists for this rule, so it can be closed from here */
@@ -853,6 +861,7 @@ function RuleItem({
           </details>
           {open ? (
             <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+              {toolLinkFor?.(type)}
               <form action={setStatusForType.bind(null, auditId, type, "resolved")}>
                 <button type="submit" className="rounded-md bg-emerald-500/10 px-2 py-1 font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30 hover:bg-emerald-500/20">
                   {t("markResolved")}
