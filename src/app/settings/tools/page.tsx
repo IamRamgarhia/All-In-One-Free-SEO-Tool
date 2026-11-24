@@ -4,7 +4,8 @@ import { getTranslations } from "next-intl/server";
 import { canManageSettings } from "@/lib/auth";
 import { getAiAvailability } from "@/lib/ai-availability";
 import { getGoogleConnectionStatus } from "@/lib/google-oauth";
-import { aiUsageOf, capabilityOf } from "@/lib/tool-capabilities";
+import { capabilityOf } from "@/lib/tool-capabilities";
+import { aiNeedOf } from "@/lib/connection-coverage";
 import { toolReadiness } from "@/lib/tool-readiness";
 import { getDisabledTools } from "@/lib/tool-activation";
 import { TOOL_CATALOG } from "@/lib/tool-catalog";
@@ -32,24 +33,21 @@ export default async function ToolsSettingsPage() {
 
   const cards: ToolCard[] = TOOL_CATALOG.map((e) => {
     const cap = capabilityOf(e.href);
-    const usage = cap ? aiUsageOf(cap) : "none";
-    // The one readiness rule (tool-readiness.ts): a tool counts as
-    // needing a key only where that is confirmed, not merely derived.
-    const aiRequired =
-      usage === "required" && toolReadiness({ href: e.href, hasAiKey: false }).state === "blocked";
+    // Same rule as the connection screens (connection-coverage.ts), so a
+    // tool they name as needing a key is the one shown here as needing setup.
+    const aiUsage = aiNeedOf(e.href);
     const missingGsc = e.needs === "gsc" && !google.connected;
     const blocked =
       toolReadiness({ href: e.href, hasAiKey: ai.available, needs: missingGsc ? "gsc" : null })
         .state === "blocked";
     const off = disabled.has(e.href);
     // A family is ready when its entry is; its other tabs only add
-    // "some features use AI / the browser" to the sheet.
+    // "some features use the browser" to the sheet.
     const tabs = (familyOf(e.href)?.family.members ?? []).map((m) => capabilityOf(m.href));
-    const someAi = tabs.some((c) => c && aiUsageOf(c) !== "none");
     return {
       href: e.href,
       category: e.category,
-      aiUsage: aiRequired ? "required" : usage === "none" && !someAi ? "none" : "partial",
+      aiUsage,
       usesBrowser: Boolean(cap?.usesBrowser) || tabs.some((c) => c?.usesBrowser),
       needsGsc: e.needs === "gsc",
       offByDefault: Boolean(e.offByDefault),

@@ -131,6 +131,10 @@ const KNOWN_AI_PAGES = new Set([
   // a key it fails at the point the user presses the button, which is
   // the worst place to find out.
   "/clients/[id]/ai-audit",
+  // Verified the same way: the page's only action, askTheTool, answers
+  // with callAI. Left out, the connection screens and Settings → Tools
+  // listed "Ask the AI" among the tools that run without a key.
+  "/ask",
 ]);
 
 /**

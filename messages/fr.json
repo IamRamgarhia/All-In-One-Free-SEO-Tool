@@ -389,7 +389,7 @@
     },
     "ai": {
       "title": "Connexion IA",
-      "description": "Branchez l'abonnement IA que vous payez déjà, ou une clé de fournisseur : les deux font tourner les mêmes outils. La plupart des outils n'en ont pas besoin."
+      "description": "Une clé de fournisseur fait fonctionner les outils IA de l’application ; l’abonnement Claude ou ChatGPT que vous payez déjà permet à votre application de chat d’utiliser vos données SEO. La plupart des outils n’ont besoin ni de l’un ni de l’autre."
     },
     "brand": {
       "title": "Identité de marque",
@@ -572,9 +572,9 @@
     },
     "connection": {
       "title": "Mode de connexion",
-      "intro": "{free} outils sur {total} fonctionnent sans IA. Ces deux connexions couvrent les {ai} autres ; elles ne font pas la même chose et peuvent se cumuler.",
+      "intro": "{free} outils sur {total} fonctionnent sans clé IA. Une clé débloque les {ai} autres ; un abonnement Claude ou ChatGPT connecté sert à autre chose : il permet à votre application de chat d’utiliser vos données SEO. Les deux peuvent se cumuler.",
       "apiTitle": "Clé d'API",
-      "apiBody": "Fait fonctionner les {ai} outils IA de l'application (assistant, synthèses, rédaction), y compris la nuit. Gemini et Groq sont gratuits.",
+      "apiBody": "Fait fonctionner les {ai} outils qui ont besoin de l’IA (assistant, synthèses, rédaction), y compris la nuit. Gemini et Groq sont gratuits.",
       "chatTitle": "Votre app Claude ou ChatGPT",
       "chatBody": "Claude ou ChatGPT lisent et utilisent vos données SEO via {count} outils, avec l'abonnement que vous payez déjà. Fonctionne dans cette app, pas ici.",
       "lastUsed": "Dernière utilisation : {when}.",
@@ -1222,6 +1222,14 @@
       "testCountry": "FR",
       "testLanguage": "fr"
     }
+  },
+  "connectionTools": {
+    "aiSummary": "Sur les {total} outils, {needs, plural, one {# a besoin} other {# ont besoin}} d’une clé IA (ou d’Ollama) pour fonctionner. Les {works} autres fonctionnent sans clé ;{partly, plural, =0 { aucun ne se sert de l’IA.} one { pour l’un d’eux, une partie de l’outil se sert de l’IA si une clé est ajoutée.} other { pour # d’entre eux, une partie de l’outil se sert de l’IA si une clé est ajoutée.}}",
+    "chatNote": "Un abonnement Claude ou ChatGPT connecté ne remplace pas la clé pour ces pages : c’est votre application de chat qui utilise celle-ci, pas l’inverse.",
+    "needsShow": "Voir {count, plural, one {l’outil qu’une clé débloque} other {les # outils qu’une clé débloque}}",
+    "partlyShow": "Voir {count, plural, one {l’outil dont une partie se sert de l’IA} other {les # outils dont une partie se sert de l’IA}}",
+    "gscSummary": "{count, plural, one {# outil n’a} other {# outils n’ont}} pas de données tant que la Search Console n’est pas connectée.",
+    "gscShow": "Voir {count, plural, one {cet outil} other {ces # outils}}"
   },
   "reports": {
     "title": "Rapports",
