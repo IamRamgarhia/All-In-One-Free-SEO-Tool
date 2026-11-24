@@ -6104,6 +6104,28 @@
         "manual": "manuel"
       }
     },
+    "app_agent_autopilot_outcomes": {
+      "title": "Ces changements ont-ils aidé ?",
+      "intro": "Chaque changement confirmé est comparé aux chiffres Search Console de la même page, sur les {window} jours avant et les {window} jours après (les {lag} derniers jours, que Google n’a pas fini de compter, sont exclus). Ce sont des mesures, pas des preuves : Google, vos concurrents et la saison ont aussi bougé pendant ce temps.",
+      "unavailableNoProperty": "{count, plural, one {# changement a été appliqué} other {# changements ont été appliqués}}, mais aucune propriété Search Console n’est reliée à ce projet : leur effet ne peut pas être mesuré. Reliez-en une et la comparaison avant/après apparaîtra ici.",
+      "unavailableGsc": "Search Console n’a pas répondu pour ce projet (ou n’a renvoyé aucune donnée), donc l’effet de {count, plural, one {ce changement} other {ces # changements}} n’a pas pu être mesuré. C’est en général une propriété que le compte Google connecté ne peut pas lire.",
+      "notRead": "{count, plural, one {# changement n’a pas pu être lu} other {# changements n’ont pas pu être lus}} : Search Console n’a pas répondu pour la période concernée.",
+      "rollupNoneMeasurable": "{total, plural, one {# changement appliqué} other {# changements appliqués}}, aucun encore mesurable : {tooEarly, plural, =0 {} other {# encore dans la fenêtre de {window} jours}}{both, select, yes {, } other {}}{thin, plural, =0 {} other {# sur des pages avec trop peu de trafic de recherche pour conclure}}.",
+      "rollupMeasured": "{measured, plural, one {# changement a} other {# changements ont}} {window} jours de données de chaque côté : {improved, plural, one {# page a gagné} other {# pages ont gagné}} des clics, {declined, plural, one {# en a perdu} other {# en ont perdu}}, {flat, plural, one {# est stable} other {# sont stables}}. Au total : {clicks} clics et {impressions} impressions. Ce sont des mesures, pas des attributions : Google, les concurrents et la saison ont aussi bougé pendant la même période.",
+      "rollupRemainder": "Par ailleurs, {tooEarly, plural, =0 {} one {# changement est trop récent pour juger} other {# changements sont trop récents pour juger}}{both, select, yes { et } other {}}{thin, plural, =0 {} one {# changement porte sur une page avec trop peu de trafic pour mesurer} other {# changements portent sur des pages avec trop peu de trafic pour mesurer}}.",
+      "rowTooEarly": "Appliqué {daysAgo, plural, =0 {aujourd’hui} =1 {hier} other {il y a # jours}}. Il faut {window} jours complets de données avant de lire l’effet : encore {daysToGo, plural, one {# jour} other {# jours}} environ.",
+      "rowThin": "Trop peu de trafic de recherche sur cette page pour conclure : {before} impressions avant, {after} après. Le changement peut tout de même être le bon ; il n’y a simplement pas assez de données pour le mesurer.",
+      "rowMeasured": "Dans les {window} jours après ce changement, les clics sont {clicks} ({clicksBefore} → {clicksAfter}) et les impressions {impressions} ({imprBefore} → {imprAfter}).{position} Mesuré, pas attribué : d’autres choses ont aussi changé pendant ces {window} jours.",
+      "positionImproved": "La position moyenne s’est améliorée de {delta}.",
+      "positionSlipped": "La position moyenne a reculé de {delta}.",
+      "changeUp": "en hausse de {pct}",
+      "changeDown": "en baisse de {pct}",
+      "changeFlat": "stables",
+      "changeFromZero": "en hausse (aucun avant)",
+      "changeZero": "à zéro",
+      "andMore": "et {count} de plus.",
+      "seeClient": "Voir le projet"
+    },
     "app_automations_new-form": {
       "name": "Nom",
       "alertOnLowScores": "Alerte en cas de score bas",
