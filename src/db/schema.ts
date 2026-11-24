@@ -9,6 +9,7 @@ import type {
   StyleProfile,
 } from "../lib/content-studio/types";
 
+import { RANK_SOURCE_IDS } from "../lib/serp/sources";
 import {
   MISSION_KINDS,
   MISSION_STATUSES,
@@ -52,6 +53,30 @@ export const clients = sqliteTable("clients", {
    * two — replies would go wherever Google happened to list first.
    */
   gbpLocationName: text("gbp_location_name"),
+  /**
+   * The site's source code, for fixing it with a coding assistant
+   * (lib/code-agent). Where the source lives on the machine running the
+   * app; the app never reads or writes there by itself.
+   */
+  localPath: text("local_path"),
+  /** GitHub repo as "owner/name"; pull requests go through `gh`, never a stored token. */
+  githubRepo: text("github_repo"),
+  /** Branch pull requests target. Never pushed to directly. */
+  baseBranch: text("base_branch").notNull().default("main"),
+  /**
+   * How Claude Code hands work back: "off" edits files only, "pr" one
+   * pull request per task, "pr_batch" one pull request per queue run.
+   */
+  prMode: text("pr_mode", { enum: ["off", "pr", "pr_batch"] })
+    .notNull()
+    .default("off"),
+  /**
+   * Claude Code on the host for this client. Off unless an owner or a
+   * manager switches it on; SEO_TOOL_HOST_AGENT=0 forces it off everywhere.
+   */
+  codeAgentEnabled: integer("code_agent_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
   // Targeting — every recommendation, rank check, SERP scan, autocomplete
   // fan-out, and citation suggestion uses these. country defaults to "US"
   // for back-compat with rows created before this column existed.
@@ -316,6 +341,40 @@ export const tasks = sqliteTable("tasks", {
   }),
   ...timestamps,
 });
+
+/**
+ * One Claude Code conversation per task, run headless in the client's
+ * project folder. `sessionId` is Claude's own id, which `--resume` needs.
+ */
+export const taskChats = sqliteTable("task_chats", {
+  taskId: integer("task_id")
+    .primaryKey()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  sessionId: text("session_id"),
+  status: text("status", { enum: ["idle", "running", "error"] })
+    .notNull()
+    .default("idle"),
+  ...timestamps,
+});
+
+/** What the chat shows, in order. `data` is JSON, shape set by `kind`. */
+export const taskChatEvents = sqliteTable(
+  "task_chat_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    kind: text("kind", {
+      enum: ["user", "text", "tool", "tool_result", "result", "error", "suggestion"],
+    }).notNull(),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (t) => [index("task_chat_events_task_idx").on(t.taskId, t.id)],
+);
 
 export const keywords = sqliteTable("keywords", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -1116,9 +1175,29 @@ export const keywordRankings = sqliteTable("keyword_rankings", {
   // "api": Google's results from a paid SERP API (serp-api.ts), also a
   // point-in-time position, but Google's for the client's country rather
   // than whatever our IP was shown.
-  source: text("source", { enum: ["scrape", "gsc", "api"] })
+  //
+  // Values come from RANK_SOURCES in lib/serp/sources.ts — one table, so
+  // adding a source cannot leave this list behind. Since 0091 the chain
+  // also writes "searxng", "brave" and "duckduckgo"; before 0091 a
+  // DuckDuckGo reading was written as "scrape", so an old "scrape" row
+  // with a null `engine` may be either engine. SQLite stores plain text
+  // with no CHECK: this is a TypeScript guard, and `isRankSource` guards
+  // values read back.
+  source: text("source", { enum: RANK_SOURCE_IDS })
     .notNull()
     .default("scrape"),
+  /**
+   * The engine(s) actually behind the number (0091): "google",
+   * "duckduckgo", "brave", or for SearXNG the engines that answered,
+   * comma-separated. Null on rows written before 0091.
+   */
+  engine: text("engine"),
+  /**
+   * How many results were read (0091). A null position means "absent
+   * from these N results", which is only "not in the top 100" when N is
+   * 100. Null on rows written before 0091 and on Search Console rows.
+   */
+  resultsScanned: integer("results_scanned"),
   /** GSC only: how many impressions the average rests on. */
   impressions: integer("impressions"),
   /**
@@ -1128,6 +1207,37 @@ export const keywordRankings = sqliteTable("keyword_rankings", {
    */
   dataDate: text("data_date"),
 });
+
+/**
+ * Rank checks that produced no answer (0091).
+ *
+ * Kept apart from keyword_rankings on purpose: a failure has no
+ * position, and every chart, report and alert reads a null position
+ * there as "not ranking". Writing failures into it is the bug this table
+ * exists to avoid. Before 0091 failures left no trace at all, so the
+ * keyword list showed the last success as if it were current.
+ *
+ * `failures` is the JSON list of {engine, code, status?, scanned?,
+ * detail?} from lib/serp/failure.ts, worded at display time in the
+ * reader's language.
+ */
+export const keywordRankFailures = sqliteTable(
+  "keyword_rank_failures",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    keywordId: integer("keyword_id")
+      .notNull()
+      .references(() => keywords.id, { onDelete: "cascade" }),
+    device: text("device", { enum: ["desktop", "mobile"] })
+      .notNull()
+      .default("desktop"),
+    failures: text("failures").notNull(),
+    checkedAt: integer("checked_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (t) => [index("keyword_rank_failures_keyword_idx").on(t.keywordId, t.checkedAt)],
+);
 
 export const gbpPlaybookCompletions = sqliteTable("gbp_playbook_completions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -1271,9 +1381,15 @@ export const localGridChecks = sqliteTable("local_grid_checks", {
   gridSize: integer("grid_size").notNull().default(5),
   spacingM: integer("spacing_m").notNull().default(1500),
   cells: text("cells", { mode: "json" }).$type<
-    { lat: number; lng: number; position: number | null }[]
+    { lat: number; lng: number; position: number | null; error?: string }[]
   >(),
   avgPosition: integer("avg_position"),
+  /**
+   * Null when no cell produced a conclusive answer — a wholly blocked
+   * run. Read it as "not measured", never as 0: rows written before this
+   * change counted blocked cells as misses, so an old low number may be
+   * a block rather than a ranking.
+   */
   inPackPct: integer("in_pack_pct"),
   ranAt: integer("ran_at", { mode: "timestamp" })
     .notNull()

@@ -86,8 +86,23 @@ export async function runDueLocalGridSchedules(): Promise<{
 
       await logActivity({
         kind: "rank.changed",
-        message: `Local grid auto-ran: ${result.inPackPct}% in pack for "${s.query}"`,
-        messageFr: `Grille locale lancée automatiquement : ${result.inPackPct} % des points dans le pack local pour « ${s.query} »`,
+        // A blocked run used to log "0% in pack", which reads as a ranking
+        // collapse rather than a failed measurement. Say which it was,
+        // and how much of the grid the number covers.
+        message:
+          result.inPackPct === null
+            ? `Local grid auto-ran for "${s.query}" but no point could be checked: in-pack share not measured (${result.failedCells} points blocked or unreachable)`
+            : `Local grid auto-ran: ${result.inPackPct}% in pack for "${s.query}"` +
+              (result.failedCells > 0
+                ? ` (across the ${result.conclusiveCells} points that answered; ${result.failedCells} gave none)`
+                : ""),
+        messageFr:
+          result.inPackPct === null
+            ? `Grille locale lancée automatiquement pour «\u00a0${s.query}\u00a0», mais aucun point n’a pu être vérifié\u00a0: part dans le pack non mesurée (${result.failedCells} points bloqués ou injoignables)`
+            : `Grille locale lancée automatiquement\u00a0: ${result.inPackPct}\u00a0% des points dans le pack local pour «\u00a0${s.query}\u00a0»` +
+              (result.failedCells > 0
+                ? ` (sur les ${result.conclusiveCells} points qui ont répondu\u00a0; ${result.failedCells} sans réponse)`
+                : ""),
         clientId: s.clientId,
         entityType: "local_grid",
       });

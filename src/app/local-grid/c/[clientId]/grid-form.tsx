@@ -109,12 +109,26 @@ export function GridForm({ clientId }: { clientId: number }) {
               {t("resultTitle", { query: state.result.query })}
             </h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {t.rich("resultSummary", {
-                pct: state.result.inPackPct,
-                avg: state.result.avgPosition ?? t("notRanked"),
-                strong: (chunks) => <strong>{chunks}</strong>,
-              })}
+              {state.result.inPackPct === null
+                ? t("resultNotMeasured")
+                : t.rich("resultSummaryConclusive", {
+                    pct: state.result.inPackPct,
+                    cells: state.result.conclusiveCells,
+                    avg: state.result.avgPosition ?? t("notRanked"),
+                    strong: (chunks) => <strong>{chunks}</strong>,
+                  })}
             </p>
+            {state.result.failedCells > 0 && (
+              // Said on the card, not in a tooltip: a grid where half the
+              // points were blocked is a different measurement from one
+              // where half the points genuinely do not rank.
+              <p className="mt-1.5 text-[11px] text-amber-300">
+                {t("resultFailedCells", {
+                  failed: state.result.failedCells,
+                  total: state.result.cells.length,
+                })}
+              </p>
+            )}
           </header>
           <div className="p-5">
             <Heatmap

@@ -67,6 +67,13 @@ services:
       # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY:-}
       # OLLAMA_URL: http://ollama:11434
+      #
+      # Rank checking through the bundled SearXNG (profile `searxng` below).
+      # Set unconditionally: when the profile is not running, the app gets
+      # a connection error on this address and moves on to the next source,
+      # exactly as with no address at all. An address typed in Settings →
+      # Rank sources takes precedence over this one.
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
     volumes:
       - seo-data:/data
     # Postgres is optional until the app cutover (docs/POSTGRES-MIGRATION.md).
@@ -91,6 +98,36 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Free rank checking that works from a server (docs/HOSTING.md):
+  #
+  #   echo "SEARXNG_SECRET=$(openssl rand -hex 32)" >> .env
+  #   docker compose --profile searxng up -d
+  #
+  # SearXNG is a free metasearch engine: it asks several engines from this
+  # server and merges their answers, so rank checks keep working when
+  # Google blocks the headless browser. Behind a profile, not on by
+  # default: it is a second container, and an install that only uses
+  # Search Console does not need it.
+  #
+  # NOT published to the host, deliberately. An open SearXNG is an open
+  # proxy, and this one runs with its rate limiter off because its only
+  # client is the app on this compose network. Do not add `ports:`.
+  searxng:
+    image: searxng/searxng:latest
+    profiles: ["searxng"]
+    restart: unless-stopped
+    environment:
+      # SearXNG refuses to start on its placeholder secret. Generate one
+      # into .env (see above). Never commit it.
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+      SEARXNG_BASE_URL: http://searxng:8080/
+    volumes:
+      # Read-only: the one line that matters (json in search.formats)
+      # must not be editable from inside the container.
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    expose:
+      - "8080"
 
   # Optional sidecar — local LLM for fully offline AI features.
   # Uncomment + run `docker compose up ollama` to use.

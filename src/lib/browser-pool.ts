@@ -35,6 +35,14 @@ const MAX_CONCURRENCY_HARD_CAP = 8;
 
 let cachedBrowser: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
+/**
+ * True when `cachedBrowser` is a browser the USER started and we merely
+ * attached to over CDP. Changes two things that would otherwise be
+ * destructive: we reuse their existing context instead of making a
+ * profile-less one, and we never close either. (Ported from upstream
+ * 0140924.)
+ */
+let attachedOverCdp = false;
 let proxyCounter = 0;
 
 // Simple semaphore.
@@ -151,11 +159,67 @@ async function getRemoteWsEndpoint(): Promise<string | null> {
   return env && env.trim() ? env.trim() : null;
 }
 
+/**
+ * Attach to a Chrome the USER started, instead of launching our own.
+ *
+ * They run their everyday Chrome with a debugging port open
+ * (`chrome --remote-debugging-port=9222`) and put
+ * `http://127.0.0.1:9222` in Settings → Rank sources. We then drive that
+ * browser — their profile, their cookies, their consent choices, their
+ * real fingerprint — rather than a fresh headless Chromium that search
+ * engines recognise on sight. The honest way to look like a real browser
+ * is to be one, operated by the person it belongs to.
+ *
+ * Only useful when the tool runs on the same computer as that Chrome
+ * (the launcher install, not a VPS). Costs, all stated on the settings
+ * screen: anything on the machine can drive that port; the tool acts in
+ * the signed-in session; closing Chrome stops browser checks.
+ */
+async function getCdpEndpoint(): Promise<string | null> {
+  const fromDb = await getSetting<string>("browser.cdp_url");
+  if (fromDb && fromDb.trim()) return fromDb.trim();
+  const env = process.env.SEO_CHROME_CDP_URL;
+  return env && env.trim() ? env.trim() : null;
+}
+
+/**
+ * Only loopback. A CDP endpoint is full control of a browser with no
+ * authentication; pointing this at another machine would hand that
+ * control to the network, and a typo in a settings box must not be able
+ * to do that.
+ */
+export function isLoopbackCdpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw.trim());
+    if (!/^https?:$/.test(u.protocol)) return false;
+    const h = u.hostname.toLowerCase();
+    return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
 async function getBrowser(): Promise<Browser> {
   if (cachedBrowser && cachedBrowser.isConnected()) return cachedBrowser;
   if (!browserPromise) {
+    const cdp = await getCdpEndpoint();
     const remoteWs = await getRemoteWsEndpoint();
-    if (remoteWs) {
+    if (cdp) {
+      // The user's own Chrome, first in line. Refuse a non-loopback
+      // address rather than quietly ignoring it — silently falling back
+      // to headless would leave them wondering why checks still get
+      // blocked.
+      if (!isLoopbackCdpUrl(cdp)) {
+        throw new Error(
+          `The Chrome debugging address "${cdp}" isn't on this machine. ` +
+            `A debugging port is unauthenticated full control of a browser, ` +
+            `so only http://127.0.0.1:<port> or http://localhost:<port> is accepted.`,
+        );
+      }
+      attachedOverCdp = true;
+      browserPromise = chromium.connectOverCDP(cdp);
+    } else if (remoteWs) {
+      attachedOverCdp = false;
       // Remote browser: chromium.connect over WebSocket. The service
       // handles launch/teardown; we just attach to a running instance.
       browserPromise = chromium.connect(remoteWs);
@@ -185,6 +249,7 @@ async function getBrowser(): Promise<Browser> {
           "--js-flags=--max-old-space-size=512",
         ],
       };
+      attachedOverCdp = false;
       browserPromise = chromium.launch(opts);
     }
 
@@ -300,6 +365,8 @@ export async function withBrowserContext<T>(
 ): Promise<T> {
   await acquire();
   let context: BrowserContext | null = null;
+  /** Set when `context` is the user's own, so we never close it. */
+  let borrowedContext: BrowserContext | null = null;
   try {
     const browser = await getBrowser();
     const stealth = await isStealthEnabled();
@@ -307,100 +374,130 @@ export async function withBrowserContext<T>(
     const proxyRaw = nextProxy(proxies);
     const proxy = proxyRaw ? parseProxy(proxyRaw) : null;
 
-    context = await browser.newContext({
-      userAgent: opts.userAgent ?? REALISTIC_UA,
-      viewport: opts.viewport ?? { width: 1280, height: 1800 },
-      locale: opts.locale ?? "en-US",
-      timezoneId: opts.timezoneId ?? "UTC",
-      extraHTTPHeaders: {
-        "accept-language": opts.acceptLanguage ?? "en-US,en;q=0.9",
-      },
-      ...(proxy ? { proxy } : {}),
-      ...(opts.isMobile !== undefined ? { isMobile: opts.isMobile } : {}),
-      ...(opts.hasTouch !== undefined ? { hasTouch: opts.hasTouch } : {}),
-      ...(opts.deviceScaleFactor !== undefined
-        ? { deviceScaleFactor: opts.deviceScaleFactor }
-        : {}),
-    });
-
-    // Block heavy resource types by default — saves ~100-200 MB per page
-    // load. Disable explicitly when capturing actual screenshots/visuals.
-    const blockHeavy = opts.blockHeavyResources !== false;
-    if (blockHeavy) {
-      await context.route("**/*", (route) => {
-        const t = route.request().resourceType();
-        if (
-          t === "image" ||
-          t === "media" ||
-          t === "font" ||
-          t === "stylesheet"
-        ) {
-          return route.abort();
-        }
-        return route.continue();
-      });
-    }
-
-    // Inject cookies if any are stored (for logged-in scrapes / paywalls)
-    const cookies = await getStoredCookies();
-    if (cookies.length > 0) {
-      try {
-        await context.addCookies(
-          cookies.map((c) => ({
-            name: c.name,
-            value: c.value,
-            domain: c.domain,
-            path: c.path ?? "/",
-            ...(c.expires ? { expires: c.expires } : {}),
-            secure: c.secure ?? true,
-            httpOnly: c.httpOnly ?? false,
-            sameSite: "Lax" as const,
-          })),
+    // When attached to the user's own Chrome, reuse the context that is
+    // already there. `newContext()` over CDP gives a fresh, profile-less
+    // context — no cookies, no consent choices, no sign-ins — which is
+    // precisely what we attached in order to get. It must not be closed
+    // in `finally` below either: it is their browsing session.
+    if (attachedOverCdp) {
+      const existing = browser.contexts()[0];
+      if (!existing) {
+        throw new Error(
+          "Connected to Chrome but it has no open window. Leave at least one " +
+            "tab open — the tool drives your browser rather than starting its own.",
         );
-      } catch {
-        // bad cookie shape — skip silently rather than blocking the call
       }
+      borrowedContext = existing;
+      context = existing;
+    } else {
+      context = await browser.newContext({
+        userAgent: opts.userAgent ?? REALISTIC_UA,
+        viewport: opts.viewport ?? { width: 1280, height: 1800 },
+        locale: opts.locale ?? "en-US",
+        timezoneId: opts.timezoneId ?? "UTC",
+        extraHTTPHeaders: {
+          "accept-language": opts.acceptLanguage ?? "en-US,en;q=0.9",
+        },
+        ...(proxy ? { proxy } : {}),
+        ...(opts.isMobile !== undefined ? { isMobile: opts.isMobile } : {}),
+        ...(opts.hasTouch !== undefined ? { hasTouch: opts.hasTouch } : {}),
+        ...(opts.deviceScaleFactor !== undefined
+          ? { deviceScaleFactor: opts.deviceScaleFactor }
+          : {}),
+      });
     }
 
-    if (stealth) {
-      // Lightweight stealth: hide the things headless flags trip on.
-      await context.addInitScript(() => {
-        Object.defineProperty(navigator, "webdriver", {
-          get: () => undefined,
+    // Nothing below touches a borrowed context. Request blocking, stored
+    // cookies and the stealth script would all outlive this call inside
+    // the user's own Chrome — their next page would load without images,
+    // or announce the wrong languages — and none of it is needed: their
+    // browser is already a real one.
+    if (!borrowedContext) {
+      // Block heavy resource types by default — saves ~100-200 MB per page
+      // load. Disable explicitly when capturing actual screenshots/visuals.
+      const blockHeavy = opts.blockHeavyResources !== false;
+      if (blockHeavy) {
+        await context.route("**/*", (route) => {
+          const t = route.request().resourceType();
+          if (
+            t === "image" ||
+            t === "media" ||
+            t === "font" ||
+            t === "stylesheet"
+          ) {
+            return route.abort();
+          }
+          return route.continue();
         });
-        // Plugins length > 0 (real chrome usually has 3+ default plugins)
-        Object.defineProperty(navigator, "plugins", {
-          get: () => [1, 2, 3, 4, 5],
-        });
-        // languages array (real browsers have 2+)
-        Object.defineProperty(navigator, "languages", {
-          get: () => ["en-US", "en"],
-        });
-        // Permissions API quirk — headless returns "denied" for notifications,
-        // real chrome returns "default".
-        const orig = (navigator as Navigator & { permissions?: { query?: unknown } })
-          .permissions?.query;
-        if (orig && navigator.permissions) {
-          const q = orig as (
-            params: PermissionDescriptor,
-          ) => Promise<PermissionStatus>;
-          navigator.permissions.query = (
-            parameters: PermissionDescriptor,
-          ): Promise<PermissionStatus> =>
-            parameters.name === "notifications"
-              ? Promise.resolve({ state: "default" } as unknown as PermissionStatus)
-              : q.call(navigator.permissions, parameters);
+      }
+
+      // Inject cookies if any are stored (for logged-in scrapes / paywalls)
+      const cookies = await getStoredCookies();
+      if (cookies.length > 0) {
+        try {
+          await context.addCookies(
+            cookies.map((c) => ({
+              name: c.name,
+              value: c.value,
+              domain: c.domain,
+              path: c.path ?? "/",
+              ...(c.expires ? { expires: c.expires } : {}),
+              secure: c.secure ?? true,
+              httpOnly: c.httpOnly ?? false,
+              sameSite: "Lax" as const,
+            })),
+          );
+        } catch {
+          // bad cookie shape — skip silently rather than blocking the call
         }
-        // window.chrome stub (headless lacks it)
-        if (!(window as unknown as { chrome?: unknown }).chrome) {
-          (window as unknown as { chrome: unknown }).chrome = { runtime: {} };
-        }
-      });
+      }
+
+      if (stealth) {
+        // Lightweight stealth: hide the things headless flags trip on.
+        const primary = opts.locale ?? "en-US";
+        const langs = Array.from(new Set([primary, primary.split("-")[0]]));
+        await context.addInitScript((langs: string[]) => {
+          Object.defineProperty(navigator, "webdriver", {
+            get: () => undefined,
+          });
+          // Plugins length > 0 (real chrome usually has 3+ default plugins)
+          Object.defineProperty(navigator, "plugins", {
+            get: () => [1, 2, 3, 4, 5],
+          });
+          // languages array (real browsers have 2+), matching the context's
+          // locale — a French context announcing ["en-US", "en"] is exactly
+          // the kind of mismatch that marks a browser as automated.
+          Object.defineProperty(navigator, "languages", {
+            get: () => langs,
+          });
+          // Permissions API quirk — headless returns "denied" for notifications,
+          // real chrome returns "default".
+          const orig = (navigator as Navigator & { permissions?: { query?: unknown } })
+            .permissions?.query;
+          if (orig && navigator.permissions) {
+            const q = orig as (
+              params: PermissionDescriptor,
+            ) => Promise<PermissionStatus>;
+            navigator.permissions.query = (
+              parameters: PermissionDescriptor,
+            ): Promise<PermissionStatus> =>
+              parameters.name === "notifications"
+                ? Promise.resolve({ state: "default" } as unknown as PermissionStatus)
+                : q.call(navigator.permissions, parameters);
+          }
+          // window.chrome stub (headless lacks it)
+          if (!(window as unknown as { chrome?: unknown }).chrome) {
+            (window as unknown as { chrome: unknown }).chrome = { runtime: {} };
+          }
+        }, langs);
+      }
     }
 
     return await fn(context);
   } finally {
-    if (context) {
+    // Never close a context we borrowed from the user's browser —
+    // that is their window and their tabs.
+    if (context && context !== borrowedContext) {
       await context.close().catch(() => {});
     }
     release();
@@ -530,9 +627,19 @@ export function poolStats() {
  */
 export async function closeBrowser(): Promise<void> {
   const b = cachedBrowser;
+  const borrowed = attachedOverCdp;
   cachedBrowser = null;
   browserPromise = null;
-  if (b && b.isConnected()) {
-    await b.close().catch(() => {});
+  attachedOverCdp = false;
+  if (!b || !b.isConnected()) return;
+  if (borrowed) {
+    // Deliberately does NOT call close(). `Browser.close()` over CDP can
+    // take the user's whole browser down — every tab they had open —
+    // because a setting was saved or a rank run finished. Playwright has
+    // no public "disconnect", so the reference is dropped and the socket
+    // is left for process exit. A leaked socket is a far smaller problem
+    // than closing somebody's browser.
+    return;
   }
+  await b.close().catch(() => {});
 }

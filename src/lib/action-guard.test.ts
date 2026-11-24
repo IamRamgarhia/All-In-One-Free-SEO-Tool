@@ -14,6 +14,7 @@ const PUBLIC_FILES = new Set([
   "src/app/embed/grader/actions.ts",
   "src/app/portal/[token]/chat-actions.ts",
   "src/app/portal/[token]/quote-actions.ts",
+  "src/app/portal/[token]/review-actions.ts",
 ]);
 
 // Read by the root layout and the shell on every page, the login page

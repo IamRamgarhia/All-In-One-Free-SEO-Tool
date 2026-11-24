@@ -403,7 +403,7 @@
     "noKeywords": "Aucun mot-clé suivi pour l’instant. Ajoutez-en d’abord sur /keywords.",
     "noMovements": "Aucun mot-clé n’a au moins 2 relevés de position sur les {days} derniers jours. Lancez des relevés sur quelques mots-clés puis revenez.",
     "scoreLabel": "Volatilité (fenêtre de {days} j)",
-    "withChecks": "<b>{count}</b> mots-clés avec ≥ 2 relevés",
+    "withChecks": "<b>{count}</b> mots-clés avec au moins 2 relevés comparables",
     "improvedDropped": "<g>{up}</g> en hausse · <r>{down}</r> en baisse",
     "daysShort": "{days} j",
     "gainers": "Plus fortes hausses",
@@ -412,7 +412,8 @@
     "droppersEmpty": "Aucun mot-clé n’a reculé sur cette période.",
     "colQuery": "Requête",
     "colClient": "Client",
-    "colFromTo": "De → À"
+    "colFromTo": "De → À",
+    "excludedSources": "{count, plural, one {# mot-clé exclu : le premier et le dernier relevé de la période viennent de sources différentes} other {# mots-clés exclus : le premier et le dernier relevé de la période viennent de sources différentes}}"
   },
   "sitemap": {
     "title": "Générateur de sitemap",

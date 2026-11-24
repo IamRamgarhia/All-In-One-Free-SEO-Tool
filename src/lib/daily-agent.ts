@@ -434,25 +434,30 @@ async function weeklyRankSweep(): Promise<string> {
   if (stale.length === 0) return "every keyword has a reading from the last 7 days";
 
   const { checkRankAction } = await import("@/app/keywords/rank-actions");
-  let done = 0;
-  let failed = 0;
-  for (const k of stale) {
-    try {
-      await checkRankAction(k.id);
-      done++;
-    } catch {
-      // Search engines block datacentre and residential IPs without
-      // warning. Swallowing that and reporting only successes turns a
-      // rank tracker that cannot see anything into one that looks idle.
-      failed++;
-    }
+  const { runRankBatch } = await import("./rank-batch");
+  // A failed check returns { ok: false } — it does not throw — so the old
+  // try/catch counted every blocked keyword as "checked". runRankBatch
+  // counts the outcome, paces live searches and stops asking Google for
+  // the rest of the sweep once it has blocked one keyword.
+  const summary = await runRankBatch(stale, async (k, opts) => {
+    const r = await checkRankAction(k.id, undefined, undefined, opts);
+    return r.ok
+      ? { ok: true, source: r.source, googleBlocked: r.googleBlocked }
+      : { ok: false, googleBlocked: r.googleBlocked };
+  });
+  const { shutdownBrowser } = await import("./rank-checker");
+  await shutdownBrowser().catch(() => {});
+
+  const sources = Object.entries(summary.bySource)
+    .map(([source, n]) => `${source} ${n}`)
+    .join(", ");
+  const google = summary.googleAbandoned ? "; Google blocked this server and was skipped for the rest" : "";
+  if (summary.checked === 0) {
+    return `could not check any of ${summary.total} keywords — no source answered (blocked, or the network refused)${google}`;
   }
-  if (done === 0) {
-    return `could not check any of ${stale.length} keywords — the search page was unreadable (blocked, or the network refused)`;
-  }
-  return failed > 0
-    ? `checked ${done} keywords, ${failed} could not be read`
-    : `checked ${done} keywords`;
+  return summary.failed > 0
+    ? `checked ${summary.checked} of ${summary.total} keywords (${sources}), ${summary.failed} could not be checked${google}`
+    : `checked ${summary.checked} keywords (${sources})${google}`;
 }
 
 // ============== New auto-steps ==============

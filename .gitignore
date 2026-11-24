@@ -158,3 +158,6 @@ docs/AGENTS.md
 
 # Local research clones (not part of the product)
 research/
+
+# Documents Claude Code writes that are not part of a client's site (next to the database).
+/claude-documents/

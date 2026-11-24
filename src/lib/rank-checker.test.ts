@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   dedupeResults,
+  duckDuckGoRequest,
   extractDuckDuckGoHrefs,
+  resolveGoogleScan,
   resultKey,
   unwrapDuckDuckGoUrl,
   GOOGLE_NON_ORGANIC,
@@ -224,5 +226,94 @@ describe("GOOGLE_NON_ORGANIC", () => {
     "https://notgoogle.com/x",
   ])("keeps organic result %s", (href) => {
     expect(GOOGLE_NON_ORGANIC.test(href)).toBe(false);
+  });
+});
+
+/**
+ * Ported from upstream 15c000f, adapted: the truncation is a failure
+ * code with the number of results read, not an English sentence.
+ *
+ * Paging with `&start=` was added because a single page of ten results
+ * made everything ranking 11+ report as "not found". A captcha part-way
+ * through the paging put that back: blocked on page 3, the scan returned
+ * `position: null` with NO error — identical to a completed scan.
+ */
+describe("resolveGoogleScan", () => {
+  const ten = Array.from({ length: 10 }, (_, i) => `https://other${i}.com/page`);
+
+  it("reports the position when the domain is in the results", () => {
+    const hrefs = [...ten.slice(0, 2), "https://example.com/x", ...ten];
+    expect(resolveGoogleScan({ hrefs, domain: "example.com", truncatedBy: null })).toEqual({
+      position: 3,
+      url: "https://example.com/x",
+    });
+  });
+
+  it("reports a clean miss when the whole index was scanned", () => {
+    const r = resolveGoogleScan({ hrefs: ten, domain: "example.com", truncatedBy: null });
+    expect(r.position).toBeNull();
+    expect(r.failure).toBeUndefined();
+  });
+
+  it("refuses to call a truncated scan a miss", () => {
+    const r = resolveGoogleScan({
+      hrefs: ten,
+      domain: "example.com",
+      truncatedBy: "Google showed a CAPTCHA.",
+    });
+    expect(r.position).toBeNull();
+    expect(r.failure).toMatchObject({ engine: "google", code: "truncated", scanned: 10 });
+  });
+
+  it("still reports a position found before the scan was cut short", () => {
+    const hrefs = ["https://example.com/x", ...ten];
+    const r = resolveGoogleScan({
+      hrefs,
+      domain: "example.com",
+      truncatedBy: "Google showed a CAPTCHA.",
+    });
+    expect(r).toEqual({ position: 1, url: "https://example.com/x" });
+  });
+
+  it("matches subdomains but not lookalike domains", () => {
+    expect(
+      resolveGoogleScan({ hrefs: ["https://blog.example.com/x"], domain: "example.com", truncatedBy: null })
+        .position,
+    ).toBe(1);
+    expect(
+      resolveGoogleScan({ hrefs: ["https://notexample.com/x"], domain: "example.com", truncatedBy: null })
+        .position,
+    ).toBeNull();
+  });
+});
+
+/**
+ * DuckDuckGo was always asked as an American search in English: no `kl`
+ * region, accept-language en-US, whatever the client's market.
+ */
+describe("duckDuckGoRequest", () => {
+  it("asks in the client's region and language", () => {
+    const r = duckDuckGoRequest("prothésiste ongulaire", { country: "FR", language: "fr" });
+    const u = new URL(r.url);
+    expect(u.hostname).toBe("duckduckgo.com");
+    expect(u.searchParams.get("q")).toBe("prothésiste ongulaire");
+    expect(u.searchParams.get("kl")).toBe("fr-fr");
+    expect(r.acceptLanguage).toBe("fr-FR,fr;q=0.9");
+  });
+
+  it("uses DuckDuckGo's own codes where they differ from ISO", () => {
+    expect(duckDuckGoRequest("x", { country: "GB", language: "en" }).region).toBe("uk-en");
+    expect(duckDuckGoRequest("x", { country: "BE", language: "fr" }).region).toBe("be-fr");
+    expect(duckDuckGoRequest("x", { country: "CH", language: "it" }).region).toBe("ch-it");
+  });
+
+  it("appends the city, as for Google", () => {
+    const u = new URL(duckDuckGoRequest("coiffeur", { country: "FR", language: "fr", city: "Lyon" }).url);
+    expect(u.searchParams.get("q")).toBe("coiffeur Lyon");
+  });
+
+  it("falls back to no region rather than a code DuckDuckGo would ignore", () => {
+    expect(duckDuckGoRequest("x", {}).region).toBe("wt-wt");
+    expect(duckDuckGoRequest("x", { country: "MA", language: "fr" }).region).toBe("wt-wt");
   });
 });

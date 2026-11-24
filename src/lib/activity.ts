@@ -57,7 +57,10 @@ export type ActivityKind =
   | "team.access_changed"
   | "account.password_changed"
   // The client approved a draft, or asked for changes, from their portal.
-  | "portal.client_review";
+  | "portal.client_review"
+  // Claude Code on the host switched on or off for one client's code.
+  | "client.code_agent_on"
+  | "client.code_agent_off";
 
 export type ActivityLevel = "info" | "success" | "warning" | "error";
 
