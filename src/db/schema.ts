@@ -982,6 +982,13 @@ export const contentPosts = sqliteTable("content_posts", {
    * (/portal/<token>/articles/<id>). Null: not shared.
    */
   reviewSharedAt: integer("review_shared_at", { mode: "timestamp" }),
+  /**
+   * The client's answer to the review in the portal; null until they
+   * answer. "approved" publishes nothing: the agency still schedules it.
+   */
+  clientDecision: text("client_decision", { enum: ["approved", "changes"] }),
+  clientComment: text("client_comment"),
+  clientDecidedAt: integer("client_decided_at", { mode: "timestamp" }),
   ...timestamps,
 });
 
@@ -2246,6 +2253,13 @@ export const publishQueue = sqliteTable("publish_queue", {
   publishedRef: text("published_ref"),
   errorMsg: text("error_msg"),
   reviewNote: text("review_note"),
+  /** When the agency sent the item to the client's portal for approval. Null: not sent. */
+  clientSharedAt: integer("client_shared_at", { mode: "timestamp" }),
+  /** The client's answer in the portal; null until they answer. */
+  clientDecision: text("client_decision", { enum: ["approved", "changes"] }),
+  /** What the client asked to change (required with "changes"). */
+  clientComment: text("client_comment"),
+  clientDecidedAt: integer("client_decided_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),

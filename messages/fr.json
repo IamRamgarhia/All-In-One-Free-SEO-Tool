@@ -2309,15 +2309,20 @@
       }
     },
     "review": {
-      "title": "Relecture par le client",
+      "title": "Validation par le client",
       "on": "Le client peut lire cet article dans son espace client.",
-      "off": "Ouvrez l’article au client pour qu’il le lise avant publication.",
+      "off": "Envoyez l’article au client : il l’approuve ou demande des modifications depuis son espace client.",
       "needsDraft": "Rédigez et enregistrez l’article avant de l’ouvrir au client.",
-      "share": "Ouvrir à la relecture",
+      "share": "Envoyer au client pour validation",
       "copy": "Copier le lien",
       "copied": "Copié",
       "open": "Voir la page",
-      "stop": "Fermer la relecture"
+      "stop": "Retirer de l’espace client",
+      "sentOn": "Envoyé au client le {date} · en attente de sa réponse",
+      "approvedOn": "Approuvé par le client le {date}",
+      "changesOn": "Modifications demandées par le client le {date} :",
+      "approvedHint": "L’approbation ne publie rien : planifiez la publication quand vous le souhaitez.",
+      "sendAgain": "Renvoyer au client"
     }
   },
   "docs": {
@@ -2653,8 +2658,7 @@
         "sent": "à régler",
         "paid": "payée",
         "overdue": "en retard"
-      },
-      "toReview": "Articles à relire"
+      }
     },
     "footerDefault": "Espace client en lecture seule · Propulsé par rank_forge",
     "article": {
@@ -2664,8 +2668,46 @@
       "plannedFor": "Publication prévue le {date}",
       "publishedOn": "Publié le {date}",
       "noDate": "Date de publication à définir",
-      "hint": "Voici l’article avant sa mise en ligne. Faites part de vos remarques à votre interlocuteur.",
+      "hint": "Voici l’article avant sa mise en ligne. Donnez votre accord ou demandez des modifications en bas de la page.",
       "google": "Aperçu dans Google"
+    },
+    "review": {
+      "title": "À valider",
+      "hint": "{count, plural, one {# contenu attend votre accord. Approuvez-le ou dites-nous ce qu’il faut changer.} other {# contenus attendent votre accord. Approuvez-les ou dites-nous ce qu’il faut changer.}}",
+      "hintNone": "Rien n’attend votre accord pour le moment.",
+      "answered": "Vos réponses",
+      "type": {
+        "blog_draft": "Article de blog",
+        "gbp_post": "Publication Google",
+        "social_post": "Publication réseaux sociaux",
+        "article": "Article"
+      },
+      "sentOn": "Envoyé le {date}",
+      "readArticle": "Lire l’article",
+      "emptyText": "(texte vide)",
+      "showAll": "Afficher tout",
+      "showLess": "Réduire",
+      "approvedOn": "Approuvé le {date}",
+      "changesOn": "Modifications demandées le {date}",
+      "approve": "Approuver",
+      "askChanges": "Demander des modifications",
+      "commentLabel": "Qu’aimeriez-vous changer ?",
+      "commentPlaceholder": "Par exemple : préciser la zone desservie, adoucir le ton, retirer une phrase…",
+      "commentCount": "{count} / {max}",
+      "sendRequest": "Envoyer la demande",
+      "cancel": "Annuler",
+      "thanksApproved": "Merci, c’est noté : vous avez approuvé ce contenu.",
+      "thanksChanges": "Merci, votre demande a bien été transmise à l’équipe.",
+      "articleQuestion": "Cet article vous convient-il ?",
+      "errors": {
+        "invalid": "Votre réponse n’a pas pu être lue. Rechargez la page et réessayez.",
+        "notFound": "Ce contenu n’est plus disponible.",
+        "answered": "Une réponse a déjà été donnée pour ce contenu.",
+        "comment": "Précisez ce qu’il faut modifier (1 000 caractères au plus)."
+      },
+      "notifyApproved": "{client} a approuvé un contenu",
+      "notifyChanges": "{client} demande des modifications",
+      "notifyComment": "Commentaire"
     }
   },
   "invoices": {
@@ -6352,7 +6394,7 @@
     "app_clients_id_queue_page": {
       "backTo": "Retour à {name}",
       "reviewQueue": "File de relecture · {name}",
-      "aiGeneratedItemsWaitingFor": "Les éléments générés par l’IA qui attendent votre relecture. Approuvez pour publier au prochain passage de l’agent, ou approuvez et publiez tout de suite. Rejetez ce qui ne correspond pas à la marque.",
+      "aiGeneratedItemsWaitingFor": "Les éléments générés par l’IA qui attendent votre relecture. Approuvez pour publier à la date prévue, envoyez au client pour validation, ou approuvez et publiez tout de suite. Rejetez ce qui ne correspond pas à la marque.",
       "schedules": "Planifications"
     },
     "app_clients_id_queue_queue-list": {
@@ -6371,7 +6413,7 @@
       "title": "Titre",
       "body": "Texte",
       "approvePublishNow": "Approuver et publier maintenant",
-      "approvePublishOnNextTick": "Approuver (publication au prochain passage)",
+      "approvePublishOnNextTick": "Approuver (publication à la date prévue)",
       "reject": "Rejeter",
       "cancelEdit": "Annuler la modification",
       "editBeforeApproving": "Modifier avant d’approuver",
@@ -6391,7 +6433,20 @@
       "approved": "Approuvé",
       "published": "Publié",
       "skipped": "Ignoré",
-      "failed": "En échec"
+      "failed": "En échec",
+      "filterAll": "Tout",
+      "deleted": "Supprimé.",
+      "copiedBody": "Texte copié dans le presse-papiers.",
+      "copiedMarkdown": "Copié en Markdown.",
+      "untitled": "(sans titre)",
+      "empty": "(vide)",
+      "createPortalLink": "Créer le lien",
+      "sendToClient": "Envoyer au client",
+      "sendAgainToClient": "Renvoyer au client",
+      "clientApprovedOn": "Approuvé par le client le {date}",
+      "clientAskedChangesOn": "Modifications demandées par le client le {date} :",
+      "changesHint": "Modifiez le texte, puis renvoyez-le au client ou approuvez-le directement.",
+      "sentToClientOn": "Envoyé au client le {date} · en attente de sa réponse"
     },
     "app_clients_import-form": {
       "importCsv": "Importer un CSV",
@@ -8181,10 +8236,17 @@
     },
     "app_clients_id_queue_actions": {
       "queueItemNotFound": "Élément de la file introuvable.",
-      "approvedPublishesOnTheNext": "Validé. La publication se fera au prochain passage de l’agent quotidien (24 h au plus).",
+      "approvedPublishesOnTheNext": "Validé. La publication se fera à la date prévue, au premier passage de l’agent quotidien qui suit.",
       "alreadyPublished": "Déjà publié.",
       "published": "Publié.",
-      "approvedButNotPickedUp": "Validé, mais pas encore pris en charge. Nouvel essai au prochain passage."
+      "approvedButNotPickedUp": "Validé, mais pas encore pris en charge. Nouvel essai au prochain passage.",
+      "noLongerPending": "Cet élément n’est plus en attente de relecture.",
+      "publishFailed": "Échec de la publication : {error}",
+      "unknownError": "erreur inconnue",
+      "noPortalLink": "Ce client n’a pas encore de lien vers son espace client. Créez-le dans Réglages du projet, rubrique « Portail client ».",
+      "sentToClient": "Envoyé au client. Il peut l’approuver ou demander des modifications depuis son espace client.",
+      "sentAgainToClient": "Renvoyé au client : sa réponse précédente est effacée, une nouvelle lui est demandée.",
+      "notForClient": "La liste du jour est un document interne : elle ne s’envoie pas au client."
     },
     "app_clients_id_schedule-actions": {
       "invalidInput": "Saisie invalide",

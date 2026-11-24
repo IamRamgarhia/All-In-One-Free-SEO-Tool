@@ -2,11 +2,12 @@
 
 import { actionTx } from "@/lib/action-tx";
 import { requireSignedIn } from "@/lib/action-guard";
+import { requireClientAccess } from "@/lib/auth";
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { publishQueue } from "@/db/schema";
+import { clients, publishQueue } from "@/db/schema";
 
 async function ownItem(itemId: number, clientId: number) {
   const [row] = await db
@@ -32,7 +33,7 @@ export async function approveQueueItem(
   const item = await ownItem(itemId, clientId);
   if (!item) return { ok: false, message: tx("queueItemNotFound") };
   if (item.status !== "pending_review") {
-    return { ok: false, message: `Already ${item.status.replace("_", " ")}.` };
+    return { ok: false, message: tx("noLongerPending") };
   }
   await db
     .update(publishQueue)
@@ -71,6 +72,9 @@ export async function approveAndPublishNow(
     .update(publishQueue)
     .set({
       status: "approved",
+      // "Publish now" means now, whatever date it was planned for: the
+      // publisher only takes items that are due.
+      scheduledFor: new Date(),
       title: edits?.title ?? item.title,
       body: edits?.body ?? item.body,
       updatedAt: new Date(),
@@ -89,7 +93,7 @@ export async function approveAndPublishNow(
       .limit(1);
     return {
       ok: false,
-      message: `Publish failed: ${post?.errorMsg ?? "unknown error"}`,
+      message: tx("publishFailed", { error: post?.errorMsg ?? tx("unknownError") }),
     };
   }
   return {
@@ -135,4 +139,65 @@ export async function deleteQueueItem(
       ),
     );
   revalidatePath(`/clients/${clientId}/queue`);
+}
+
+/**
+ * Send a draft to the client's portal for approval (or send it again
+ * after an edit). The agency has read it first; the client then approves
+ * it or asks for changes in /portal/<token>. Sending again clears the
+ * previous answer. Approving directly from the queue stays possible at
+ * any time.
+ */
+export async function sendQueueItemToClient(
+  itemId: number,
+  clientId: number,
+  edits?: { title?: string; body?: string },
+): Promise<{ ok: boolean; message: string; needsPortalLink?: boolean }> {
+  await requireSignedIn();
+  const tx = await actionTx("ui.app_clients_id_queue_actions");
+  if (!Number.isInteger(itemId) || !Number.isInteger(clientId)) {
+    return { ok: false, message: tx("queueItemNotFound") };
+  }
+  await requireClientAccess(clientId, { edit: true });
+  const item = await ownItem(itemId, clientId);
+  if (!item) return { ok: false, message: tx("queueItemNotFound") };
+  if (item.status !== "pending_review") {
+    return { ok: false, message: tx("noLongerPending") };
+  }
+  // The daily checklist is a note for the agency, not something to publish.
+  if (item.kind === "internal_checklist") {
+    return { ok: false, message: tx("notForClient") };
+  }
+  const [client] = await db
+    .select({ shareToken: clients.shareToken })
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+  if (!client?.shareToken) {
+    return { ok: false, message: tx("noPortalLink"), needsPortalLink: true };
+  }
+  await db
+    .update(publishQueue)
+    .set({
+      title: edits?.title ?? item.title,
+      body: edits?.body ?? item.body,
+      clientSharedAt: new Date(),
+      clientDecision: null,
+      clientComment: null,
+      clientDecidedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(publishQueue.id, itemId),
+        eq(publishQueue.clientId, clientId),
+        eq(publishQueue.status, "pending_review"),
+      ),
+    );
+  revalidatePath(`/clients/${clientId}/queue`);
+  revalidatePath(`/portal/${client.shareToken}`);
+  return {
+    ok: true,
+    message: item.clientSharedAt ? tx("sentAgainToClient") : tx("sentToClient"),
+  };
 }
