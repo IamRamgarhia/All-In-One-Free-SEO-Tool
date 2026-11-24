@@ -258,6 +258,18 @@ async function fetchUrlStatus(
       headers: { "user-agent": USER_AGENT },
       allowPrivate,
     });
+    // Some servers refuse HEAD (405, 501) on pages that load fine: ask
+    // again with GET before calling the link broken. Only the status is
+    // needed, so the body is dropped unread.
+    if (res.status === 405 || res.status === 501) {
+      const get = await guardedFetch(url, {
+        signal: controller.signal,
+        headers: { "user-agent": USER_AGENT },
+        allowPrivate,
+      });
+      await get.body?.cancel().catch(() => {});
+      return { status: get.status, finalUrl: get.url };
+    }
     return { status: res.status, finalUrl: res.url };
   } catch {
     return null;

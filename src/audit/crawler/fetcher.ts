@@ -352,7 +352,7 @@ export async function fetchUrlWithRedirects(
     throwIfAborted(signal);
     const request = requestSignal(timeout, signal);
     try {
-      const response = await auditFetch(currentUrl, {
+      let response = await auditFetch(currentUrl, {
         method: "HEAD",
         signal: request.signal,
         headers: {
@@ -361,6 +361,18 @@ export async function fetchUrlWithRedirects(
         redirect: "manual"
         // Don't auto-follow redirects
       });
+      // A server that refuses HEAD (405, 501) says nothing about the page
+      // itself: ask again with GET, status only, body dropped unread.
+      if (response.status === 405 || response.status === 501) {
+        response = await auditFetch(currentUrl, {
+          signal: request.signal,
+          headers: {
+            "User-Agent": getUserAgent()
+          },
+          redirect: "manual"
+        });
+        await response.body?.cancel().catch(() => {});
+      }
       request.dispose();
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
