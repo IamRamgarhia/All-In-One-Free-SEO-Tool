@@ -18,7 +18,7 @@ describe("tool capabilities", () => {
     // Left stale, the UI would tell users a paid tool is free.
     //
     // Only the derived fields are compared here; title and description
-    // come from the tools-grid parser and are checked separately below.
+    // come from the message files and are checked separately below.
     const flagsOnly = TOOL_CAPABILITIES.map((c) => ({
       route: c.route,
       needsAI: c.needsAI,

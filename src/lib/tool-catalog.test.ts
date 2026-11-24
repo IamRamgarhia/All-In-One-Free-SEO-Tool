@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { NAV_GROUPS } from "@/components/shell/nav-items";
 import { isRetired } from "./tool-categories";
+import { TOOLS } from "./tool-registry";
 import {
   PROJECT_VIEWS,
   TOOL_FAMILIES,
@@ -63,9 +64,8 @@ describe("tool catalogue", () => {
     expect(missing).toEqual([]);
   });
 
-  it("keeps every tool of the old /tools grid", () => {
-    const grid = readFileSync(path.join(APP, "tools/tools-grid.tsx"), "utf8");
-    const hrefs = [...grid.matchAll(/href: "([^"]+)",\s*icon:/g)].map((m) => m[1]);
+  it("keeps every tool of the registry", () => {
+    const hrefs = TOOLS.map((t) => t.href);
     expect(hrefs.length).toBeGreaterThan(50);
     const missing = hrefs.filter(
       (h) => !isRetired(h) && !listed(h) && !IN_RESOURCES.includes(h),

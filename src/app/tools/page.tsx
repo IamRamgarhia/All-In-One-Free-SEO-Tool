@@ -5,8 +5,7 @@ import { redirect } from "next/navigation";
  * it needs and can be turned on or off. Tools are opened from projects,
  * missions and search; this address only forwards old links there.
  *
- * The grid component beside this file stays: `pnpm gen:capabilities`
- * reads each tool's name and description out of it.
+ * The tools themselves are listed once, in src/lib/tool-registry.ts.
  */
 export default function ToolsHubPage() {
   redirect("/settings/tools");

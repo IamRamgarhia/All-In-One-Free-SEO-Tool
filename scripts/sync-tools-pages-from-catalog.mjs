@@ -3,7 +3,6 @@
  * Seed tools-pages.{en,fr}.json title/description from tools-catalog.*
  * Preserves extra keys already in tools-pages (tabs, labels, etc.).
  *
- *   node scripts/sync-tools-catalog.mjs
  *   node scripts/sync-tools-pages-from-catalog.mjs
  */
 import fs from "node:fs";

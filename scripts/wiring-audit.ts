@@ -191,9 +191,9 @@ function main() {
     .map((d) => d.name)
     .sort();
 
-  // Everything the client rail and the tools hub link to.
+  // Everything the client rail and the tool registry link to.
   const rail = read(path.join(ROOT, "src/app/clients/[id]/client-tools-launcher.tsx"));
-  const hub = read(path.join(ROOT, "src/app/tools/tools-grid.tsx"));
+  const hub = read(path.join(ROOT, "src/lib/tool-registry.ts"));
   const linked = new Set(
     [...`${rail}\n${hub}`.matchAll(/\/tools\/([a-z0-9-]+)/g)].map((m) => m[1]),
   );

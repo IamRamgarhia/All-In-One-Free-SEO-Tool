@@ -1257,7 +1257,7 @@ Allow: /
 \`\`\`
 
 Cite: most policies recommend reviewing every 90 days as new bots emerge.`,
-    tools: ["/tools/llms-txt", "/tools/robots", "/tools/bot-logs"],
+    tools: ["/tools/llms-txt", "/tools/robots", "/bot-logs"],
   },
 
   {

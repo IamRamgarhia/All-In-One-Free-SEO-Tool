@@ -4,18 +4,9 @@ import Link from "next/link";
 import { createElement, useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import {
-  BadgeCheck,
-  Bot,
   ClipboardPlus,
   FileUp,
-  ImageIcon,
-  Link as LinkIcon,
-  MessageSquareText,
-  PanelRight,
   ScanLine,
-  SearchX,
-  StickyNote,
-  UserCheck,
   Briefcase,
   ClipboardList,
   ExternalLink,
@@ -31,12 +22,11 @@ import {
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
-import { navItemMessageKey } from "@/i18n/nav";
-import { toolCatalogSlug } from "@/lib/i18n/tool-slug";
+import { resolveToolCopy } from "@/lib/i18n/tool-copy";
 import { MISSION_CATEGORIES, type MissionCategoryId } from "@/lib/tool-catalog";
 import { familyOf } from "@/lib/tool-families";
 import { NAV_ITEMS } from "@/components/shell/nav-items";
-import { TOOL_GRID_ICONS } from "@/app/tools/tools-grid";
+import { toolIcon } from "@/lib/tool-registry";
 import { GskSheet } from "../gsk-sheet";
 import { setToolEnabled } from "./actions";
 
@@ -70,28 +60,18 @@ const CATEGORY_ICONS: Record<MissionCategoryId, LucideIcon> = {
   agency: ClipboardList,
 };
 
-/** Pages that neither the old menu nor the old tool grid listed. */
+/** Catalogue pages that are neither in the tool registry nor in the menu. */
 const EXTRA_ICONS: Record<string, LucideIcon> = {
   "/csv-import": FileUp,
-  "/landing-perf": TrendingUp,
-  "/image-audit": ImageIcon,
-  "/content-gap": SearchX,
-  "/author-authority": UserCheck,
-  "/bot-logs": Bot,
   "/report-data": ClipboardPlus,
-  "/brand-serp": BadgeCheck,
-  "/knowledge-panel": PanelRight,
-  "/annotations": StickyNote,
-  "/ask": MessageSquareText,
   "/capture": ScanLine,
-  "/links": LinkIcon,
 };
 
 const NAV_ICONS = new Map(NAV_ITEMS.map((it) => [it.href, it.icon] as const));
 
-/** The tool's own icon, as the old tool cards and menu showed it. */
+/** The tool's own icon, from the registry or the menu. */
 function iconOf(href: string, category: MissionCategoryId): LucideIcon {
-  return TOOL_GRID_ICONS.get(href) ?? NAV_ICONS.get(href) ?? EXTRA_ICONS[href] ?? CATEGORY_ICONS[category];
+  return toolIcon(href) ?? NAV_ICONS.get(href) ?? EXTRA_ICONS[href] ?? CATEGORY_ICONS[category];
 }
 
 const TAG: Record<ToolCardState, string> = {
@@ -100,28 +80,13 @@ const TAG: Record<ToolCardState, string> = {
   off: "gsk-tag gsk-tag--default",
 };
 
-/** Name and one line for a tool, from whichever catalogue knows it. */
+/** Name and one line for a tool, by the rule every surface shares. */
 function useToolCopy() {
-  const t = useTranslations("settings.tools");
-  const tCatalog = useTranslations("tools.catalog");
-  const tNav = useTranslations("nav.items");
-  return (href: string) => {
-    const key = navItemMessageKey(href);
-    const slug = href.startsWith("/tools/") ? toolCatalogSlug(href) : null;
-    const title = t.has(`titles.${key}`)
-      ? t(`titles.${key}`)
-      : slug && tCatalog.has(`${slug}.title`)
-        ? tCatalog(`${slug}.title`)
-        : tNav.has(key)
-          ? tNav(key)
-          : href;
-    const description = t.has(`descriptions.${key}`)
-      ? t(`descriptions.${key}`)
-      : slug && tCatalog.has(`${slug}.description`)
-        ? tCatalog(`${slug}.description`)
-        : "";
-    return { title, description };
-  };
+  const settings = useTranslations("settings.tools");
+  const catalog = useTranslations("tools.catalog");
+  const nav = useTranslations("nav.items");
+  return (href: string) =>
+    resolveToolCopy(href, { settings, catalog, nav }) ?? { title: href, description: "" };
 }
 
 export function ToolsPanel({
