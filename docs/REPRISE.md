@@ -31,28 +31,29 @@ La base locale se crée vide : créez le compte propriétaire au premier lanceme
 
 Commandes utiles : `npx tsc --noEmit -p .` (ignorer TS6053 sur `.next/dev/types`), `npx vitest run --testTimeout=30000`, `npx -y pnpm@10.34.5 gen:capabilities` dès qu'une page change d'imports. Migrations : SQL écrit à la main dans `src/db/migrations/` (le journal drizzle a dérivé, ne pas lancer `db:generate`) ; prochain numéro libre : **0094**.
 
-## Où on en est (24/11/2026, dernière fusion #126)
+## Où on en est (24/11/2026, dernière fusion #137)
 
 Fusionné récemment :
-- #118 avertissement « script tag » de React ; #119 et #121 faux « liens cassés » (HEAD refusé, 429/503) ;
-- #120 validation des brouillons par le client dans son espace (l'agence valide, puis envoie au client) ;
-- #122 tableau de bord dans la présentation de l'auteur + santé de l'installation ;
-- #123 positions sans clé : Search Console → SearXNG (profil Docker `searxng`) → navigateur → DuckDuckGo, moteur et échecs enregistrés ;
-- #124 corriger le code d'un client avec Claude (prompt à copier, ou Claude Code par client, désactivé par défaut) ;
-- #125 page d'audit : « J'ai corrigé, vérifier », instructions pour le développeur, constats en français ;
-- #126 outils reliés au dossier du client (« Corriger avec… », « Ajouter aux tâches », « Travail réalisé »).
+- #128 page d'audit : « Corriger avec… / Creuser avec… » sur chaque constat (vérifications de l'outil et règles du moteur), avec la tâche ouverte du constat ;
+- #129 positions vides dites « Absent des N premiers résultats (moteur) » / « Non vérifié » partout (rapport PDF, portail, `/morning`, API v1, CSV), via `src/lib/serp/absence.ts` ;
+- #130 mesure de l'effet des changements de l'agent (Search Console, 28 jours avant/après, « mesuré, pas attribué ») sur `/agent/autopilot` ;
+- #131 registre unique des outils (`src/lib/tool-registry.ts`) et recherche globale complète ; #133 outils débloqués par chaque connexion, comptes justes ;
+- #132 résultat du passage nocturne gardé tâche par tâche, section « Passage nocturne » de Santé du système ;
+- #134 propriété Search Console illisible détectée projet par projet (jetons Google par projet) ;
+- #135 brouillon d'article en .md (et « .md pour IA ») ; #136 longueur des posts Google et posts produit WooCommerce ;
+- #137 petits défauts (messages « non mesuré » sans options de ligne de commande, 429/503 jamais « cassés », « 67,2 % », écrans Tâches et bouton développeur à 390 px).
+
+Aucune migration ajoutée depuis 0093 : le prochain numéro libre reste **0094**.
 
 ## Prochaines tâches, dans l'ordre
 
-1. **Bouton « Corriger avec… / Creuser avec… » sur chaque constat de la page d'audit** (`src/app/audits/[id]/`) : la fonction `toolLink(type, { clientId, url, taskId })` existe dans `src/lib/finding-tool-map.ts` ; la brancher à côté de « J'ai corrigé, vérifier ».
-2. **Positions encore affichées « non classé »** quand elles sont vides, sans nommer le moteur : rapports, portail client, `/morning`, API v1, export CSV. Reprendre la logique de `src/app/keywords/c/[clientId]/` (« Absent des N premiers résultats (moteur) » / « Non vérifié »).
-3. **Fonctions gratuites de l'auteur pas encore portées** (lire avec `git show <commit>` sur `upstream/main`, adapter, traduire) :
-   - eb10f33 mesurer ce que les changements de l'agent ont produit ;
-   - 76d9415 garder le résultat du passage nocturne, tâche par tâche ;
-   - 886886d registre unique des outils et 10 outils inaccessibles ;
-   - 51bf37e dire quels outils chaque connexion débloque ;
-   - 4b71b02 détecter une propriété Search Console illisible ;
-   - f8f3238 brouillon d'article en .md ; f2ea258 longueur des posts Google et posts WooCommerce.
-4. Petits défauts connus : « --no-cwv » / « --crawl » dans des messages « non mesuré » ; en-tête de la page Tâches coupé à 390 px ; bouton « Copier les instructions pour le développeur » sur deux lignes à 390 px ; règle `links/broken-internal.ts` qui compte un 503 comme cassé ; « 67.2 % » à écrire « 67,2 % » dans les titres de tâches.
+1. **Repérer les autres fonctions gratuites de l'auteur** pas encore portées : `git fetch upstream` puis `git log --oneline main..upstream/main`, en ignorant celles déjà portées (eb10f33, 76d9415, 886886d, 51bf37e, 4b71b02, f8f3238, f2ea258).
+2. Petits défauts relevés pendant les lots du 24/11 :
+   - recherche globale : la priorité des tâches s'affiche en anglais (« medium ») ;
+   - automatisations : l'exemple du champ « Sujet de départ » est en anglais (« new fall menu launch ») ;
+   - `/connect` : 28 outils classés « une partie de l'outil se sert de l'IA » d'après l'analyse automatique du code, sans confirmation ; la liste des outils MCP n'a pas été portée (son import faisait passer la page en « besoin d'une clé ») ;
+   - tests : `methodology-loader.test.ts` échoue sur une machine en `core.autocrlf=true` (fins de ligne du fichier généré) ; `action-guard.test.ts` dépasse parfois sa limite de 30 s dans la suite complète (il passe seul).
+
+Tests dans le navigateur : toujours sur une copie de la base (`SEO_DB_PATH=<copie>`), y compris pour `db:migrate`. Sous Windows, arrêter un `next dev` lancé en tâche de fond ne suffit pas toujours : vérifier le port (`Get-NetTCPConnection -LocalPort <port>`) et arrêter le processus restant.
 
 Pour chaque lot : branche → travail → tests + `tsc` + eslint + capture à 390 px → PR sur le fork → fusion → `git pull` sur `main`. Rendre compte à samir en français, simplement (il n'est pas expert SEO).
