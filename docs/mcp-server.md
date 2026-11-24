@@ -207,6 +207,19 @@ one.
 
 **Errors mentioning a missing table.** Run `pnpm db:migrate`.
 
+**Search Console tools return 403 "User does not have sufficient
+permission".** The OAuth token is fine (that would be a 401); the
+property string is not. The Google account the project uses cannot read
+the property saved for it — usually because the site is verified as a
+*domain* property (`sc-domain:example.com`) while the URL-prefix form
+(`https://example.com/`) was saved, or because a different Google account
+is connected now. A project connected to its own Google account is
+checked against that account, not the workspace one. The dashboard
+banner and Settings → System health name the project and, when the
+account holds the same site under the other spelling, the property to
+pick; `npx tsx scripts/install-health-check.ts --no-store` prints the
+same from the terminal.
+
 **Tools don't appear.** Restart the client — the server list is only read
 at startup.
 
