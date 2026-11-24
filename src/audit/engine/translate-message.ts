@@ -77,12 +77,126 @@ const FRAGMENTS: [RegExp, (m: RegExpExecArray) => string][] = [
   [/^low$/, () => "faible"],
 ];
 
-function translateValue(value: string): string {
+/**
+ * Items the rules build and join into one value ("; " or ", "), then
+ * interpolate: "Render-blocking resources found: {0}" where {0} is
+ * "1 script(s) in <head> without async/defer". Not templates of their own
+ * (messages.fr.ts only holds what a pass/warn/fail call receives), so
+ * they are listed here. translate-message.test.ts checks this list
+ * against the rule sources it covers.
+ */
+export const ITEMS_FR: { en: string; fr: string }[] = [
+  // performance/render-blocking.ts
+  { en: "{0} render-blocking scripts in <head>", fr: "{0} scripts bloquant le rendu dans le <head>" },
+  { en: "{0} script(s) in <head> without async/defer", fr: "{0} script(s) dans le <head> sans async ni defer" },
+  { en: "{0} large inline script(s) ({1}KB total)", fr: "{0} script(s) en ligne volumineux ({1} Ko au total)" },
+  { en: "{0} CSS files in head (consider critical CSS extraction)", fr: "{0} fichiers CSS dans le <head> (envisagez d’extraire le CSS critique)" },
+  // performance/css-file-size.ts
+  { en: "{0} external CSS files (recommended: <={1})", fr: "{0} fichiers CSS externes (recommandé : {1} au plus)" },
+  { en: "{0} external CSS files - consider bundling", fr: "{0} fichiers CSS externes : envisagez de les regrouper" },
+  { en: "{0}KB inline CSS (recommended: <{1}KB)", fr: "{0} Ko de CSS en ligne (recommandé : moins de {1} Ko)" },
+  { en: "{0}KB inline CSS - consider extracting to external file", fr: "{0} Ko de CSS en ligne : envisagez de le déplacer dans un fichier externe" },
+  { en: "No external CSS files (inline only)", fr: "Aucun fichier CSS externe (CSS en ligne uniquement)" },
+  { en: "{0} CSS file(s), {1}KB inline", fr: "{0} fichier(s) CSS, {1} Ko en ligne" },
+  // performance/lcp-hints.ts
+  { en: "no preload or fetchpriority", fr: "ni preload ni fetchpriority" },
+  { en: "missing preload", fr: "preload absent" },
+  { en: 'missing fetchpriority="high"', fr: 'fetchpriority="high" absent' },
+  // images/figure-captions.ts (the whole message is the joined list)
+  { en: "{0} figure(s) missing figcaption", fr: "{0} élément(s) figure sans figcaption" },
+  { en: "{0} figure(s) without images", fr: "{0} élément(s) figure sans image" },
+  // schema/local-business.ts, schema/article.ts
+  { en: "{0}: missing required fields: {1}", fr: "{0} : champs obligatoires absents : {1}" },
+  { en: "{0}: missing recommended fields: {1}", fr: "{0} : champs recommandés absents : {1}" },
+  { en: "{0}: address missing fields: {1}", fr: "{0} : champs d’adresse absents : {1}" },
+  { en: "{0}: geo missing fields: {1}", fr: "{0} : coordonnées géographiques absentes : {1}" },
+  { en: "{0}: address should be PostalAddress object, not string", fr: "{0} : address devrait être un objet PostalAddress, pas une chaîne de texte" },
+  { en: "{0}: author should be a Person or Organization object, not a plain string", fr: "{0} : author devrait être un objet Person ou Organization, pas une simple chaîne de texte" },
+  // performance/asset-size.ts (unsizedReason)
+  {
+    en: "{0} stylesheet(s) were served without a content-length header (chunked or HTTP/2 framing), so their size could not be read",
+    fr: "{0} feuille(s) de style servie(s) sans en-tête Content-Length (transfert par blocs ou trames HTTP/2) : leur taille n’a pas pu être lue",
+  },
+  {
+    en: "{0} script(s) were served without a content-length header (chunked or HTTP/2 framing), so their size could not be read",
+    fr: "{0} script(s) servi(s) sans en-tête Content-Length (transfert par blocs ou trames HTTP/2) : leur taille n’a pas pu être lue",
+  },
+  // content/utils/syllable-counter.ts (readability bands)
+  { en: "Very Easy (5th grade)", fr: "très facile (niveau fin d’école primaire)" },
+  { en: "Easy (6th grade)", fr: "facile (niveau sixième)" },
+  { en: "Fairly Easy (7th grade)", fr: "assez facile (niveau cinquième)" },
+  { en: "Standard (8th-9th grade)", fr: "standard (niveau quatrième-troisième)" },
+  { en: "Fairly Difficult (10th-12th grade)", fr: "assez difficile (niveau lycée)" },
+  { en: "Difficult (college level)", fr: "difficile (niveau études supérieures)" },
+  { en: "Very Difficult (college graduate)", fr: "très difficile (niveau diplômé du supérieur)" },
+];
+
+let items: Compiled[] | null = null;
+
+function itemCatalogue(): Compiled[] {
+  if (!items) items = ITEMS_FR.map((e) => compile(e.en, e.fr)).sort((a, b) => b.literal - a.literal);
+  return items;
+}
+
+function translateItem(text: string): string | null {
+  for (const c of itemCatalogue()) {
+    const m = c.re.exec(text);
+    if (m) return c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => frenchNumbers(m[Number(i) + 1] ?? ""));
+  }
+  return null;
+}
+
+/** "95.7" → "95,7": a value that is a decimal number, and nothing else. */
+const DECIMAL = /^-?\d+\.\d+$/;
+
+/**
+ * French number and unit typography inside a value: decimal comma for a
+ * value that is just a number, "170KB" → "170 Ko" (no-break space), and
+ * the "…, and 7 more" the rules append to long lists. URLs are left
+ * alone: only whole-value numbers and unit-suffixed numbers change.
+ */
+function frenchNumbers(value: string): string {
+  if (DECIMAL.test(value)) return value.replace(".", ",");
+  return value
+    .replace(/\b(\d+(?:\.\d+)?)\s?(KB|MB)\b/g, (_, n: string, unit: string) =>
+      `${n.replace(".", ",")}\u00a0${unit === "KB" ? "Ko" : "Mo"}`,
+    )
+    .replace(/, and (\d+) more$/, (_, n: string) => `, et ${n} autre${Number(n) > 1 ? "s" : ""}`);
+}
+
+/** A value joined from items: each part translated when it is known. */
+function translateList(value: string): string | null {
+  const whole = translateItem(value);
+  if (whole !== null) return whole;
+  for (const sep of ["; ", ", "]) {
+    if (!value.includes(sep)) continue;
+    const parts = value.split(sep);
+    const fr = parts.map((p) => translateItem(p));
+    // French puts a space before a semicolon.
+    if (fr.some((p) => p !== null)) return parts.map((p, i) => fr[i] ?? p).join(sep === "; " ? " ; " : sep);
+  }
+  return null;
+}
+
+function translateValue(value: string, ruleId?: string): string {
   for (const [re, fr] of FRAGMENTS) {
     const m = re.exec(value);
     if (m) return fr(m);
   }
-  return value;
+  const listed = translateList(value);
+  if (listed !== null) return frenchNumbers(listed);
+  // A value that is itself one of this rule's messages (minify-css puts
+  // its inline-CSS verdict after the external one).
+  if (ruleId && value.length > 3) {
+    const own = translateEngineMessage(ruleId, value, true);
+    if (own !== value) return own;
+  }
+  return frenchNumbers(value);
+}
+
+/** French spacing: a no-break space before %, never a plain one. */
+function frenchSpacing(text: string): string {
+  return text.replace(/(\d) %/g, "$1\u00a0%");
 }
 
 /**
@@ -93,14 +207,26 @@ function translateValue(value: string): string {
 const PAGES_SUFFIX = / \((\d+) pages\)$/;
 
 /** The message in French when its template is known, else unchanged. */
-export function translateEngineMessage(ruleId: string, message: string): string {
+export function translateEngineMessage(ruleId: string, message: string, nested = false): string {
   const suffix = PAGES_SUFFIX.exec(message);
-  if (suffix) return `${translateEngineMessage(ruleId, message.slice(0, suffix.index))}${suffix[0]}`;
-  const list = catalogue().get(ruleId);
-  if (!list) return message;
+  if (suffix) return `${translateEngineMessage(ruleId, message.slice(0, suffix.index), nested)}${suffix[0]}`;
+  const list = catalogue().get(ruleId) ?? [];
   for (const c of list) {
     const m = c.re.exec(message);
-    if (m) return c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => translateValue(m[Number(i) + 1] ?? ""));
+    if (m) {
+      return frenchSpacing(
+        c.fr.replace(/\{@(\d+)\}/g, (_, i: string) =>
+          translateValue(m[Number(i) + 1] ?? "", nested ? undefined : ruleId),
+        ),
+      );
+    }
+  }
+  // Some rules report the joined list itself as the message
+  // (figure-captions): translated only when every part is known.
+  if (!nested) {
+    const parts = message.split("; ");
+    const fr = parts.map((p) => translateItem(p));
+    if (fr.every((p) => p !== null)) return frenchSpacing(fr.join(" ; "));
   }
   return message;
 }

@@ -244,8 +244,22 @@ export async function EngineReportView({
     {
       label: t("navOverview"),
       items: [
-        { id: "overview", label: t("navSummary"), fail: report.totals.fail, warn: report.totals.warn },
-        { id: "page", label: multiPage ? t("navStartPage") : t("navPage") },
+        {
+          id: "overview",
+          label: t("navSummary"),
+          // The count is of CHECKS (rules) in failure or warning across
+          // the whole crawl, not of pages: said so, since "Résumé 54"
+          // next to "Page de départ" read as a page count.
+          hint: multiPage ? t("pagesAnalyzed", { count: pagesCrawled ?? report.pages.length }) : undefined,
+          fail: report.totals.fail,
+          warn: report.totals.warn,
+          issuesLabel: t("navIssuesLabel", { count: report.totals.fail + report.totals.warn }),
+        },
+        {
+          id: "page",
+          label: multiPage ? t("navStartPage") : t("navPage"),
+          hint: multiPage ? t("navStartPageHint") : undefined,
+        },
       ],
     },
     {
@@ -256,11 +270,21 @@ export async function EngineReportView({
         score: c.score,
         fail: c.counts.fail,
         warn: c.counts.warn,
+        issuesLabel: t("navIssuesLabel", { count: c.counts.fail + c.counts.warn }),
       })),
     },
   ];
   if (extra.length) {
-    groups.push({ label: t("navSeoTool"), items: extra.map((e) => ({ id: e.id, label: e.label, warn: e.count })) });
+    groups.push({
+      label: t("navSeoTool"),
+      items: extra.map((e) => ({
+        id: e.id,
+        label: e.label,
+        warn: e.count,
+        // Open findings here, not checks: said so, as on the other counts.
+        issuesLabel: e.count ? t("navOpenFindings", { count: e.count }) : undefined,
+      })),
+    });
   }
 
   return (
@@ -429,7 +453,12 @@ function KeyMetrics({ report, pages, geoScore, t }: { report: EngineReport; page
           { label: t("internalLinks"), value: m.internalLinks },
           { label: t("externalLinks"), value: m.externalLinks },
           { label: t("images"), value: m.images },
-          { label: t("textRatio"), value: `${m.textRatio}%`, tone: m.textRatio < 10 ? ("bad" as const) : undefined },
+          {
+            label: t("textRatio"),
+            // In the reader's typography: "5,5 %" in French, "5.5%" in English.
+            value: new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1 }).format(m.textRatio / 100),
+            tone: m.textRatio < 10 ? ("bad" as const) : undefined,
+          },
         ]
       : []),
     ...(geoScore != null
@@ -442,7 +471,14 @@ function KeyMetrics({ report, pages, geoScore, t }: { report: EngineReport; page
     bad: "border-l-rose-400 bg-rose-500/[0.05] [&_.v]:text-rose-300",
   };
   return (
-    <Card icon={LayoutGrid} title={t("keyMetricsTitle")} hint={`${t("keyMetricsHint")} · ${t("pagesAnalyzed", { count: pages })}`}>
+    <Card
+      icon={LayoutGrid}
+      title={t("keyMetricsTitle")}
+      // The check counts cover every page crawled; words, links, images and
+      // the text ratio are the start page's. "…de la page analysée · 25
+      // pages analysées" said both at once.
+      hint={pages > 1 ? t("keyMetricsHintMulti", { count: pages }) : t("keyMetricsHint")}
+    >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {tiles.map((tile) => (
           <div

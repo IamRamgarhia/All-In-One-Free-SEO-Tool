@@ -13,6 +13,8 @@ export type ReportNavItem = {
   warn?: number;
   /** A muted line under the label, e.g. "not measured" */
   hint?: string;
+  /** What the count means, read out and shown on hover ("54 checks to review"). */
+  issuesLabel?: string;
 };
 
 export type ReportNavGroup = { label: string; items: ReportNavItem[] };
@@ -150,7 +152,10 @@ function TabLink({ item, active }: { item: ReportNavItem; active: boolean }) {
           {item.score}
         </span>
       ) : issues > 0 ? (
-        <span className={item.fail ? "text-rose-300" : "text-amber-300"}>{issues}</span>
+        <span className={item.fail ? "text-rose-300" : "text-amber-300"} title={item.issuesLabel}>
+          <span aria-hidden={item.issuesLabel ? true : undefined}>{issues}</span>
+          {item.issuesLabel ? <span className="sr-only">{item.issuesLabel}</span> : null}
+        </span>
       ) : null}
     </a>
   );
@@ -188,8 +193,10 @@ function NavLink({ item, active }: { item: ReportNavItem; active: boolean }) {
             "rounded px-1.5 text-[11px] tabular-nums",
             item.fail ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300",
           )}
+          title={item.issuesLabel}
         >
-          {issues}
+          <span aria-hidden={item.issuesLabel ? true : undefined}>{issues}</span>
+          {item.issuesLabel ? <span className="sr-only">{item.issuesLabel}</span> : null}
         </span>
       ) : null}
       {item.score != null ? (

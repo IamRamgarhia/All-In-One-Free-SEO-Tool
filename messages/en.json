@@ -1955,7 +1955,11 @@
       "metaTags": "Meta tags",
       "outlineHint": "The H1 to H6 hierarchy found on the page",
       "tagsFound": "{count, plural, one {# tag} other {# tags}}",
-      "categoriesCount": "{count} categories"
+      "categoriesCount": "{count} categories",
+      "navIssuesLabel": "{count, plural, one {# check failing or with a warning} other {# checks failing or with a warning}}",
+      "navStartPageHint": "First page crawled",
+      "keyMetricsHintMulti": "Checks across {count, plural, one {the analyzed page} other {the # analyzed pages}}; words, links, images and text ratio of the start page",
+      "navOpenFindings": "{count, plural, one {# open finding} other {# open findings}}"
     }
   },
   "tools": {

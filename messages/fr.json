@@ -1945,7 +1945,7 @@
       "categoriesTitle": "Rubriques de l’audit",
       "categoriesHint": "{count} rubriques pondérées · cliquez pour voir le détail",
       "categoryMeta": "{count, plural, one {# contrôle} other {# contrôles}} · {verdict}",
-      "weight": "Poids {weight} %",
+      "weight": "Poids {weight} %",
       "priorityTitle": "À corriger en priorité",
       "priorityHint": "Les {count} constats les plus importants sur {total}",
       "passedChecks": "{count, plural, one {# contrôle réussi} other {# contrôles réussis}}",
@@ -1955,7 +1955,11 @@
       "metaTags": "Balises meta",
       "outlineHint": "La hiérarchie H1 à H6 trouvée sur la page",
       "tagsFound": "{count, plural, one {# balise} other {# balises}}",
-      "categoriesCount": "{count} rubriques"
+      "categoriesCount": "{count} rubriques",
+      "navIssuesLabel": "{count, plural, one {# contrôle en échec ou en avertissement} other {# contrôles en échec ou en avertissement}}",
+      "navStartPageHint": "Première page explorée",
+      "keyMetricsHintMulti": "Contrôles sur {count, plural, one {la page analysée} other {les # pages analysées}} ; mots, liens, images et ratio texte de la page de départ",
+      "navOpenFindings": "{count, plural, one {# constat ouvert} other {# constats ouverts}}"
     }
   },
   "tools": {
