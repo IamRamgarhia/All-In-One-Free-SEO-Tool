@@ -1,5 +1,7 @@
 "use server";
 
+import { isRankDrop } from "@/lib/rank-drop";
+import { runAutomations } from "@/lib/automation-engine";
 import { actionTx } from "@/lib/action-tx";
 import { requireSignedIn } from "@/lib/action-guard";
 
@@ -210,6 +212,22 @@ export async function checkRankAction(
         },
       ],
     }).catch(() => {});
+  }
+
+  // The "rank drop" automations (Automations → templates) were never
+  // fired: the trigger existed, nothing called it.
+  if (isRankDrop(previousPosition, result.position)) {
+    await runAutomations("rank_drop", {
+      clientId: row.clientId,
+      clientName: row.clientName ?? null,
+      data: {
+        keyword: row.query,
+        from: previousPosition,
+        to: result.position,
+        url: result.url,
+        source: result.source,
+      },
+    });
   }
 
   safeRevalidatePath("/keywords");
