@@ -309,6 +309,163 @@ async function fetchText(
   }
 }
 
+/**
+ * Finding types produced by `checkPage`, one page at a time.
+ *
+ * Only these (and the per-technology ones below) can be confirmed by
+ * re-fetching a single URL. Everything else compares pages with each
+ * other (duplicate titles, orphan pages) or describes the whole site
+ * (sitemap, robots.txt, security headers): re-checking one page would
+ * report it "gone" simply because the check that finds it never ran.
+ * audit.recheck.test.ts reads checkPage's source to keep this honest.
+ */
+export const PAGE_CHECK_TYPES: readonly string[] = [
+  "article_missing_author",
+  "bad_status",
+  "heading_order",
+  "heavy_html_payload",
+  "image_missing_dimensions",
+  "invalid_canonical",
+  "js_rendered_only",
+  "long_meta_description",
+  "long_title",
+  "missing_canonical",
+  "missing_favicon",
+  "missing_h1",
+  "missing_image_alt",
+  "missing_lang",
+  "missing_meta_description",
+  "missing_og_tags",
+  "missing_schema",
+  "missing_title",
+  "missing_twitter_card",
+  "missing_viewport",
+  "mixed_content",
+  "no_https",
+  "noindex_set",
+  "no_lazy_loading",
+  "non_self_canonical",
+  "old_image_formats",
+  "render_blocking_scripts",
+  "short_meta_description",
+  "short_title",
+  "slow_response",
+  "soft_404",
+  "thin_content",
+  "viewport_blocks_zoom",
+  "weak_anchor_text",
+  "xrobots_noindex",
+];
+
+/** Per-technology checks (tech-audit-rules.ts), also run on each page. */
+export const TECH_PAGE_CHECK_TYPES: readonly string[] = [
+  "next_chunk_explosion",
+  "next_powered_by_header",
+  "next_raw_img_tags",
+  "shopify_collections_all",
+  "shopify_liquid_debug",
+  "spa_empty_body",
+  "wp_author_archive_indexed",
+  "wp_default_permalinks",
+  "wp_emoji_bloat",
+  "wp_heartbeat_on_frontend",
+  "wp_missing_block_styles",
+  "wp_multiple_seo_plugins",
+  "wp_plugin_bloat",
+  "wp_rest_api_advertised",
+  "wp_version_disclosed",
+  "wp_xmlrpc_exposed",
+];
+
+const PAGE_TYPES = new Set(PAGE_CHECK_TYPES);
+const TECH_TYPES = new Set(TECH_PAGE_CHECK_TYPES);
+
+/** True when a finding of this type can be confirmed on its page alone. */
+export function isPageRecheckable(type: string): boolean {
+  return PAGE_TYPES.has(type) || TECH_TYPES.has(type);
+}
+
+/** True for the per-technology finding types. */
+export function isTechPageCheck(type: string): boolean {
+  return TECH_TYPES.has(type);
+}
+
+export type RecheckResult = {
+  findings: AuditFinding[];
+  meta: { title: string | null; description: string | null };
+  /** Status and address actually served, so a caller can refuse to read
+   * "gone" off an error page or a redirect to some other page. */
+  status: number;
+  finalUrl: string;
+  /** False when technology detection failed: the per-technology checks
+   * did not run, and their absence proves nothing. */
+  techChecked: boolean;
+};
+
+/**
+ * Re-run the per-page checks on ONE live URL.
+ *
+ * Exists to close the loop on a fix (lib/agent/close-loop.ts). When the
+ * agent writes a title, the executor reads the field back out of the CMS
+ * and records the action `verified`. That proves the CMS stored the
+ * value. It does NOT prove the page a crawler fetches has changed — a
+ * full-page cache, a CDN, a theme overriding the field or an SEO plugin
+ * templating the title will all keep serving the old one. So a finding
+ * is only resolved once the live page agrees.
+ *
+ * The same checks as the crawl, page by page: the raw fetch, the
+ * headless render when the page looks client-side (as runAudit does),
+ * then checkPage and the per-technology checks.
+ *
+ * Deliberately NOT runAudit with maxPages 1: that writes an audit row,
+ * fetches robots.txt and the sitemap, and would pollute the audit
+ * history with a row per fix.
+ *
+ * Returns null when the page could not be fetched at all — which is not
+ * the same as "the finding is gone", and callers must not treat it so.
+ */
+export async function recheckUrl(
+  url: string,
+  options: {
+    allowPrivateHosts?: boolean;
+    /** Technologies already detected for this site (several pages of the
+     * same site re-checked in a row): skips detecting them again. */
+    techNames?: string[];
+  } = {},
+): Promise<RecheckResult | null> {
+  const allowPrivate = options.allowPrivateHosts ?? false;
+  const fetched = await fetchPage(url, 15_000, allowPrivate);
+  if (!fetched) return null;
+  const page = await renderIfClientSide(fetched);
+  const r = checkPage(page);
+  const findings = [...r.findings];
+  let techChecked = false;
+  try {
+    const { classifyTech, runTechSpecificChecks } = await import("./tech-audit-rules");
+    let techNames: string[];
+    if (options.techNames) {
+      techNames = options.techNames;
+    } else {
+      const { detectTechStack } = await import("./tech-detect");
+      const detected = await detectTechStack(new URL(page.finalUrl).origin + "/", allowPrivate);
+      techNames = detected.technologies.map((t) => t.name);
+    }
+    for (const tf of runTechSpecificChecks({
+      url: page.finalUrl,
+      html: page.html,
+      headers: page.headers,
+      tech: classifyTech(techNames),
+      fr: FR,
+    })) {
+      findings.push({ type: tf.type, severity: tf.severity, url: tf.url, message: `[${tf.tech}] ${tf.message}` });
+    }
+    techChecked = true;
+  } catch {
+    // Detection failed: only the generic checks ran.
+  }
+  return { findings, meta: r.meta, status: page.status, finalUrl: page.finalUrl, techChecked };
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Per-page checks
 // ───────────────────────────────────────────────────────────────────────────

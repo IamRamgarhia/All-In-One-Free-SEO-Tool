@@ -70,7 +70,9 @@
     "stalledTitle": "Cet audit tourne depuis longtemps",
     "stalledHint": "Un audit qui dure plus de dix minutes a généralement été interrompu. Lancez un nouvel audit depuis la fiche client pour prendre le relais.",
     "goToClient": "Aller à la fiche client",
-    "failedHint": "Le site était peut-être injoignable. Relancez l’audit depuis la fiche client : l’erreur vient généralement d’un échec DNS, d’un pare-feu ou d’un site indisponible à ce moment-là."
+    "failedHint": "Le site était peut-être injoignable. Relancez l’audit depuis la fiche client : l’erreur vient généralement d’un échec DNS, d’un pare-feu ou d’un site indisponible à ce moment-là.",
+    "trafficTop": "{count, plural, one {# impression} other {# impressions}} en {days} jours",
+    "trafficSource": "Search Console : impressions de la page concernée la plus vue sur les {days} derniers jours"
   },
   "geo": {
     "title": "Préparation IA / GEO",
@@ -219,5 +221,32 @@
       "invalidClient": "Client invalide",
       "clientNotFound": "Client introuvable"
     }
+  },
+  "verify": {
+    "button": "J’ai corrigé, vérifier",
+    "title": "Recharge les pages en ligne et ne marque ce constat résolu que là où le problème a vraiment disparu",
+    "checking": "Vérification {count, plural, one {de la page en ligne} other {des # pages en ligne}}…",
+    "summary": "Pages en ligne vérifiées : {parts}.",
+    "sep": ", ",
+    "resolved": "corrigé sur {count, plural, one {# page} other {# pages}} (marqué résolu)",
+    "stillPresent": "toujours présent sur {count, plural, one {# page} other {# pages}}",
+    "unverifiable": "{count, plural, one {# page non vérifiable} other {# pages non vérifiables}}",
+    "nothingOpen": "Toutes les pages de ce constat étaient déjà confirmées corrigées.",
+    "stillHint": "Si vous avez fait la modification, un cache de page sert peut-être encore l’ancienne version : videz-le, puis vérifiez à nouveau.",
+    "andMore": "et {count, plural, one {# autre} other {# autres}}",
+    "unverifiableHint": "Non vérifiable : la page n’a pas répondu, renvoie une erreur ou redirige désormais ailleurs. Ces constats restent ouverts.",
+    "remaining": "{count, plural, one {Il reste # page} other {Il reste # pages}} à vérifier : cliquez de nouveau pour continuer.",
+    "tasksClosed": "{count, plural, one {Une tâche liée est terminée.} other {# tâches liées sont terminées.}}",
+    "notCheckable": "Ce constat porte sur le site entier ou compare plusieurs pages : aucune page seule ne permet de le confirmer. Relancez un audit pour le vérifier.",
+    "gone": "Ce constat n’existe plus : un audit plus récent l’a remplacé.",
+    "failed": "La vérification n’a pas pu s’exécuter. Rien n’a été modifié.",
+    "again": "vérifier à nouveau"
+  },
+  "devTicket": {
+    "copy": "Copier les instructions pour le développeur",
+    "copied": "Copié",
+    "download": "Télécharger le .md",
+    "downloadTitle": "Markdown : se colle dans GitHub, Linear, Jira, Slack ou un e-mail",
+    "count": "{findings, plural, one {# constat} other {# constats}} en {types, plural, one {# type} other {# types}}, avec les étapes et le code"
   }
 }

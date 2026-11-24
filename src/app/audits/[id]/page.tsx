@@ -43,6 +43,13 @@ import { EngineReportView } from "@/components/audits/engine-report";
 import { buildEngineReport, isEngineReport } from "@/lib/engine-report";
 import { issueFix, issueMessage, issueTypeName } from "@/lib/issue-display";
 import { isSiteKind } from "@/lib/advisory-rules";
+import { buildDevTicket } from "@/lib/dev-ticket";
+import { localizeExplainer } from "@/lib/issue-explainers";
+import { describeBasis, prioritiseFindings } from "@/lib/finding-priority";
+import { loadPageTraffic, PAGE_TRAFFIC_DAYS } from "@/lib/page-traffic";
+import { isPageRecheckable } from "@/lib/audit";
+import { DevTicketButton } from "./dev-ticket-button";
+import { VerifyFixedButton } from "./verify-fixed-button";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -197,10 +204,62 @@ export default async function AuditDetailPage({
     ? issues.filter((i) => !i.type.startsWith("seomator:"))
     : issues;
 
+  // Rank by the search traffic each page actually gets, when Search
+  // Console is connected for this client (free data the install already
+  // reads); otherwise severity order, said as such. Nothing is estimated:
+  // a page with no Search Console row shows no number. (Upstream a33a8b7,
+  // lib/finding-priority.ts.)
+  const traffic = client.gscProperty ? await loadPageTraffic(client.gscProperty) : null;
+  const priority = prioritiseFindings(
+    issues,
+    (i) => ({ url: i.url, type: i.type, severity: i.severity }),
+    traffic,
+    locale,
+  );
+  const scoreOf = new Map(priority.items.map((p) => [p.item.id, p]));
+  const priorityBasis = describeBasis(priority, locale);
+
   const sorted = [...listed].sort(
     (a, b) =>
       severityOrder[a.severity as keyof typeof severityOrder] -
-      severityOrder[b.severity as keyof typeof severityOrder],
+        severityOrder[b.severity as keyof typeof severityOrder] ||
+      (scoreOf.get(b.id)?.score ?? 0) - (scoreOf.get(a.id)?.score ?? 0),
+  );
+
+  // The developer ticket, built from the same open findings and the same
+  // written guides this page shows, so what is pasted into a ticket and
+  // what is on screen cannot disagree. Only the findings still open: a
+  // ticket listing work already done makes a reader distrust the rest.
+  // (Upstream a33a8b7, lib/dev-ticket.ts.)
+  const openIssues = issues.filter((i) => i.status === "new");
+  const typeOrder: string[] = [];
+  for (const p of priority.items) if (!typeOrder.includes(p.item.type)) typeOrder.push(p.item.type);
+  const devTicket = buildDevTicket(
+    openIssues.map((i) => ({ type: i.type, severity: i.severity, url: i.url, message: i.message, fixSteps: i.fixSteps })),
+    {
+      clientName: client.name,
+      siteUrl: client.url,
+      locale,
+      explain: (type) => {
+        const e = getExplainer(type, locale);
+        return e ? localizeExplainer(e, type, locale) : null;
+      },
+      // Worst first; within one severity, by measured traffic when known.
+      order: traffic ? typeOrder : undefined,
+    },
+  );
+  const devTicketButton = (
+    <DevTicketButton
+      markdown={devTicket}
+      filename={`${locale === "fr" ? "corrections-seo" : "seo-fixes"}-${client.name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")}-audit-${audit.id}.md`}
+      findingCount={openIssues.length}
+      typeCount={new Set(openIssues.map((i) => i.type)).size}
+    />
   );
 
   // Group repeating issue types within each severity to keep the page tidy.
@@ -218,6 +277,8 @@ export default async function AuditDetailPage({
     aiGenerated: boolean;
     category: string | null;
     fixSteps: string | null;
+    /** Most Search Console impressions among its pages; null when unknown. */
+    topImpressions: number | null;
   };
   const CONF_RANK: Record<string, number> = { definitely: 3, probably: 2, test: 1 };
   function groupByType(issues: typeof sorted): Group[] {
@@ -227,7 +288,11 @@ export default async function AuditDetailPage({
       const existing = map.get(key);
       const iConf = (i as { confidence?: "definitely" | "probably" | "test" | null }).confidence ?? null;
       const iAi = (i as { aiGenerated?: boolean }).aiGenerated ?? false;
+      const iImp = priority.basis === "traffic" ? (scoreOf.get(i.id)?.impressions ?? null) : null;
       if (existing) {
+        if (iImp != null && (existing.topImpressions == null || iImp > existing.topImpressions)) {
+          existing.topImpressions = iImp;
+        }
         existing.affectedUrls.push(i.url);
         existing.issueIds.push(i.id);
         if (
@@ -251,6 +316,7 @@ export default async function AuditDetailPage({
           aiGenerated: iAi,
           category: i.category ?? null,
           fixSteps: i.fixSteps ?? null,
+          topImpressions: iImp,
         });
       }
     }
@@ -489,6 +555,12 @@ export default async function AuditDetailPage({
         </section>
       )}
 
+      {/* How the list below is ordered, said in words: by measured
+          traffic only when Search Console answered for this client. */}
+      {listed.length > 0 && (
+        <p className="px-1 text-xs text-muted-foreground">{priorityBasis}</p>
+      )}
+
       {/* ISSUES BY SEVERITY */}
       {(["critical", "high", "medium", "low"] as const).map((sev) => {
         const list = grouped[sev];
@@ -547,6 +619,14 @@ export default async function AuditDetailPage({
                             {tu("pagesCount", { count: g.affectedUrls.length })}
                           </span>
                         )}
+                        {g.topImpressions != null && g.topImpressions > 0 && (
+                          <span
+                            className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-300 ring-1 ring-inset ring-sky-500/30"
+                            title={tu("trafficSource", { days: PAGE_TRAFFIC_DAYS })}
+                          >
+                            {tu("trafficTop", { count: g.topImpressions, days: PAGE_TRAFFIC_DAYS })}
+                          </span>
+                        )}
                         {g.confidence && (
                           <ConfidenceBadge
                             level={g.confidence}
@@ -554,6 +634,8 @@ export default async function AuditDetailPage({
                               g.confidence,
                               g.type,
                               g.aiGenerated,
+                              locale,
+                              issueTypeName(g.type, locale),
                             )}
                           />
                         )}
@@ -610,6 +692,7 @@ export default async function AuditDetailPage({
                               ? getExplainer(g.type, locale)
                               : undefined
                           }
+                          fallbackSteps={g.fixSteps}
                         />
                       </div>
 
@@ -625,6 +708,14 @@ export default async function AuditDetailPage({
                       )}
 
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                        {/* Before "Mark resolved", deliberately: that one
+                            takes the user's word, this one re-fetches the
+                            pages and resolves only where the problem is
+                            gone. Shown only for findings one page can
+                            confirm — never for a check it cannot run. */}
+                        {isPageRecheckable(g.type) && g.affectedUrls.some(Boolean) && (
+                          <VerifyFixedButton auditId={auditId} issueIds={g.issueIds} />
+                        )}
                         <form
                           action={setStatusForType.bind(
                             null,
@@ -732,6 +823,7 @@ export default async function AuditDetailPage({
       <Link href={`/audits/c/${client.id}`} className={ghostBtn}>
         {t("allAudits")}
       </Link>
+      {devTicketButton}
     </>
   );
 
@@ -817,6 +909,10 @@ export default async function AuditDetailPage({
                     </>
                   ) : null}
                 </div>
+                {/* In the hero, not buried below the list: for anyone who
+                    does not fix their own code this is the point of the
+                    page. */}
+                {devTicketButton}
               </div>
 
               <div className="relative flex w-full flex-col items-center gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur sm:flex-row sm:gap-5 sm:p-5 md:w-auto">

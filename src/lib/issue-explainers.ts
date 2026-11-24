@@ -30,6 +30,7 @@
  * how to reverse it.
  */
 import { ISSUE_EXPLAINERS_FR } from "./issue-explainers.fr";
+import { TECH_ISSUE_EXPLAINERS } from "./issue-explainers-tech";
 
 export type FixSnippet = {
   /** For syntax highlighting and to signal what kind of file this is. */
@@ -867,8 +868,54 @@ export const ISSUE_EXPLAINERS: Record<string, IssueExplainer> = {
  * For SEOmator types use `getExplainer` from `@/lib/issue-explainers.server`.
  */
 export function getStaticExplainer(type: string): IssueExplainer | null {
-  return ISSUE_EXPLAINERS[type] ?? null;
+  // The tech guides too. They were written because the WordPress, Next.js
+  // and Shopify findings had none, and then never read here — so every
+  // wp_* finding on the audit page said no guide had been written while
+  // the guide sat in issue-explainers-tech.ts. (Ported from upstream
+  // cd6c503, "make written fix guides reachable".)
+  const direct = ISSUE_EXPLAINERS[type] ?? TECH_ISSUE_EXPLAINERS[type];
+  if (direct) return direct;
+  const alias = AI_AUDIT_EXPLAINER_ALIASES[type];
+  return alias ? (ISSUE_EXPLAINERS[alias] ?? null) : null;
 }
+
+/** Same lookup, under the name the shared tests and the ticket use. */
+export const getExplainer = getStaticExplainer;
+
+/**
+ * AI site-audit check ids (lib/ai-site-audit.ts) that mean the same thing
+ * as a guide already written, pointed at that guide. The AI audit writes
+ * its own ids into the same audit_issues table, so they render through
+ * the same IssueExplainer, and none of them had a guide.
+ *
+ * Deliberately NOT aliased, because the guide would be wrong as often as
+ * right: `title` and `meta_description` are length-range checks and we
+ * hold opposed long_/short_ guides. Those, plus internal_links,
+ * external_citations, eeat_dates, eeat_authoritative,
+ * mobile_no_interstitial and perf_score, keep the fix steps the AI wrote
+ * for that page, which the audit page shows with the finding.
+ */
+export const AI_AUDIT_EXPLAINER_ALIASES: Record<string, string> = {
+  https: "no_https",
+  status: "bad_status",
+  canonical: "missing_canonical",
+  indexable: "noindex_set",
+  h1: "missing_h1",
+  heading_structure: "heading_order",
+  word_count: "thin_content",
+  image_alts: "missing_image_alt",
+  og_image: "missing_og_tags",
+  twitter_card: "missing_twitter_card",
+  schema_present: "missing_schema",
+  schema_valid: "missing_schema",
+  eeat_byline: "article_missing_author",
+  mobile_viewport: "missing_viewport",
+  perf_lcp: "slow_lcp",
+  perf_cls: "poor_cls",
+  anchor_overopt: "weak_anchor_text",
+  hsts: "missing_security_headers",
+  clickjacking: "missing_security_headers",
+};
 
 /**
  * An explainer in the reader's language: the French prose

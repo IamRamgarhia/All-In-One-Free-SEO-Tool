@@ -32,6 +32,8 @@ import {
 import { logActivity } from "../activity";
 import { getAgentSettings, willAutoApply, type AgentSettings } from "./autonomy";
 import { detectCapabilities, has } from "./capabilities";
+import { closeLoopForRun } from "./close-loop";
+import { taskDescriptionFor } from "@/lib/dev-ticket";
 import {
   planForClient,
   type PlanOutcome,
@@ -275,6 +277,16 @@ export async function runAgentForClient(opts: {
       else failed++;
     }
 
+    // Close the loop on whatever actually reached the site: re-fetch each
+    // fixed page and resolve the finding only if the problem is gone from
+    // the live HTML. The executor's CMS read-back proves the field was
+    // stored; it does not prove a crawler sees it, and a page cache
+    // between the two is what makes "verified" and "actually fixed"
+    // different things. Runs before task creation on purpose, so work
+    // just confirmed done is not raised again as a task. (Upstream
+    // 155d48f.)
+    const loop = await closeLoopForRun(run.id);
+
     // Everything we couldn't act on becomes a task. This is the bit that
     // makes the agent useful on a site it has no write access to at all:
     // it still turns a wall of audit findings into a prioritised list of
@@ -292,6 +304,9 @@ export async function runAgentForClient(opts: {
       tasksCreated,
       capabilities: capabilities.gaps,
       fr,
+      confirmed: loop.resolved,
+      notLive: loop.stillPresent,
+      tasksClosed: loop.tasksClosed,
     });
 
     await db
@@ -443,10 +458,14 @@ async function createTasksFromUnfixable(
         (list.length === 1
           ? `${label} on ${shortUrl(list[0].url)}`
           : `${label} — ${list.length} pages`),
-      description: list
-        .slice(0, 20)
-        .map((i) => `- ${i.url}\n  ${i.message}`)
-        .join("\n"),
+      // The finding's own written guidance, not a bare URL list: these
+      // are precisely the findings the agent CANNOT fix, so the task is
+      // all the user gets out of them. See lib/dev-ticket.ts.
+      description: taskDescriptionFor(
+        type,
+        list.map((i) => ({ type, severity: i.severity, url: i.url, message: i.message })),
+        locale,
+      ),
       whyItMatters: text?.whyItMatters ?? list[0].message,
       priority: list.some((i) => i.severity === "critical") ? "high" : "medium",
       status: "todo",
@@ -530,6 +549,14 @@ function writeSummary(a: {
   capabilities: string[];
   /** Written in French (planner.fr.ts) when the workspace is French. */
   fr?: boolean;
+  /**
+   * What the loop-closing step confirmed. Reported separately from
+   * `applied` because "written to the CMS" and "gone from the live page"
+   * are different claims.
+   */
+  confirmed?: number;
+  notLive?: number;
+  tasksClosed?: number;
 }): string {
   const parts: string[] = [];
   const F = a.fr ? RUN_SUMMARY_FR : null;
@@ -538,6 +565,24 @@ function writeSummary(a: {
     parts.push(
       F ? F.fixed(a.applied, trimTrailingPeriod(a.client.name)) :
       `Fixed ${a.applied} thing${a.applied === 1 ? "" : "s"} on ${trimTrailingPeriod(a.client.name)}`,
+    );
+  }
+  if (a.confirmed && a.confirmed > 0) {
+    parts.push(
+      F ? F.confirmed(a.confirmed) :
+      `confirmed ${a.confirmed} fix${a.confirmed === 1 ? "" : "es"} gone from the live pages`,
+    );
+  }
+  if (a.notLive && a.notLive > 0) {
+    parts.push(
+      F ? F.notLive(a.notLive) :
+      `${a.notLive} applied but still showing on the live page (usually a cache)`,
+    );
+  }
+  if (a.tasksClosed && a.tasksClosed > 0) {
+    parts.push(
+      F ? F.tasksClosed(a.tasksClosed) :
+      `closed ${a.tasksClosed} task${a.tasksClosed === 1 ? "" : "s"}`,
     );
   }
   if (a.queued > 0) {

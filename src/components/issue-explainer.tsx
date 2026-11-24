@@ -28,6 +28,13 @@ type Props = {
   defaultOpen?: boolean;
   /** Resolved on the server for SEOmator rule ids (see issue-explainers.server). */
   explainer?: IssueExplainer | null;
+  /**
+   * Fix steps carried on the finding itself (the AI site audit writes
+   * them per page). Used only when this type has no written guide: the
+   * audit page already shows those steps beside the finding, so saying
+   * "we haven't written the fix guide" next to them would be false.
+   */
+  fallbackSteps?: string | null;
 };
 
 const CONFIDENCE_META = (tx: Tx) => ({
@@ -53,6 +60,7 @@ export function IssueExplainer({
   url,
   defaultOpen = false,
   explainer: explainerProp,
+  fallbackSteps = null,
 }: Props) {
   const tx = useTranslations("ui.components_issue-explainer");
   const [open, setOpen] = useState(defaultOpen);
@@ -60,6 +68,8 @@ export function IssueExplainer({
   const locale = useLocale();
   const builtIn = explainerProp !== undefined ? explainerProp : getStaticExplainer(issueType);
   const explainer = builtIn ? localizeExplainer(builtIn, issueType, locale) : null;
+
+  if (!explainer && fallbackSteps?.trim()) return null;
 
   if (!explainer) {
     // Say so, rather than rendering nothing.

@@ -70,7 +70,9 @@
     "stalledTitle": "This one has been running for a while",
     "stalledHint": "Audits that take more than ten minutes have usually been interrupted. Start a new audit from the client page to take over.",
     "goToClient": "Go to the client page",
-    "failedHint": "The site may have been unreachable. Try running it again from the client page — the error is usually a DNS failure, a firewall, or the site being down at the time."
+    "failedHint": "The site may have been unreachable. Try running it again from the client page — the error is usually a DNS failure, a firewall, or the site being down at the time.",
+    "trafficTop": "{count, plural, one {# impression} other {# impressions}} in {days} days",
+    "trafficSource": "Search Console: impressions of the busiest affected page over the last {days} days"
   },
   "geo": {
     "title": "AI / GEO readiness",
@@ -219,5 +221,32 @@
       "invalidClient": "Invalid client",
       "clientNotFound": "Client not found"
     }
+  },
+  "verify": {
+    "button": "I fixed this — check",
+    "title": "Re-fetches the live pages and only marks this resolved where the problem is genuinely gone",
+    "checking": "Checking {count, plural, one {the live page} other {# live pages}}…",
+    "summary": "Checked the live pages: {parts}.",
+    "sep": ", ",
+    "resolved": "fixed on {count, plural, one {# page} other {# pages}} (marked resolved)",
+    "stillPresent": "still there on {count, plural, one {# page} other {# pages}}",
+    "unverifiable": "{count, plural, one {# page} other {# pages}} could not be checked",
+    "nothingOpen": "Every page of this finding was already confirmed fixed.",
+    "stillHint": "If you have made the change, a page cache may still be serving the old version: clear it and check again.",
+    "andMore": "and {count} more",
+    "unverifiableHint": "Not checkable: the page did not answer, returned an error or now redirects elsewhere. Those findings stay open.",
+    "remaining": "{count, plural, one {# more page} other {# more pages}} still to check: click again to continue.",
+    "tasksClosed": "{count, plural, one {A related task is now done.} other {# related tasks are now done.}}",
+    "notCheckable": "This finding is about the whole site or compares several pages, so no single page can confirm it. Run a new audit to check it.",
+    "gone": "This finding no longer exists: a later audit has replaced it.",
+    "failed": "The check could not run. Nothing was changed.",
+    "again": "check again"
+  },
+  "devTicket": {
+    "copy": "Copy developer instructions",
+    "copied": "Copied",
+    "download": "Download .md",
+    "downloadTitle": "Markdown: pastes into GitHub, Linear, Jira, Slack or an email",
+    "count": "{findings, plural, one {# finding} other {# findings}} in {types, plural, one {# type} other {# types}}, with steps and code"
   }
 }

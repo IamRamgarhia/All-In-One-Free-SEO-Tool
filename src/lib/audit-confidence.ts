@@ -110,7 +110,16 @@ export function confidenceReason(
   conf: AuditConfidence,
   type: string,
   aiGenerated: boolean,
+  /** "fr" for French; `name` is how the type reads to the user there. */
+  locale: string = "en",
+  name: string = type,
 ): string {
+  if (locale === "fr") {
+    if (aiGenerated) return "Suggestion rédigée par l’IA : vérifiez-la au regard de votre page avant d’agir.";
+    if (conf === "definitely") return `Mesure objective (« ${name} ») : pas de faux positif raisonnable. Vous pouvez agir.`;
+    if (conf === "probably") return `Bonne pratique (« ${name} ») : il peut s’agir d’un choix délibéré. À confirmer avant de corriger.`;
+    return `Suggestion fondée sur un motif repéré (« ${name} ») : à traiter comme une hypothèse à tester.`;
+  }
   if (aiGenerated) {
     return "AI-generated suggestion — verify against your specific page context before acting.";
   }
