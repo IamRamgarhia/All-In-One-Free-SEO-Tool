@@ -20,6 +20,13 @@ import { db } from "@/db/client";
 import { audits, clients, keywords, keywordRankings } from "@/db/schema";
 import { getSetting, setSetting } from "./settings-store";
 import { logActivity } from "./activity";
+import {
+  DAILY_REPORT_KEY,
+  encodeSourceCounts,
+  reasonParams,
+  type StepNote,
+  type StoredDailyReport,
+} from "./daily-report";
 
 const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const STALE_AUDIT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -27,8 +34,21 @@ const STALE_AUDIT_MS = 7 * 24 * 60 * 60 * 1000;
 export type DailyAgentReport = {
   startedAt: Date;
   finishedAt: Date;
-  steps: { name: string; ok: boolean; detail?: string; durationMs: number }[];
+  steps: {
+    name: string;
+    ok: boolean;
+    /** What the job found, as a message key (see lib/daily-report.ts). */
+    note?: StepNote;
+    /** The raw error, verbatim, when the job failed. */
+    error?: string;
+    durationMs: number;
+  }[];
 };
+
+/** Builds a note: a message key under `nightlyJobs.notes` and its values. */
+function note(key: string, params?: StepNote["params"]): StepNote {
+  return params ? { key, params } : { key };
+}
 
 // Process-local lock so two concurrent tick calls don't overlap. SQLite
 // is single-writer anyway but multiple in-flight tickDailyAgent calls
@@ -60,15 +80,58 @@ export async function tickDailyAgent(): Promise<DailyAgentReport | null> {
     // bought nothing.
     const report = await runDailyAgentBody();
     await setSetting("daily_agent_runner.last_run", Date.now());
+    // Keep the report. About twenty jobs run here every night, each
+    // saying whether it worked and what it found — and all of it used to
+    // be thrown away, only the timestamp above was stored. An install
+    // where every job failed looked identical to one where none did.
+    await persistDailyReport(report).catch(() => {
+      // Never let bookkeeping fail the sweep that just succeeded.
+    });
     return report;
   } finally {
     _tickInFlight = false;
   }
 }
 
-async function runDailyAgentBody(): Promise<DailyAgentReport> {
+/**
+ * Stores the sweep's result, job by job, for Settings → System health and
+ * the install-health check. The note each job wrote is kept as it is:
+ * reducing it to ok/failed would throw away the only useful part.
+ */
+export async function persistDailyReport(
+  report: DailyAgentReport,
+): Promise<StoredDailyReport> {
+  const stored: StoredDailyReport = {
+    at: report.finishedAt.toISOString(),
+    durationMs: report.finishedAt.getTime() - report.startedAt.getTime(),
+    steps: report.steps.map((s) => ({
+      name: s.name,
+      ok: s.ok,
+      ...(s.note ? { note: s.note } : {}),
+      ...(s.error ? { error: s.error } : {}),
+      durationMs: s.durationMs,
+    })),
+  };
+  await setSetting(DAILY_REPORT_KEY, stored);
+  return stored;
+}
+
+/**
+ * Runs every job once. Exported for scripts/nightly-jobs-check.ts, which
+ * runs it against a COPY of the database and needs to leave out the jobs
+ * that publish or send (`skip`). The scheduler goes through
+ * tickDailyAgent, which skips nothing.
+ */
+export async function runDailyAgentBody(
+  opts: { skip?: ReadonlySet<string> } = {},
+): Promise<DailyAgentReport> {
   const startedAt = new Date();
   const steps: DailyAgentReport["steps"] = [];
+  const runStep = (
+    out: DailyAgentReport["steps"],
+    name: string,
+    fn: () => Promise<StepNote>,
+  ) => (opts.skip?.has(name) ? Promise.resolve() : runOneStep(out, name, fn));
 
   await runStep(steps, "audits.sweepOrphans", sweepOrphanedAudits);
   await runStep(steps, "audits.refreshStale", refreshStaleAudits);
@@ -118,14 +181,14 @@ async function runDailyAgentBody(): Promise<DailyAgentReport> {
  */
 const STEP_TIMEOUT_MS = 5 * 60_000;
 
-async function runStep(
+async function runOneStep(
   out: DailyAgentReport["steps"],
   name: string,
-  fn: () => Promise<string | undefined | void>,
+  fn: () => Promise<StepNote>,
 ): Promise<void> {
   const t = Date.now();
   try {
-    const result = await Promise.race<string | undefined | void>([
+    const result = await Promise.race<StepNote>([
       fn(),
       new Promise<never>((_, reject) =>
         setTimeout(
@@ -142,14 +205,14 @@ async function runStep(
     out.push({
       name,
       ok: true,
-      detail: typeof result === "string" ? result : undefined,
+      note: result && typeof result.key === "string" ? result : undefined,
       durationMs: Date.now() - t,
     });
   } catch (err) {
     out.push({
       name,
       ok: false,
-      detail: (err as Error).message?.slice(0, 200),
+      error: (err as Error).message?.slice(0, 200),
       durationMs: Date.now() - t,
     });
     // Surface failures in /settings/health so a chronically broken
@@ -176,13 +239,13 @@ async function runStep(
  * this sweep the client detail page shows "in progress" forever and
  * the concurrency guard in runAuditForClient blocks new runs.
  */
-async function sweepOrphanedAudits(): Promise<string> {
+async function sweepOrphanedAudits(): Promise<StepNote> {
   const cutoff = new Date(Date.now() - 60 * 60 * 1000); // 1h ago
   const orphans = await db
     .select({ id: audits.id })
     .from(audits)
     .where(and(eq(audits.status, "running"), lt(audits.startedAt, cutoff)));
-  if (orphans.length === 0) return "no orphans";
+  if (orphans.length === 0) return note("noOrphans");
   for (const o of orphans) {
     await db
       .update(audits)
@@ -192,10 +255,10 @@ async function sweepOrphanedAudits(): Promise<string> {
       })
       .where(eq(audits.id, o.id));
   }
-  return `marked ${orphans.length} orphaned audit(s) as failed`;
+  return note("orphansMarked", { count: orphans.length });
 }
 
-async function refreshStaleAudits(): Promise<string> {
+async function refreshStaleAudits(): Promise<StepNote> {
   const cutoff = new Date(Date.now() - STALE_AUDIT_MS);
   const staleClients = await db
     .select({ id: clients.id, lastAudit: audits.completedAt })
@@ -208,7 +271,7 @@ async function refreshStaleAudits(): Promise<string> {
       ),
     );
 
-  if (staleClients.length === 0) return "no stale audits";
+  if (staleClients.length === 0) return note("noStaleAudits");
   // Cap how many we re-audit per day so we don't pummel sites
   const cap = Math.min(staleClients.length, 5);
   let started = 0;
@@ -223,21 +286,21 @@ async function refreshStaleAudits(): Promise<string> {
       // one failure shouldn't kill the loop
     }
   }
-  return `re-audited ${started} stale clients`;
+  return note("reaudited", { count: started });
 }
 
-async function refreshNewsFeeds(): Promise<string> {
+async function refreshNewsFeeds(): Promise<StepNote> {
   try {
     const { refreshFeeds } = await import("@/app/news/actions");
     const result = await refreshFeeds();
     await setSetting("news_runner.last_run", Date.now());
-    return `${result.feedsChecked} feeds fetched, ${result.itemsAdded} new items`;
+    return note("feeds", { feeds: result.feedsChecked, items: result.itemsAdded });
   } catch (err) {
     throw new Error((err as Error).message ?? "rss refresh failed");
   }
 }
 
-async function generateAiSuggestionsForAll(): Promise<string> {
+async function generateAiSuggestionsForAll(): Promise<StepNote> {
   let count = 0;
   try {
     const { runAgent } = await import("@/app/agent/actions");
@@ -251,138 +314,138 @@ async function generateAiSuggestionsForAll(): Promise<string> {
       }
     }
   } catch {
-    return "agent module unavailable";
+    return note("agentUnavailable");
   }
-  return `ran agent for ${count} clients`;
+  return note("agentRan", { count });
 }
 
-async function sendMentionDigestStep(): Promise<string> {
+async function sendMentionDigestStep(): Promise<StepNote> {
   try {
     const { sendWeeklyMentionDigests } = await import("./mention-digest");
     const r = await sendWeeklyMentionDigests();
-    return `${r.sent} digest${r.sent === 1 ? "" : "s"} sent${r.reason ? ` (${r.reason})` : ""}`;
+    return note("digests", { sent: r.sent, ...reasonParams(r.reason) });
   } catch (err) {
     throw new Error((err as Error).message ?? "digest failed");
   }
 }
 
-async function monitorCompetitorsStep(): Promise<string> {
+async function monitorCompetitorsStep(): Promise<StepNote> {
   try {
     const { runCompetitorMonitor } = await import("./competitor-monitor");
     const r = await runCompetitorMonitor();
-    return `${r.checked} competitors checked, ${r.changes} changes`;
+    return note("competitors", { checked: r.checked, changes: r.changes });
   } catch (err) {
     throw new Error((err as Error).message ?? "monitor failed");
   }
 }
 
-async function outreachReplyPollStep(): Promise<string> {
+async function outreachReplyPollStep(): Promise<StepNote> {
   try {
     const { pollOutreachReplies } = await import("./outreach-reply-poll");
     const r = await pollOutreachReplies();
-    return `${r.scanned} scanned, ${r.matched} matched${r.reason ? ` (${r.reason})` : ""}`;
+    return note("replies", { scanned: r.scanned, matched: r.matched, ...reasonParams(r.reason) });
   } catch (err) {
     throw new Error((err as Error).message ?? "reply poll failed");
   }
 }
 
-async function runDueTitleTestsStep(): Promise<string> {
+async function runDueTitleTestsStep(): Promise<StepNote> {
   try {
     const { runDueTitleTests } = await import("./title-test-runner");
     const r = await runDueTitleTests();
-    return `${r.rotated} rotated, ${r.completed} completed`;
+    return note("titleTests", { rotated: r.rotated, completed: r.completed });
   } catch (err) {
     throw new Error((err as Error).message ?? "title tests failed");
   }
 }
 
-async function runAnomalyDetectionStep(): Promise<string> {
+async function runAnomalyDetectionStep(): Promise<StepNote> {
   try {
     const { runAnomalyDetection } = await import("./snapshot-anomalies");
     const r = await runAnomalyDetection();
-    return `${r.flagged}/${r.checked} clients flagged`;
+    return note("anomalies", { flagged: r.flagged, checked: r.checked });
   } catch (err) {
     throw new Error((err as Error).message ?? "anomaly check failed");
   }
 }
 
-async function runScheduledLocalGridsStep(): Promise<string> {
+async function runScheduledLocalGridsStep(): Promise<StepNote> {
   try {
     const { runDueLocalGridSchedules } = await import("./local-grid-runner");
     const r = await runDueLocalGridSchedules();
-    return `${r.ran}/${r.scheduled} grid schedules ran`;
+    return note("localGrids", { ran: r.ran, scheduled: r.scheduled });
   } catch (err) {
     throw new Error((err as Error).message ?? "grid scheduler failed");
   }
 }
 
-async function runScheduleGenerationStep(): Promise<string> {
+async function runScheduleGenerationStep(): Promise<StepNote> {
   try {
     const { tickScheduleGeneration } = await import("./daily-automations");
     const r = await tickScheduleGeneration();
-    return `${r.generated} generated, ${r.skipped} skipped`;
+    return note("generated", { generated: r.generated, skipped: r.skipped });
   } catch (err) {
     throw new Error((err as Error).message ?? "schedule generation failed");
   }
 }
 
-async function runQueuePublishStep(): Promise<string> {
+async function runQueuePublishStep(): Promise<StepNote> {
   try {
     const { tickQueuePublish } = await import("./daily-automations");
     const r = await tickQueuePublish();
-    return `${r.published} published, ${r.failed} failed`;
+    return note("published", { published: r.published, failed: r.failed });
   } catch (err) {
     throw new Error((err as Error).message ?? "queue publish failed");
   }
 }
 
-async function lostLinkCheckStep(): Promise<string> {
+async function lostLinkCheckStep(): Promise<StepNote> {
   try {
     const { runLostLinkCheck } = await import("./lost-link-check");
     const r = await runLostLinkCheck();
-    return `${r.checked} backlinks checked, ${r.lost} flagged lost`;
+    return note("lostLinks", { checked: r.checked, lost: r.lost });
   } catch (err) {
     throw new Error((err as Error).message ?? "lost link check failed");
   }
 }
 
-async function runWatchlistAlertsStep(): Promise<string> {
+async function runWatchlistAlertsStep(): Promise<StepNote> {
   try {
     const { runSnapshotAlerts } = await import("./snapshot-alerts");
     const r = await runSnapshotAlerts();
-    return `${r.alerts} alert${r.alerts === 1 ? "" : "s"} across ${r.scanned} clients`;
+    return note("alerts", { alerts: r.alerts, scanned: r.scanned });
   } catch (err) {
     throw new Error((err as Error).message ?? "alerts failed");
   }
 }
 
-async function snapshotStaleClientsStep(): Promise<string> {
+async function snapshotStaleClientsStep(): Promise<StepNote> {
   try {
     const { snapshotStaleClients } = await import("./client-snapshots");
     const r = await snapshotStaleClients();
-    return `${r.taken}/${r.scanned} clients snapshotted`;
+    return note("snapshots", { taken: r.taken, scanned: r.scanned });
   } catch (err) {
     throw new Error((err as Error).message ?? "snapshot failed");
   }
 }
 
-async function runBrandMonitorForAll(): Promise<string> {
+async function runBrandMonitorForAll(): Promise<StepNote> {
   try {
     const { monitorAllClients } = await import("./brand-monitor");
     const r = await monitorAllClients();
-    return `${r.clients} clients scanned, ${r.added} new mentions`;
+    return note("brand", { clients: r.clients, added: r.added });
   } catch (err) {
     throw new Error((err as Error).message ?? "brand monitor failed");
   }
 }
 
-async function distillRecentFeedback(): Promise<string> {
+async function distillRecentFeedback(): Promise<StepNote> {
   try {
     const { distillPreferences } = await import("./ai-learn");
     const r = await distillPreferences();
-    return `${r.ruleCount} rules updated`;
+    return note("rulesUpdated", { count: r.ruleCount });
   } catch {
-    return "no recent feedback";
+    return note("noFeedback");
   }
 }
 
@@ -427,11 +490,11 @@ export function keywordsNeedingRankCheck(cutoff: Date, limit = 30) {
     .limit(limit);
 }
 
-async function weeklyRankSweep(): Promise<string> {
+async function weeklyRankSweep(): Promise<StepNote> {
   // Cap to 30 to be polite to whatever we are asking for positions.
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const stale = await keywordsNeedingRankCheck(cutoff, 30);
-  if (stale.length === 0) return "every keyword has a reading from the last 7 days";
+  if (stale.length === 0) return note("ranksFresh", { days: 7 });
 
   const { checkRankAction } = await import("@/app/keywords/rank-actions");
   const { runRankBatch } = await import("./rank-batch");
@@ -448,16 +511,20 @@ async function weeklyRankSweep(): Promise<string> {
   const { shutdownBrowser } = await import("./rank-checker");
   await shutdownBrowser().catch(() => {});
 
-  const sources = Object.entries(summary.bySource)
-    .map(([source, n]) => `${source} ${n}`)
-    .join(", ");
-  const google = summary.googleAbandoned ? "; Google blocked this server and was skipped for the rest" : "";
+  const sources = encodeSourceCounts(summary.bySource);
+  const googleSkipped = summary.googleAbandoned ? "yes" : "no";
   if (summary.checked === 0) {
-    return `could not check any of ${summary.total} keywords — no source answered (blocked, or the network refused)${google}`;
+    return note("ranksNone", { total: summary.total, googleSkipped });
   }
   return summary.failed > 0
-    ? `checked ${summary.checked} of ${summary.total} keywords (${sources}), ${summary.failed} could not be checked${google}`
-    : `checked ${summary.checked} keywords (${sources})${google}`;
+    ? note("ranksPartial", {
+        checked: summary.checked,
+        total: summary.total,
+        failed: summary.failed,
+        sources,
+        googleSkipped,
+      })
+    : note("ranksAll", { checked: summary.checked, sources, googleSkipped });
 }
 
 // ============== New auto-steps ==============
@@ -467,9 +534,9 @@ async function weeklyRankSweep(): Promise<string> {
  * — only stores when content actually changed. Catches accidental
  * Disallow: / disasters automatically.
  */
-async function robotsSnapshotStep(): Promise<string> {
+async function robotsSnapshotStep(): Promise<StepNote> {
   const all = await db.select({ id: clients.id, url: clients.url }).from(clients);
-  if (all.length === 0) return "no clients";
+  if (all.length === 0) return note("noClients");
   const { snapshotRobots } = await import("./robots-snapshots");
   let changed = 0,
     unchanged = 0,
@@ -493,16 +560,16 @@ async function robotsSnapshotStep(): Promise<string> {
       failed += 1;
     }
   }
-  return `${changed} changed, ${unchanged} unchanged, ${failed} failed`;
+  return note("robots", { changed, unchanged, failed });
 }
 
 /**
  * Daily sitemap health probe — try to fetch /sitemap.xml for every client,
  * count entries, alert on parse failure or sudden drop.
  */
-async function sitemapHealthStep(): Promise<string> {
+async function sitemapHealthStep(): Promise<StepNote> {
   const all = await db.select({ id: clients.id, url: clients.url }).from(clients);
-  if (all.length === 0) return "no clients";
+  if (all.length === 0) return note("noClients");
   let ok = 0,
     broken = 0;
   for (const c of all.slice(0, 30)) {
@@ -544,16 +611,16 @@ async function sitemapHealthStep(): Promise<string> {
       broken += 1;
     }
   }
-  return `${ok} ok, ${broken} broken`;
+  return note("sitemaps", { ok, broken });
 }
 
 /**
  * Daily traffic-drop check. For every client with GSC data, compare the
  * trailing 7-day clicks to the prior 7-day clicks. ≥10% drop = alert.
  */
-async function trafficDropAlertStep(): Promise<string> {
+async function trafficDropAlertStep(): Promise<StepNote> {
   const all = await db.select({ id: clients.id, url: clients.url, name: clients.name }).from(clients);
-  if (all.length === 0) return "no clients";
+  if (all.length === 0) return note("noClients");
   let alerted = 0,
     checked = 0;
   for (const c of all.slice(0, 30)) {
@@ -603,16 +670,16 @@ async function trafficDropAlertStep(): Promise<string> {
       // GSC may not be connected for this client
     }
   }
-  return `${checked} checked, ${alerted} alerts`;
+  return note("traffic", { checked, alerts: alerted });
 }
 
 /**
  * Weekly per-client AI audit refresh. Runs on Mondays. Skips clients where
  * the last AI audit is fresher than 6 days.
  */
-async function weeklyAiAuditStep(): Promise<string> {
+async function weeklyAiAuditStep(): Promise<StepNote> {
   const all = await db.select({ id: clients.id, url: clients.url }).from(clients);
-  if (all.length === 0) return "no clients";
+  if (all.length === 0) return note("noClients");
   const { runAiSiteAudit } = await import("./ai-site-audit");
   const cutoff = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
   let started = 0;
@@ -642,7 +709,7 @@ async function weeklyAiAuditStep(): Promise<string> {
       // ignore one client's failure
     }
   }
-  return `ran ${started} weekly AI audits`;
+  return note("aiAudits", { count: started });
 }
 
 /**
@@ -650,7 +717,7 @@ async function weeklyAiAuditStep(): Promise<string> {
  * featured snippet, PAA presence per keyword. Cap at 30/week to stay
  * within reasonable scrape volume.
  */
-async function weeklySerpFeatureStep(): Promise<string> {
+async function weeklySerpFeatureStep(): Promise<StepNote> {
   const all = await db
     .select({
       id: keywords.id,
@@ -662,7 +729,7 @@ async function weeklySerpFeatureStep(): Promise<string> {
     .from(keywords)
     .leftJoin(clients, eq(keywords.clientId, clients.id))
     .limit(30);
-  if (all.length === 0) return "no keywords";
+  if (all.length === 0) return note("noKeywords");
   const { captureSerpSnapshot } = await import("./serp-feature-tracker");
   let captured = 0;
   for (const k of all) {
@@ -678,5 +745,5 @@ async function weeklySerpFeatureStep(): Promise<string> {
       // ignore
     }
   }
-  return `captured ${captured} SERP snapshots`;
+  return note("serpSnapshots", { count: captured });
 }

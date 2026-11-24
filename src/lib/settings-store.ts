@@ -152,6 +152,8 @@ export type SettingKey =
   | "schedule_runner.last_run"
   | "page_monitor_runner.last_run"
   | "daily_agent_runner.last_run"
+  // The last nightly sweep, job by job (lib/daily-report.ts).
+  | "daily_agent.last_report"
   | "news_runner.last_run"
   | "news_runner.last_seen_at"
   | "seen.news.last_seen_at"

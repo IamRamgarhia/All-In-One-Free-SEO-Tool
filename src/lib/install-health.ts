@@ -78,6 +78,7 @@ export const HEALTH_ISSUE_KINDS = [
   "audit_failed",
   "sweep_unreachable",
   "sweep_failing",
+  "nightly_jobs_failing",
   "check_failed",
 ] as const;
 
@@ -102,6 +103,8 @@ export type HealthIssue = {
   detail?: string;
   /** Tool ids, for the sweep issues — translated by the surface. */
   tools?: string[];
+  /** Nightly job names (`rank.weekly_sweep`), translated by the surface. */
+  jobs?: string[];
   /** The leading network cause, for the sweep issues. */
   networkKind?: NetworkFailureKind | null;
   /** Where to go to fix it. */
@@ -166,6 +169,7 @@ export async function runHealthChecks(): Promise<HealthIssue[]> {
     safe(checkClientsNeverAudited),
     safe(checkLatestAuditFailed),
     safe(checkSweepFailures),
+    safe(checkNightlyJobs),
   ]);
   return sortIssues(results.flat());
 }
@@ -602,6 +606,47 @@ async function checkSweepFailures(): Promise<HealthIssue[]> {
   return out.sort(
     (a, b) => Number(b.params.count) - Number(a.params.count),
   );
+}
+
+/**
+ * Nightly jobs that failed.
+ *
+ * Ported from upstream. The nightly sweep runs about twenty jobs and
+ * used to discard every result, so an install where they all failed
+ * looked exactly like one where none did. Reads the stored report rather
+ * than running anything: the sweep takes minutes and happens once a day.
+ *
+ * `stalled`, not `broken`: the jobs ran and some produced nothing. Names
+ * them, because "3 failed" sends someone looking and the names tell them
+ * where.
+ */
+async function checkNightlyJobs(): Promise<HealthIssue[]> {
+  const { readDailyReport } = await import("./daily-report");
+  const report = await readDailyReport();
+  // No report means the sweep has not finished since this record started
+  // being kept. Not an all-clear, and not a fault either: the health page
+  // says so in its own words.
+  if (!report) return [];
+
+  const failed = report.steps.filter((s) => !s.ok);
+  if (failed.length === 0) return [];
+
+  return [
+    {
+      id: "nightly_jobs_failing",
+      severity: "stalled",
+      kind: "nightly_jobs_failing",
+      params: {
+        failed: failed.length,
+        total: report.steps.length,
+        // ISO date; the surface formats it in the viewer's language.
+        date: report.at,
+      },
+      jobs: failed.map((s) => s.name),
+      detail: failed.find((s) => s.error)?.error?.slice(0, 160),
+      fixHref: "/settings/health#nightly-jobs",
+    },
+  ];
 }
 
 /**

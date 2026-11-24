@@ -26,17 +26,23 @@ export function issueText(
     toolName: (toolId: string) => string;
     formatDate: (iso: string) => string;
     listFormat: (items: string[]) => string;
+    /** A nightly job's name in the viewer's language; the id otherwise. */
+    jobName?: (name: string) => string;
   },
 ): IssueText {
   const base = `issues.${issue.kind}`;
   const values: Record<string, string | number> = { ...issue.params };
 
-  if (issue.kind === "audit_failed") {
+  if (issue.kind === "audit_failed" || issue.kind === "nightly_jobs_failing") {
     const iso = String(issue.params.date ?? "");
     values.date = iso ? opts.formatDate(iso) : "—";
   }
   if (issue.tools) {
     values.tools = opts.listFormat(issue.tools.map((id) => opts.toolName(id)));
+  }
+  if (issue.jobs) {
+    const jobName = opts.jobName ?? ((name: string) => name);
+    values.jobs = opts.listFormat(issue.jobs.map((name) => jobName(name)));
   }
   if (issue.kind === "sweep_unreachable") {
     values.cause = t(`network.${issue.networkKind ?? "no_response"}`);
