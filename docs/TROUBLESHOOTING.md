@@ -73,6 +73,32 @@ We need Node 20 LTS or newer. Check yours with `node -v`. Upgrade:
 - **Linux (nvm):** `nvm install --lts && nvm use --lts`
 - **Linux (apt):** `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs`
 
+### "ERR_DLOPEN_FAILED" or "was compiled against a different Node.js version"
+
+The full message looks like this:
+
+```
+Error: The module '...etter_sqlite3.node'
+was compiled against a different Node.js version using
+NODE_MODULE_VERSION 137. This version of Node.js requires
+NODE_MODULE_VERSION 147.
+```
+
+**Your Node was upgraded underneath an existing install.** The database
+driver is a native module compiled for one specific Node version. When
+Node moves to a new major, the compiled file no longer loads and the app
+cannot start — `pnpm dev`, `pnpm build` and the migration step all fail at
+the same point.
+
+Nothing is damaged and no data is lost. Rebuild the driver:
+
+```bash
+pnpm rebuild better-sqlite3
+```
+
+Then start the app as usual. If that does not do it, a full
+`pnpm install` will.
+
 ### Installer hangs at "Building production bundle"
 
 The first build takes 1-2 minutes — that's normal. If it hangs for 5+ minutes:
@@ -308,6 +334,32 @@ If you're on a different port, swap `3000`. If you're remote-hosting, use your a
 - GSC: the Google account must be verified as owner OR delegated user with "Owner" or "Full" permission on the property
 - GA4: the account must have at least "Viewer" role on the GA4 property
 - GBP: the account must be a verified owner or manager of the listing
+
+### Search Console returns 403 "User does not have sufficient permission"
+
+The Google token is fine (that would be a 401); the property is not. The
+Google account the project uses cannot read the Search Console property
+saved for it. Usually one of:
+
+- the site is verified as a **domain** property (`sc-domain:example.com`)
+  while the URL-prefix form (`https://example.com/`) was saved, or the
+  other way round — Google treats them as two different properties;
+- a different Google account is connected now, or access to the property
+  was removed;
+- the project uses **its own Google account** (connected from its
+  settings), and that account does not hold the property.
+
+You do not have to find this by trial and error: the install-health check
+compares every project's saved property with what its Google account can
+read (the workspace account, or the project's own one). A project that
+cannot be read shows up in the dashboard banner and in Settings → System
+health, with the property the account holds for the same site when there
+is one, and a link to the project's settings to pick it. To run the check
+now from a terminal:
+
+```bash
+npx tsx scripts/install-health-check.ts --no-store
+```
 
 ### PageSpeed Insights "quota exceeded"
 

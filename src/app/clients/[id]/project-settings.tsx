@@ -246,7 +246,7 @@ function GoogleSheet({
 
   function load(announce: boolean) {
     startLoading(async () => {
-      const r = await fetchGoogleProperties();
+      const r = await fetchGoogleProperties(projectId);
       if (!r.ok) {
         setMsg({ ok: false, text: r.error });
         return;

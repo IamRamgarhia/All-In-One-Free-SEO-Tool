@@ -29,6 +29,7 @@ import en from "../../messages/en.json";
 import fr from "../../messages/fr.json";
 import {
   HEALTH_ISSUE_KINDS,
+  diagnoseGscPerAccount,
   diagnoseGscProperties,
   sortIssues,
   summariseHealth,
@@ -380,5 +381,80 @@ describe("Search Console properties the account cannot read", () => {
   it("a property simply absent from the account is told apart", () => {
     const out = diagnoseGscProperties(rows, [{ siteUrl: "https://other.example/" }]);
     expect(out.every((i) => i.kind === "gsc_not_in_account")).toBe(true);
+  });
+
+  it("never offers another site that merely shares a suffix", () => {
+    // acme.example must not be matched to notacme.example: a suggestion
+    // pointing at somebody else's property is worse than none.
+    const out = diagnoseGscProperties(
+      [{ id: 1, name: "Acme", gscProperty: "https://acme.example/" }],
+      [{ siteUrl: "sc-domain:notacme.example" }],
+    );
+    expect(out[0].kind).toBe("gsc_not_in_account");
+    expect(out[0].params.suggestion).toBe("");
+  });
+
+  it("the stored URL-prefix form is matched to the domain property, and back", () => {
+    const toDomain = diagnoseGscProperties(
+      [{ id: 1, name: "Acme", gscProperty: "https://www.acme.example/" }],
+      [{ siteUrl: "sc-domain:acme.example" }],
+    );
+    expect(toDomain[0].params.suggestion).toBe("sc-domain:acme.example");
+    const toPrefix = diagnoseGscProperties(
+      [{ id: 1, name: "Acme", gscProperty: "sc-domain:acme.example" }],
+      [{ siteUrl: "https://acme.example/" }],
+    );
+    expect(toPrefix[0].params.suggestion).toBe("https://acme.example/");
+  });
+
+  it("the fix link opens the project's own settings, in both languages", () => {
+    const [i] = diagnoseGscProperties(
+      [{ id: 7, name: "Acme", gscProperty: "https://acme.example/" }],
+      [],
+    );
+    expect(i.fixHref).toBe("/clients/7?tab=settings");
+    expect(words("fr", i).title).toContain("Acme");
+    expect(words("en", i).title).toContain("Acme");
+  });
+});
+
+describe("Search Console, one Google account per project", () => {
+  // Project 1 uses the workspace account; project 2 connected its own.
+  const rows = [
+    { id: 1, name: "Shared", gscProperty: "https://shared.example/", ownAccount: false },
+    { id: 2, name: "Own", gscProperty: "https://own.example/", ownAccount: true },
+    { id: 3, name: "Unset", gscProperty: null, ownAccount: true },
+  ];
+
+  it("checks each project against the account it actually uses", async () => {
+    const asked: (number | undefined)[] = [];
+    const out = await diagnoseGscPerAccount(rows, async (scope) => {
+      asked.push(scope);
+      // The workspace account cannot read own.example; project 2's own
+      // account can. Comparing project 2 to the workspace list would
+      // report a working project as broken.
+      return scope === 2
+        ? [{ siteUrl: "https://own.example/" }]
+        : [{ siteUrl: "https://shared.example/" }];
+    });
+    expect(out).toEqual([]);
+    // A project with no property set costs no call to Google.
+    expect(asked).toEqual([undefined, 2]);
+  });
+
+  it("reports a project whose own account lost access", async () => {
+    const out = await diagnoseGscPerAccount(rows, async (scope) =>
+      scope === 2 ? [] : [{ siteUrl: "https://shared.example/" }],
+    );
+    expect(out.map((i) => [i.clientId, i.kind])).toEqual([[2, "gsc_account_empty"]]);
+  });
+
+  it("an account that cannot be asked reports nothing for its projects", async () => {
+    const out = await diagnoseGscPerAccount(rows, async (scope) =>
+      scope === 2 ? null : [],
+    );
+    // The workspace account answered (with nothing): project 1 is
+    // reported. Project 2's account could not be asked: no guess.
+    expect(out.map((i) => i.clientId)).toEqual([1]);
   });
 });

@@ -295,18 +295,68 @@ export function diagnoseGscProperties(
   return out;
 }
 
+/** A client row as checkSearchConsole reads it: does it use its own Google account? */
+export type GscClientAccountRow = GscClientRow & { ownAccount: boolean };
+
+/**
+ * Asks each Google account only about the clients that use it.
+ *
+ * This fork lets a project connect its own Google account, and every
+ * Search Console call for that project goes through it (getAccessToken
+ * with the client's id). Upstream compared every client against the
+ * workspace account, which here would report a project on its own
+ * account as broken while it works — or miss that its own account lost
+ * access. So: the workspace account's list for the clients on the
+ * workspace account, and each own-account client against its own list.
+ *
+ * `list` is injected so this can be tested without Google. A list that
+ * cannot be fetched (`null`) reports nothing for the clients behind it:
+ * not being able to ask is not evidence that the property is unreadable.
+ */
+export async function diagnoseGscPerAccount(
+  rows: readonly GscClientAccountRow[],
+  list: (clientIdScope?: number) => Promise<GscAvailableProperty[] | null>,
+): Promise<HealthIssue[]> {
+  const withProperty = rows.filter((r) => r.gscProperty?.trim());
+  const shared = withProperty.filter((r) => !r.ownAccount);
+  const own = withProperty.filter((r) => r.ownAccount);
+
+  const out: HealthIssue[] = [];
+  if (shared.length > 0) {
+    const available = await list();
+    if (available !== null) out.push(...diagnoseGscProperties(shared, available));
+  }
+  for (const c of own) {
+    const available = await list(c.id);
+    if (available !== null) out.push(...diagnoseGscProperties([c], available));
+  }
+  return out;
+}
+
 async function checkSearchConsole(): Promise<HealthIssue[]> {
   const { listGscProperties } = await import("./google-oauth");
-  const available = await listGscProperties().catch(() => null);
+  const rows = await db
+    .select({
+      id: clients.id,
+      name: clients.name,
+      gscProperty: clients.gscProperty,
+      googleRefreshToken: clients.googleRefreshToken,
+    })
+    .from(clients);
+  // Only whether a token exists is kept: the token itself never leaves
+  // this function.
+  const accountRows: GscClientAccountRow[] = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    gscProperty: r.gscProperty,
+    ownAccount: Boolean(r.googleRefreshToken),
+  }));
   // Null means we could not ask Google at all — not connected, or the
   // call failed. That is a different problem from "the account has no
   // properties", and claiming the latter would be a guess.
-  if (available === null) return [];
-
-  const rows = await db
-    .select({ id: clients.id, name: clients.name, gscProperty: clients.gscProperty })
-    .from(clients);
-  return diagnoseGscProperties(rows, available);
+  return diagnoseGscPerAccount(accountRows, (scope) =>
+    listGscProperties(scope).catch(() => null),
+  );
 }
 
 /**

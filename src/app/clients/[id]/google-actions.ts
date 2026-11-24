@@ -18,12 +18,28 @@ export type FetchPropertiesResult =
     }
   | { ok: false; error: string };
 
-export async function fetchGoogleProperties(): Promise<FetchPropertiesResult> {
+/**
+ * The properties offered in a project's Google settings.
+ *
+ * With `clientId`, they come from the account that project actually uses:
+ * its own Google account when it has one, the workspace account otherwise.
+ * Listing the workspace account's properties for a project connected to
+ * its own account offered properties the project could not read, which is
+ * exactly the silent 403 the install-health check reports.
+ */
+export async function fetchGoogleProperties(
+  clientId?: number,
+): Promise<FetchPropertiesResult> {
   await requireSignedIn();
+  const scope =
+    typeof clientId === "number" && Number.isFinite(clientId) && clientId > 0
+      ? clientId
+      : undefined;
+  if (scope !== undefined) await requireClientAccess(scope);
   try {
     const [gsc, ga4] = await Promise.all([
-      listGscProperties().catch(() => []),
-      listGa4Properties().catch(() => []),
+      listGscProperties(scope).catch(() => []),
+      listGa4Properties(scope).catch(() => []),
     ]);
     return {
       ok: true,

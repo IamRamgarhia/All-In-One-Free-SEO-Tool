@@ -352,8 +352,18 @@ export type GscProperty = {
   permissionLevel: string;
 };
 
-export async function listGscProperties(): Promise<GscProperty[]> {
-  const token = await getAccessToken();
+/**
+ * The Search Console properties a Google account can read.
+ *
+ * With `clientIdScope`, the account is that project's own one when it has
+ * its own tokens (same rule as every other Google call, see
+ * getAccessToken); otherwise the workspace account. Without it, always the
+ * workspace account.
+ */
+export async function listGscProperties(
+  clientIdScope?: number,
+): Promise<GscProperty[]> {
+  const token = await getAccessToken(clientIdScope);
   const res = await fetch(
     "https://searchconsole.googleapis.com/webmasters/v3/sites",
     { headers: { authorization: `Bearer ${token}` } },
@@ -684,8 +694,10 @@ export type Ga4Property = {
  * GA4 doesn't expose a direct "list properties for me" endpoint as part of
  * the Data API. We use the Admin API, which the user's OAuth scope covers.
  */
-export async function listGa4Properties(): Promise<Ga4Property[]> {
-  const token = await getAccessToken();
+export async function listGa4Properties(
+  clientIdScope?: number,
+): Promise<Ga4Property[]> {
+  const token = await getAccessToken(clientIdScope);
 
   // 1. List accounts the user can see
   const accountsRes = await fetch(
