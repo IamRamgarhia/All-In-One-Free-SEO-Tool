@@ -5,7 +5,7 @@ import { CRAWLER_MESSAGES_FR } from "./crawler-messages.fr";
 
 describe("catalogue of the crawler's messages", () => {
   it("matches the tr() pairs in the crawler's code", () => {
-    const pairs = [...extractTrPairs("src/lib/audit.ts"), ...extractTrPairs("src/lib/tech-audit-rules.ts")];
+    const pairs = [...extractTrPairs("src/lib/audit.ts"), ...extractTrPairs("src/lib/tech-audit-rules.ts"), ...extractTrPairs("src/lib/ai-site-audit.ts")];
     expect(CRAWLER_MESSAGES_FR).toEqual(pairs);
   }, 60_000);
 

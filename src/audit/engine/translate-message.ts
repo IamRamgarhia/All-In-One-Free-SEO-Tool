@@ -85,8 +85,17 @@ function translateValue(value: string): string {
   return value;
 }
 
+/**
+ * " (N pages)": added when one finding is found on several pages
+ * (lib/seomator-audit.ts, collapseSiteWide). Not part of any template, so
+ * it is set aside while matching and put back after.
+ */
+const PAGES_SUFFIX = / \((\d+) pages\)$/;
+
 /** The message in French when its template is known, else unchanged. */
 export function translateEngineMessage(ruleId: string, message: string): string {
+  const suffix = PAGES_SUFFIX.exec(message);
+  if (suffix) return `${translateEngineMessage(ruleId, message.slice(0, suffix.index))}${suffix[0]}`;
   const list = catalogue().get(ruleId);
   if (!list) return message;
   for (const c of list) {
@@ -107,6 +116,8 @@ export function translateCrawlerMessage(message: string): string {
   if (!crawler) {
     crawler = CRAWLER_MESSAGES_FR.map((e) => compile(e.en, e.fr)).sort((a, b) => b.literal - a.literal);
   }
+  const suffix = PAGES_SUFFIX.exec(message);
+  if (suffix) return `${translateCrawlerMessage(message.slice(0, suffix.index))}${suffix[0]}`;
   const prefix = /^\[[^\]]+\] /.exec(message)?.[0] ?? "";
   const body = message.slice(prefix.length);
   for (const c of crawler) {

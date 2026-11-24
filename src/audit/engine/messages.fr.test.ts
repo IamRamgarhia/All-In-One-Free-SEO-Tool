@@ -51,3 +51,14 @@ describe("values that are English fragments", () => {
     );
   });
 });
+
+describe("a finding grouped over several pages", () => {
+  it("keeps its « (N pages) » and is still translated", () => {
+    expect(
+      translateEngineMessage(
+        "core-description-length",
+        "Meta description is too short (112 characters). Recommended: 120-160 characters (3 pages)",
+      ),
+    ).toBe("Méta-description trop courte (112 caractères). Recommandé : 120 à 160 caractères (3 pages)");
+  });
+});
