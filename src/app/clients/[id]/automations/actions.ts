@@ -26,6 +26,7 @@ export async function createSchedule(
   const autoPublishRaw = formData.get("autoPublish") === "on";
   const topicSeed = String(formData.get("topicSeed") ?? "").slice(0, 200);
   const tone = String(formData.get("tone") ?? "").slice(0, 200);
+  const aiBrief = String(formData.get("aiBrief") ?? "").trim().slice(0, 2000);
   const gbpLocationName = String(formData.get("gbpLocationName") ?? "").slice(0, 200);
   const postType = String(formData.get("postType") ?? "STANDARD");
   // Where the approved item ultimately goes:
@@ -55,6 +56,8 @@ export async function createSchedule(
   const config: Record<string, unknown> = { destination };
   if (topicSeed) config.topic_seed = topicSeed;
   if (tone) config.tone = tone;
+  // Written into the "Download .md for AI" export of this schedule's drafts.
+  if (aiBrief && kind === "blog_draft") config.ai_brief = aiBrief;
   if (kind === "gbp_post") {
     if (gbpLocationName) config.gbp_location_name = gbpLocationName;
     config.post_type = postType;

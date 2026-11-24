@@ -6488,7 +6488,13 @@
       "availableEnterTheLocationName": "available; enter the location name on the GBP schedule",
       "noGbpUrlOnThis": "no GBP URL on this client yet",
       "whenOffPostsLandAs": " (When OFF, posts land as WP drafts; when ON, as published.)",
-      "lastRun": " · last run "
+      "lastRun": " · last run ",
+      "aiBriefLabel": "AI brief for the .md export (optional)",
+      "aiBriefPlaceholder": "Leave blank to use the default: expand sections, add an FAQ, internal link and image placeholders, keep the keywords.",
+      "aiBriefHint": "Written into the “.md for AI” file so another AI knows how to enrich the draft (Astro, Next.js, any static site).",
+      "aiBrief2": "AI brief:",
+      "everyNDays": "Every {n} days",
+      "quotedTopic": "“{v}”"
     },
     "app_clients_id_automations_page": {
       "backTo": "Back to {name}",
@@ -6578,7 +6584,7 @@
       "copyRawBodyToClipboard": "Copy raw body to clipboard",
       "copyMd": "Copy MD",
       "copyAsMarkdownPasteInto": "Copy as Markdown (paste into Notion, Medium, ghost editor)",
-      "downloadAsMdFile": "Download as .md file",
+      "downloadAsMdFile": "Download as a .md file, with frontmatter (title, description, slug, date, keywords)",
       "downloadAsHtmlFile": "Download as .html file",
       "delete": "Delete",
       "yourEditsAreSavedWhen": "Your edits are saved when you click an Approve button below.",
@@ -6603,7 +6609,10 @@
       "clientApprovedOn": "Approved by the client on {date}",
       "clientAskedChangesOn": "Changes requested by the client on {date}:",
       "changesHint": "Edit the text, then send it to the client again or approve it directly.",
-      "sentToClientOn": "Sent to the client on {date} · waiting for their answer"
+      "sentToClientOn": "Sent to the client on {date} · waiting for their answer",
+      "downloadMdForAi": ".md for AI",
+      "downloadMdForAiTitle": "A .md file with frontmatter (title, description, slug, keywords) and a brief telling an AI how to enrich the article: for Astro, Next.js and other static sites",
+      "exportFailed": "Export failed."
     },
     "app_clients_import-form": {
       "importCsv": "Import CSV",
@@ -8734,6 +8743,12 @@
     },
     "components_ui_area-chart": {
       "notEnoughDataYet": "Not enough data yet."
+    },
+    "blog_export": {
+      "untitled": "Untitled",
+      "briefHeading": "AI BRIEF",
+      "focusKeywords": "Focus keywords: ",
+      "defaultBrief": "You are given a first draft of a blog article (below the frontmatter).\nRewrite it into a richer, publish-ready article:\n- Keep the frontmatter fields; update title/description only if you improve them.\n- Keep the focus keywords and use them naturally (title, first paragraph, a heading, the conclusion). No keyword stuffing.\n- Expand thin sections with concrete examples and steps. Aim for about 1,500 words if the topic supports it.\n- Add an FAQ section (3 to 5 questions) that answers real search queries.\n- Suggest internal links as [anchor text](/relevant-page) placeholders.\n- Mark spots for images with ![descriptive alt text](/images/placeholder.jpg).\n- Keep the tone and facts consistent; do not invent statistics or quotes.\n- Output only the final Markdown file, frontmatter included."
     }
   },
   "integrations": {
