@@ -24,6 +24,8 @@ type IssueRow = {
   fixSteps: string | null;
   category: string | null;
   notes: string | null;
+  /** The type's name in the reader's language (lib/issue-display.ts). */
+  typeName?: string;
 };
 
 type AuditRow = {
@@ -71,6 +73,7 @@ export function ChecklistView({
   issues: IssueRow[];
 }) {
   const tx = useTranslations("ui.app_clients_id_ai-audit_auditId_checklist-view");
+  const tSev = useTranslations("auditUi.severity");
   // Group by category
   const grouped = useMemo(() => {
     const m = new Map<string, IssueRow[]>();
@@ -215,11 +218,11 @@ export function ChecklistView({
                           SEV_TONE[e.severity] ?? ""
                         }`}
                       >
-                        {e.severity}
+                        {tSev.has(e.severity) ? tSev(e.severity) : e.severity}
                       </span>
                       <span className="text-foreground/90">
                         <span className="font-medium capitalize">
-                          {e.type.replace(/_/g, " ")}
+                          {e.typeName ?? e.type.replace(/_/g, " ")}
                         </span>
                         {": "}
                         <span className="text-muted-foreground">

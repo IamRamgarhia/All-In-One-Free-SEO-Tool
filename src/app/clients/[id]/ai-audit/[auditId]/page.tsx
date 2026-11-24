@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import { issueFix, issueMessage, issueTypeName } from "@/lib/issue-display";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
@@ -16,6 +17,7 @@ export default async function AuditDetailPage({
   params: Promise<{ id: string; auditId: string }>;
 }) {
   const tx = await getTranslations("ui.app_clients_id_ai-audit_auditId_page");
+  const locale = await getLocale();
   const { id, auditId } = await params;
   const clientId = Number(id);
   const aId = Number(auditId);
@@ -74,9 +76,10 @@ export default async function AuditDetailPage({
           id: i.id,
           type: i.type,
           severity: i.severity,
-          message: i.message,
+          message: issueMessage(i.type, i.message, locale),
           status: i.status,
-          fixSteps: i.fixSteps,
+          fixSteps: i.fixSteps ? issueFix(i.type, i.fixSteps, locale) : null,
+          typeName: issueTypeName(i.type, locale),
           category: i.category,
           notes: i.notes,
         }))}
