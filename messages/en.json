@@ -389,7 +389,7 @@
     },
     "ai": {
       "title": "AI connection",
-      "description": "Connect the AI subscription you already pay for, or a provider key: either one drives the same tools. Most tools need neither."
+      "description": "A provider key runs the AI tools in this app; the Claude or ChatGPT subscription you already pay for lets your chat app use your SEO data. Most tools need neither."
     },
     "brand": {
       "title": "Brand identity",
@@ -572,9 +572,9 @@
     },
     "connection": {
       "title": "Connection mode",
-      "intro": "{free} of the {total} tools work without AI. These two connections cover the other {ai}; they do different jobs and can be combined.",
+      "intro": "{free} of the {total} tools run without an AI key. A key unlocks the other {ai}; a connected Claude or ChatGPT subscription does something else: it lets your chat app use your SEO data. The two can be combined.",
       "apiTitle": "API key",
-      "apiBody": "Runs the {ai} AI tools in this app (assistant, summaries, writing), overnight too. Gemini and Groq are free.",
+      "apiBody": "Runs the {ai} tools that need AI (assistant, summaries, writing), overnight too. Gemini and Groq are free.",
       "chatTitle": "Your Claude or ChatGPT app",
       "chatBody": "Claude or ChatGPT read and act on your SEO data through {count} tools, using the subscription you already pay for. Works in that app, not here.",
       "lastUsed": "Last used {when}.",
@@ -1222,6 +1222,14 @@
       "testCountry": "US",
       "testLanguage": "en"
     }
+  },
+  "connectionTools": {
+    "aiSummary": "Of the {total} tools, {needs, plural, one {# needs} other {# need}} an AI key (or Ollama) to run. The other {works} run without a key;{partly, plural, =0 { none of them uses AI.} one { in one of them, part of the tool uses AI once a key is added.} other { in # of them, part of the tool uses AI once a key is added.}}",
+    "chatNote": "A connected Claude or ChatGPT subscription does not replace the key for these pages: your chat app uses this one, not the other way round.",
+    "needsShow": "See {count, plural, one {the tool a key unlocks} other {the # tools a key unlocks}}",
+    "partlyShow": "See {count, plural, one {the tool where part of it uses AI} other {the # tools where part of the tool uses AI}}",
+    "gscSummary": "{count, plural, one {# tool has} other {# tools have}} no data until Search Console is connected.",
+    "gscShow": "See {count, plural, one {this tool} other {these # tools}}"
   },
   "reports": {
     "title": "Reports",

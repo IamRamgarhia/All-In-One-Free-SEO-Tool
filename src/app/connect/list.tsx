@@ -16,6 +16,7 @@ import {
   type Integration,
   type IntegrationStatus,
 } from "@/lib/integrations";
+import { ConnectionTools } from "@/components/connection-tools";
 
 const GROUP_ORDER: Integration["group"][] = [
   "start",
@@ -161,6 +162,12 @@ function Card({
               ))}
             </ul>
           </div>
+
+          {/* Right under "what you get": the next question is "which
+              tools, exactly". Named and linked for the two connections
+              that tools depend on. */}
+          {raw.id === "ai" ? <ConnectionTools kind="ai" /> : null}
+          {raw.id === "google" ? <ConnectionTools kind="gsc" /> : null}
 
           {/* Stated plainly rather than implied. Someone deciding whether
               to spend five minutes deserves to know what they lose by

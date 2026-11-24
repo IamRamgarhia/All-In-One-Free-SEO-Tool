@@ -3,12 +3,12 @@
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Check, Copy, KeyRound, MessageSquare } from "lucide-react";
-import {
-  AI_TOOL_COUNT,
-  FREE_TOOL_COUNT,
-  TOTAL_TOOL_COUNT,
-  type ConnectionMode,
-} from "@/lib/tool-capabilities";
+import type { ConnectionMode } from "@/lib/tool-capabilities";
+// Not AI_TOOL_COUNT: that counts every page that can reach a model,
+// including the ones that run without a key, so it over-stated what a
+// key unlocks. These are the lengths of the lists ConnectionTools names.
+import { connectionCoverage } from "@/lib/connection-coverage";
+import { ConnectionTools } from "@/components/connection-tools";
 import { clientToTab } from "@/lib/mcp-clients";
 import type { AiConnectionStatus, McpStatus } from "./connection-mode-actions";
 import {
@@ -125,13 +125,15 @@ export function ConnectionModePicker({
     origin.includes("127.0.0.1");
 
   const t = useTranslations("settings.connection");
+  const cov = connectionCoverage();
+  const needsKey = cov.needsKey.length;
 
   return (
     <section className="gsk-block">
       <div className="gsk-block-head">
         <h2 className="gsk-block-title">{t("title")}</h2>
         <p className="gsk-block-description">
-          {t("intro", { free: FREE_TOOL_COUNT, total: TOTAL_TOOL_COUNT, ai: AI_TOOL_COUNT })}
+          {t("intro", { free: cov.total - needsKey, total: cov.total, ai: needsKey })}
         </p>
       </div>
 
@@ -145,7 +147,7 @@ export function ConnectionModePicker({
               <span className="gsk-card__title">{t("apiTitle")}</span>
               <StatusTag status={status.api} />
             </div>
-            <p className="gsk-card__subtitle">{t("apiBody", { ai: AI_TOOL_COUNT })}</p>
+            <p className="gsk-card__subtitle">{t("apiBody", { ai: needsKey })}</p>
           </div>
         </div>
 
@@ -175,6 +177,10 @@ export function ConnectionModePicker({
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="mt-3">
+        <ConnectionTools kind="ai" summary={false} />
       </div>
 
       {mode === "both" ? <p className="gsk-help gsk-status-ok">{t("both")}</p> : null}
