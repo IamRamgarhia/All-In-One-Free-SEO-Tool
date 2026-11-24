@@ -3820,6 +3820,13 @@
           "cta": "Proposer un suivi"
         }
       }
+    },
+    "workDone": {
+      "title": "Travail réalisé",
+      "hint": "Tâches ajoutées depuis les outils et tâches terminées, les plus récentes d’abord.",
+      "empty": "Rien pour l’instant. Ouvrez un outil depuis une tâche de ce client : ce que vous y ajoutez ou terminez s’affichera ici.",
+      "journal": "Tout le journal",
+      "page": "Page {path}"
     }
   },
   "settingsTeam": {
@@ -9519,5 +9526,41 @@
         "need_folder": "Indiquez le dossier du projet avant d’activer Claude Code."
       }
     }
+  },
+  "toolContext": {
+    "aria": "Dossier client de cet outil",
+    "folder": "Dossier {client}",
+    "page": "Page {path}",
+    "task": "Tâche : « {title} »",
+    "taskIsDone": "(terminée)",
+    "backToClient": "Retour au client",
+    "backToTask": "Retour à la tâche",
+    "addTask": "Ajouter aux tâches de {client}",
+    "defaultTitle": "{tool} : {page}",
+    "titleLabel": "Intitulé de la tâche",
+    "priorityLabel": "Priorité",
+    "priority": {
+      "high": "Haute",
+      "medium": "Moyenne",
+      "low": "Basse"
+    },
+    "submit": "Ajouter la tâche",
+    "cancel": "Annuler",
+    "journalNote": "La tâche et cette action sont notées au journal du client.",
+    "added": "Tâche ajoutée au dossier {client}.",
+    "seeTask": "Voir la tâche",
+    "completeTask": "Marquer la tâche terminée",
+    "completed": "Tâche terminée, notée au journal du client.",
+    "fixWith": "Corriger avec {tool}",
+    "digWith": "Creuser avec {tool}",
+    "errors": {
+      "context": "Ce dossier client n’est pas accessible depuis votre compte.",
+      "denied": "Votre rôle ne permet pas de modifier les tâches de ce client.",
+      "title": "Donnez à la tâche un intitulé d’au moins deux caractères.",
+      "generic": "L’action n’a pas abouti. Réessayez dans un instant.",
+      "notCheckable": "Ce constat ne se vérifie pas page par page : marquez la tâche terminée quand c’est fait."
+    },
+    "verifyTask": "Vérifier sur le site",
+    "checkedSummary": "Vérifié sur le site : {resolved, plural, =0 {aucune page confirmée corrigée} one {# page confirmée corrigée} other {# pages confirmées corrigées}}, {still, plural, =0 {aucune encore à corriger} other {# encore à corriger}}{unverifiable, plural, =0 {} one {, # non vérifiable} other {, # non vérifiables}}."
   }
 }

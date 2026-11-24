@@ -60,7 +60,11 @@ export type ActivityKind =
   | "portal.client_review"
   // Claude Code on the host switched on or off for one client's code.
   | "client.code_agent_on"
-  | "client.code_agent_off";
+  | "client.code_agent_off"
+  // Work done in a tool opened from a client's file (lib/tool-context.ts).
+  | "tool.task_added"
+  | "tool.task_completed"
+  | "tool.fix_checked";
 
 export type ActivityLevel = "info" | "success" | "warning" | "error";
 

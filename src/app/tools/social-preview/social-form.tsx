@@ -1,11 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { Loader2, Share2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { runSocial, type SocialState } from "./actions";
 
 export function SocialForm() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetUrl = usePresetUrl();
   const t = useTranslations("tools.ui.social-preview");
   const [state, formAction, pending] = useActionState<
     SocialState | null,
@@ -21,6 +24,7 @@ export function SocialForm() {
         <div className="grid gap-3 md:grid-cols-[1fr_140px]">
           <input
             name="url"
+            defaultValue={presetUrl}
             required
             placeholder="https://yoursite.com/blog/post"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

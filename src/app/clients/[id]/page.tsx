@@ -78,6 +78,7 @@ import { surfacesFor } from "@/lib/engagement-surfaces";
 import { getAiAvailability } from "@/lib/ai-availability";
 import { DeleteClientButton } from "./delete-client-button";
 import { DailyAutomationCard } from "./daily-automation-card";
+import { WorkDonePanel } from "./work-done-panel";
 import { inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { Suspense } from "react";
@@ -1238,6 +1239,11 @@ export default async function ClientDetailPage({
       )}
       {tab === "overview" && (
         <>
+
+      {/* WORK DONE — tasks added from the tools and tasks finished */}
+      <Suspense fallback={<PanelSkeleton title={t("workDone.title")} />}>
+        <WorkDonePanel clientId={client.id} />
+      </Suspense>
 
       {/* RECENT AUDITS */}
       <section className="relative overflow-hidden rounded-2xl border border-white/5 bg-card/40 backdrop-blur-md">

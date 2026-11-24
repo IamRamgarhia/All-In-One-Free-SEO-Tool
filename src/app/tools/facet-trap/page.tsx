@@ -1,6 +1,7 @@
 "use client";
 
 import { ToolBackLink } from "@/components/tools/tool-back-link";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { useActionState } from "react";
 import { useRunRefreshKey } from "@/components/use-run-refresh-key";
 import { ExternalLink, Loader2, Network } from "lucide-react";
@@ -16,6 +17,8 @@ const RISK_TONE = {
 };
 
 export default function FacetTrapPage() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetUrl = usePresetUrl();
   const t = useTranslations("tools.ui.facet-trap");
   const [state, formAction, pending] = useActionState<FacetTrapState, FormData>(
     runFacetTrap,
@@ -41,6 +44,7 @@ export default function FacetTrapPage() {
           <span className="text-muted-foreground">{t("urlLabel")}</span>
           <input
             name="url"
+            defaultValue={presetUrl}
             required
             placeholder="https://yoursite.com"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

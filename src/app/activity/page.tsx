@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Filter,
+  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/db/client";
@@ -71,6 +72,18 @@ const kindMeta: Record<
   "outreach.replied": {
     icon: CheckCircle2,
     tone: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
+  },
+  "tool.task_added": {
+    icon: Wrench,
+    tone: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
+  },
+  "tool.task_completed": {
+    icon: Wrench,
+    tone: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
+  },
+  "tool.fix_checked": {
+    icon: Wrench,
+    tone: "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
   },
 };
 

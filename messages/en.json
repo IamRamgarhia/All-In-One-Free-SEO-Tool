@@ -3820,6 +3820,13 @@
           "cta": "Offer a follow-up"
         }
       }
+    },
+    "workDone": {
+      "title": "Work done",
+      "hint": "Tasks added from the tools and tasks completed, newest first.",
+      "empty": "Nothing yet. Open a tool from one of this client’s tasks: what you add or complete there will show here.",
+      "journal": "Full journal",
+      "page": "Page {path}"
     }
   },
   "settingsTeam": {
@@ -9519,5 +9526,41 @@
         "need_folder": "Set the project folder before switching Claude Code on."
       }
     }
+  },
+  "toolContext": {
+    "aria": "Client file for this tool",
+    "folder": "{client} file",
+    "page": "Page {path}",
+    "task": "Task: “{title}”",
+    "taskIsDone": "(done)",
+    "backToClient": "Back to the client",
+    "backToTask": "Back to the task",
+    "addTask": "Add to {client}’s tasks",
+    "defaultTitle": "{tool}: {page}",
+    "titleLabel": "Task title",
+    "priorityLabel": "Priority",
+    "priority": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "submit": "Add the task",
+    "cancel": "Cancel",
+    "journalNote": "The task and this action are recorded in the client’s journal.",
+    "added": "Task added to the {client} file.",
+    "seeTask": "See the task",
+    "completeTask": "Mark the task done",
+    "completed": "Task done, recorded in the client’s journal.",
+    "fixWith": "Fix with {tool}",
+    "digWith": "Dig into it with {tool}",
+    "errors": {
+      "context": "This client file is not available from your account.",
+      "denied": "Your role cannot change this client’s tasks.",
+      "title": "Give the task a title of at least two characters.",
+      "generic": "That did not go through. Try again in a moment.",
+      "notCheckable": "This finding cannot be checked page by page: mark the task done once it is."
+    },
+    "verifyTask": "Check on the site",
+    "checkedSummary": "Checked on the site: {resolved, plural, =0 {no page confirmed fixed} one {# page confirmed fixed} other {# pages confirmed fixed}}, {still, plural, =0 {none still to fix} other {# still to fix}}{unverifiable, plural, =0 {} other {, # could not be checked}}."
   }
 }

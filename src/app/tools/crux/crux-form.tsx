@@ -1,12 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { runCrux, type CruxState } from "./actions";
 import { CWV_RATING_TONE, ratingForMetric } from "@/lib/crux-thresholds";
 
 export function CruxForm() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetUrl = usePresetUrl();
   const t = useTranslations("tools.ui.crux");
   const tCommon = useTranslations("tools.common");
   const [state, formAction, pending] = useActionState<CruxState, FormData>(
@@ -22,6 +25,7 @@ export function CruxForm() {
             <span className="text-muted-foreground">{tCommon("urlLabel")}</span>
             <input
               name="url"
+              defaultValue={presetUrl}
               required
               placeholder="https://example.com/blog/post"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

@@ -47,3 +47,30 @@ export function usePresetClientId(): number | null {
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+
+/**
+ * The site of the URL a tool was opened with (`https://site.tld/`), for
+ * the tools that start from a whole site — a crawl, a sitemap — rather
+ * than from the page a task is about.
+ */
+export function usePresetSite(): string {
+  const url = usePresetUrl();
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:" ? `${u.origin}/` : "";
+  } catch {
+    return "";
+  }
+}
+
+/** The path of the URL a tool was opened with (`/contact`), or "". */
+export function usePresetPath(): string {
+  const url = usePresetUrl();
+  if (!url) return "";
+  try {
+    return new URL(url).pathname || "";
+  } catch {
+    return "";
+  }
+}

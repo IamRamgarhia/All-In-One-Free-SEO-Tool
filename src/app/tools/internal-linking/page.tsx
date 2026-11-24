@@ -19,10 +19,12 @@ import {
   type InternalLinkResult,
 } from "./actions";
 import { useClientId } from "@/components/client-id-field";
+import { usePresetUrl } from "@/components/use-preset-url";
 
 export default function InternalLinkingPage() {
   const t = useTranslations("tools.ui.internal-linking");
-  const [targetUrl, setTargetUrl] = useState("");
+  // Opened from a client's file: the page to link to arrives filled in.
+  const [targetUrl, setTargetUrl] = useState(usePresetUrl());
   const [keyword, setKeyword] = useState("");
   const [result, setResult] = useState<InternalLinkResult | null>(null);
   const [pending, startTransition] = useTransition();

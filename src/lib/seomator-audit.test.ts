@@ -229,7 +229,35 @@ describe("seomatorFindingsToTasks", () => {
     expect(tasks.length).toBeGreaterThanOrEqual(2);
     expect(tasks[0]?.title).toMatch(/^\[P0\]/);
     expect(tasks.some((t) => t.title.startsWith("[P3]"))).toBe(true);
+    // Neither rule has a tool that helps (finding-tool-map.ts).
     expect(tasks.every((t) => t.toolPath === "/audits")).toBe(true);
+  });
+
+  it("points a task at the rule's tool when one helps", () => {
+    const mapped = mapSeomatorResult(
+      stubResult({
+        categoryResults: [
+          {
+            categoryId: "core",
+            score: 0,
+            passCount: 0,
+            warnCount: 0,
+            failCount: 1,
+            results: [
+              {
+                ruleId: "core-title-present",
+                status: "fail",
+                message: "Missing title",
+                score: 0,
+                details: { pageUrl: "https://example.com/" },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const tasks = seomatorFindingsToTasks(mapped.findings);
+    expect(tasks[0]?.toolPath).toBe("/tools/meta-tag-generator");
   });
 });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePresetSite } from "@/components/use-preset-url";
 import {
   Activity,
   CheckCircle2,
@@ -31,6 +32,8 @@ type Row = {
 };
 
 export function UptimeManager({ initial }: { initial: Row[] }) {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetSite = usePresetSite();
   const t = useTranslations("tools.ui.uptime");
   const [, startMut] = useTransition();
   const [pinging, setPinging] = useState(false);
@@ -57,6 +60,7 @@ export function UptimeManager({ initial }: { initial: Row[] }) {
         <div className="grid gap-3 md:grid-cols-2">
           <input
             name="url"
+            defaultValue={presetSite}
             required
             placeholder="https://yoursite.com"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

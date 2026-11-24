@@ -3,7 +3,10 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
-import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat, ArrowUpRight } from "lucide-react";
+import { CheckCircle2, Circle, X, Loader2, MinusCircle, Repeat } from "lucide-react";
+import { TaskToolLink } from "@/components/tools/task-tool-link";
+import { taskPageUrl } from "@/lib/finding-tool-map";
+import type { TaskPage } from "@/lib/task-pages";
 import { setTaskStatus, deleteTask } from "./actions";
 import { TimeTracker } from "./time-tracker";
 
@@ -42,6 +45,11 @@ export type TaskRowData = {
    * a path they could have clicked.
    */
   toolPath?: string | null;
+  /** Where the task came from (`audit:<type>`, `seomator:…`, `geo:…`), for the tool button. */
+  sourceRef?: string | null;
+  /** The client's site, opened by the tool when the task names no page. */
+  clientUrl?: string | null;
+  pages?: TaskPage[] | null;
 };
 
 export function TaskRow({
@@ -70,7 +78,7 @@ export function TaskRow({
         : "todo";
 
   return (
-    <div className="px-5 py-4 transition-colors hover:bg-white/[0.03]">
+    <div id={`task-${task.id}`} className="scroll-mt-20 px-5 py-4 transition-colors hover:bg-white/[0.03]">
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -103,20 +111,18 @@ export function TaskRow({
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-            {task.toolPath && task.status !== "done" && (
-              // Carries the client, so the tool opens already pointed at
-              // the right site rather than asking which one again.
-              <Link
-                href={
-                  task.clientId
-                    ? `${task.toolPath}${task.toolPath.includes("?") ? "&" : "?"}clientId=${task.clientId}`
-                    : task.toolPath
-                }
-                className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary ring-1 ring-inset ring-primary/20 hover:bg-primary/20"
-              >
-                {t("openTool")}
-                <ArrowUpRight className="size-3" />
-              </Link>
+            {task.status !== "done" && (
+              // Opens the tool on the task's page, inside the client's
+              // file and with the task attached (finding-tool-map.ts).
+              <TaskToolLink
+                task={{
+                  id: task.id,
+                  toolPath: task.toolPath,
+                  sourceRef: task.sourceRef,
+                  clientId: task.clientId,
+                  pageUrl: taskPageUrl(task.pages) ?? task.clientUrl ?? null,
+                }}
+              />
             )}
             {task.clientName && task.clientId && (
               <Link
@@ -305,6 +311,19 @@ export function KanbanCard({
           </Link>
         )}
       </div>
+      {task.status !== "done" && (
+        <div className="mt-1.5 text-[11px]">
+          <TaskToolLink
+            task={{
+              id: task.id,
+              toolPath: task.toolPath,
+              sourceRef: task.sourceRef,
+              clientId: task.clientId,
+              pageUrl: taskPageUrl(task.pages) ?? task.clientUrl ?? null,
+            }}
+          />
+        </div>
+      )}
       {task.dueDate && (
         <div className="mt-1.5">
           <DueBadge

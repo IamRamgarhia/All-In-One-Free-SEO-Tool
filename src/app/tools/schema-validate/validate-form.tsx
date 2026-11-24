@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { CheckCircle2, Loader2, ShieldCheck, XCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { runValidate, type ValidateState } from "./actions";
@@ -8,6 +9,8 @@ import { ClientIdField } from "@/components/client-id-field";
 import { ToolStat } from "@/components/tools/tool-stat";
 
 export function ValidateForm() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetUrl = usePresetUrl();
   const t = useTranslations("tools.ui.schema-validate");
   const [state, formAction, pending] = useActionState<
     ValidateState | null,
@@ -24,6 +27,7 @@ export function ValidateForm() {
         <div className="grid gap-3 md:grid-cols-[1fr_140px]">
           <input
             name="url"
+            defaultValue={presetUrl}
             required
             placeholder="https://yoursite.com/article"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

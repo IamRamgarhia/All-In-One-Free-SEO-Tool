@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetSite } from "@/components/use-preset-url";
 import { GitMerge, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { runCanonical, type CanonState } from "./actions";
@@ -35,6 +36,8 @@ const SEVERITY_LABEL_KEY: Record<string, string> = {
 };
 
 export function CanonForm() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetSite = usePresetSite();
   const t = useTranslations("tools.ui.canonical-audit");
   const [state, formAction, pending] = useActionState<
     CanonState | null,
@@ -51,6 +54,7 @@ export function CanonForm() {
         <div className="grid gap-3 md:grid-cols-[1fr_120px_140px]">
           <input
             name="startUrl"
+            defaultValue={presetSite}
             required
             placeholder="https://yoursite.com"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

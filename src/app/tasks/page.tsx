@@ -70,6 +70,7 @@ export default async function TasksPage({
       title: tasks.title,
       whyItMatters: tasks.whyItMatters,
       toolPath: tasks.toolPath,
+      sourceRef: tasks.sourceRef,
       pages: tasks.pages,
       priority: tasks.priority,
       status: tasks.status,
@@ -79,6 +80,7 @@ export default async function TasksPage({
       createdAt: tasks.createdAt,
       clientId: clients.id,
       clientName: clients.name,
+      clientUrl: clients.url,
     })
     .from(tasks)
     .leftJoin(clients, eq(tasks.clientId, clients.id))
