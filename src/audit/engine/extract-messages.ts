@@ -29,9 +29,25 @@ export function extractMessageTemplates(rulesDir = path.join(process.cwd(), "src
   const seen = new Set<string>();
   for (const file of filesUnder(rulesDir)) {
     const src = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
-    const toTemplates = (node: ts.Expression): { en: string; exprs: string[] }[] | null => {
+    // `const message = cond ? `…` : `…`; return pass(id, message)`: the
+    // message is a local constant. Its initialisers are read too.
+    const consts = new Map<string, ts.Expression[]>();
+    const collect = (node: ts.Node) => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+        const list = consts.get(node.name.text) ?? [];
+        list.push(node.initializer);
+        consts.set(node.name.text, list);
+      }
+      ts.forEachChild(node, collect);
+    };
+    collect(src);
+    const toTemplates = (node: ts.Expression, depth = 0): { en: string; exprs: string[] }[] | null => {
       let m = node;
       while (ts.isParenthesizedExpression(m)) m = m.expression;
+      if (ts.isIdentifier(m) && depth === 0) {
+        const found = (consts.get(m.text) ?? []).flatMap((init) => toTemplates(init, 1) ?? []);
+        return found.length > 0 ? found : null;
+      }
       if (ts.isStringLiteral(m) || ts.isNoSubstitutionTemplateLiteral(m)) return [{ en: m.text, exprs: [] }];
       if (ts.isTemplateExpression(m)) {
         let en = m.head.text;
@@ -44,8 +60,8 @@ export function extractMessageTemplates(rulesDir = path.join(process.cwd(), "src
         return [{ en, exprs }];
       }
       if (ts.isConditionalExpression(m)) {
-        const a = toTemplates(m.whenTrue);
-        const b = toTemplates(m.whenFalse);
+        const a = toTemplates(m.whenTrue, depth);
+        const b = toTemplates(m.whenFalse, depth);
         return a && b ? [...a, ...b] : (a ?? b);
       }
       return null;
@@ -54,7 +70,7 @@ export function extractMessageTemplates(rulesDir = path.join(process.cwd(), "src
       if (
         ts.isCallExpression(node) &&
         ts.isIdentifier(node.expression) &&
-        ["pass", "warn", "fail", "info"].includes(node.expression.text) &&
+        ["pass", "warn", "fail", "info", "notMeasured"].includes(node.expression.text) &&
         node.arguments.length >= 2 &&
         ts.isStringLiteral(node.arguments[0])
       ) {

@@ -104,7 +104,7 @@ export const CRAWLER_MESSAGES_FR: { en: string; fr: string }[] = [
   { en: "Page has substantial content (≥300 words)", fr: "Contenu suffisant (au moins 300 mots)" },
   { en: "{0} words — substantial content.", fr: "{0} mots : contenu suffisant." },
   { en: "{0} words — likely thin. Even short pages should clear 300 words.", fr: "{0} mots : contenu probablement trop mince (repère courant : 300 mots)." },
-  { en: "Image alt-text coverage ≥80%", fr: "Texte alternatif sur au moins 80 % des images" },
+  { en: "Image alt-text coverage ≥80%", fr: "Texte alternatif sur au moins 80 % des images" },
   { en: "No images on page.", fr: "Aucune image sur la page." },
   { en: "{0}/{1} images have alt text ({2}%).", fr: "{0} images sur {1} ont un texte alternatif ({2} %)." },
   { en: "Internal linking (≥3 links)", fr: "Maillage interne (au moins 3 liens)" },

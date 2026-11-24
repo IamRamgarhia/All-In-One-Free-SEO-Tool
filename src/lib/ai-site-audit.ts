@@ -492,7 +492,7 @@ function checkContent(p: PageData): AuditCheck[] {
     id: "image_alts",
     category: "content",
     severity: "medium",
-    title: tr("Image alt-text coverage ≥80%", "Texte alternatif sur au moins 80 % des images"),
+    title: tr("Image alt-text coverage ≥80%", "Texte alternatif sur au moins 80 % des images"),
     pass: altCoverage >= 0.8,
     message:
       p.imageCount === 0

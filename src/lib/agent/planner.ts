@@ -36,6 +36,7 @@ import { loadActionableToolFindings } from "./tool-finding-map";
 import { withoutInfrastructure } from "../infrastructure-urls";
 import { pickAnchor } from "./anchor-text";
 import { getReportLocale } from "../report-i18n";
+import { weightForTraffic, buildPerfIndex, type PagePerf } from "../finding-priority";
 import { FIXABLE_REASONS_FR, SKIP_REASONS_FR } from "./planner.fr";
 
 export type PlannedAction = {
@@ -48,6 +49,13 @@ export type PlannedAction = {
   weight: number;
   /** The audit issue this came from, when it came from one. */
   issueId?: number;
+  /**
+   * The finding's type, carried alongside its id: the traffic
+   * re-weighting has to recognise the findings that suppress their own
+   * page's traffic (a noindexed page has no impressions BECAUSE it is
+   * noindexed, and weighting it down for that would bury it).
+   */
+  issueType?: string;
   currentValue?: string | null;
   /**
    * The CMS's own id for the thing being edited, when it isn't the page.
@@ -509,11 +517,26 @@ export async function planForClient(opts: {
     .limit(1);
 
   if (!latestAudit) {
+    // "Never audited" and "audited, but not with a crawl" are different
+    // things: a client with only an AI audit has findings on its page,
+    // and saying no audit was run would contradict it.
+    const [anyAudit] = await db
+      .select({ kind: audits.kind })
+      .from(audits)
+      .where(and(eq(audits.clientId, opts.clientId), eq(audits.status, "completed")))
+      .orderBy(desc(audits.id))
+      .limit(1);
     return {
       actions: [],
       skipped: [
         {
-          reason: fr ? SKIP_REASONS_FR.noAudit : "No audit has been run for this client yet.",
+          reason: anyAudit
+            ? fr
+              ? SKIP_REASONS_FR.onlyAiAudit
+              : "Only an AI audit has been run for this client. Its checks are a different vocabulary the agent cannot apply fixes for — run a crawl to give it something to work on."
+            : fr
+              ? SKIP_REASONS_FR.noAudit
+              : "No audit has been run for this client yet.",
           count: 1,
         },
       ],
@@ -551,6 +574,7 @@ export async function planForClient(opts: {
       risk: spec.risk,
       weight: spec.weight + severityBonus(issue.severity),
       issueId: issue.id,
+      issueType: issue.type,
       // Site-wide kinds need to say WHICH site-wide thing they change.
       // Without it six hardening findings dedup down to one and the
       // executor has no switch to flip.
@@ -690,6 +714,16 @@ export async function planForClient(opts: {
     deduped.length - cooled.length,
   );
 
+  // 4b. Already waiting for approval. Not time-boxed, unlike the
+  //     cooldown above: a queued change has not happened, so there is
+  //     nothing to settle, and proposing it again just makes the user
+  //     approve the same edit twice. (Ported from upstream 155d48f.)
+  const notPending = await filterAlreadyQueued(cooled, opts.clientId);
+  note(
+    fr ? SKIP_REASONS_FR.alreadyQueued : "Already queued and waiting for your approval.",
+    cooled.length - notPending.length,
+  );
+
   // 5. Daily cap across all runs, then the per-run cap.
   const usedToday = await countActionsSince(
     opts.clientId,
@@ -697,9 +731,36 @@ export async function planForClient(opts: {
   );
   const dailyRemaining = Math.max(0, opts.settings.maxActionsPerDay - usedToday);
 
-  cooled.sort((a, b) => b.weight - a.weight);
+  // 5b. Re-weight by the search traffic each page actually gets.
+  //
+  //     The weights above are static per finding type, so a missing meta
+  //     description on a page nobody visits sorted like the same problem
+  //     on the page that earns the money. Only ever a re-ORDERING:
+  //     nothing is added or dropped, and with no Search Console data the
+  //     order is left exactly as it was rather than presented as
+  //     impact-ranked. See lib/finding-priority.ts. (Upstream a33a8b7.)
+  const perfIndex = await pageTrafficIndex(opts.clientId);
+  if (perfIndex) {
+    for (const a of notPending) {
+      const w = weightForTraffic({
+        base: a.weight,
+        url: a.targetUrl,
+        type: a.issueType ?? "",
+        index: perfIndex,
+        label: fr ? "Cette correction" : "This fix",
+        locale: fr ? "fr" : "en",
+      });
+      a.weight = w.score;
+      // Appended to the reason the user reads in the run log, so the
+      // ordering can be checked rather than taken on trust.
+      a.reason = `${a.reason} ${w.reason}`;
+    }
+  }
+
+  // notPending, not cooled: the filtered list is the one that is used.
+  notPending.sort((a, b) => b.weight - a.weight);
   const limit = Math.min(opts.settings.maxActionsPerRun, dailyRemaining);
-  const actions = cooled.slice(0, limit);
+  const actions = notPending.slice(0, limit);
   note(
     dailyRemaining === 0
       ? fr
@@ -708,7 +769,7 @@ export async function planForClient(opts: {
       : fr
         ? SKIP_REASONS_FR.runLimit(opts.settings.maxActionsPerRun)
         : `Over this run's limit of ${opts.settings.maxActionsPerRun} changes — they'll be picked up next time.`,
-    cooled.length - actions.length,
+    notPending.length - actions.length,
   );
 
   return { actions, skipped };
@@ -921,6 +982,87 @@ async function planInternalLinks(clientId: number, fr = false): Promise<{
   return { actions, skipped };
 }
 
+/**
+ * Per-page Search Console impressions for a client, or null.
+ *
+ * Null means "could not ask" — no property configured, the account
+ * cannot read it, the API refused — and the caller must leave the order
+ * untouched rather than treat an empty result as "this site has no
+ * traffic". Errors are swallowed on purpose: a planner that cannot plan
+ * because Search Console is down would be worse than one that falls back
+ * to severity ordering.
+ */
+async function pageTrafficIndex(
+  clientId: number,
+): Promise<Map<string, PagePerf> | null> {
+  try {
+    const [row] = await db
+      .select({ gscProperty: clients.gscProperty })
+      .from(clients)
+      .where(eq(clients.id, clientId))
+      .limit(1);
+    if (!row?.gscProperty) return null;
+    const { loadPageTraffic } = await import("../page-traffic");
+    const rows = await loadPageTraffic(row.gscProperty);
+    return rows ? buildPerfIndex(rows) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Never plan a change that is ALREADY waiting for approval.
+ *
+ * Separate from the cooldown, which is time-boxed and answers "has this
+ * settled yet?" — the right question about a change that was applied,
+ * the wrong one about a change nobody has approved: that one has not
+ * happened, and a week later the planner would propose it again. No time
+ * limit here on purpose; a queued action stops blocking once applied,
+ * rejected or skipped.
+ */
+async function filterAlreadyQueued(
+  actions: PlannedAction[],
+  clientId: number,
+): Promise<PlannedAction[]> {
+  if (actions.length === 0) return actions;
+
+  const queued = await db
+    .select({
+      kind: agentActions.kind,
+      targetUrl: agentActions.targetUrl,
+      targetRef: agentActions.targetRef,
+    })
+    .from(agentActions)
+    .where(
+      and(
+        eq(agentActions.clientId, clientId),
+        eq(agentActions.status, "queued"),
+      ),
+    );
+
+  if (queued.length === 0) return actions;
+
+  const pending = new Set(
+    queued.map((r) => actionKey(r.kind, r.targetUrl, r.targetRef)),
+  );
+  return actions.filter(
+    (a) => !pending.has(actionKey(a.kind, a.targetUrl, a.targetRef)),
+  );
+}
+
+/**
+ * Identity of a change: what it does, and to what. `targetRef` wins when
+ * present because site-wide actions share a URL. Shared by both filters,
+ * so they cannot disagree about what "the same change" means.
+ */
+function actionKey(
+  kind: string,
+  url: string | null,
+  ref: string | null | undefined,
+): string {
+  return ref ? `${kind}::${ref}` : `${kind}::${url ?? ""}`;
+}
+
 async function filterCooldown(
   actions: PlannedAction[],
   clientId: number,
@@ -950,13 +1092,11 @@ async function filterCooldown(
       ),
     );
 
-  const key = (kind: string, url: string | null, ref: string | null | undefined) =>
-    ref ? `${kind}::${ref}` : `${kind}::${url ?? ""}`;
   const blocked = new Set(
-    recent.map((r) => key(r.kind, r.targetUrl, r.targetRef)),
+    recent.map((r) => actionKey(r.kind, r.targetUrl, r.targetRef)),
   );
   return actions.filter(
-    (a) => !blocked.has(key(a.kind, a.targetUrl, a.targetRef)),
+    (a) => !blocked.has(actionKey(a.kind, a.targetUrl, a.targetRef)),
   );
 }
 

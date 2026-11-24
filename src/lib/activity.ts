@@ -31,6 +31,19 @@ export type ActivityKind =
    * standing permission.
    */
   | "agent.trial_run"
+  /**
+   * A fix confirmed gone from the live page (re-fetched), by the agent
+   * after applying it or on request from the audit page. Distinct from
+   * an action's own `verified` status, which only means the CMS stored
+   * the value: the gap between the two is a page cache.
+   */
+  | "agent.fix_confirmed"
+  /**
+   * A fix that was made (or said to be made) but is still visible on the
+   * live page. Logged rather than retried, because the cause is almost
+   * always a cache or a theme override on the user's side.
+   */
+  | "agent.fix_not_live"
   | "edge.token_rotated"
   // Who may do what, for the journal on Settings → Team.
   | "team.invited"

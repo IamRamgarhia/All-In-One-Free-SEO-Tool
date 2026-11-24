@@ -72,6 +72,9 @@ export const FIXABLE_REASONS_FR: Record<string, string> = {
 /** Why the agent left work aside. Shown in the run log. */
 export const SKIP_REASONS_FR = {
   noAudit: "Aucun audit n’a encore été lancé pour ce client.",
+  onlyAiAudit:
+    "Seul un audit IA a été lancé pour ce client. Ses contrôles relèvent d’un autre vocabulaire, que l’agent ne sait pas corriger : lancez une exploration du site pour lui donner de quoi travailler.",
+  alreadyQueued: "Déjà en file d’attente, en attente de votre validation.",
   notFixable: "Constats que l’agent ne sait pas corriger automatiquement.",
   notCapable:
     "Corrections que l’agent sait faire mais ne peut pas appliquer : aucun CMS n’est connecté pour ce client.",
@@ -130,6 +133,11 @@ export const RUN_SUMMARY_FR = {
   queued: (n: number) =>
     `${n} ${n === 1 ? "modification attend" : "modifications attendent"} votre validation`,
   tasks: (n: number) => `${n} ${n === 1 ? "tâche créée" : "tâches créées"}`,
+  confirmed: (n: number) =>
+    `${n} ${n === 1 ? "correction confirmée" : "corrections confirmées"} sur les pages en ligne`,
+  notLive: (n: number) =>
+    `${n} ${n === 1 ? "appliquée mais toujours visible" : "appliquées mais toujours visibles"} sur la page en ligne (en général un cache)`,
+  tasksClosed: (n: number) => `${n} ${n === 1 ? "tâche terminée" : "tâches terminées"}`,
   failed: (n: number) => `${n} ${n === 1 ? "n’a pas pu être menée" : "n’ont pas pu être menées"} à bien`,
   nothingWhy: (name: string, why: string) => `Rien à faire sur ${name}. ${why}`,
   nothing: (name: string) => `${name} vérifié : rien à modifier.`,
