@@ -6365,7 +6365,7 @@
     "app_clients_id_queue_page": {
       "backTo": "Back to {name}",
       "reviewQueue": "Review queue · {name}",
-      "aiGeneratedItemsWaitingFor": "AI-generated items waiting for your review. Approve to publish on the next agent tick — or approve + publish now for immediate posting. Reject anything that isn't on-brand.",
+      "aiGeneratedItemsWaitingFor": "AI-generated items waiting for your review. Approve to publish on the planned date, send to the client for approval, or approve and publish now. Reject anything that isn't on-brand.",
       "schedules": "Schedules"
     },
     "app_clients_id_queue_queue-list": {
@@ -6384,7 +6384,7 @@
       "title": "Title",
       "body": "Body",
       "approvePublishNow": "Approve + publish now",
-      "approvePublishOnNextTick": "Approve (publish on next tick)",
+      "approvePublishOnNextTick": "Approve (publish on the planned date)",
       "reject": "Reject",
       "cancelEdit": "Cancel edit",
       "editBeforeApproving": "Edit before approving",
@@ -8204,7 +8204,7 @@
     },
     "app_clients_id_queue_actions": {
       "queueItemNotFound": "Queue item not found.",
-      "approvedPublishesOnTheNext": "Approved. Publishes on the next daily-agent tick (≤24h).",
+      "approvedPublishesOnTheNext": "Approved. Publishes on the planned date, at the first daily-agent run after it.",
       "alreadyPublished": "Already published.",
       "published": "Published.",
       "approvedButNotPickedUp": "Approved but not picked up immediately. Will retry on the next tick.",

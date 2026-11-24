@@ -72,6 +72,9 @@ export async function approveAndPublishNow(
     .update(publishQueue)
     .set({
       status: "approved",
+      // "Publish now" means now, whatever date it was planned for: the
+      // publisher only takes items that are due.
+      scheduledFor: new Date(),
       title: edits?.title ?? item.title,
       body: edits?.body ?? item.body,
       updatedAt: new Date(),

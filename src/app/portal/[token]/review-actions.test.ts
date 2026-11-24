@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { clients, contentPosts, publishQueue } from "@/db/schema";
+import { activityLog, clients, contentPosts, publishQueue } from "@/db/schema";
 
 vi.mock("next-intl/server", () => ({
   getLocale: async () => "fr",
@@ -130,5 +130,16 @@ describe("portal review actions", () => {
     const [row] = await db.select().from(contentPosts).where(eq(contentPosts.id, post.id));
     expect(row.clientDecision).toBe("approved");
     expect(row.status).toBe("draft");
+  });
+
+  it("puts the answer in the activity log, which feeds the bell, webhook or not", async () => {
+    const id = await queueItem(clientId, true, "Publication à relire");
+    expect(await decideQueueItem(TOKEN, id, "changes", "Ajouter Beauvais")).toEqual({ ok: true });
+    const rows = await db.select().from(activityLog).where(eq(activityLog.entityId, id));
+    const entry = rows.find((r) => r.kind === "portal.client_review" && r.entityType === "publish_queue");
+    expect(entry).toBeDefined();
+    expect(entry?.clientId).toBe(clientId);
+    expect(entry?.level).toBe("warning");
+    expect(entry?.message).toContain("Ajouter Beauvais");
   });
 });

@@ -6365,7 +6365,7 @@
     "app_clients_id_queue_page": {
       "backTo": "Retour à {name}",
       "reviewQueue": "File de relecture · {name}",
-      "aiGeneratedItemsWaitingFor": "Les éléments générés par l’IA qui attendent votre relecture. Approuvez pour publier au prochain passage de l’agent, ou approuvez et publiez tout de suite. Rejetez ce qui ne correspond pas à la marque.",
+      "aiGeneratedItemsWaitingFor": "Les éléments générés par l’IA qui attendent votre relecture. Approuvez pour publier à la date prévue, envoyez au client pour validation, ou approuvez et publiez tout de suite. Rejetez ce qui ne correspond pas à la marque.",
       "schedules": "Planifications"
     },
     "app_clients_id_queue_queue-list": {
@@ -6384,7 +6384,7 @@
       "title": "Titre",
       "body": "Texte",
       "approvePublishNow": "Approuver et publier maintenant",
-      "approvePublishOnNextTick": "Approuver (publication au prochain passage)",
+      "approvePublishOnNextTick": "Approuver (publication à la date prévue)",
       "reject": "Rejeter",
       "cancelEdit": "Annuler la modification",
       "editBeforeApproving": "Modifier avant d’approuver",
@@ -8204,7 +8204,7 @@
     },
     "app_clients_id_queue_actions": {
       "queueItemNotFound": "Élément de la file introuvable.",
-      "approvedPublishesOnTheNext": "Validé. La publication se fera au prochain passage de l’agent quotidien (24 h au plus).",
+      "approvedPublishesOnTheNext": "Validé. La publication se fera à la date prévue, au premier passage de l’agent quotidien qui suit.",
       "alreadyPublished": "Déjà publié.",
       "published": "Publié.",
       "approvedButNotPickedUp": "Validé, mais pas encore pris en charge. Nouvel essai au prochain passage.",

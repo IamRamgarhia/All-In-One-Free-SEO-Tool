@@ -45,22 +45,53 @@ async function parse(raw: unknown): Promise<
   return { ok: true, args: { ...args, comment }, client };
 }
 
-/** Tell the agency; a webhook that is down must not undo the answer. */
-async function tellAgency(clientName: string, title: string, decision: Args["decision"], comment: string | null) {
+/**
+ * Tell the agency. The answer goes to the activity log, which feeds the
+ * bell in the app, so it is seen even with no webhook set up; the
+ * webhook, when there is one, gets it too. Neither may undo the answer.
+ */
+async function tellAgency(
+  client: { id: number; name: string },
+  title: string,
+  decision: Args["decision"],
+  comment: string | null,
+  entity: { type: "publish_queue" | "content_post"; id: number },
+) {
+  const key = decision === "approved" ? "notifyApproved" : "notifyChanges";
+  try {
+    const [en, fr] = await Promise.all([
+      getTranslations({ locale: "en", namespace: "portal.review" }),
+      getTranslations({ locale: "fr", namespace: "portal.review" }),
+    ]);
+    const line = (t: typeof en, quote: (s: string) => string, colon: string) =>
+      [t(key, { client: client.name }), title ? quote(title) : null, comment ? `${t("notifyComment")}${colon}${comment}` : null]
+        .filter(Boolean)
+        .join(" · ");
+    const { logActivity } = await import("@/lib/activity");
+    await logActivity({
+      kind: "portal.client_review",
+      message: line(en, (s) => `"${s}"`, ": "),
+      messageFr: line(fr, (s) => `«\u00a0${s}\u00a0»`, "\u00a0: "),
+      level: decision === "approved" ? "success" : "warning",
+      clientId: client.id,
+      entityType: entity.type,
+      entityId: entity.id,
+      dedupe: false,
+    });
+  } catch {
+    // The answer is saved; the agency also sees it on the item itself.
+  }
   try {
     const { notify } = await import("@/lib/notifier");
     const t = await getTranslations("portal.review");
     await notify({
-      title:
-        decision === "approved"
-          ? t("notifyApproved", { client: clientName })
-          : t("notifyChanges", { client: clientName }),
+      title: t(key, { client: client.name }),
       body: title,
       level: decision === "approved" ? "success" : "warning",
       fields: comment ? [{ label: t("notifyComment"), value: comment }] : undefined,
     });
   } catch {
-    // Nothing to do: the answer is saved and shows in the app.
+    // No webhook, or one that is down: nothing to undo.
   }
 }
 
@@ -118,7 +149,7 @@ export async function decideQueueItem(
     .returning({ id: publishQueue.id });
   if (updated.length === 0) return { ok: false, error: "answered" };
 
-  await tellAgency(client.name, item.title ?? "", args.decision, args.comment);
+  await tellAgency(client, item.title ?? "", args.decision, args.comment, { type: "publish_queue", id: item.id });
   revalidatePath(`/portal/${args.token}`);
   revalidatePath(`/clients/${client.id}/queue`);
   return { ok: true };
@@ -174,7 +205,7 @@ export async function decideArticle(
     .returning({ id: contentPosts.id });
   if (updated.length === 0) return { ok: false, error: "answered" };
 
-  await tellAgency(client.name, post.title ?? post.primaryKeyword ?? "", args.decision, args.comment);
+  await tellAgency(client, post.title ?? post.primaryKeyword ?? "", args.decision, args.comment, { type: "content_post", id: post.id });
   revalidatePath(`/portal/${args.token}`);
   revalidatePath(`/portal/${args.token}/articles/${post.id}`);
   revalidatePath(`/content/c/${client.id}/p/${post.id}`);
