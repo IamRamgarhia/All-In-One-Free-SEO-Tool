@@ -13,7 +13,7 @@ export const depthRule = defineRule({
     if (!site) {
       return notMeasured(
         "links-depth",
-        "Click depth needs the site-wide link graph - run with --crawl to measure it"
+        "Click depth needs the site-wide link graph - only available in a site audit, not a single-page check"
       );
     }
     const url = site.normalize(context.url);

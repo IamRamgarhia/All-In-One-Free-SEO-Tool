@@ -30,7 +30,10 @@ export const brokenInternalRule = defineRule({
         rethrowIfAborted(error, context.signal);
         statusCode = 0;
       }
-      if (statusCode === 0) {
+      // 429 (too many requests) and 503 say the site is slowing us down,
+      // not that the page is gone: unchecked, never broken. Same rule as
+      // the crawler's own check (lib/audit.ts, isThrottled).
+      if (statusCode === 0 || statusCode === 429 || statusCode === 503) {
         uncheckedLinks.push(href);
       } else if (statusCode === 404 || statusCode === 410 || statusCode >= 500) {
         brokenLinks.push({ href, statusCode });
@@ -59,7 +62,7 @@ export const brokenInternalRule = defineRule({
     if (uncheckedLinks.length > 0) {
       return warn(
         "links-broken-internal",
-        `No broken internal links found, but ${uncheckedLinks.length} of ${targets.length} could not be checked (timeout or network error)`,
+        `No broken internal links found, but ${uncheckedLinks.length} of ${targets.length} could not be checked (timeout, network error or the site slowed our requests down)`,
         details
       );
     }

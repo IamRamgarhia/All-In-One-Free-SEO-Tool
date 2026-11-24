@@ -15,7 +15,7 @@ export const duplicateExactRule = defineRule({
   weight: 8,
   run: async (context) => {
     if (!context.site) {
-      return notMeasured("content-duplicate-exact", "Duplicate content detection needs other pages to compare against - run with --crawl");
+      return notMeasured("content-duplicate-exact", "Duplicate content detection needs other pages to compare against - only available in a site audit, not a single-page check");
     }
     const { $, url } = context;
     const bodyText2 = bodyText($);

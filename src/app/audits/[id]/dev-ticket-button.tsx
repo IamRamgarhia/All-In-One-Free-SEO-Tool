@@ -53,11 +53,11 @@ export function DevTicketButton({
   }
 
   const btn =
-    "inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-medium transition-colors hover:bg-white/10";
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-medium transition-colors hover:bg-white/10";
 
   return (
     <div className="flex w-full flex-wrap items-center gap-2">
-      <button type="button" onClick={copy} className={btn} aria-live="polite">
+      <button type="button" onClick={copy} className={btn} title={t("copyTitle")} aria-live="polite">
         {copied ? <Check className="size-3.5 text-emerald-400" /> : <ClipboardCopy className="size-3.5" />}
         {copied ? t("copied") : t("copy")}
       </button>

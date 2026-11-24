@@ -12,7 +12,7 @@ export const hreflangIncomingInvalidRule = defineRule({
     if (!site?.pages) {
       return notMeasured(
         "i18n-hreflang-incoming-invalid",
-        "Validating incoming hreflang annotations needs per-page crawl state - run with --crawl to build it"
+        "Validating incoming hreflang annotations needs per-page crawl state - only available in a site audit, not a single-page check"
       );
     }
     const ownKey = site.normalize(context.url);

@@ -11,7 +11,7 @@ export function parityInputs(ruleId: string, context: AuditContext): ParityInput
       available: false as const,
       result: notMeasured(
         ruleId,
-        "Mobile parity not measured - run with --mobile (and without --no-cwv) to render desktop and mobile and compare them"
+        "Mobile parity not measured - available in a full audit, which renders desktop and mobile in a browser and compares them"
       )
     };
   }

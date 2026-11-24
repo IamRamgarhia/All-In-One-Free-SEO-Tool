@@ -28,7 +28,7 @@ export const titleUniqueRule = defineRule({
       );
     }
     if (!context.site) {
-      return notMeasured("core-title-unique", "Title uniqueness needs other pages to compare against - run with --crawl");
+      return notMeasured("core-title-unique", "Title uniqueness needs other pages to compare against - only available in a site audit, not a single-page check");
     }
     const normalizedTitle = normalizeTitle(title);
     const existingUrls = titleRegistry.get(normalizedTitle);

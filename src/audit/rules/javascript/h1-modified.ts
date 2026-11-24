@@ -12,7 +12,7 @@ export const h1ModifiedRule = defineRule({
     if (!rendered$) {
       return notMeasured(
         "js-h1-modified",
-        "Rendered DOM not available - run without --no-cwv to enable JavaScript rendering checks"
+        "Rendered DOM not available - available in a full audit, which renders the page in a browser, to enable JavaScript rendering checks"
       );
     }
     const comparison = compareDomElement(context.$, rendered$, "h1");

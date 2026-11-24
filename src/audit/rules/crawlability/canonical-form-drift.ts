@@ -23,7 +23,7 @@ export const canonicalFormDriftRule = defineRule({
     if (!pages || (context.site?.pageCount ?? 0) < 2) {
       return notMeasured(
         "crawl-canonical-form-drift",
-        "Canonical form comparison needs a crawl of at least two pages \u2014 run with --crawl"
+        "Canonical form comparison needs a crawl of at least two pages - only available in a site audit, not a single-page check"
       );
     }
     const forms = [];

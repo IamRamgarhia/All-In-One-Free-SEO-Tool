@@ -243,7 +243,8 @@
     "again": "check again"
   },
   "devTicket": {
-    "copy": "Copy developer instructions",
+    "copy": "Copy for the developer",
+    "copyTitle": "Copy developer instructions",
     "copied": "Copied",
     "download": "Download .md",
     "downloadTitle": "Markdown: pastes into GitHub, Linear, Jira, Slack or an email",

@@ -12,7 +12,7 @@ export const canonicalToDisallowedRule = defineRule({
     if (!site?.pages) {
       return notMeasured(
         "crawl-canonical-to-disallowed",
-        "Checking the canonical target needs per-page crawl state - run with --crawl to build it"
+        "Checking the canonical target needs per-page crawl state - only available in a site audit, not a single-page check"
       );
     }
     const canonical = resolveCanonical2(context);

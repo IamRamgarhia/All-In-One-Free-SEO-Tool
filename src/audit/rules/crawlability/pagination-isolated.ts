@@ -12,7 +12,7 @@ export const paginationIsolatedRule = defineRule({
     if (!site?.pages) {
       return notMeasured(
         "crawl-pagination-isolated",
-        "Counting incoming links needs the site-wide crawl graph - run with --crawl to build it"
+        "Counting incoming links needs the site-wide crawl graph - only available in a site audit, not a single-page check"
       );
     }
     const url = site.normalize(context.url);
