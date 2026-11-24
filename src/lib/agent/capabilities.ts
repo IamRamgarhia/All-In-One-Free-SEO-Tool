@@ -19,6 +19,8 @@ import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 import { getClientWpCreds, pingWpBridge } from "../wp-bridge";
 import { configuredProviders } from "../api-keys";
+import { getReportLocale } from "../report-i18n";
+import { CAPABILITY_GAPS_FR } from "./planner.fr";
 
 export type CapabilityId =
   | "write_title"
@@ -51,6 +53,8 @@ export type ClientCapabilities = {
   gaps: string[];
 };
 
+// Gaps end up in the stored run summary, so they are written in the
+// workspace language (planner.fr.ts; English as fallback).
 const WRITE_CAPS: CapabilityId[] = [
   "write_title",
   "write_meta_description",
@@ -91,6 +95,8 @@ export async function detectCapabilities(
     .where(eq(clients.id, clientId))
     .limit(1);
 
+  const fr = (await getReportLocale().catch(() => "en")) === "fr";
+  const G = CAPABILITY_GAPS_FR;
   const byId = {} as Record<CapabilityId, Capability>;
   const set = (id: CapabilityId, available: boolean, missing?: string) => {
     byId[id] = { id, available, ...(available ? {} : { missing }) };
@@ -109,19 +115,23 @@ export async function detectCapabilities(
   if (client?.wpEndpoint) {
     const creds = await getClientWpCreds(clientId);
     if (!creds) {
-      wpError =
-        "The saved WordPress key couldn't be decrypted. Re-enter it on the client's settings page.";
+      wpError = fr
+        ? G.wpKeyUnreadable
+        : "The saved WordPress key couldn't be decrypted. Re-enter it on the client's settings page.";
     } else {
       const ping = await pingWpBridge(creds);
       wpOk = ping.ok;
       wpVersion = ping.version ?? null;
       if (!ping.ok) {
-        wpError = `The WordPress plugin didn't respond (${ping.error ?? "no reason given"}). Check the site is up and the key is still valid.`;
+        wpError = fr
+          ? G.wpNoResponse(ping.error ?? G.wpNoReason)
+          : `The WordPress plugin didn't respond (${ping.error ?? "no reason given"}). Check the site is up and the key is still valid.`;
       }
     }
   } else {
-    wpError =
-      "No CMS connected. Install the WordPress plugin for this client and the agent can apply fixes directly instead of only suggesting them.";
+    wpError = fr
+      ? G.noCms
+      : "No CMS connected. Install the WordPress plugin for this client and the agent can apply fixes directly instead of only suggesting them.";
   }
 
   for (const id of WRITE_CAPS) set(id, wpOk, wpError);
@@ -140,7 +150,9 @@ export async function detectCapabilities(
   set(
     "write_image_alt",
     wpOk && hasPluginVersion(wpVersion, "0.3.0"),
-    wpOk
+    wpOk && fr
+      ? G.altText(wpVersion ?? G.unknownVersion)
+      : wpOk
       ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Alt text needs 0.3.0 or newer, which added the endpoint that maps an image on a page to its media-library entry. Update the plugin.`
       : wpError,
   );
@@ -155,7 +167,9 @@ export async function detectCapabilities(
   set(
     "write_internal_links",
     wpOk && hasPluginVersion(wpVersion, "0.3.0"),
-    wpOk
+    wpOk && fr
+      ? G.internalLinks(wpVersion ?? G.unknownVersion)
+      : wpOk
       ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Internal linking needs 0.3.0 or newer, which added the endpoint that inserts links safely and records the previous version of the article. Update the plugin.`
       : wpError,
   );
@@ -179,7 +193,9 @@ export async function detectCapabilities(
   set(
     "write_social_meta",
     wpOk && hasPluginVersion(wpVersion, "0.6.0"),
-    wpOk
+    wpOk && fr
+      ? G.socialMeta(wpVersion ?? G.unknownVersion)
+      : wpOk
       ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Writing Open Graph and Twitter tags needs 0.6.0 or newer. Update the plugin.`
       : wpError,
   );
@@ -187,7 +203,9 @@ export async function detectCapabilities(
     set(
       id,
       wpOk && hasPluginVersion(wpVersion, "0.5.0"),
-      wpOk
+      wpOk && fr
+        ? G.newWrite(wpVersion ?? G.unknownVersion, G.needs[id] ?? needs)
+        : wpOk
         ? `This site's SEO Tool Bridge plugin is ${wpVersion ?? "an unknown version"}. Writing ${needs} needs 0.5.0 or newer. Update the plugin.`
         : wpError,
     );
@@ -197,7 +215,9 @@ export async function detectCapabilities(
   set(
     "read_gsc",
     Boolean(client?.gscProperty),
-    "Search Console isn't connected, so the agent is working from crawl data alone — it can't see which pages are actually losing clicks.",
+    fr
+      ? G.noGsc
+      : "Search Console isn't connected, so the agent is working from crawl data alone — it can't see which pages are actually losing clicks.",
   );
 
   // --- Writing copy ---------------------------------------------------
@@ -209,7 +229,9 @@ export async function detectCapabilities(
   set(
     "generate_text",
     ids.length > 0,
-    "No AI provider is set up, so the agent can find problems but can't write replacement titles or descriptions. A free Gemini or Groq key is enough.",
+    fr
+      ? G.noAi
+      : "No AI provider is set up, so the agent can find problems but can't write replacement titles or descriptions. A free Gemini or Groq key is enough.",
   );
 
   const gaps = [

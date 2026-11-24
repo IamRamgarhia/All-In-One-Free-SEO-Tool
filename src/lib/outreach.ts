@@ -161,6 +161,7 @@ export async function sendOutreachEmail(opts: {
   await logActivity({
     kind: "outreach.sent",
     message: `Outreach email sent to ${contact.name}`,
+    messageFr: `E-mail de prospection envoyé à ${contact.name}`,
     clientId: contact.clientId,
     entityType: "outreach",
     entityId: contact.id,

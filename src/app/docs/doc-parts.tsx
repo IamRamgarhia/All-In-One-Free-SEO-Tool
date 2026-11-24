@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { badgeFor, capabilityOf, copyOf } from "@/lib/tool-capabilities";
 import type { ConnectionMode } from "@/lib/tool-capabilities";
 import { NAV_ITEMS } from "@/components/shell/nav-items";
@@ -57,12 +58,29 @@ export function CostBadge({
 
   const badge = badgeFor(cap, mode);
   if (!badge) return null;
+  return <BadgeChip id={badge.id} label={badge.label} detail={badge.detail} tone={badge.tone} />;
+}
+
+/** The chip itself, in the reader's language (English table as fallback). */
+function BadgeChip({
+  id,
+  label,
+  detail,
+  tone,
+}: {
+  id: string;
+  label: string;
+  detail: string;
+  tone: string;
+}) {
+  const t = useTranslations("docs.badges");
+  const has = t.has(`${id}.label`);
   return (
     <span
-      title={badge.detail}
-      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${TONE[badge.tone]}`}
+      title={has ? t(`${id}.detail`) : detail}
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${TONE[tone]}`}
     >
-      {badge.label}
+      {has ? t(`${id}.label`) : label}
     </span>
   );
 }
@@ -111,6 +129,23 @@ export function Note({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * A catalogue string, or the English copy when the key is missing or does
+ * not parse (same guard as the tools grid).
+ */
+export function catalogText(
+  t: { has: (key: string) => boolean; (key: string): string },
+  key: string,
+  fallback: string,
+): string {
+  if (!t.has(key)) return fallback;
+  try {
+    return t(key);
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * One tool in the reference list.
  *
  * The id makes every tool addressable — /docs#health-check — which is
@@ -120,7 +155,13 @@ export function ToolRow({ route, linkLabel }: { route: string; linkLabel: string
   const cap = capabilityOf(route);
   const copy = copyOf(cap);
   const slug = route.replace("/tools/", "");
+  const tCatalog = useTranslations("tools.catalog");
   if (!copy) return null;
+  // The card's own wording in the reader's language, as the tools grid
+  // shows it; the generated English copy stays as the fallback.
+  const key = slug.replace(/\//g, "__");
+  const title = catalogText(tCatalog, `${key}.title`, copy.title);
+  const description = catalogText(tCatalog, `${key}.description`, copy.description);
 
   return (
     <li
@@ -132,7 +173,7 @@ export function ToolRow({ route, linkLabel }: { route: string; linkLabel: string
           href={route}
           className="text-sm font-medium hover:text-violet-300 hover:underline"
         >
-          {copy.title}
+          {title}
         </Link>
         <CostBadge href={route} />
         <a
@@ -144,7 +185,7 @@ export function ToolRow({ route, linkLabel }: { route: string; linkLabel: string
         </a>
       </div>
       <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-        {copy.description}
+        {description}
       </p>
     </li>
   );

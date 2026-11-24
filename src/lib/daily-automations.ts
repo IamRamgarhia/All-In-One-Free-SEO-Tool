@@ -121,6 +121,7 @@ export async function tickScheduleGeneration(): Promise<{
         clientId: s.clientId,
         level: "warning",
         message: `Auto-${s.kind}: generation failed — ${(err as Error).message?.slice(0, 200) ?? "unknown"}`,
+        messageFr: `Automatique (${s.kind}) : échec de la génération, ${(err as Error).message?.slice(0, 200) ?? "erreur inconnue"}`,
       });
       skipped++;
     }
@@ -510,6 +511,7 @@ export async function tickQueuePublish(): Promise<{
         clientId: item.clientId,
         level: "success",
         message: `Auto-published ${KIND_LABEL[item.kind]}: ${item.title ?? "untitled"}`,
+        messageFr: `Publié automatiquement (${KIND_LABEL[item.kind]}) : ${item.title ?? "sans titre"}`,
       });
       published++;
     } else {
@@ -526,6 +528,7 @@ export async function tickQueuePublish(): Promise<{
         clientId: item.clientId,
         level: "warning",
         message: `Auto-publish failed (${KIND_LABEL[item.kind]}): ${result.error.slice(0, 200)}`,
+        messageFr: `Échec de la publication automatique (${KIND_LABEL[item.kind]}) : ${result.error.slice(0, 200)}`,
       });
       failed++;
     }

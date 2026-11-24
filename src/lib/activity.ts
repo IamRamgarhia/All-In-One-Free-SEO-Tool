@@ -2,6 +2,7 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import { db } from "@/db/client";
 import { activityLog } from "@/db/schema";
 import { currentUserId } from "./auth";
+import { getReportLocale } from "./report-i18n";
 
 export type ActivityKind =
   | "client.created"
@@ -41,6 +42,12 @@ export type ActivityLevel = "info" | "success" | "warning" | "error";
 export async function logActivity(opts: {
   kind: ActivityKind;
   message: string;
+  /**
+   * The same message in French. Written instead of `message` when the
+   * workspace language is French, so a new entry reads in the language of
+   * the workspace; entries already stored stay as they are.
+   */
+  messageFr?: string;
   level?: ActivityLevel;
   clientId?: number | null;
   entityType?: string;
@@ -65,6 +72,10 @@ export async function logActivity(opts: {
   // user dismisses them and moves on. Not worth a new migration + unique
   // partial index for the rare event.
   try {
+    const message =
+      opts.messageFr !== undefined && (await getReportLocale()) === "fr"
+        ? opts.messageFr
+        : opts.message;
     if (opts.dedupe !== false) {
       const windowMs = (opts.dedupeWindowMinutes ?? 60 * 24) * 60 * 1000;
       const cutoff = new Date(Date.now() - windowMs);
@@ -74,7 +85,7 @@ export async function logActivity(opts: {
         .where(
           and(
             eq(activityLog.kind, opts.kind),
-            eq(activityLog.message, opts.message),
+            eq(activityLog.message, message),
             gt(activityLog.createdAt, cutoff),
           ),
         )
@@ -84,7 +95,7 @@ export async function logActivity(opts: {
     }
     await db.insert(activityLog).values({
       kind: opts.kind,
-      message: opts.message,
+      message,
       level: opts.level ?? "info",
       clientId: opts.clientId ?? null,
       entityType: opts.entityType,

@@ -19,6 +19,8 @@ import {
   sendOutreachEmail,
 } from "@/lib/outreach";
 import { getSetting } from "@/lib/settings-store";
+import { DEFAULT_TEMPLATES_FR } from "@/lib/outreach.fr";
+import { getReportLocale } from "@/lib/report-i18n";
 
 const inputSchema = z.object({
   clientId: z.coerce.number().int().positive(),
@@ -122,6 +124,7 @@ export async function setContactStatus(
       await logActivity({
         kind: "outreach.replied",
         message: `Outreach: ${row.name} ${status === "won" ? "won" : "replied"}.`,
+        messageFr: `Prospection : ${row.name} ${status === "won" ? "a été converti" : "a répondu"}.`,
         level: "success",
         clientId: row.clientId,
         entityType: "outreach",
@@ -238,8 +241,11 @@ export async function seedDefaultTemplatesIfEmpty(): Promise<void> {
     .from(outreachTemplates)
     .limit(1);
   if (existing.length > 0) return;
+  // These emails go to third-party sites: seed them in the workspace
+  // language (French text, English as fallback).
+  const fr = (await getReportLocale()) === "fr";
   await db.insert(outreachTemplates).values(
-    DEFAULT_TEMPLATES.map((t) => ({
+    DEFAULT_TEMPLATES.map((en) => (fr ? (DEFAULT_TEMPLATES_FR[en.name] ?? en) : en)).map((t) => ({
       name: t.name,
       subject: t.subject,
       body: t.body,

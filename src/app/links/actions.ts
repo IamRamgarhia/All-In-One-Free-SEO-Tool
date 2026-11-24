@@ -250,6 +250,7 @@ export async function importShortLinksCsv(
     await logActivity({
       kind: "task.created",
       message: `CSV imported ${created} short links${skipped ? ` (${skipped} skipped)` : ""}`,
+      messageFr: `Import CSV : ${created} lien${created === 1 ? "" : "s"} court${created === 1 ? "" : "s"} créé${created === 1 ? "" : "s"}${skipped ? ` (${skipped} ignoré${skipped === 1 ? "" : "s"})` : ""}`,
       clientId: parsed.data.clientId,
       entityType: "short_link",
     });

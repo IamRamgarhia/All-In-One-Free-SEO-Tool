@@ -1,7 +1,8 @@
 "use server";
 
 import { requireSignedIn } from "@/lib/action-guard";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import { TARGETS_FR } from "@/lib/code-generator-types.fr";
 
 import { callAI, lastAiFailure } from "@/lib/ai-call";
 import { saveToolRun } from "@/lib/tool-runs";
@@ -76,6 +77,8 @@ export async function generateCode(
     };
   }
 
+  // What the reader sees comes back in their language (English as fallback).
+  const shown = (await getLocale()) === "fr" ? TARGETS_FR[targetId] : undefined;
   const code = stripFences(raw);
   if (code.length < 20) {
     return { ok: false, error: t("errEmpty") };
@@ -86,8 +89,8 @@ export async function generateCode(
     target: targetId,
     taskDescription: task,
     code,
-    installSteps: spec.installSteps,
-    warning: spec.warning,
+    installSteps: shown?.installSteps ?? spec.installSteps,
+    warning: shown ? shown.warning : spec.warning,
     preview: spec.preview,
     language: spec.language,
     fileExt: spec.fileExt,
@@ -95,7 +98,7 @@ export async function generateCode(
 
   await saveToolRun({
     toolId: "code-generator",
-    label: `${spec.label} · ${task.slice(0, 60)}`,
+    label: `${shown?.label ?? spec.label} · ${task.slice(0, 60)}`,
     input: { target: targetId, task: task.slice(0, 200) },
     result,
   }).catch(() => undefined);

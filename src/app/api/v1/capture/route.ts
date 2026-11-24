@@ -43,6 +43,7 @@ export async function POST(req: Request) {
   await logActivity({
     kind: "outreach.contacted",
     message: `Browser-ext capture: ${type} from ${url} — ${title.slice(0, 80)}`,
+    messageFr: `Capture depuis l’extension du navigateur : ${type} depuis ${url} — ${title.slice(0, 80)}`,
     level: "info",
     entityType: "capture",
   });

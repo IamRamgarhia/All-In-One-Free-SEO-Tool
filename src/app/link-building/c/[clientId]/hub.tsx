@@ -32,7 +32,8 @@ import {
   difficultyTone,
   type Difficulty,
 } from "@/lib/backlink-difficulty";
-import { CATEGORY_LABELS } from "@/lib/seo-resources-categories";
+import { CATEGORY_LABELS as CATEGORY_LABELS_EN } from "@/lib/seo-resources-categories";
+import { CATEGORY_LABELS_FR } from "@/lib/seo-resources-categories.fr";
 import type { ScoredProspect } from "@/lib/backlink-niche-matcher";
 
 type TrackedRow = {
@@ -70,6 +71,7 @@ export function ClientLinkBuildingHub({
   clientName: string;
 }) {
   const t = useTranslations("linksTab.linkBuilding.hub");
+  const CATEGORY_LABELS = useLocale() === "fr" ? CATEGORY_LABELS_FR : CATEGORY_LABELS_EN;
   const [tab, setTab] = useState<Tab>("ai-matched");
   const [diffFilter, setDiffFilter] = useState<Difficulty | "all">("all");
   const [pending, startTransition] = useTransition();
@@ -354,6 +356,7 @@ function TrackerRow({
 }) {
   const t = useTranslations("linksTab.linkBuilding.hub");
   const locale = useLocale();
+  const CATEGORY_LABELS = locale === "fr" ? CATEGORY_LABELS_FR : CATEGORY_LABELS_EN;
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
 

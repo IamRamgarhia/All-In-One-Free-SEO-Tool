@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useRef, useState, useTransition } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { GUEST_POST_TONES_FR } from "@/lib/guest-post-sites.fr";
 import {
   AlertCircle,
   AlertTriangle,
@@ -240,6 +241,7 @@ function NewDraft({
   otherSites: GuestPostSite[];
 }) {
   const t = useTranslations("linksTab.guestPosts.composer");
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState<GenerateState, FormData>(
     generateGuestPost,
     null,
@@ -325,7 +327,8 @@ function NewDraft({
             </div>
             <div className="mt-1 grid gap-1 sm:grid-cols-2">
               <span>
-                <strong>{t("site.tone")}</strong> {selectedSite.style.tone}
+                <strong>{t("site.tone")}</strong>{" "}
+                {(locale === "fr" && GUEST_POST_TONES_FR[selectedSite.id]) || selectedSite.style.tone}
               </span>
               <span>
                 <strong>{t("site.length")}</strong>{" "}

@@ -154,6 +154,7 @@ export async function fireSchedule(scheduleId: number): Promise<void> {
     await logActivity({
       kind: "report.generated",
       message: `Failed to email report for ${client.name}: ${result.error}`,
+      messageFr: `Échec de l’envoi par e-mail du rapport de ${client.name} : ${result.error}`,
       level: "error",
       clientId: client.id,
     });
@@ -179,6 +180,7 @@ export async function fireSchedule(scheduleId: number): Promise<void> {
   await logActivity({
     kind: "report.generated",
     message: `Emailed ${s.template} report for ${client.name} to ${s.recipients.length} recipient${s.recipients.length === 1 ? "" : "s"}.`,
+    messageFr: `Rapport ${s.template} de ${client.name} envoyé par e-mail à ${s.recipients.length} destinataire${s.recipients.length === 1 ? "" : "s"}.`,
     level: "success",
     clientId: client.id,
   });

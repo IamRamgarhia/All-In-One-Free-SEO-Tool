@@ -159,6 +159,7 @@ export async function pollOutreachReplies(): Promise<{
     await logActivity({
       kind: "outreach.replied",
       message: `${contact.name} replied to outreach (${subject.slice(0, 80)})`,
+      messageFr: `${contact.name} a répondu à la prise de contact (${subject.slice(0, 80)})`,
       level: "success",
       clientId: contact.clientId,
       entityType: "outreach",

@@ -86,6 +86,8 @@ const CATEGORY_FIT: Record<string, string[]> = {
 export async function scoreNicheProspects(
   input: NicheBacklinkInput,
   limit = 60,
+  /** Language of the reason line shown next to each prospect. */
+  locale = "en",
 ): Promise<ScoredProspect[]> {
   const all = await db
     .select()
@@ -110,7 +112,7 @@ export async function scoreNicheProspects(
       resource: r,
       score,
       difficulty,
-      reason: explainFit(r.category, difficulty, fitCategories),
+      reason: explainFit(r.category, difficulty, fitCategories, locale === "fr"),
     };
   });
 
@@ -122,7 +124,19 @@ function explainFit(
   category: string,
   difficulty: Difficulty,
   fitCategories: string[],
+  fr = false,
 ): string {
+  if (fr) {
+    // Effort only: the English "ranking weight" is an estimate with no
+    // source behind it, so the French leaves it out.
+    const nicheFr = fitCategories.includes(category)
+      ? "correspond à votre niche"
+      : "base SEO générale";
+    if (difficulty === "easy") return `${nicheFr} · peu d’effort pour l’obtenir`;
+    if (difficulty === "medium") return `${nicheFr} · modération à passer`;
+    if (difficulty === "hard") return `${nicheFr} · exigence éditoriale élevée`;
+    return `${nicheFr} · souvent payant : vérifiez le coût`;
+  }
   const niche = fitCategories.includes(category)
     ? "matches your niche"
     : "general SEO foundation";

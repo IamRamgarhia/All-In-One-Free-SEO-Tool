@@ -250,6 +250,7 @@ export async function importBingBacklinks(
   await logActivity({
     kind: "client.created",
     message: `Imported ${added} new backlink${added === 1 ? "" : "s"} for ${client.name} from Bing Webmaster Tools.`,
+    messageFr: `${added} nouveau${added === 1 ? "" : "x"} backlink${added === 1 ? "" : "s"} importé${added === 1 ? "" : "s"} pour ${client.name} depuis Bing Webmaster Tools.`,
     clientId,
     level: "success",
     dedupe: false,

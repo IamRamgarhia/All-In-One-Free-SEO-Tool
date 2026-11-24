@@ -103,41 +103,45 @@ export function splitIntoPassages(md: string): string[] {
   return passages.filter((p) => p.split(/\s+/).length >= 25);
 }
 
-function scoreLength(words: number): { score: number; note: string } {
+function scoreLength(words: number, fr = false): { score: number; note: string } {
   if (words >= 134 && words <= 167) {
-    return { score: 100, note: "In the 134-167 ideal AIO band." };
+    return { score: 100, note: fr ? "Dans la fourchette visée par cet outil (134 à 167 mots)." : "In the 134-167 ideal AIO band." };
   }
   if (words >= 110 && words <= 200) {
-    return { score: 80, note: "Close to the ideal band." };
+    return { score: 80, note: fr ? "Proche de la fourchette visée." : "Close to the ideal band." };
   }
   if (words >= 80 && words <= 220) {
-    return { score: 60, note: "Outside the ideal band but tolerable." };
+    return { score: 60, note: fr ? "Hors de la fourchette visée, mais acceptable." : "Outside the ideal band but tolerable." };
   }
   if (words < 80) {
-    return { score: 30, note: "Too short — won't have enough info to be cited." };
+    return { score: 30, note: fr ? "Trop court : pas assez d’informations pour être cité." : "Too short — won't have enough info to be cited." };
   }
-  return { score: 25, note: "Too long — AIs prefer focused 134-167 word chunks." };
+  return { score: 25, note: fr ? "Trop long : visez un passage resserré de 134 à 167 mots." : "Too long — AIs prefer focused 134-167 word chunks." };
 }
 
-function scoreSelfContained(text: string): { score: number; note: string } {
+function scoreSelfContained(text: string, fr = false): { score: number; note: string } {
   const lower = text.toLowerCase();
   // Only count anaphoric tokens at sentence-starts or in lead clauses
   const firstChunk = lower.slice(0, 120);
   const hits = ANAPHORIC_TOKENS.filter((tok) => firstChunk.includes(tok)).length;
   if (hits === 0)
-    return { score: 100, note: "Reads as a standalone passage." };
+    return { score: 100, note: fr ? "Se lit comme un passage autonome." : "Reads as a standalone passage." };
   if (hits === 1)
     return {
       score: 70,
-      note: 'Mild back-reference. Replace with the actual subject.',
+      note: fr
+        ? "Légère référence au texte qui précède. Remplacez-la par le sujet lui-même."
+        : 'Mild back-reference. Replace with the actual subject.',
     };
   return {
     score: 40,
-    note: `${hits} back-references in opening — passage depends on prior context.`,
+    note: fr
+      ? `${hits} références au texte qui précède dans l’ouverture : le passage dépend du contexte.`
+      : `${hits} back-references in opening — passage depends on prior context.`,
   };
 }
 
-function scoreAnswersAQuestion(text: string): { score: number; note: string } {
+function scoreAnswersAQuestion(text: string, fr = false): { score: number; note: string } {
   // Strong: starts with a noun phrase + verb pattern that looks like a
   // direct answer (e.g. "Schema markup is …", "INP measures …").
   const firstSentence = text.split(/[.!?]\s/)[0] ?? "";
@@ -145,7 +149,7 @@ function scoreAnswersAQuestion(text: string): { score: number; note: string } {
     firstSentence,
   );
   if (startsWithDef) {
-    return { score: 100, note: "Opens with a clean direct definition." };
+    return { score: 100, note: fr ? "S’ouvre sur une définition directe et claire." : "Opens with a clean direct definition." };
   }
   // OK: ends a paragraph with a clear takeaway sentence
   const endsWithBecause = /\b(because|so that|which means|the result is)\b/i.test(
@@ -154,45 +158,62 @@ function scoreAnswersAQuestion(text: string): { score: number; note: string } {
   if (endsWithBecause) {
     return {
       score: 75,
-      note: "Has explanatory structure — could be cited mid-answer.",
+      note: fr
+        ? "Structure explicative : peut être cité au milieu d’une réponse."
+        : "Has explanatory structure — could be cited mid-answer.",
     };
   }
   return {
     score: 50,
-    note: "No clean Q→A structure. Rewrite to lead with a definition or takeaway.",
+    note: fr
+      ? "Pas de structure question → réponse nette. Réécrivez pour commencer par une définition ou l’idée principale."
+      : "No clean Q→A structure. Rewrite to lead with a definition or takeaway.",
   };
 }
 
-function scoreFactualConcreteness(text: string): {
+function scoreFactualConcreteness(text: string, fr = false): {
   score: number;
   note: string;
 } {
   const numbers = (text.match(/\b\d{1,4}(?:[.,]\d+)?(?:%|\s?(?:ms|s|kb|mb|gb|x|×))?\b/gi) || []).length;
   const propers = (text.match(/\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\b/g) || []).length;
   const total = numbers + propers;
-  if (total >= 4) return { score: 100, note: `${numbers} numbers + ${propers} proper nouns.` };
-  if (total >= 2) return { score: 70, note: `Some specifics — ${numbers} numbers, ${propers} proper nouns.` };
-  if (total === 1) return { score: 40, note: "Only one specific. Add real numbers or names." };
-  return { score: 20, note: "No numbers or proper nouns. Reads as filler." };
+  const counts = `${numbers} ${numbers > 1 ? "chiffres" : "chiffre"}, ${propers} ${propers > 1 ? "noms propres" : "nom propre"}`;
+  if (total >= 4)
+    return { score: 100, note: fr ? `${counts}.` : `${numbers} numbers + ${propers} proper nouns.` };
+  if (total >= 2)
+    return { score: 70, note: fr ? `Quelques éléments précis : ${counts}.` : `Some specifics — ${numbers} numbers, ${propers} proper nouns.` };
+  if (total === 1)
+    return { score: 40, note: fr ? "Un seul élément précis. Ajoutez de vrais chiffres ou des noms." : "Only one specific. Add real numbers or names." };
+  return { score: 20, note: fr ? "Ni chiffre ni nom propre : le passage reste vague." : "No numbers or proper nouns. Reads as filler." };
 }
 
-function scoreCitesSource(text: string): { score: number; note: string } {
+function scoreCitesSource(text: string, fr = false): { score: number; note: string } {
   const links = (text.match(/\[[^\]]+\]\(https?:\/\/[^)]+\)/g) || []).length;
   if (links >= 1)
-    return { score: 100, note: `${links} outbound source citation${links === 1 ? "" : "s"}.` };
+    return {
+      score: 100,
+      note: fr
+        ? `${links} ${links === 1 ? "source citée" : "sources citées"} en lien sortant.`
+        : `${links} outbound source citation${links === 1 ? "" : "s"}.`,
+    };
   return {
     score: 40,
-    note: "No outbound citation. Cite an authoritative source to boost trust.",
+    note: fr
+      ? "Aucune source citée en lien. Citer une source reconnue peut renforcer la confiance."
+      : "No outbound citation. Cite an authoritative source to boost trust.",
   };
 }
 
-export function scorePassage(text: string, idx: number): PassageScore {
+/** `locale` is the language of the notes; "fr" writes them in French. */
+export function scorePassage(text: string, idx: number, locale = "en"): PassageScore {
+  const fr = locale === "fr";
   const words = text.split(/\s+/).filter(Boolean).length;
-  const length = scoreLength(words);
-  const selfContained = scoreSelfContained(text);
-  const answersAQuestion = scoreAnswersAQuestion(text);
-  const factualConcreteness = scoreFactualConcreteness(text);
-  const citesSource = scoreCitesSource(text);
+  const length = scoreLength(words, fr);
+  const selfContained = scoreSelfContained(text, fr);
+  const answersAQuestion = scoreAnswersAQuestion(text, fr);
+  const factualConcreteness = scoreFactualConcreteness(text, fr);
+  const citesSource = scoreCitesSource(text, fr);
   const score = Math.round(
     length.score * 0.25 +
       selfContained.score * 0.2 +
@@ -215,8 +236,8 @@ export function scorePassage(text: string, idx: number): PassageScore {
   };
 }
 
-export function scoreAllPassages(md: string): PassageScore[] {
-  return splitIntoPassages(md).map((p, i) => scorePassage(p, i));
+export function scoreAllPassages(md: string, locale = "en"): PassageScore[] {
+  return splitIntoPassages(md).map((p, i) => scorePassage(p, i, locale));
 }
 
 /**

@@ -222,7 +222,7 @@ export function AutopilotPanel({
                 </span>
                 <span className="font-medium">{r.clientName}</span>
                 <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {r.trigger}
+                  {tx.has(`triggers.${r.trigger}`) ? tx(`triggers.${r.trigger}`) : r.trigger}
                 </span>
                 <span className="min-w-0 flex-1 text-muted-foreground">
                   {r.error ? (
@@ -290,7 +290,9 @@ function ActionCard({
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium">{action.clientName}</span>
         <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-          {action.kind.replace(/^write_/, "").replace(/_/g, " ")}
+          {tx.has(`kinds.${action.kind}`)
+            ? tx(`kinds.${action.kind}`)
+            : action.kind.replace(/^write_/, "").replace(/_/g, " ")}
         </span>
         <StatusPill status={action.status} verifyNote={action.verifyNote} />
         {action.targetUrl && (
@@ -413,12 +415,7 @@ function StatusPill({
             ? "bg-white/10 text-muted-foreground ring-white/15"
             : "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30";
 
-  const label =
-    status === "verified"
-      ? "live on the site"
-      : status === "applied"
-        ? "sent, not confirmed"
-        : status;
+  const label = tx.has(`statuses.${status}`) ? tx(`statuses.${status}`) : status;
 
   return (
     <span

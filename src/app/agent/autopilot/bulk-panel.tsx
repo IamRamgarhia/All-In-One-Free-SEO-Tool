@@ -27,6 +27,7 @@ export function BulkPanel({
   groups: BulkGroup[];
 }) {
   const tx = useTranslations("ui.app_agent_autopilot_bulk-panel");
+  const tPanel = useTranslations("ui.app_agent_autopilot_panel");
   const [busy, setBusy] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, BulkResult>>({});
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -63,7 +64,10 @@ export function BulkPanel({
             <li key={g.kind} className="px-5 py-4">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="text-[13px] font-medium">
-                  {g.count} × {g.kind.replace(/^write_/, "").replace(/_/g, " ")}
+                  {g.count} ×{" "}
+                  {tPanel.has(`kinds.${g.kind}`)
+                    ? tPanel(`kinds.${g.kind}`)
+                    : g.kind.replace(/^write_/, "").replace(/_/g, " ")}
                 </span>
                 {g.risk === "needs_review" && (
                   <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
@@ -97,13 +101,14 @@ export function BulkPanel({
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {!g.bulkable ? (
                   <span className="text-[11px] text-muted-foreground">
-                    {g.reason}
+                    {/* The only reason a group is not bulkable: it is site-wide. */}
+                    {tx("siteWideOneAtATime")}
                   </span>
                 ) : done ? (
                   <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-300">
                     <Check className="size-3.5" />
                     {tx("applied", { applied: done.applied })}
-                    {done.failed > 0 && `, ${done.failed} failed`}
+                    {done.failed > 0 && tx("failedCount", { failed: done.failed })}
                     {done.skipped > 0 && tx("leftForReview", { skipped: done.skipped })}
                   </span>
                 ) : busy === g.kind ? (

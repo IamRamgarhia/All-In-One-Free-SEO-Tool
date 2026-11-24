@@ -72,6 +72,9 @@ async function logSkippedTemplates(
     message: `Skipped ${alreadyDone.length} ${source} task${
       alreadyDone.length === 1 ? "" : "s"
     } this site already does: ${lines}`,
+    messageFr: `${alreadyDone.length} tâche${alreadyDone.length === 1 ? "" : "s"} ${
+      source === "niche" ? "de niche" : alreadyDone.length === 1 ? "technique" : "techniques"
+    } écartée${alreadyDone.length === 1 ? "" : "s"}, car le site le fait déjà : ${lines}`,
     level: "info",
     clientId,
     entityType: "client",

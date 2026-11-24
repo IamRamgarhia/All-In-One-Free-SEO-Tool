@@ -138,6 +138,7 @@ export async function runAnomalyDetection(): Promise<{
     await logActivity({
       kind: "rank.changed",
       message: `Anomaly detected for ${c.name}: ${findings.map((f) => f.label).join(", ")}`,
+      messageFr: `Anomalie détectée pour ${c.name} : ${findings.map((f) => f.label).join(", ")}`,
       level: "warning",
       clientId: c.id,
       entityType: "snapshot_anomaly",

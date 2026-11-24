@@ -114,6 +114,7 @@ async function runAction(
     await logActivity({
       kind: "audit.completed", // generic info kind
       message: `Automation #${automationId}: ${interpolate(action.message, payload.data)}`,
+      messageFr: `Automatisation n° ${automationId} : ${interpolate(action.message, payload.data)}`,
       clientId: payload.clientId,
     });
     return;

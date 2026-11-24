@@ -187,6 +187,10 @@ async function runBatch(
       failed === 0
         ? `Generated ${done} report${done === 1 ? "" : "s"} — ready for review.`
         : `Generated ${done} report${done === 1 ? "" : "s"}, ${failed} failed.`,
+    messageFr:
+      failed === 0
+        ? `${done} rapport${done === 1 ? "" : "s"} généré${done === 1 ? "" : "s"}, prêt${done === 1 ? "" : "s"} à relire.`
+        : `${done} rapport${done === 1 ? "" : "s"} généré${done === 1 ? "" : "s"}, ${failed} en échec.`,
     level: failed > 0 ? "warning" : "success",
     dedupe: false,
   });

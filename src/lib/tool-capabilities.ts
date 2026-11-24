@@ -217,6 +217,8 @@ export function aiUsageOf(
 }
 
 export type ToolBadge = {
+  /** Stable name of the badge, so a page can show it in the reader's language. */
+  id: "freeLocal" | "free" | "freeOptional" | "partialCredits" | "partialKey" | "needsKey" | "usesCredits";
   label: string;
   /** Longer text for the tooltip / title attribute. */
   detail: string;
@@ -260,12 +262,14 @@ export function badgeFor(
   if (usage === "none") {
     return cap.usesBrowser
       ? {
+          id: "freeLocal",
           label: "Free · runs locally",
           detail:
             "No AI credits. Runs a browser on this machine, so it costs you nothing per use.",
           tone: "free",
         }
       : {
+          id: "free",
           label: "Free",
           detail: "No AI credits — this one never calls a model.",
           tone: "free",
@@ -278,6 +282,7 @@ export function badgeFor(
   // model, and asks one only for an optional prose sentence.
   if (usage === "optional") {
     return {
+      id: "freeOptional",
       label: "Free · AI optional",
       detail:
         "Works fully without a key. A model is used only to add a written summary, and everything else is computed from your own data.",
@@ -288,12 +293,14 @@ export function badgeFor(
   if (usage === "partial") {
     return mode === "api" || mode === "both"
       ? {
+          id: "partialCredits",
           label: "Partly uses credits",
           detail:
             "Some of this page calls your AI provider and the rest does not, so it costs less per run than a fully AI tool.",
           tone: "key",
         }
       : {
+          id: "partialKey",
           label: "Partly needs a key",
           detail:
             "The main check here runs without a model. One feature on this page needs an API key or Ollama, and that feature alone is unavailable — a connected chat subscription does not supply it, because MCP runs the other way round.",
@@ -309,6 +316,7 @@ export function badgeFor(
   // will fail as one that works is worse than saying nothing.
   if (mode === "none" || mode === "mcp") {
     return {
+      id: "needsKey",
       label: "Needs a key",
       detail:
         "This page calls a model directly, so it needs an API key or Ollama. A connected chat subscription does not drive it — that works the other way round, inside your chat app.",
@@ -317,6 +325,7 @@ export function badgeFor(
   }
 
   return {
+    id: "usesCredits",
     label: "Uses credits",
     detail: "Calls your AI provider, so this one costs a little per run.",
     tone: "key",

@@ -51,7 +51,7 @@ const AUTOMATIONS = (tx: Tx): Automation[] => ([
     icon: ScanLine,
     accent: "violet",
     description:
-      "Re-runs the AI audit (E-E-A-T, helpful content, structure, schema) for each client; surfaces drift from last week.",
+      tx("rerunsTheAiAudit"),
     whereToSee: { label: tx("audits"), href: "/audits" },
   },
   {
@@ -81,7 +81,7 @@ const AUTOMATIONS = (tx: Tx): Automation[] => ([
     icon: CheckCircle2,
     accent: "emerald",
     description:
-      "HTTP-status + response-time check across all monitored URLs. Alerts on 5xx, 4xx, or significant latency spikes.",
+      tx("httpStatusResponseTimeCheck"),
     whereToSee: { label: tx("uptimeTool"), href: "/tools/uptime" },
   },
   {
@@ -111,7 +111,7 @@ const AUTOMATIONS = (tx: Tx): Automation[] => ([
     icon: RefreshCw,
     accent: "amber",
     description:
-      "Pre-renders the priority list, top 3 metrics, what-changed feed across all clients before you open the app.",
+      tx("preRendersThePriorityList"),
     whereToSee: { label: tx("dashboard"), href: "/" },
   },
 ]);
@@ -122,6 +122,14 @@ type ManualGuide = {
   where: string;
   steps: string[];
   link?: { label: string; href: string };
+};
+
+/** Message key of each cadence chip (the English stays as fallback). */
+const CADENCE_KEY: Record<Automation["cadence"], string> = {
+  "every 24h": "daily",
+  "weekly (Monday)": "weeklyMonday",
+  "on event": "onEvent",
+  "every check-in": "everyCheckIn",
 };
 
 const MANUAL_GUIDES = (tx: Tx): ManualGuide[] => ([
@@ -281,7 +289,9 @@ export default async function AutomationsOverviewPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium text-sm">{a.title}</p>
                     <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-inset ring-white/10">
-                      {a.cadence}
+                      {tx.has(`cadence.${CADENCE_KEY[a.cadence]}`)
+                        ? tx(`cadence.${CADENCE_KEY[a.cadence]}`)
+                        : a.cadence}
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">{a.description}</p>

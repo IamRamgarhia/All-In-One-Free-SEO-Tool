@@ -170,6 +170,7 @@ export async function runSeoAgent(
   await logActivity({
     kind: "report.generated",
     message: `AI agent generated ${toInsert.length} suggestions for ${client.name}.`,
+    messageFr: `L’agent IA a produit ${toInsert.length} suggestion${toInsert.length === 1 ? "" : "s"} pour ${client.name}.`,
     level: "success",
     clientId,
     entityType: "client",

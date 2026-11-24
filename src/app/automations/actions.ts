@@ -224,6 +224,8 @@ export async function testWebhook(url: string): Promise<
 }
 
 import { workflowTemplates } from "@/lib/workflow-templates";
+import { WORKFLOW_TEMPLATES_FR } from "@/lib/workflow-templates.fr";
+import { getReportLocale } from "@/lib/report-i18n";
 
 export async function installWorkflowTemplate(input: {
   templateId: string;
@@ -234,6 +236,8 @@ export async function installWorkflowTemplate(input: {
   const tx = await actionTx("ui.app_automations_actions");
   const tmpl = workflowTemplates.find((t) => t.id === input.templateId);
   if (!tmpl) return { ok: false, error: tx("unknownTemplate") };
+  // Stored text (name, task title, log line) in the workspace language.
+  const fr = (await getReportLocale()) === "fr" ? WORKFLOW_TEMPLATES_FR[tmpl.id] : undefined;
 
   const action: AutomationAction =
     tmpl.action.kind === "webhook"
@@ -245,16 +249,16 @@ export async function installWorkflowTemplate(input: {
       : tmpl.action.kind === "create_task"
         ? {
             kind: "create_task",
-            title: tmpl.action.title,
+            title: fr?.title ?? tmpl.action.title,
             priority: tmpl.action.priority,
           }
-        : { kind: "log", message: tmpl.action.message };
+        : { kind: "log", message: fr?.message ?? tmpl.action.message };
 
   try {
     const [row] = await db
       .insert(automations)
       .values({
-        name: tmpl.name,
+        name: fr?.name ?? tmpl.name,
         trigger: tmpl.trigger,
         clientId: input.clientId ?? null,
         actions: [action],

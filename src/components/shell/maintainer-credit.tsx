@@ -13,7 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { MAINTAINER, upiDeepLink } from "@/lib/maintainer";
+import { useTranslations } from "next-intl";
+import { DEFAULT_TAGLINE, MAINTAINER, upiDeepLink } from "@/lib/maintainer";
 
 const PRESET_AMOUNTS = [100, 300, 500, 1000] as const;
 
@@ -31,6 +32,11 @@ export function MaintainerCredit({
   variant?: "inline" | "block";
 }) {
   const [supportOpen, setSupportOpen] = useState(false);
+  const t = useTranslations("maintainerCredit");
+  // The default tagline has a translation; one set by the maintainer
+  // (MAINTAINER_TAGLINE) is shown as written.
+  const tagline =
+    MAINTAINER.tagline === DEFAULT_TAGLINE ? t("defaultTagline") : MAINTAINER.tagline;
 
   if (variant === "block") {
     return (
@@ -40,12 +46,12 @@ export function MaintainerCredit({
             <Sparkles className="size-3.5 text-violet-300" />
             <span className="font-semibold">{MAINTAINER.name}</span>
             <span className="text-muted-foreground">
-              built this tool
+              {t("builtThisTool")}
             </span>
           </div>
-          {MAINTAINER.tagline && (
+          {tagline && (
             <p className="text-xs text-muted-foreground">
-              {MAINTAINER.tagline}
+              {tagline}
             </p>
           )}
           <div className="flex flex-wrap gap-2 pt-1.5">
@@ -57,7 +63,7 @@ export function MaintainerCredit({
                 className="inline-flex h-8 items-center gap-1.5 rounded-md bg-white/[0.04] px-3 text-xs text-foreground/85 ring-1 ring-inset ring-white/10 transition-colors hover:bg-white/[0.08]"
               >
                 <Code2 className="size-3.5" />
-                Source on GitHub
+                {t("sourceOnGithub")}
               </a>
             )}
             <button
@@ -66,7 +72,7 @@ export function MaintainerCredit({
               className="inline-flex h-8 items-center gap-1.5 rounded-md bg-rose-500/15 px-3 text-xs font-medium text-rose-300 ring-1 ring-inset ring-rose-500/30 transition-colors hover:bg-rose-500/25"
             >
               <Heart className="size-3.5" />
-              Support the project
+              {t("supportTheProject")}
             </button>
           </div>
         </div>
@@ -82,10 +88,12 @@ export function MaintainerCredit({
     <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         <span>
-          Built by{" "}
-          <span className="font-semibold text-foreground/85">
-            {MAINTAINER.name}
-          </span>
+          {t.rich("builtBy", {
+            name: MAINTAINER.name,
+            strong: (chunks) => (
+              <span className="font-semibold text-foreground/85">{chunks}</span>
+            ),
+          })}
         </span>
         {MAINTAINER.github && (
           <a
@@ -95,7 +103,7 @@ export function MaintainerCredit({
             className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
           >
             <Code2 className="size-3" />
-            Source
+            {t("source")}
           </a>
         )}
         <button
@@ -104,7 +112,7 @@ export function MaintainerCredit({
           className="inline-flex items-center gap-1 rounded text-rose-300 transition-colors hover:text-rose-200"
         >
           <Heart className="size-3" />
-          Support
+          {t("support")}
         </button>
       </div>
       {supportOpen && (
@@ -115,6 +123,7 @@ export function MaintainerCredit({
 }
 
 function SupportDialog({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("maintainerCredit");
   const [copied, setCopied] = useState<"upi" | null>(null);
   // Amount in INR. null = "any amount" — UPI deep link without `am=`
   // lets the user type the amount themselves. Default to ₹300 since
@@ -163,7 +172,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
     if (!upi) return;
     navigator.clipboard.writeText(upi).then(() => {
       setCopied("upi");
-      toast.success("UPI ID copied");
+      toast.success(t("upiCopied"));
       setTimeout(() => setCopied(null), 1500);
     });
   }
@@ -184,7 +193,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Support the project"
+      aria-label={t("supportTheProject")}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
@@ -198,13 +207,13 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
               <Heart className="size-3.5" />
             </span>
             <h2 className="text-sm font-semibold">
-              Support {MAINTAINER.name}
+              {t("supportName", { name: MAINTAINER.name })}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("close")}
             className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-white/5 hover:text-foreground"
           >
             <X className="size-3.5" />
@@ -213,9 +222,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
 
         <div className="space-y-4 p-5">
           <p className="text-xs text-muted-foreground">
-            This tool is free and self-hosted. A small tip keeps the
-            updates coming. Pick an amount and scan with any UPI app —
-            GPay, PhonePe, Paytm, BHIM.
+            {t("dialogIntro")}
           </p>
 
           {upi && (
@@ -227,7 +234,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 <div>
                   <h3 className="text-sm font-semibold">UPI (India)</h3>
                   <p className="text-[10px] text-muted-foreground">
-                    Zero fees · instant · scan or tap
+                    {t("upiHint")}
                   </p>
                 </div>
               </div>
@@ -260,7 +267,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder="Custom amount"
+                    placeholder={t("customAmount")}
                     value={customAmount}
                     onChange={(e) => pickCustom(e.target.value)}
                     className="h-9 w-full rounded-md bg-white/[0.04] pl-6 pr-2 text-xs text-foreground ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground focus:outline-none focus:ring-emerald-400/60"
@@ -277,9 +284,9 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                       ? "bg-emerald-500/30 text-emerald-100 ring-1 ring-inset ring-emerald-400/60"
                       : "bg-white/[0.04] text-foreground/80 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08]"
                   }`}
-                  title="Let payer choose the amount in the UPI app"
+                  title={t("anyTitle")}
                 >
-                  Any
+                  {t("any")}
                 </button>
               </div>
 
@@ -289,7 +296,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrDataUrl}
-                    alt={`UPI QR code${amount ? ` for ₹${amount}` : ""}`}
+                    alt={amount ? t("qrAltAmount", { amount: `₹${amount}` }) : t("qrAlt")}
                     width={200}
                     height={200}
                     className="size-[200px]"
@@ -297,11 +304,13 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 </div>
               )}
               <p className="mt-2 text-center text-[10px] text-muted-foreground">
-                Scan with any UPI app — pays{" "}
-                <span className="font-semibold text-foreground/85">
-                  {amount ? `₹${amount}` : "any amount"}
-                </span>{" "}
-                to {MAINTAINER.name}
+                {t.rich("scanPays", {
+                  amount: amount ? `₹${amount}` : t("anyAmount"),
+                  name: MAINTAINER.name,
+                  strong: (chunks) => (
+                    <span className="font-semibold text-foreground/85">{chunks}</span>
+                  ),
+                })}
               </p>
 
               {/* UPI id with copy — fallback if scan doesn't work */}
@@ -312,7 +321,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 <button
                   type="button"
                   onClick={copyUpi}
-                  title="Copy UPI ID"
+                  title={t("copyUpi")}
                   className="grid size-9 place-items-center rounded-md bg-white/5 text-muted-foreground ring-1 ring-inset ring-white/10 hover:bg-white/10 hover:text-foreground"
                 >
                   {copied === "upi" ? (
@@ -330,7 +339,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                   href={deepLink}
                   className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-md bg-emerald-500/15 px-3 text-xs font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30 hover:bg-emerald-500/25"
                 >
-                  Open in UPI app (mobile)
+                  {t("openUpiApp")}
                 </a>
               )}
             </section>
@@ -345,7 +354,7 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 <div>
                   <h3 className="text-sm font-semibold">PayPal</h3>
                   <p className="text-[10px] text-muted-foreground">
-                    International · cards / PayPal balance / bank
+                    {t("paypalHint")}
                   </p>
                 </div>
               </div>
@@ -355,24 +364,25 @@ function SupportDialog({ onClose }: { onClose: () => void }) {
                 rel="noreferrer noopener"
                 className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-sky-500/15 px-3 text-xs font-medium text-sky-300 ring-1 ring-inset ring-sky-500/30 hover:bg-sky-500/25"
               >
-                Donate via PayPal →
+                {t("donatePaypal")}
               </a>
             </section>
           )}
 
           {MAINTAINER.github && (
             <p className="rounded-md bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground ring-1 ring-inset ring-white/5">
-              Prefer not to send money? A{" "}
-              <a
-                href={MAINTAINER.github}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-violet-300 hover:underline"
-              >
-                ⭐ on GitHub
-              </a>{" "}
-              helps too — surfaces the project to other agencies looking
-              for a self-hosted SEO tool.
+              {t.rich("starInstead", {
+                link: (chunks) => (
+                  <a
+                    href={MAINTAINER.github}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-violet-300 hover:underline"
+                  >
+                    {chunks}
+                  </a>
+                ),
+              })}
             </p>
           )}
         </div>

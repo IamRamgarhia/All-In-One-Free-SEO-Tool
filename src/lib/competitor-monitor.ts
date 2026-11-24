@@ -91,6 +91,7 @@ export async function runCompetitorMonitor(): Promise<{
       await logActivity({
         kind: "page.changed",
         message: `Competitor ${c.name}: ${newEntries.summary}`,
+        messageFr: `Concurrent ${c.name} : ${newEntries.summary}`,
         clientId: c.clientId,
         entityType: "competitor",
         entityId: c.id,

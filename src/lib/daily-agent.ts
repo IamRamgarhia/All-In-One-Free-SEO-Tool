@@ -101,6 +101,7 @@ async function runDailyAgentBody(): Promise<DailyAgentReport> {
   await logActivity({
     kind: "report.generated",
     message: `Daily agent: ran ${steps.length} steps in ${finishedAt.getTime() - startedAt.getTime()}ms.`,
+    messageFr: `Agent quotidien : ${steps.length} étape${steps.length === 1 ? "" : "s"} exécutée${steps.length === 1 ? "" : "s"} en ${finishedAt.getTime() - startedAt.getTime()} ms.`,
     level: steps.every((s) => s.ok) ? "success" : "warning",
   });
 
@@ -477,6 +478,7 @@ async function robotsSnapshotStep(): Promise<string> {
         await logActivity({
           kind: "page.changed",
           message: `robots.txt changed on ${new URL(c.url).hostname}`,
+          messageFr: `Le fichier robots.txt a changé sur ${new URL(c.url).hostname}`,
           level: "warning",
           clientId: c.id,
           entityType: "robots",
@@ -511,6 +513,7 @@ async function sitemapHealthStep(): Promise<string> {
         await logActivity({
           kind: "page.changed",
           message: `Sitemap returned ${res.status} for ${u.hostname}/sitemap.xml`,
+          messageFr: `Le sitemap a renvoyé ${res.status} pour ${u.hostname}/sitemap.xml`,
           level: "warning",
           clientId: c.id,
           entityType: "sitemap",
@@ -524,6 +527,7 @@ async function sitemapHealthStep(): Promise<string> {
         await logActivity({
           kind: "page.changed",
           message: `Sitemap doesn't look like XML for ${u.hostname}`,
+          messageFr: `Le sitemap ne semble pas être du XML pour ${u.hostname}`,
           level: "warning",
           clientId: c.id,
           entityType: "sitemap",
@@ -584,6 +588,7 @@ async function trafficDropAlertStep(): Promise<string> {
         await logActivity({
           kind: "rank.changed",
           message: `Traffic dropped ${Math.abs(Math.round(dropPct))}% WoW for ${c.name} (${p} → ${r} clicks)`,
+          messageFr: `Trafic en baisse de ${Math.abs(Math.round(dropPct))} % sur une semaine pour ${c.name} (${p} → ${r} clics)`,
           level: "warning",
           clientId: c.id,
           entityType: "traffic",

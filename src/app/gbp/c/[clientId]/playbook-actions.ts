@@ -68,6 +68,7 @@ export async function togglePlaybookItem(
     await logActivity({
       kind: "task.completed",
       message: `GBP playbook: ${itemId.replace(/-/g, " ")}`,
+      messageFr: `Plan d’action Google Business Profile : ${itemId.replace(/-/g, " ")}`,
       clientId,
       entityType: "gbp_playbook",
     });

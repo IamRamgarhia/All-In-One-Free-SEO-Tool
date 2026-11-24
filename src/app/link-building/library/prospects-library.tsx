@@ -283,12 +283,12 @@ export function ProspectsLibrary({
                             <span
                               className={`rounded-md px-1.5 py-0.5 text-[10px] ring-1 ring-inset ${COST_COLORS[p.cost]}`}
                             >
-                              {p.cost}
+                              {tx(`costBadge.${p.cost}`)}
                             </span>
                             <span
                               className={`rounded-md px-1.5 py-0.5 text-[10px] ring-1 ring-inset ${LINK_COLORS[p.linkType]}`}
                             >
-                              {p.linkType}
+                              {tx(`linkBadge.${p.linkType}`)}
                             </span>
                             <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-inset ring-white/10">
                               {tx("n5Min", { difficulty: p.difficulty, submissionTimeMin: p.submissionTimeMin })}

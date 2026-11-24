@@ -85,7 +85,17 @@ export function difficultyTone(d: Difficulty): string {
   return "bg-violet-500/15 text-violet-300 ring-violet-500/30";
 }
 
-export function difficultyEffortHint(d: Difficulty): string {
+export function difficultyEffortHint(d: Difficulty, locale = "en"): string {
+  if (locale === "fr") {
+    // The English per-site durations are rough guesses; the French keeps
+    // the steps and drops the figures.
+    if (d === "easy") return "Inscription, profil, collage de l’URL : quelques minutes par site.";
+    if (d === "medium")
+      return "Proposition ou envoi des informations, puis attente de la modération, avec une relance.";
+    if (d === "hard")
+      return "Proposition, rédaction d’un contenu complet et allers-retours : plusieurs heures par lien.";
+    return "Souvent payant : vérifiez le coût avant d’envoyer.";
+  }
   if (d === "easy")
     return "Sign up, fill profile, paste URL. ~2-5 min per site.";
   if (d === "medium")

@@ -140,6 +140,7 @@ export async function captureSerpSnapshot(opts: {
       await logActivity({
         kind: "rank.changed",
         message: `SERP shift on "${opts.query}": ${shifts.join("; ")}`,
+        messageFr: `Changement dans les résultats de recherche pour « ${opts.query} » : ${shifts.join("; ")}`,
         level: shifts.some((s) => s.includes("lost") || s.includes("dropped"))
           ? "warning"
           : "info",

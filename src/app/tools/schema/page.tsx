@@ -14,9 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { generateSchema, type SchemaType } from "./actions";
 import { getSchemaAdvisory } from "@/lib/schema-deprecations-2026";
+import { NO_ADVISORY_FR, SCHEMA_ADVISORIES_FR } from "@/lib/schema-deprecations-2026.fr";
 
 const TYPES: SchemaType[] = [
   "Article",
@@ -211,7 +212,12 @@ function SchemaAdvisoryBanner({
   compact?: boolean;
 }) {
   const t = useTranslations("tools.ui.schema");
-  const advisory = getSchemaAdvisory(type);
+  const locale = useLocale();
+  // French text from the table next to the English one, same keys.
+  const advisory = {
+    ...getSchemaAdvisory(type),
+    ...(locale === "fr" ? (SCHEMA_ADVISORIES_FR[type] ?? NO_ADVISORY_FR) : {}),
+  };
   if (advisory.status === "ok") {
     if (compact) return null;
     return (

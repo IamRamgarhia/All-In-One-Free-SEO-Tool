@@ -12,7 +12,7 @@ import {
   Loader2,
   Wand2,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { PageHeader } from "@/components/shell/page-header";
 import { generateCode, type CodeGenState } from "./actions";
 import {
@@ -20,6 +20,7 @@ import {
   TARGET_GROUPS,
   type GeneratorTarget,
 } from "@/lib/code-generator-types";
+import { TARGETS_FR, TARGET_GROUP_LABELS_FR } from "@/lib/code-generator-types.fr";
 import { RecentRuns } from "@/components/recent-runs";
 import { AiDisclaimer } from "@/components/ai-disclaimer";
 
@@ -36,7 +37,14 @@ export default function CodeGeneratorPage() {
   const [showPreview, setShowPreview] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  const spec = useMemo(() => TARGETS[target], [target]);
+  const fr = useLocale() === "fr";
+  // Labels, descriptions and warnings in the reader's language; the
+  // English table stays the fallback.
+  const text = (id: GeneratorTarget) => (fr ? { ...TARGETS[id], ...TARGETS_FR[id] } : TARGETS[id]);
+  const spec = useMemo(
+    () => (fr ? { ...TARGETS[target], ...TARGETS_FR[target] } : TARGETS[target]),
+    [target, fr],
+  );
 
   const refreshKey = useRunRefreshKey(state?.ok ? state : null);
 
@@ -85,11 +93,11 @@ export default function CodeGeneratorPage() {
               {TARGET_GROUPS.map((g) => (
                 <div key={g.label} className="space-y-1">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {g.label}
+                    {(fr && TARGET_GROUP_LABELS_FR[g.label]) || g.label}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {g.targets.map((id) => {
-                      const meta = TARGETS[id];
+                      const meta = text(id);
                       const active = target === id;
                       return (
                         <label key={id}>
@@ -208,7 +216,7 @@ export default function CodeGeneratorPage() {
             <header className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
               <div>
                 <h3 className="text-sm font-semibold">
-                  {TARGETS[state.target].label}
+                  {text(state.target).label}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
                   {t("linesMeta", {

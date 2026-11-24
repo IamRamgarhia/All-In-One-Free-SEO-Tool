@@ -25,7 +25,7 @@ import {
   difficultyEffortHint,
   difficultyTone,
 } from "@/lib/backlink-difficulty";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ClientLinkBuildingHub } from "./hub";
 
 export default async function ClientLinkBuildingPage({
@@ -46,6 +46,7 @@ export default async function ClientLinkBuildingPage({
     .limit(1);
   if (!client) notFound();
 
+  const locale = await getLocale();
   // AI-deterministic prospect scoring (no AI cost)
   const ranked = await scoreNicheProspects(
     {
@@ -56,6 +57,7 @@ export default async function ClientLinkBuildingPage({
       description: client.description,
     },
     80,
+    locale,
   );
 
   // Already tracked for this client
@@ -142,6 +144,7 @@ export default async function ClientLinkBuildingPage({
 
 async function ClientStaticHelp({ ranked }: { ranked: ScoredProspect[] }) {
   const t = await getTranslations("linksTab.linkBuilding.page");
+  const locale = await getLocale();
   const easy = ranked.filter((r) => r.difficulty === "easy").length;
   const medium = ranked.filter((r) => r.difficulty === "medium").length;
   const hard = ranked.filter((r) => r.difficulty === "hard").length;
@@ -150,9 +153,9 @@ async function ClientStaticHelp({ ranked }: { ranked: ScoredProspect[] }) {
     <section className="rounded-2xl border border-white/5 bg-card/40 p-5 backdrop-blur-md">
       <h3 className="text-sm font-semibold">{t("difficultyTitle")}</h3>
       <div className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
-        <Tone label={t("difficulty.easy")} diff="easy" count={easy} />
-        <Tone label={t("difficulty.medium")} diff="medium" count={medium} />
-        <Tone label={t("difficulty.hard")} diff="hard" count={hard} />
+        <Tone label={t("difficulty.easy")} diff="easy" count={easy} locale={locale} />
+        <Tone label={t("difficulty.medium")} diff="medium" count={medium} locale={locale} />
+        <Tone label={t("difficulty.hard")} diff="hard" count={hard} locale={locale} />
       </div>
     </section>
   );
@@ -162,10 +165,12 @@ function Tone({
   label,
   diff,
   count,
+  locale,
 }: {
   label: string;
   diff: "easy" | "medium" | "hard";
   count: number;
+  locale: string;
 }) {
   return (
     <div
@@ -177,7 +182,7 @@ function Tone({
         </span>
         <span className="font-semibold tabular-nums">{count}</span>
       </div>
-      <p className="mt-1.5 text-[11px] opacity-80">{difficultyEffortHint(diff)}</p>
+      <p className="mt-1.5 text-[11px] opacity-80">{difficultyEffortHint(diff, locale)}</p>
     </div>
   );
 }

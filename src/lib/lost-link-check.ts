@@ -181,6 +181,7 @@ const res = await guardedFetch(b.sourceUrl, {
         await logActivity({
           kind: "page.changed",
           message: `Lost backlink from ${b.sourceDomain}`,
+          messageFr: `Backlink perdu depuis ${b.sourceDomain}`,
           level: "warning",
           clientId: b.clientId,
           entityType: "backlink",

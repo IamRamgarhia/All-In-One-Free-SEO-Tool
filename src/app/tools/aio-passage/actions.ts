@@ -1,6 +1,6 @@
 "use server";
 
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { requireSignedIn } from "@/lib/action-guard";
 
 import {
@@ -24,7 +24,7 @@ export async function analyzePassages(
   const t = await getTranslations("tools.ui.aio-passage");
   const md = String(formData.get("markdown") ?? "").trim();
   if (!md) return { ok: false, error: t("pasteDraftFirst") };
-  const passages = scoreAllPassages(md);
+  const passages = scoreAllPassages(md, await getLocale());
   if (passages.length === 0) {
     return {
       ok: false,
@@ -84,7 +84,7 @@ export async function analyzeUrl(
       error: extracted.error ?? t("fetchFailed"),
     };
   }
-  const passages = scoreAllPassages(extracted.markdown);
+  const passages = scoreAllPassages(extracted.markdown, await getLocale());
   if (passages.length === 0) {
     return {
       ok: false,

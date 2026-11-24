@@ -42,7 +42,7 @@ export default async function OutreachTemplatesPage() {
 
       <PageHeader
         title={tx("outreachTemplates")}
-        description="Reusable email templates with variables. Use {{name}}, {{client_name}}, {{client_url}} and more — they get filled in per contact when you send."
+        description={tx("pageDescription", { vars: "{{name}}, {{client_name}}, {{client_url}}" })}
         icon={Send}
         accent="violet"
       />

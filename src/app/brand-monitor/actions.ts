@@ -97,6 +97,7 @@ export async function mentionToOutreach(opts: {
   await logActivity({
     kind: "task.created",
     message: `Brand mention → outreach: ${opts.authorName ?? "anon"} (${m.source})`,
+    messageFr: `Mention de marque → prospection : ${opts.authorName ?? "anonyme"} (${m.source})`,
     clientId: opts.clientId,
     entityType: "outreach",
     entityId: row.id,

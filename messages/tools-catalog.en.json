@@ -87,6 +87,10 @@
     "title": "YouTube SEO audit",
     "description": "Paste any YouTube URL → 14-point checklist (title, description, chapters, hashtags, tags, captions, thumbnail, like ratio, freshness) + AI fix steps. Free — uses oEmbed + watch-page scrape."
   },
+  "youtube": {
+    "title": "YouTube keyword research",
+    "description": "Real video data — view counts, channels, recurring tag phrases. Free YouTube Data API tier (100 searches a day)."
+  },
   "soft-404": {
     "title": "Soft 404 catcher",
     "description": "Crawl + flag pages that return 200 but smell like 404s — thin content, '404' / 'page not found' text patterns, generic error titles. Silent indexation killers."

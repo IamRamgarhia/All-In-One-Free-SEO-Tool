@@ -115,6 +115,7 @@ export async function GET(req: NextRequest) {
     await logActivity({
       kind: "google.connected",
       message: `Connected per-client Google account${email ? ` (${email})` : ""} for client #${targetClientId}.`,
+      messageFr: `Compte Google du client connecté${email ? ` (${email})` : ""} pour le client n° ${targetClientId}.`,
       level: "success",
       clientId: targetClientId,
     });
@@ -145,6 +146,7 @@ export async function GET(req: NextRequest) {
   await logActivity({
     kind: "google.connected",
     message: `Connected Google account${email ? ` (${email})` : ""} for GSC + GA4 access.`,
+    messageFr: `Compte Google connecté${email ? ` (${email})` : ""} pour l’accès à Search Console et GA4.`,
     level: "success",
   });
 

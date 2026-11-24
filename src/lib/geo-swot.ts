@@ -67,8 +67,11 @@ export async function generateGeoSwot(input: {
   clientId: number;
   /** Last N days of AI visibility checks to consider. Defaults to 30. */
   windowDays?: number;
+  /** Language of the text shown to the reader. "fr" writes it in French. */
+  locale?: string;
 }): Promise<GeoSwot> {
   const windowDays = input.windowDays ?? 30;
+  const fr = input.locale === "fr";
   const since = new Date(Date.now() - windowDays * 86_400_000);
 
   // 1. Client info
@@ -78,7 +81,7 @@ export async function generateGeoSwot(input: {
     .where(eq(clients.id, input.clientId))
     .limit(1);
   if (!client) {
-    return emptySwot("Client not found");
+    return emptySwot(fr ? "client introuvable" : "Client not found", fr);
   }
 
   // 2. Aggregate AI visibility for this client's keywords over the window.
@@ -141,27 +144,35 @@ export async function generateGeoSwot(input: {
     .map(([p, v]) => `${p}: ${v.mentions}/${v.total}`)
     .join(" · ");
 
+  const sentimentFr = { positive: "positif", negative: "négatif", neutral: "neutre" }[sentimentLabel];
   const dataPoints: ExecSummaryDataPoint[] = [
     { label: "Client", value: `${client.name} (${client.url})` },
-    { label: "Window", value: `last ${windowDays} days` },
-    { label: "AI checks run", value: String(totalChecks) },
     {
-      label: "Mention rate",
-      value: `${mentionRate}% (${mentionCount}/${totalChecks})`,
+      label: fr ? "Période" : "Window",
+      value: fr ? `${windowDays} derniers jours` : `last ${windowDays} days`,
+    },
+    { label: fr ? "Vérifications IA lancées" : "AI checks run", value: String(totalChecks) },
+    {
+      label: fr ? "Taux de mention" : "Mention rate",
+      value: fr
+        ? `${mentionRate} % (${mentionCount}/${totalChecks})`
+        : `${mentionRate}% (${mentionCount}/${totalChecks})`,
     },
   ];
   if (providerLine) {
-    dataPoints.push({ label: "Mentions by provider", value: providerLine });
+    dataPoints.push({ label: fr ? "Mentions par fournisseur" : "Mentions by provider", value: providerLine });
   }
   if (Number.isFinite(avgSentiment) && totalChecks > 0) {
     dataPoints.push({
-      label: "Avg sentiment",
-      value: `${sentimentLabel} (${Math.round(avgSentiment)} on -100..+100)`,
+      label: fr ? "Ton moyen" : "Avg sentiment",
+      value: fr
+        ? `${sentimentFr} (${Math.round(avgSentiment)} sur une échelle de -100 à +100)`
+        : `${sentimentLabel} (${Math.round(avgSentiment)} on -100..+100)`,
     });
   }
   if (comps.length > 0) {
     dataPoints.push({
-      label: "Tracked competitors",
+      label: fr ? "Concurrents suivis" : "Tracked competitors",
       value: comps.map((c) => c.name).slice(0, 10).join(", "),
     });
   }
@@ -187,7 +198,11 @@ export async function generateGeoSwot(input: {
     );
   }
   promptLines.push("");
-  promptLines.push("Write the SWOT. Return ONLY the JSON object.");
+  promptLines.push(
+    fr
+      ? "Write the SWOT. Write every bullet and the summary in French, addressing the reader as \"vous\". Return ONLY the JSON object."
+      : "Write the SWOT. Return ONLY the JSON object.",
+  );
 
   const raw = await callAI({
     system: SYSTEM_PROMPT,
@@ -201,16 +216,27 @@ export async function generateGeoSwot(input: {
   });
 
   if (!raw) {
-    return { ...templateSwot(mentionRate, sentimentLabel, comps.length), dataPoints, source: "template" };
+    return { ...templateSwot(mentionRate, sentimentLabel, comps.length, fr), dataPoints, source: "template" };
   }
   const parsed = parseSwot(raw);
   if (!parsed) {
-    return { ...templateSwot(mentionRate, sentimentLabel, comps.length), dataPoints, source: "template" };
+    return { ...templateSwot(mentionRate, sentimentLabel, comps.length, fr), dataPoints, source: "template" };
   }
   return { ...parsed, dataPoints, source: "ai" };
 }
 
-function emptySwot(reason: string): GeoSwot {
+function emptySwot(reason: string, fr = false): GeoSwot {
+  if (fr) {
+    return {
+      strengths: [],
+      weaknesses: [`SWOT indisponible : ${reason}`],
+      opportunities: [],
+      threats: [],
+      summary: `Le SWOT n’a pas pu être généré : ${reason}.`,
+      dataPoints: [],
+      source: "template",
+    };
+  }
   return {
     strengths: [],
     weaknesses: [`SWOT unavailable: ${reason}`],
@@ -262,7 +288,9 @@ function templateSwot(
   mentionRate: number,
   sentimentLabel: string,
   competitorCount: number,
+  fr = false,
 ): Omit<GeoSwot, "dataPoints" | "source"> {
+  if (fr) return templateSwotFr(mentionRate, sentimentLabel, competitorCount);
   const strengths: string[] = [];
   const weaknesses: string[] = [];
   const opportunities: string[] = [];
@@ -299,5 +327,50 @@ function templateSwot(
     threats,
     summary:
       "AI summary unavailable (no API provider configured). The data points below show the underlying state — connect a free Gemini or Groq key for a written SWOT.",
+  };
+}
+
+/** The fallback SWOT in French. Same rules as templateSwot. */
+function templateSwotFr(
+  mentionRate: number,
+  sentimentLabel: string,
+  competitorCount: number,
+): Omit<GeoSwot, "dataPoints" | "source"> {
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
+  const opportunities: string[] = [];
+  const threats: string[] = [];
+
+  if (mentionRate >= 60) {
+    strengths.push(`Bonne visibilité de base dans les IA : citée dans ${mentionRate} % des requêtes suivies.`);
+  } else if (mentionRate > 0) {
+    weaknesses.push(`Visibilité faible dans les IA : citée dans seulement ${mentionRate} % des requêtes suivies.`);
+  } else {
+    weaknesses.push("Aucune mention dans les IA sur la période : la marque n’apparaît pas encore dans leurs réponses.");
+    opportunities.push("Aucune présence actuelle dans les IA : chaque requête est une place à prendre.");
+  }
+
+  if (sentimentLabel === "positive") {
+    strengths.push("Les mentions dans les IA sont plutôt positives : entretenez-les avec un contenu cohérent avec la marque.");
+  } else if (sentimentLabel === "negative") {
+    threats.push("Les mentions dans les IA sont plutôt négatives : examinez les pages sources que les IA citent.");
+  }
+
+  if (competitorCount === 0) {
+    weaknesses.push("Aucun concurrent suivi : ajoutez-en quelques-uns dans la section Concurrents pour un SWOT plus précis.");
+    opportunities.push("Ajoutez des concurrents pour repérer les requêtes où ils occupent des réponses que vous pourriez leur disputer.");
+  } else {
+    opportunities.push(
+      `Lancez des vérifications de visibilité IA sur ${competitorCount === 1 ? "le concurrent suivi" : `les ${competitorCount} concurrents suivis`} pour repérer les manques de contenu.`,
+    );
+  }
+
+  return {
+    strengths,
+    weaknesses,
+    opportunities,
+    threats,
+    summary:
+      "Résumé IA indisponible : le fournisseur d’IA n’a pas répondu. Les données ci-dessous montrent la situation ; un SWOT rédigé demande un fournisseur d’IA qui répond (Gemini et Groq proposent une offre gratuite).",
   };
 }

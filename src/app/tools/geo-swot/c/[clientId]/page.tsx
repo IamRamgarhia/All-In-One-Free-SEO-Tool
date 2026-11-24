@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { Target } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
@@ -42,7 +42,7 @@ export default async function PerClientGeoSwotPage({
   const hasAiProvider = providersConfigured.length > 0;
 
   const swot = hasAiProvider
-    ? await generateGeoSwot({ clientId, windowDays: 30 })
+    ? await generateGeoSwot({ clientId, windowDays: 30, locale: await getLocale() })
     : null;
 
   return (

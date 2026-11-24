@@ -11,7 +11,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shell/page-header";
 import { navItemMessageKey } from "@/i18n/nav";
 import { guideBySlug, guidesFor } from "@/lib/docs-guides";
-import { CostBadge, Note, Steps, routeLabel } from "../doc-parts";
+import { CostBadge, Note, Steps, catalogText, routeLabel } from "../doc-parts";
 
 export async function generateMetadata({
   params,
@@ -29,9 +29,10 @@ export default async function GuidePage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const [t, tNav, locale] = await Promise.all([
+  const [t, tNav, tCatalog, locale] = await Promise.all([
     getTranslations("docs"),
     getTranslations("nav.items"),
+    getTranslations("tools.catalog"),
     getLocale(),
   ]);
   const guide = guideBySlug((await params).slug, locale);
@@ -43,7 +44,12 @@ export default async function GuidePage({
   // The sidebar's own name for a page, so the docs and the navigation agree.
   const label = (href: string) => {
     const key = navItemMessageKey(href);
-    return tNav.has(key) ? tNav(key) : routeLabel(href);
+    if (tNav.has(key)) return tNav(key);
+    // A tool takes its card's name in the reader's language.
+    const slug = href.replace(/^\/tools\//, "").replace(/\//g, "__");
+    return href.startsWith("/tools/")
+      ? catalogText(tCatalog as never, `${slug}.title`, routeLabel(href))
+      : routeLabel(href);
   };
 
   return (

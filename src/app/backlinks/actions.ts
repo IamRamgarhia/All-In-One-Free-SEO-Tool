@@ -237,6 +237,7 @@ export async function logBuiltLink(
   await logActivity({
     kind: "task.completed",
     message: `Logged link from ${sourceDomain} (method: ${parsed.data.method})${shortSlug ? ` · short link /r/${shortSlug}` : ""}`,
+    messageFr: `Lien enregistré depuis ${sourceDomain} (méthode : ${parsed.data.method})${shortSlug ? ` · lien court /r/${shortSlug}` : ""}`,
     level: "success",
     clientId: parsed.data.clientId,
     entityType: "backlink",

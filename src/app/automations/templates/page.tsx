@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Tx } from "@/lib/tx";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { asc } from "drizzle-orm";
 import {
   Bell,
@@ -18,6 +18,7 @@ import {
   workflowTemplates,
   type WorkflowTemplate,
 } from "@/lib/workflow-templates";
+import { WORKFLOW_TEMPLATES_FR } from "@/lib/workflow-templates.fr";
 import { InstallTemplateForm } from "./install-form";
 
 const categoryIcon: Record<WorkflowTemplate["category"], typeof Bell> = {
@@ -48,6 +49,7 @@ const actionLabel = (tx: Tx): Record<WorkflowTemplate["action"]["kind"], string>
 
 export default async function WorkflowTemplatesPage() {
   const tx = await getTranslations("ui.app_automations_templates_page");
+  const fr = (await getLocale()) === "fr";
   const allClients = await db
     .select({ id: clients.id, name: clients.name })
     .from(clients)
@@ -66,6 +68,7 @@ export default async function WorkflowTemplatesPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {workflowTemplates.map((tmpl) => {
           const Icon = categoryIcon[tmpl.category];
+          const text = (fr && WORKFLOW_TEMPLATES_FR[tmpl.id]) || tmpl;
           return (
             <section
               key={tmpl.id}
@@ -80,7 +83,7 @@ export default async function WorkflowTemplatesPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="truncate font-semibold">{tmpl.name}</h3>
+                      <h3 className="truncate font-semibold">{text.name}</h3>
                       {tmpl.recommended && (
                         <span className="inline-flex items-center gap-0.5 rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-300 ring-1 ring-inset ring-violet-500/30">
                           <Sparkles className="size-2.5" />
@@ -89,7 +92,7 @@ export default async function WorkflowTemplatesPage() {
                       )}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {tmpl.description}
+                      {text.description}
                     </p>
                   </div>
                 </div>

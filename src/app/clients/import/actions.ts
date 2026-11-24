@@ -213,6 +213,13 @@ async function createSingleClientFromPair(pair: ImportablePair): Promise<void> {
           ? " (GSC linked)"
           : " (GA4 linked)"
     }.`,
+    messageFr: `${pair.domain} importé depuis Google${
+      pair.gscProperty && pair.ga4PropertyId
+        ? " (Search Console et GA4 liés)"
+        : pair.gscProperty
+          ? " (Search Console liée)"
+          : " (GA4 lié)"
+    }.`,
     level: "success",
     clientId: row.id,
     entityType: "client",

@@ -14,6 +14,9 @@
 
 import { REPO_URL } from "./repo";
 
+/** The tagline shown when MAINTAINER_TAGLINE is not set (translated on screen). */
+export const DEFAULT_TAGLINE = "Free for self-hosting. No monthly bills. Built solo.";
+
 export const MAINTAINER = {
   name: process.env.MAINTAINER_NAME ?? "DiceCodes",
   /**
@@ -53,9 +56,7 @@ export const MAINTAINER = {
   /**
    * Optional tagline shown beneath the maintainer name.
    */
-  tagline:
-    process.env.MAINTAINER_TAGLINE ??
-    "Free for self-hosting. No monthly bills. Built solo.",
+  tagline: process.env.MAINTAINER_TAGLINE ?? DEFAULT_TAGLINE,
 } as const;
 
 /**

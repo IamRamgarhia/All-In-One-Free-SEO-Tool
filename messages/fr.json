@@ -2322,6 +2322,36 @@
       "knowledge": "Centre de connaissances",
       "chat": "Ce que l’assistant sait faire",
       "automated": "Ce qui tourne tout seul"
+    },
+    "badges": {
+      "freeLocal": {
+        "label": "Gratuit · s’exécute en local",
+        "detail": "Aucun crédit d’IA. Un navigateur tourne sur cette machine : chaque utilisation ne vous coûte rien."
+      },
+      "free": {
+        "label": "Gratuit",
+        "detail": "Aucun crédit d’IA : cet outil n’appelle jamais de modèle."
+      },
+      "freeOptional": {
+        "label": "Gratuit · IA facultative",
+        "detail": "Fonctionne entièrement sans clé. Un modèle sert seulement à ajouter un résumé rédigé ; tout le reste est calculé à partir de vos propres données."
+      },
+      "partialCredits": {
+        "label": "Utilise en partie des crédits",
+        "detail": "Une partie de cette page appelle votre fournisseur d’IA et le reste non : chaque utilisation coûte moins qu’un outil entièrement IA."
+      },
+      "partialKey": {
+        "label": "Clé requise en partie",
+        "detail": "Le contrôle principal fonctionne sans modèle. Une fonction de cette page demande une clé d’API ou Ollama, et seule cette fonction est indisponible : un abonnement de chat connecté ne la fournit pas, car MCP fonctionne dans l’autre sens."
+      },
+      "needsKey": {
+        "label": "Clé requise",
+        "detail": "Cette page appelle un modèle directement : elle demande une clé d’API ou Ollama. Un abonnement de chat connecté ne la fait pas fonctionner : la connexion va dans l’autre sens, depuis votre app de chat."
+      },
+      "usesCredits": {
+        "label": "Utilise des crédits",
+        "detail": "Appelle votre fournisseur d’IA : chaque utilisation coûte un peu."
+      }
     }
   },
   "proposals": {
@@ -5805,7 +5835,9 @@
       "yesApplyAll": "Oui, tout appliquer",
       "cancel": "Annuler",
       "applyAll": "Appliquer les {count}",
-      "leftForReview": ", {skipped} laissés à relire"
+      "leftForReview": ", {skipped} laissés à relire",
+      "siteWideOneAtATime": "Ce changement touche tout le site et non une page : il se valide un par un, volontairement.",
+      "failedCount": ", {failed} en échec"
     },
     "app_agent_autopilot_page": {
       "autopilot": "Autopilote",
@@ -5838,7 +5870,33 @@
       "noThanks": "Non merci",
       "putItBack": "Remettre l’ancienne valeur",
       "couldnTUndoThat": "Impossible d’annuler ce changement.",
-      "weReadThePageBack": "La page a été relue et la nouvelle valeur y est bien."
+      "weReadThePageBack": "La page a été relue et la nouvelle valeur y est bien.",
+      "kinds": {
+        "write_title": "title",
+        "write_meta_description": "meta description",
+        "write_image_alt": "texte alternatif",
+        "write_schema": "données structurées",
+        "write_internal_links": "liens internes",
+        "write_social_meta": "balises de partage",
+        "write_canonical": "URL canonique",
+        "write_robots_meta": "directive robots",
+        "write_robots_txt": "robots.txt",
+        "write_hardening": "sécurisation",
+        "write_redirects": "redirections"
+      },
+      "statuses": {
+        "proposed": "proposé",
+        "queued": "en attente",
+        "applied": "envoyé, non confirmé",
+        "verified": "en ligne sur le site",
+        "failed": "échec",
+        "reverted": "annulé",
+        "skipped": "ignoré"
+      },
+      "triggers": {
+        "scheduled": "programmé",
+        "manual": "manuel"
+      }
     },
     "app_automations_new-form": {
       "name": "Nom",
@@ -6007,7 +6065,16 @@
       "eachCitationSiteYouVe": "Chaque annuaire où vous avez fait une inscription",
       "afterSubmittingCheckEmailFor": "Après l’inscription, surveillez vos e-mails pour les liens de vérification.",
       "after46WeeksRun": "Après 4 à 6 semaines, lancez /tools/local-cwv avec vos coordonnées pour repérer les incohérences.",
-      "localCitationsTool": "Outil des annuaires locaux"
+      "localCitationsTool": "Outil des annuaires locaux",
+      "rerunsTheAiAudit": "Relance l’audit IA (E-E-A-T, contenu utile, structure, schema) pour chaque client et fait ressortir ce qui a changé depuis la semaine précédente.",
+      "httpStatusResponseTimeCheck": "Vérifie le statut HTTP et le temps de réponse de toutes les URL surveillées. Alerte en cas d’erreur 5xx ou 4xx, ou de forte hausse du temps de réponse.",
+      "preRendersThePriorityList": "Prépare à l’avance la liste des priorités, les trois indicateurs principaux et le fil des changements de tous les clients, avant que vous n’ouvriez l’app.",
+      "cadence": {
+        "daily": "toutes les 24 h",
+        "weeklyMonday": "chaque semaine (lundi)",
+        "onEvent": "sur événement",
+        "everyCheckIn": "à chaque vérification"
+      }
     },
     "app_automations_overview_scheduler-status": {
       "backgroundScheduler": "Planificateur en arrière-plan",
@@ -7477,11 +7544,21 @@
       "noProspectsMatchThoseFilters": "Aucun site ne correspond à ces filtres. Assouplissez-en un et réessayez.",
       "da": "DA {da}",
       "n5Min": "★{difficulty}/5 · ~{submissionTimeMin} min",
-      "open": "Ouvertes",
+      "open": "Ouvrir",
       "copied": "Copié",
       "copyUrl": "Copier l’URL",
       "hideSteps": "Masquer les étapes",
-      "howToSubmit": "Comment soumettre"
+      "howToSubmit": "Comment soumettre",
+      "costBadge": {
+        "free": "gratuit",
+        "freemium": "freemium",
+        "paid": "payant"
+      },
+      "linkBadge": {
+        "dofollow": "dofollow",
+        "nofollow": "nofollow",
+        "mixed": "mixte"
+      }
     },
     "app_link-building_page": {
       "pending": "En attente",
@@ -7641,7 +7718,8 @@
       "noTemplatesYetCreateYour": "Aucun modèle pour l’instant. Créez le premier ci-dessus.",
       "client": "Projet n° {clientId}",
       "workspaceWide": "Tout l’espace de travail",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "pageDescription": "Des modèles d’e-mails réutilisables, avec variables. Utilisez {vars} et les autres : elles sont remplies pour chaque contact à l’envoi."
     },
     "app_outreach_templates_template-form": {
       "newTemplate": "Nouveau modèle",
@@ -7654,7 +7732,10 @@
       "body": "Texte",
       "saving": "Enregistrement…",
       "saveTemplate": "Enregistrer le modèle",
-      "saved": "Enregistré."
+      "saved": "Enregistré.",
+      "subjectPlaceholder": "Une suggestion pour {website}",
+      "bodyPlaceholder": "Bonjour {name},\n\nJ’ai découvert {website} et…",
+      "variablesTip": "Astuce : les variables comme <code>{variable}</code> sont remplies pour chaque contact à l’envoi."
     },
     "app_report-data_page": {
       "addWorkToYourReports": "Ajouter du travail à vos rapports",
@@ -8847,5 +8928,31 @@
       "lost": "Perdu",
       "spam": "Indésirable"
     }
+  },
+  "maintainerCredit": {
+    "builtThisTool": "a créé cet outil",
+    "defaultTagline": "Gratuit en auto-hébergement. Pas d’abonnement mensuel. Développé par une seule personne.",
+    "sourceOnGithub": "Code source sur GitHub",
+    "supportTheProject": "Soutenir le projet",
+    "builtBy": "Créé par <strong>{name}</strong>",
+    "source": "Code source",
+    "support": "Soutenir",
+    "upiCopied": "Identifiant UPI copié",
+    "supportName": "Soutenir {name}",
+    "close": "Fermer",
+    "dialogIntro": "Cet outil est gratuit et auto-hébergé. Un petit don aide à poursuivre les mises à jour. Choisissez un montant et scannez avec une application UPI : GPay, PhonePe, Paytm, BHIM.",
+    "upiHint": "Sans frais · immédiat · à scanner ou à toucher",
+    "customAmount": "Autre montant",
+    "anyTitle": "Laisser le payeur choisir le montant dans l’application UPI",
+    "any": "Libre",
+    "qrAlt": "QR code UPI",
+    "qrAltAmount": "QR code UPI pour {amount}",
+    "anyAmount": "le montant de votre choix",
+    "scanPays": "Scannez avec une application UPI : vous versez <strong>{amount}</strong> à {name}",
+    "copyUpi": "Copier l’identifiant UPI",
+    "openUpiApp": "Ouvrir dans l’application UPI (mobile)",
+    "paypalHint": "International · carte, solde PayPal ou virement",
+    "donatePaypal": "Faire un don avec PayPal →",
+    "starInstead": "Vous préférez ne pas envoyer d’argent ? Une <link>⭐ sur GitHub</link> aide aussi : elle fait connaître le projet aux agences qui cherchent un outil SEO auto-hébergé."
   }
 }

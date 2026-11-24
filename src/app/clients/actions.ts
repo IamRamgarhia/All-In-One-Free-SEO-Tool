@@ -588,6 +588,7 @@ export async function quickAddClient(
   await logActivity({
     kind: "client.created",
     message: `Quick-added ${meta.name ?? fallbackName} (${meta.url}).`,
+    messageFr: `Ajout rapide de ${meta.name ?? fallbackName} (${meta.url}).`,
     level: "success",
     clientId: row.id,
     entityType: "client",

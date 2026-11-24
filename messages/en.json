@@ -2322,6 +2322,36 @@
       "knowledge": "Knowledge hub",
       "chat": "What the assistant can do",
       "automated": "What runs on its own"
+    },
+    "badges": {
+      "freeLocal": {
+        "label": "Free · runs locally",
+        "detail": "No AI credits. Runs a browser on this machine, so it costs you nothing per use."
+      },
+      "free": {
+        "label": "Free",
+        "detail": "No AI credits — this one never calls a model."
+      },
+      "freeOptional": {
+        "label": "Free · AI optional",
+        "detail": "Works fully without a key. A model is used only to add a written summary, and everything else is computed from your own data."
+      },
+      "partialCredits": {
+        "label": "Partly uses credits",
+        "detail": "Some of this page calls your AI provider and the rest does not, so it costs less per run than a fully AI tool."
+      },
+      "partialKey": {
+        "label": "Partly needs a key",
+        "detail": "The main check here runs without a model. One feature on this page needs an API key or Ollama, and that feature alone is unavailable — a connected chat subscription does not supply it, because MCP runs the other way round."
+      },
+      "needsKey": {
+        "label": "Needs a key",
+        "detail": "This page calls a model directly, so it needs an API key or Ollama. A connected chat subscription does not drive it — that works the other way round, inside your chat app."
+      },
+      "usesCredits": {
+        "label": "Uses credits",
+        "detail": "Calls your AI provider, so this one costs a little per run."
+      }
     }
   },
   "proposals": {
@@ -5805,7 +5835,9 @@
       "yesApplyAll": "Yes, apply all",
       "cancel": "Cancel",
       "applyAll": "Apply all {count}",
-      "leftForReview": ", {skipped} left for review"
+      "leftForReview": ", {skipped} left for review",
+      "siteWideOneAtATime": "This changes the whole site rather than a page, so it is approved one at a time on purpose.",
+      "failedCount": ", {failed} failed"
     },
     "app_agent_autopilot_page": {
       "autopilot": "Autopilot",
@@ -5838,7 +5870,33 @@
       "noThanks": "No thanks",
       "putItBack": "Put it back",
       "couldnTUndoThat": "Couldn't undo that.",
-      "weReadThePageBack": "We read the page back and found the new value."
+      "weReadThePageBack": "We read the page back and found the new value.",
+      "kinds": {
+        "write_title": "title",
+        "write_meta_description": "meta description",
+        "write_image_alt": "image alt",
+        "write_schema": "schema",
+        "write_internal_links": "internal links",
+        "write_social_meta": "social meta",
+        "write_canonical": "canonical",
+        "write_robots_meta": "robots meta",
+        "write_robots_txt": "robots txt",
+        "write_hardening": "hardening",
+        "write_redirects": "redirects"
+      },
+      "statuses": {
+        "proposed": "proposed",
+        "queued": "queued",
+        "applied": "sent, not confirmed",
+        "verified": "live on the site",
+        "failed": "failed",
+        "reverted": "reverted",
+        "skipped": "skipped"
+      },
+      "triggers": {
+        "scheduled": "scheduled",
+        "manual": "manual"
+      }
     },
     "app_automations_new-form": {
       "name": "Name",
@@ -6007,7 +6065,16 @@
       "eachCitationSiteYouVe": "Each citation site you've submitted to",
       "afterSubmittingCheckEmailFor": "After submitting, check email for verification links.",
       "after46WeeksRun": "After 4-6 weeks, run /tools/local-cwv with your NAP to spot inconsistencies.",
-      "localCitationsTool": "Local citations tool"
+      "localCitationsTool": "Local citations tool",
+      "rerunsTheAiAudit": "Re-runs the AI audit (E-E-A-T, helpful content, structure, schema) for each client; surfaces drift from last week.",
+      "httpStatusResponseTimeCheck": "HTTP-status + response-time check across all monitored URLs. Alerts on 5xx, 4xx, or significant latency spikes.",
+      "preRendersThePriorityList": "Pre-renders the priority list, top 3 metrics, what-changed feed across all clients before you open the app.",
+      "cadence": {
+        "daily": "every 24h",
+        "weeklyMonday": "weekly (Monday)",
+        "onEvent": "on event",
+        "everyCheckIn": "every check-in"
+      }
     },
     "app_automations_overview_scheduler-status": {
       "backgroundScheduler": "Background scheduler",
@@ -7481,7 +7548,17 @@
       "copied": "Copied",
       "copyUrl": "Copy URL",
       "hideSteps": "Hide steps",
-      "howToSubmit": "How to submit"
+      "howToSubmit": "How to submit",
+      "costBadge": {
+        "free": "free",
+        "freemium": "freemium",
+        "paid": "paid"
+      },
+      "linkBadge": {
+        "dofollow": "dofollow",
+        "nofollow": "nofollow",
+        "mixed": "mixed"
+      }
     },
     "app_link-building_page": {
       "pending": "Pending",
@@ -7641,7 +7718,8 @@
       "noTemplatesYetCreateYour": "No templates yet. Create your first above.",
       "client": "Client #{clientId}",
       "workspaceWide": "Workspace-wide",
-      "delete": "Delete"
+      "delete": "Delete",
+      "pageDescription": "Reusable email templates with variables. Use {vars} and more — they get filled in per contact when you send."
     },
     "app_outreach_templates_template-form": {
       "newTemplate": "New template",
@@ -7654,7 +7732,10 @@
       "body": "Body",
       "saving": "Saving…",
       "saveTemplate": "Save template",
-      "saved": "Saved."
+      "saved": "Saved.",
+      "subjectPlaceholder": "Quick suggestion for {website}",
+      "bodyPlaceholder": "Hi {name},\n\nI came across {website} and...",
+      "variablesTip": "Tip: variables like <code>{variable}</code> get filled per contact when you send."
     },
     "app_report-data_page": {
       "addWorkToYourReports": "Add work to your reports",
@@ -8847,5 +8928,31 @@
       "lost": "Lost",
       "spam": "Spam"
     }
+  },
+  "maintainerCredit": {
+    "builtThisTool": "built this tool",
+    "defaultTagline": "Free for self-hosting. No monthly bills. Built solo.",
+    "sourceOnGithub": "Source on GitHub",
+    "supportTheProject": "Support the project",
+    "builtBy": "Built by <strong>{name}</strong>",
+    "source": "Source",
+    "support": "Support",
+    "upiCopied": "UPI ID copied",
+    "supportName": "Support {name}",
+    "close": "Close",
+    "dialogIntro": "This tool is free and self-hosted. A small tip keeps the updates coming. Pick an amount and scan with any UPI app — GPay, PhonePe, Paytm, BHIM.",
+    "upiHint": "Zero fees · instant · scan or tap",
+    "customAmount": "Custom amount",
+    "anyTitle": "Let payer choose the amount in the UPI app",
+    "any": "Any",
+    "qrAlt": "UPI QR code",
+    "qrAltAmount": "UPI QR code for {amount}",
+    "anyAmount": "any amount",
+    "scanPays": "Scan with any UPI app — pays <strong>{amount}</strong> to {name}",
+    "copyUpi": "Copy UPI ID",
+    "openUpiApp": "Open in UPI app (mobile)",
+    "paypalHint": "International · cards / PayPal balance / bank",
+    "donatePaypal": "Donate via PayPal →",
+    "starInstead": "Prefer not to send money? A <link>⭐ on GitHub</link> helps too — surfaces the project to other agencies looking for a self-hosted SEO tool."
   }
 }

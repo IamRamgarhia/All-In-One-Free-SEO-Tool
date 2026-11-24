@@ -15,7 +15,7 @@ import {
   isRetired,
   type ToolCategoryId,
 } from "@/lib/tool-categories";
-import { ToolRow } from "./doc-parts";
+import { ToolRow, catalogText } from "./doc-parts";
 
 export async function generateMetadata() {
   const t = await getTranslations("docs");
@@ -30,9 +30,10 @@ export async function generateMetadata() {
  * disagrees with its own card.
  */
 export default async function DocsPage() {
-  const [t, tCat, locale] = await Promise.all([
+  const [t, tCat, tCatalog, locale] = await Promise.all([
     getTranslations("docs"),
     getTranslations("tools.categories"),
+    getTranslations("tools.catalog"),
     getLocale(),
   ]);
   const guides = guidesFor(locale);
@@ -170,7 +171,7 @@ export default async function DocsPage() {
               </div>
               <ul className="grid gap-2 sm:grid-cols-2">
                 {routes.map((route) => (
-                  <ToolRow key={route} route={route} linkLabel={t("linkTo", { title: copyOf(capabilityOf(route))?.title ?? route })} />
+                  <ToolRow key={route} route={route} linkLabel={t("linkTo", { title: catalogText(tCatalog as never, `${route.replace("/tools/", "")}.title`, copyOf(capabilityOf(route))?.title ?? route) })} />
                 ))}
               </ul>
             </div>

@@ -346,6 +346,7 @@ export async function suggestCompetitorsFromKeywords(opts: {
       await logActivity({
         kind: "client.created",
         message: `Competitor suggestions skipped: ${planned.declined}`,
+        messageFr: `Suggestions de concurrents non lancées : ${planned.declined}`,
         clientId: opts.clientId,
         entityType: "competitor",
       });
@@ -376,6 +377,7 @@ export async function suggestCompetitorsFromKeywords(opts: {
       await logActivity({
         kind: "client.created",
         message: `Competitor suggestions could not run: ${unavailable}`,
+        messageFr: `Les suggestions de concurrents n’ont pas pu être lancées : ${unavailable}`,
         clientId: opts.clientId,
         entityType: "competitor",
       });
@@ -411,6 +413,7 @@ export async function suggestCompetitorsFromKeywords(opts: {
   await logActivity({
     kind: "client.created",
     message: `Auto-suggested ${ranked.length} competitor${ranked.length === 1 ? "" : "s"} from ${searches.length} searches.`,
+    messageFr: `${ranked.length} concurrent${ranked.length === 1 ? "" : "s"} suggéré${ranked.length === 1 ? "" : "s"} automatiquement à partir de ${searches.length} recherche${searches.length === 1 ? "" : "s"}.`,
     clientId: opts.clientId,
     entityType: "competitor",
   });

@@ -22,6 +22,7 @@ import { CATEGORY_LABELS } from "@/lib/seo-resources-loader";
 import { trackResource, deleteSubmission } from "@/app/link-building/actions";
 import { setStatusForm } from "@/app/citations/actions";
 import { citationsForCountry } from "@/lib/citations-data";
+import { CITATION_NOTES_FR } from "@/lib/citations-data.fr";
 import { ClientInfoCard } from "@/components/client-info-card";
 
 const CITATION_CATEGORIES = [
@@ -253,7 +254,7 @@ export default async function PerClientCitationsPage({
               </span>
               {c.notes && (
                 <span className="basis-full pl-1 text-[11px] text-muted-foreground">
-                  {c.notes}
+                  {(locale === "fr" && CITATION_NOTES_FR[c.name]) || c.notes}
                 </span>
               )}
             </li>

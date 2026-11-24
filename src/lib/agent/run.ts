@@ -17,6 +17,7 @@ import { contextForPrompt, getClientContext } from "@/lib/client-knowledge";
 import { withoutInfrastructure } from "@/lib/infrastructure-urls";
 import { findingsToTasks } from "@/lib/audit-to-task";
 import { getReportLocale } from "@/lib/report-i18n";
+import { RUN_SUMMARY_FR } from "./planner.fr";
 import { agentTaskWanted, untouched } from "@/lib/task-dedupe";
 import { db } from "@/db/client";
 import {
@@ -126,6 +127,8 @@ export async function runAgentForClient(opts: {
   const settings = opts.settings ?? (await getAgentSettings());
   const trigger = opts.trigger ?? "scheduled";
   const startedAt = new Date();
+  // The summary is stored and logged: written in the workspace language.
+  const fr = (await getReportLocale().catch(() => "en")) === "fr";
 
   const [client] = await db
     .select()
@@ -134,7 +137,7 @@ export async function runAgentForClient(opts: {
     .limit(1);
 
   if (!client) {
-    return empty(opts.clientId, "That client no longer exists.");
+    return empty(opts.clientId, fr ? RUN_SUMMARY_FR.noClient : "That client no longer exists.");
   }
 
   // What the business is, read once for the whole run rather than per
@@ -150,7 +153,7 @@ export async function runAgentForClient(opts: {
   );
 
   if (settings.level === "off") {
-    return empty(opts.clientId, "The agent is turned off.");
+    return empty(opts.clientId, fr ? RUN_SUMMARY_FR.off : "The agent is turned off.");
   }
 
   // `settings.level` is narrowed to the three acting levels here — the
@@ -288,6 +291,7 @@ export async function runAgentForClient(opts: {
       skipped,
       tasksCreated,
       capabilities: capabilities.gaps,
+      fr,
     });
 
     await db
@@ -326,12 +330,13 @@ export async function runAgentForClient(opts: {
     };
   } catch (err) {
     const message = (err as Error).message ?? String(err);
+    const failedSummary = fr ? RUN_SUMMARY_FR.runFailed(message) : `The run failed: ${message}`;
     await db
       .update(agentRuns)
-      .set({ finishedAt: new Date(), error: message, summary: `The run failed: ${message}` })
+      .set({ finishedAt: new Date(), error: message, summary: failedSummary })
       .where(eq(agentRuns.id, run.id));
     return {
-      ...empty(opts.clientId, `The run failed: ${message}`),
+      ...empty(opts.clientId, failedSummary),
       runId: run.id,
     };
   }
@@ -523,24 +528,29 @@ function writeSummary(a: {
   skipped: number;
   tasksCreated: number;
   capabilities: string[];
+  /** Written in French (planner.fr.ts) when the workspace is French. */
+  fr?: boolean;
 }): string {
   const parts: string[] = [];
+  const F = a.fr ? RUN_SUMMARY_FR : null;
 
   if (a.applied > 0) {
     parts.push(
+      F ? F.fixed(a.applied, trimTrailingPeriod(a.client.name)) :
       `Fixed ${a.applied} thing${a.applied === 1 ? "" : "s"} on ${trimTrailingPeriod(a.client.name)}`,
     );
   }
   if (a.queued > 0) {
     parts.push(
+      F ? F.queued(a.queued) :
       `${a.queued} change${a.queued === 1 ? "" : "s"} waiting for your approval`,
     );
   }
   if (a.tasksCreated > 0) {
-    parts.push(`created ${a.tasksCreated} task${a.tasksCreated === 1 ? "" : "s"}`);
+    parts.push(F ? F.tasks(a.tasksCreated) : `created ${a.tasksCreated} task${a.tasksCreated === 1 ? "" : "s"}`);
   }
   if (a.failed > 0) {
-    parts.push(`${a.failed} couldn't be completed`);
+    parts.push(F ? F.failed(a.failed) : `${a.failed} couldn't be completed`);
   }
 
   if (parts.length === 0) {
@@ -548,6 +558,7 @@ function writeSummary(a: {
     // summary that reads like a malfunction.
     const why = a.plan.skipped[0]?.reason;
     const name = trimTrailingPeriod(a.client.name);
+    if (F) return why ? F.nothingWhy(name, why) : F.nothing(name);
     return why
       ? `Nothing to do on ${name}. ${why}`
       : `Checked ${name} — nothing needed changing.`;

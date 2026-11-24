@@ -4,13 +4,14 @@ import { ToolBackLink } from "@/components/tools/tool-back-link";
 import { useState } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { PageHeader } from "@/components/shell/page-header";
 import {
   PLATFORM_TACTICS,
   priorityForNiche,
   type PlatformTactics,
 } from "@/lib/ai-citation-tactics";
+import { PLATFORM_TACTICS_FR, PRIORITY_REASONS_FR } from "@/lib/ai-citation-tactics.fr";
 
 const NICHE_LABELS = [
   { id: null, label: "universal" },
@@ -29,16 +30,32 @@ const EFFORT_TONE = {
 
 export default function AiCitationTacticsPage() {
   const t = useTranslations("tools.ui.ai-citation-tactics");
+  const fr = useLocale() === "fr";
   const [niche, setNiche] = useState<string | null>(null);
   const nicheLabel = NICHE_LABELS.find((n) => n.id === niche)?.label;
-  const priorities = priorityForNiche(niche);
+  // The tables are written in English; French text comes from the table
+  // next to it, keyed the same way, with the English as fallback.
+  const priorities = priorityForNiche(niche).map((p) => ({
+    ...p,
+    reason: (fr && PRIORITY_REASONS_FR[niche ?? "universal"]?.[p.platform]) || p.reason,
+  }));
+  const local = (p: PlatformTactics): PlatformTactics => {
+    const f = fr ? PLATFORM_TACTICS_FR[p.platform] : undefined;
+    if (!f) return p;
+    return {
+      ...p,
+      audienceShare: f.audienceShare,
+      citationBias: f.citationBias,
+      tactics: p.tactics.map((x) => ({ ...x, ...(f.tactics[x.id] ?? {}) })),
+    };
+  };
   const priorityIds = new Set(priorities.map((p) => p.platform));
 
   // Sort platforms with priorities first
   const sorted: PlatformTactics[] = [
     ...PLATFORM_TACTICS.filter((p) => priorityIds.has(p.platform)),
     ...PLATFORM_TACTICS.filter((p) => !priorityIds.has(p.platform)),
-  ];
+  ].map(local);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

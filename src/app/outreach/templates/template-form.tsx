@@ -64,7 +64,7 @@ export function TemplateForm({
             maxLength={300}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Quick suggestion for {{website}}"
+            placeholder={tx("subjectPlaceholder", { website: "{{website}}" })}
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
           />
         </label>
@@ -78,15 +78,17 @@ export function TemplateForm({
             rows={10}
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder={`Hi {{name}},\n\nI came across {{website}} and...`}
+            placeholder={tx("bodyPlaceholder", { name: "{{name}}", website: "{{website}}" })}
             className="w-full rounded-md border border-white/10 bg-card/60 px-3 py-2 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
           />
         </label>
 
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] text-muted-foreground">
-            Tip: variables like <code>{"{{name}}"}</code> get filled per
-            contact when you send.
+            {tx.rich("variablesTip", {
+              variable: "{{name}}",
+              code: (chunks) => <code>{chunks}</code>,
+            })}
           </p>
           <button
             type="submit"

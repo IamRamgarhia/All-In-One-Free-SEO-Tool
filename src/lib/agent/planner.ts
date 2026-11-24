@@ -35,6 +35,8 @@ import { analyseInternalLinks } from "../internal-link-graph";
 import { loadActionableToolFindings } from "./tool-finding-map";
 import { withoutInfrastructure } from "../infrastructure-urls";
 import { pickAnchor } from "./anchor-text";
+import { getReportLocale } from "../report-i18n";
+import { FIXABLE_REASONS_FR, SKIP_REASONS_FR } from "./planner.fr";
 
 export type PlannedAction = {
   kind: PlannableKind;
@@ -470,6 +472,10 @@ export async function planForClient(opts: {
   now?: Date;
 }): Promise<PlanOutcome> {
   const now = opts.now ?? new Date();
+  // Reasons are stored with each action, so they are written in the
+  // workspace language (planner.fr.ts; English as fallback).
+  const fr = (await getReportLocale().catch(() => "en")) === "fr";
+  const reasonFor = (type: string, en: string) => (fr && FIXABLE_REASONS_FR[type]) || en;
   const skipped: PlanOutcome["skipped"] = [];
   const note = (reason: string, count: number) => {
     if (count > 0) skipped.push({ reason, count });
@@ -505,7 +511,12 @@ export async function planForClient(opts: {
   if (!latestAudit) {
     return {
       actions: [],
-      skipped: [{ reason: "No audit has been run for this client yet.", count: 1 }],
+      skipped: [
+        {
+          reason: fr ? SKIP_REASONS_FR.noAudit : "No audit has been run for this client yet.",
+          count: 1,
+        },
+      ],
     };
   }
 
@@ -536,7 +547,7 @@ export async function planForClient(opts: {
     candidates.push({
       kind: spec.kind,
       targetUrl: issue.url,
-      reason: spec.reason,
+      reason: reasonFor(issue.type, spec.reason),
       risk: spec.risk,
       weight: spec.weight + severityBonus(issue.severity),
       issueId: issue.id,
@@ -546,7 +557,10 @@ export async function planForClient(opts: {
       ...siteWideTarget(issue.type, issue.url),
     });
   }
-  note("Findings the agent has no way to fix automatically.", notFixable);
+  note(
+    fr ? SKIP_REASONS_FR.notFixable : "Findings the agent has no way to fix automatically.",
+    notFixable,
+  );
 
   // 1a. The same, from tools rather than the crawler.
   //
@@ -579,7 +593,9 @@ export async function planForClient(opts: {
         // Says where it came from. A user reading the run log should be
         // able to tell a crawl finding from a tool's, because they can
         // disagree and the tool is usually the more specific of the two.
-        reason: `${spec.reason} (found by the ${f.toolId} tool)`,
+        reason: fr
+          ? SKIP_REASONS_FR.foundByTool(reasonFor(f.type, spec.reason), f.toolId)
+          : `${spec.reason} (found by the ${f.toolId} tool)`,
         risk: spec.risk,
         weight: spec.weight + severityBonus(f.severity),
         ...siteWideTarget(f.type, f.url),
@@ -604,7 +620,7 @@ export async function planForClient(opts: {
   // and crawling a client's site to plan work that would then be
   // filtered out as un-applyable is pure waste.
   if (has(opts.capabilities, "write_internal_links")) {
-    const linkPlan = await planInternalLinks(opts.clientId);
+    const linkPlan = await planInternalLinks(opts.clientId, fr);
     candidates.push(...linkPlan.actions);
     for (const s of linkPlan.skipped) note(s.reason, s.count);
   }
@@ -619,7 +635,9 @@ export async function planForClient(opts: {
     else notCapable++;
   }
   note(
-    "Fixes we know how to make but can't apply — no CMS connection for this client.",
+    fr
+      ? SKIP_REASONS_FR.notCapable
+      : "Fixes we know how to make but can't apply — no CMS connection for this client.",
     notCapable,
   );
 
@@ -654,7 +672,7 @@ export async function planForClient(opts: {
     seen.add(key);
     deduped.push(a);
   }
-  note("Duplicate findings for the same page.", duplicates);
+  note(fr ? SKIP_REASONS_FR.duplicates : "Duplicate findings for the same page.", duplicates);
 
   // 4. Cooldown. Don't re-edit something we touched recently, even if it
   //    still looks improvable — that is how an agent ends up thrashing a
@@ -666,7 +684,9 @@ export async function planForClient(opts: {
     now,
   );
   note(
-    `Changed within the last ${opts.settings.cooldownDays} days — left alone to settle.`,
+    fr
+      ? SKIP_REASONS_FR.cooldown(opts.settings.cooldownDays)
+      : `Changed within the last ${opts.settings.cooldownDays} days — left alone to settle.`,
     deduped.length - cooled.length,
   );
 
@@ -682,8 +702,12 @@ export async function planForClient(opts: {
   const actions = cooled.slice(0, limit);
   note(
     dailyRemaining === 0
-      ? `Daily limit of ${opts.settings.maxActionsPerDay} changes already reached.`
-      : `Over this run's limit of ${opts.settings.maxActionsPerRun} changes — they'll be picked up next time.`,
+      ? fr
+        ? SKIP_REASONS_FR.dailyLimit(opts.settings.maxActionsPerDay)
+        : `Daily limit of ${opts.settings.maxActionsPerDay} changes already reached.`
+      : fr
+        ? SKIP_REASONS_FR.runLimit(opts.settings.maxActionsPerRun)
+        : `Over this run's limit of ${opts.settings.maxActionsPerRun} changes — they'll be picked up next time.`,
     cooled.length - actions.length,
   );
 
@@ -783,7 +807,7 @@ const MAX_LINK_ACTIONS = 3;
  * agent changes, so it won't edit the same article twice in one run or
  * come back to it next week.
  */
-async function planInternalLinks(clientId: number): Promise<{
+async function planInternalLinks(clientId: number, fr = false): Promise<{
   actions: PlannedAction[];
   skipped: { reason: string; count: number }[];
 }> {
@@ -809,7 +833,12 @@ async function planInternalLinks(clientId: number): Promise<{
     return {
       actions,
       skipped: [
-        { reason: "Couldn't crawl the site to look for orphan pages.", count: 1 },
+        {
+          reason: fr
+            ? SKIP_REASONS_FR.crawlFailed
+            : "Couldn't crawl the site to look for orphan pages.",
+          count: 1,
+        },
       ],
     };
   }
@@ -855,7 +884,9 @@ async function planInternalLinks(clientId: number): Promise<{
       actions.push({
         kind: "write_internal_links",
         targetUrl: source.url,
-        reason: `Nothing on this site links to "${orphan.title}", so search engines treat it as unimportant and visitors can't find it. This page is the closest match in topic that already contains the phrase "${choice.anchor}" — linking that phrase points readers and crawlers at the orphaned page.`,
+        reason: fr
+          ? SKIP_REASONS_FR.orphanLink(orphan.title, choice.anchor)
+          : `Nothing on this site links to "${orphan.title}", so search engines treat it as unimportant and visitors can't find it. This page is the closest match in topic that already contains the phrase "${choice.anchor}" — linking that phrase points readers and crawlers at the orphaned page.`,
         // Editing an article's body is a different risk class from
         // changing a tag, so a human sees it unless autonomy is turned
         // all the way up.
@@ -872,15 +903,17 @@ async function planInternalLinks(clientId: number): Promise<{
 
   if (noSource > 0) {
     skipped.push({
-      reason:
-        "Orphan pages with no related page to link them from — they need a link added by hand, or a new piece of content.",
+      reason: fr
+        ? SKIP_REASONS_FR.noSource
+        : "Orphan pages with no related page to link them from — they need a link added by hand, or a new piece of content.",
       count: noSource,
     });
   }
   if (noAnchor > 0) {
     skipped.push({
-      reason:
-        "Orphan pages whose closest match doesn't contain a phrase worth linking. Forcing a link would mean writing new words into someone's article, which the agent won't do.",
+      reason: fr
+        ? SKIP_REASONS_FR.noAnchor
+        : "Orphan pages whose closest match doesn't contain a phrase worth linking. Forcing a link would mean writing new words into someone's article, which the agent won't do.",
       count: noAnchor,
     });
   }

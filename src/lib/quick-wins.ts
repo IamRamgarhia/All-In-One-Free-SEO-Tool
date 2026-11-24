@@ -285,6 +285,7 @@ export async function applyQuickWins(opts: {
   await logActivity({
     kind: "task.created",
     message: `Added ${newTasks.length} quick-win tasks from the latest audit.`,
+    messageFr: `${newTasks.length} tâche${newTasks.length === 1 ? "" : "s"} de gain rapide ajoutée${newTasks.length === 1 ? "" : "s"} à partir du dernier audit.`,
     level: "success",
     clientId: opts.clientId,
     entityType: "quick_wins",

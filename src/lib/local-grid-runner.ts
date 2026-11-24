@@ -87,6 +87,7 @@ export async function runDueLocalGridSchedules(): Promise<{
       await logActivity({
         kind: "rank.changed",
         message: `Local grid auto-ran: ${result.inPackPct}% in pack for "${s.query}"`,
+        messageFr: `Grille locale lancée automatiquement : ${result.inPackPct} % des points dans le pack local pour « ${s.query} »`,
         clientId: s.clientId,
         entityType: "local_grid",
       });

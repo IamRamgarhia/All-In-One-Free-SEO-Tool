@@ -87,6 +87,10 @@
     "title": "Audit SEO YouTube",
     "description": "Collez une URL YouTube → liste de contrôle en 14 points (titre, description, chapitres, hashtags, tags, sous-titres, miniature, ratio de likes, fraîcheur) et corrections proposées par l’IA. Gratuit, via oEmbed et la page de la vidéo."
   },
+  "youtube": {
+    "title": "Recherche de mots-clés YouTube",
+    "description": "De vraies données vidéo : vues, chaînes, expressions de tags récurrentes. Utilise le quota gratuit de l’API YouTube Data (100 recherches par jour)."
+  },
   "soft-404": {
     "title": "Détecteur de soft 404",
     "description": "Crawle et signale les pages qui renvoient un 200 mais ressemblent à des 404 : contenu pauvre, textes du type « page introuvable », titres d’erreur génériques. Des freins silencieux à l’indexation."
