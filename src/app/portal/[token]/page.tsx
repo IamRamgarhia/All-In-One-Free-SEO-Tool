@@ -25,6 +25,8 @@ import { isOpenTask } from "@/lib/task-status";
 import { Deliverables } from "./deliverables";
 import { cartInputFor, openQuoteFor } from "./quote-data";
 import { QuoteShop } from "./quote-shop";
+import { reviewEntriesFor, type ReviewEntry } from "./review-data";
+import { ReviewSection, type PortalReviewEntry } from "./review-section";
 
 /**
  * The browser tab is a white-label leak nobody notices until a client
@@ -153,23 +155,25 @@ export default async function PortalPage({
       .orderBy(desc(invoices.issueDate))
       .limit(12),
   ]);
-  // Drafts the agency opened for a read before they go live.
-  const toReview = await db
-    .select({ id: contentPosts.id, title: contentPosts.title, keyword: contentPosts.primaryKeyword, date: contentPosts.publishDate })
-    .from(contentPosts)
-    .where(
-      and(
-        eq(contentPosts.clientId, client.id),
-        isNotNull(contentPosts.reviewSharedAt),
-        inArray(contentPosts.status, ["idea", "outline_approved", "draft", "scheduled"]),
-      ),
-    )
-    .orderBy(desc(contentPosts.reviewSharedAt))
-    .limit(12);
+  // Drafts and articles the agency sent for the client's approval.
+  const review = await reviewEntriesFor(client.id, token);
   const quoteInput = quote ? await cartInputFor(quote) : null;
   const t = await getTranslations("portal");
   const locale = await getLocale();
   const day = (d: Date) => d.toLocaleDateString(locale);
+  const longDay = (d: Date) => d.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
+  const forPortal = (e: ReviewEntry): PortalReviewEntry => ({
+    kind: e.kind,
+    id: e.id,
+    type: e.type,
+    title: e.title,
+    text: e.text,
+    href: e.href,
+    sentOn: longDay(e.sentAt),
+    decision: e.decision,
+    comment: e.comment,
+    decidedOn: e.decidedAt ? longDay(e.decidedAt) : null,
+  });
 
   const brand = await loadBrand();
   const brandName = brand.name;
@@ -280,6 +284,12 @@ export default async function PortalPage({
             input={quoteInput}
           />
         )}
+
+        <ReviewSection
+          token={token}
+          waiting={review.waiting.map(forPortal)}
+          answered={review.answered.map(forPortal)}
+        />
 
         {/* Counters */}
         <div className="grid gap-4 sm:grid-cols-3">
@@ -395,11 +405,6 @@ export default async function PortalPage({
           posts={posts
             .filter((p) => p.url)
             .map((p) => ({ id: p.id, title: p.title ?? p.url!, url: p.url!, date: p.date ? day(p.date) : null }))}
-          reviews={toReview.map((p) => ({
-            id: p.id,
-            title: p.title ?? p.keyword ?? `#${p.id}`,
-            date: p.date ? p.date.toLocaleDateString(locale, { timeZone: "UTC" }) : null,
-          }))}
           invoices={bills.map((i) => ({
             id: i.id,
             number: i.invoiceNumber,

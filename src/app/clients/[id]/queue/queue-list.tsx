@@ -3,6 +3,7 @@
 import type { Tx } from "@/lib/tx";
 import { useTranslations, useLocale } from "next-intl";
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -19,11 +20,13 @@ import {
   Inbox,
   Loader2,
   Megaphone,
+  MessageSquareText,
   Save,
   Send,
   Share2,
   ThumbsDown,
   Trash2,
+  UserCheck,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +36,7 @@ import {
   approveQueueItem,
   deleteQueueItem,
   rejectQueueItem,
+  sendQueueItemToClient,
 } from "./actions";
 import type { PublishQueueItem } from "@/db/schema";
 
@@ -150,7 +154,13 @@ export function QueueList({
                 : "bg-white/[0.02] text-muted-foreground ring-white/5 hover:bg-white/5"
             }`}
           >
-            {f === "pending" ? tx("needsReview") : f[0].toUpperCase() + f.slice(1)}
+            {f === "pending"
+              ? tx("needsReview")
+              : f === "all"
+                ? tx("filterAll")
+                : f === "published"
+                  ? tx("published")
+                  : tx("failed")}
           </button>
         ))}
       </div>
@@ -183,6 +193,7 @@ function QueueRow({
   const [draftTitle, setDraftTitle] = useState(item.title ?? "");
   const [draftBody, setDraftBody] = useState(item.body ?? "");
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   const Icon = KIND_ICON[item.kind];
   const style = STATUS_STYLE(tx)[item.status];
@@ -208,6 +219,29 @@ function QueueRow({
     });
   }
 
+  function sendToClient() {
+    startTransition(async () => {
+      const edits =
+        editing && (draftTitle !== item.title || draftBody !== item.body)
+          ? { title: draftTitle, body: draftBody }
+          : undefined;
+      const r = await sendQueueItemToClient(item.id, clientId, edits);
+      if (r.ok) {
+        toast.success(r.message);
+        setEditing(false);
+      } else if (r.needsPortalLink) {
+        toast.error(r.message, {
+          action: {
+            label: tx("createPortalLink"),
+            onClick: () => router.push(`/clients/${clientId}?tab=settings`),
+          },
+        });
+      } else {
+        toast.error(r.message);
+      }
+    });
+  }
+
   function reject() {
     startTransition(async () => {
       await rejectQueueItem(item.id, clientId);
@@ -219,19 +253,19 @@ function QueueRow({
     const ok = await confirmDialog({
       title: tx("deleteThisQueueItem"),
       description: tx("itSRemovedPermanentlyThe"),
-      confirmLabel: "Delete",
+      confirmLabel: tx("delete"),
       destructive: true,
     });
     if (!ok) return;
     startTransition(async () => {
       await deleteQueueItem(item.id, clientId);
-      toast.success("Deleted.");
+      toast.success(tx("deleted"));
     });
   }
 
   function copyBody() {
     navigator.clipboard.writeText(item.body ?? "").then(() => {
-      toast.success("Copied body to clipboard.");
+      toast.success(tx("copiedBody"));
     });
   }
 
@@ -263,7 +297,7 @@ function QueueRow({
     const title = item.title ? `# ${item.title}\n\n` : "";
     navigator.clipboard
       .writeText(title + htmlToMarkdown(item.body ?? ""))
-      .then(() => toast.success("Copied as Markdown."));
+      .then(() => toast.success(tx("copiedMarkdown")));
   }
 
   function downloadAs(format: "md" | "html") {
@@ -306,7 +340,7 @@ function QueueRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold truncate">
-              {item.title || "(untitled)"}
+              {item.title || tx("untitled")}
             </span>
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ring-1 ring-inset ${style.cls}`}
@@ -355,6 +389,8 @@ function QueueRow({
         </div>
       )}
 
+      <ClientDecision item={item} />
+
       {open && (
         <div className="space-y-3 px-5 py-4">
           {editing ? (
@@ -379,7 +415,7 @@ function QueueRow({
             </>
           ) : (
             <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-black/30 p-3 font-mono text-[11px] leading-relaxed text-foreground/90 ring-1 ring-inset ring-white/5">
-              {item.body || "(empty)"}
+              {item.body || tx("empty")}
             </pre>
           )}
 
@@ -417,6 +453,17 @@ function QueueRow({
                   <ThumbsDown className="mr-1.5 size-3" />
                   {tx("reject")}
                 </button>
+                {item.kind !== "internal_checklist" && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={sendToClient}
+                  className="inline-flex h-9 items-center rounded-md bg-sky-500/15 px-3 text-xs font-medium text-sky-300 ring-1 ring-inset ring-sky-500/30 hover:bg-sky-500/25 disabled:opacity-50"
+                >
+                  <UserCheck className="mr-1.5 size-3" />
+                  {item.clientSharedAt ? tx("sendAgainToClient") : tx("sendToClient")}
+                </button>
+                )}
               </>
             )}
             {canEdit && (
@@ -503,5 +550,52 @@ function QueueRow({
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * Where the item stands with the client: sent and waiting, approved, or
+ * changes asked (with the client's comment). Only while the agency has
+ * not settled the item itself.
+ */
+function ClientDecision({ item }: { item: PublishQueueItem }) {
+  const tx = useTranslations("ui.app_clients_id_queue_queue-list");
+  const locale = useLocale();
+  if (!item.clientSharedAt) return null;
+  const when = (d: Date) =>
+    new Date(d).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
+
+  if (item.clientDecision === "approved" && item.clientDecidedAt) {
+    return (
+      <div className="flex items-start gap-2 border-b border-white/[0.06] bg-emerald-500/[0.05] px-5 py-2 text-[11px] text-emerald-300">
+        <CheckCircle2 className="mt-0.5 size-3 shrink-0" />
+        <span>{tx("clientApprovedOn", { date: when(item.clientDecidedAt) })}</span>
+      </div>
+    );
+  }
+  if (item.clientDecision === "changes" && item.clientDecidedAt) {
+    return (
+      <div className="space-y-1.5 border-b border-white/[0.06] bg-amber-500/[0.05] px-5 py-2.5 text-[11px] text-amber-300">
+        <div className="flex items-start gap-2">
+          <MessageSquareText className="mt-0.5 size-3 shrink-0" />
+          <span>{tx("clientAskedChangesOn", { date: when(item.clientDecidedAt) })}</span>
+        </div>
+        {item.clientComment && (
+          <blockquote className="ml-5 whitespace-pre-line break-words border-l-2 border-amber-500/40 pl-3 text-xs text-foreground/90">
+            {item.clientComment}
+          </blockquote>
+        )}
+        {item.status === "pending_review" && (
+          <p className="ml-5 text-muted-foreground">{tx("changesHint")}</p>
+        )}
+      </div>
+    );
+  }
+  if (item.status !== "pending_review") return null;
+  return (
+    <div className="flex items-start gap-2 border-b border-white/[0.06] bg-sky-500/[0.05] px-5 py-2 text-[11px] text-sky-300">
+      <UserCheck className="mt-0.5 size-3 shrink-0" />
+      <span>{tx("sentToClientOn", { date: when(item.clientSharedAt) })}</span>
+    </div>
   );
 }

@@ -77,6 +77,10 @@ export default async function ArticlePage({
           initialPath={
             post.reviewSharedAt && client.shareToken ? `/portal/${client.shareToken}/articles/${post.id}` : null
           }
+          sharedAt={post.reviewSharedAt?.toISOString() ?? null}
+          decision={post.clientDecision ?? null}
+          comment={post.clientComment ?? null}
+          decidedAt={post.clientDecidedAt?.toISOString() ?? null}
         />
       )}
       <ArticleStudio
