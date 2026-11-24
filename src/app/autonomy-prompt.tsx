@@ -1,7 +1,9 @@
 import { getAgentSettings, hasChosenAutonomy } from "@/lib/agent/autonomy";
 import { db } from "@/db/client";
-import { clients } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { agentActions, clients } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { describeWaitingWork } from "@/lib/agent/waiting-work";
+import { trialOffer } from "@/lib/agent/trial";
 import { AutonomyChoice } from "./autonomy-choice";
 
 /**
@@ -38,5 +40,39 @@ export async function AutonomyPrompt() {
     .from(clients);
   if ((row?.n ?? 0) === 0) return null;
 
-  return <AutonomyChoice current={settings.level} />;
+  /**
+   * What the silence has cost so far (upstream: "tell people what the
+   * agent is holding"). "It finds work every night and changes nothing"
+   * is true and easy to scroll past; "14 changes have been waiting for 8
+   * weeks" is the same fact with the cost attached.
+   */
+  const [queuedRow] = await db
+    .select({
+      n: sql<number>`count(*)`,
+      oldest: sql<number | null>`min(${agentActions.createdAt})`,
+    })
+    .from(agentActions)
+    .where(eq(agentActions.status, "queued"));
+
+  const oldestRaw = queuedRow?.oldest ?? null;
+  const waiting = describeWaitingWork({
+    queued: Number(queuedRow?.n ?? 0),
+    // Stored as unix seconds; Date wants milliseconds. Getting this
+    // wrong would date everything to 1970 and read as "for 56 years".
+    oldest: oldestRaw ? new Date(Number(oldestRaw) * 1000) : null,
+  });
+
+  // The numbers behind the trial offer, queried here so the offer is
+  // either concrete or absent — a "try it on 3" button with nothing safe
+  // to apply would be a dead end.
+  const offer = await trialOffer().catch(() => null);
+
+  return (
+    <AutonomyChoice
+      current={settings.level}
+      waiting={waiting}
+      trialWaiting={offer?.waiting ?? null}
+      trialOldestDays={offer?.oldestDays ?? null}
+    />
+  );
 }

@@ -27,6 +27,9 @@ import {
 } from "@/lib/agent/autonomy";
 import { revertAction } from "@/lib/agent/executor";
 import { runAgentForAllClients, runAgentForClient } from "@/lib/agent/run";
+import { logActivity } from "@/lib/activity";
+import { scopedClientIds } from "@/lib/client-scope";
+import type { TrialResult } from "@/lib/agent/trial-shared";
 
 /**
  * Every mutating action here re-checks that the caller may see the
@@ -324,4 +327,54 @@ export async function waitingByKind(
     .where(eq(agentActions.clientId, clientId))
     .limit(1000);
   return groupForBulk(rows);
+}
+
+/**
+ * Apply a handful of queued safe changes, now, without granting the
+ * agent anything.
+ *
+ * The autonomy prompt asks someone to decide permanently how much
+ * authority this tool has over a client's live site. "Not yet" is a
+ * reasonable answer that never expires, and nothing changes it because
+ * nothing ever happens. So this is the smaller question — three changes,
+ * visible, each with its previous value and a one-click undo, and no
+ * setting altered. See lib/agent/trial.ts for the guarantees.
+ *
+ * Owners and managers only, like the prompt that offers it: a member or
+ * a client viewer sees only some clients, and this picks from all of
+ * them.
+ */
+export async function runTrialAction(opts?: {
+  limit?: number;
+}): Promise<{ ok: true; result: TrialResult } | { ok: false; error: string }> {
+  await requireSignedIn();
+  const tx = await actionTx("ui.app_agent_autopilot_actions");
+  if ((await scopedClientIds()) !== null) {
+    return { ok: false, error: tx("trialForbidden") };
+  }
+  const { runTrial } = await import("@/lib/agent/trial");
+  const result = await runTrial({
+    // The real approve path, so the risk gate, the CMS write, the
+    // read-back verification and the undo record are the same ones every
+    // other applied change goes through.
+    approve: approveAction,
+    limit: opts?.limit,
+  });
+
+  await logActivity({
+    kind: "agent.trial_run",
+    level: result.failed > 0 ? "warning" : result.applied > 0 ? "success" : "info",
+    message:
+      result.attempted === 0
+        ? tx("trialNothing")
+        : tx("trialLogged", {
+            applied: result.applied,
+            attempted: result.attempted,
+            failed: result.failed,
+          }),
+  }).catch(() => {});
+
+  safeRevalidatePath("/agent/autopilot");
+  safeRevalidatePath("/");
+  return { ok: true, result };
 }

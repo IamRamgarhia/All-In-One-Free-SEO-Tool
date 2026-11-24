@@ -19,10 +19,22 @@ import {
  * whichever project ran last) and the four counters that summed nothing
  * useful.
  */
-export async function PortfolioOverview({ view }: { view: "list" | "cards" }) {
+export async function PortfolioOverview({
+  view,
+  only,
+}: {
+  view: "list" | "cards";
+  /**
+   * "projects" renders only the projects table (or cards), as one section
+   * of the dashboard; the dashboard already carries the counters, the
+   * priority tasks and the score trend above it.
+   */
+  only?: "projects";
+}) {
   const t = await getTranslations("portfolio");
   const tc = await getTranslations("clients");
   const tm = await getTranslations("clientPage.missions");
+  const td = await getTranslations("dashboard");
   const locale = await getLocale();
   const now = new Date();
   const data = await loadPortfolio(now);
@@ -43,40 +55,16 @@ export async function PortfolioOverview({ view }: { view: "list" | "cards" }) {
   const missionText = (p: PortfolioProject) =>
     p.missions.length > 0 ? p.missions.map((k) => tm(`kind_${k}`)).join(", ") : tc("noMission");
 
-  return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground first-letter:uppercase">{today}</p>
-        </div>
-        <Link href="/clients/new" className={buttonVariants({ size: "sm" })}>
-          <Plus className="size-4" />
-          {t("addClient")}
-        </Link>
-      </header>
-
-      {/* Four numbers about the portfolio, not about the last audit. */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label={t("kpiProjects")} value={projects.length} hint={t("kpiProjectsHint", { count: projects.filter((p) => p.missions.length > 0).length })} />
-        <Kpi label={t("kpiAverage")} value={avg ?? "—"} suffix={avg !== null ? "/100" : undefined} hint={t("kpiAverageHint")} />
-        <Kpi
-          label={t("kpiTasks")}
-          value={data.openTasks.length}
-          hint={t("kpiTasksHint", { count: urgent })}
-          href="/tasks"
-        />
-        <Kpi label={t("kpiAudits")} value={data.auditsThisMonth} hint={t("kpiAuditsHint")} href="/audits" />
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
-        {/* Portfolio */}
-        <section className="min-w-0 rounded-lg border border-border bg-card lg:col-span-2">
+  const projectsSection = (
+        <section id="projets" className={`min-w-0 scroll-mt-4 rounded-lg border border-border bg-card ${only ? "" : "lg:col-span-2"}`}>
           <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
-            <h2 className="text-sm font-semibold">{t("projectsTitle")}</h2>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold">{t("projectsTitle")}</h2>
+              {only && <p className="mt-0.5 text-xs text-muted-foreground">{td("projectsHint")}</p>}
+            </div>
             <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label={t("viewLabel")}>
               <Link
-                href="/?vue=liste"
+                href="/?vue=liste#projets"
                 aria-current={view === "list" ? "true" : undefined}
                 className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs ${view === "list" ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
@@ -84,7 +72,7 @@ export async function PortfolioOverview({ view }: { view: "list" | "cards" }) {
                 {t("viewList")}
               </Link>
               <Link
-                href="/?vue=cartes"
+                href="/?vue=cartes#projets"
                 aria-current={view === "cards" ? "true" : undefined}
                 className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs ${view === "cards" ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
@@ -94,8 +82,10 @@ export async function PortfolioOverview({ view }: { view: "list" | "cards" }) {
             </div>
           </header>
 
-          {view === "list" ? (
-            <div className="overflow-x-auto">
+          {/* On a phone the table would scroll sideways, so the list view
+              shows the cards there and the table from the sm breakpoint. */}
+          {view === "list" && (
+            <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -135,8 +125,8 @@ export async function PortfolioOverview({ view }: { view: "list" | "cards" }) {
                 </tbody>
               </table>
             </div>
-          ) : (
-            <ul className="grid gap-3 p-4 sm:grid-cols-2">
+          )}
+            <ul className={`grid gap-3 p-4 sm:grid-cols-2 ${view === "list" ? "sm:hidden" : ""}`}>
               {projects.map((p) => (
                 <li key={p.id}>
                   <Link
@@ -162,8 +152,41 @@ export async function PortfolioOverview({ view }: { view: "list" | "cards" }) {
                 </li>
               ))}
             </ul>
-          )}
         </section>
+  );
+
+  if (only === "projects") {
+    return projects.length > 0 ? projectsSection : null;
+  }
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground first-letter:uppercase">{today}</p>
+        </div>
+        <Link href="/clients/new" className={buttonVariants({ size: "sm" })}>
+          <Plus className="size-4" />
+          {t("addClient")}
+        </Link>
+      </header>
+
+      {/* Four numbers about the portfolio, not about the last audit. */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi label={t("kpiProjects")} value={projects.length} hint={t("kpiProjectsHint", { count: projects.filter((p) => p.missions.length > 0).length })} />
+        <Kpi label={t("kpiAverage")} value={avg ?? "—"} suffix={avg !== null ? "/100" : undefined} hint={t("kpiAverageHint")} />
+        <Kpi
+          label={t("kpiTasks")}
+          value={data.openTasks.length}
+          hint={t("kpiTasksHint", { count: urgent })}
+          href="/tasks"
+        />
+        <Kpi label={t("kpiAudits")} value={data.auditsThisMonth} hint={t("kpiAuditsHint")} href="/audits" />
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+        {projectsSection}
 
         {/* Today */}
         <section className="min-w-0 rounded-lg border border-border bg-card">
