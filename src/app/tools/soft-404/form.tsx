@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetSite } from "@/components/use-preset-url";
 import { Loader2, Unlink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { runSoft404, type SoftState } from "./actions";
@@ -15,6 +16,8 @@ const REASON_TONE: Record<string, string> = {
 };
 
 export function Soft404Form() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetSite = usePresetSite();
   const t = useTranslations("tools.ui.soft-404");
   const [state, formAction, pending] = useActionState<SoftState | null, FormData>(
     runSoft404,
@@ -31,6 +34,7 @@ export function Soft404Form() {
         <div className="grid gap-3 md:grid-cols-[1fr_120px_140px]">
           <input
             name="startUrl"
+            defaultValue={presetSite}
             required
             placeholder="https://yoursite.com"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

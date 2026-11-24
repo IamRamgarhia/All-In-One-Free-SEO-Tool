@@ -1,11 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { Image as ImageIcon, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { runBulkAlt, type AltState } from "./actions";
 
 export function BulkAltForm() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetUrl = usePresetUrl();
   const t = useTranslations("tools.ui.bulk-alt");
   const [state, formAction, pending] = useActionState<AltState | null, FormData>(
     runBulkAlt,
@@ -21,6 +24,7 @@ export function BulkAltForm() {
         <div className="grid gap-3 md:grid-cols-[1fr_140px]">
           <input
             name="url"
+            defaultValue={presetUrl}
             required
             placeholder="https://yoursite.com/post"
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

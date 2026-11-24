@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useProjectContext } from "@/lib/project-context";
 import { projectIdOfRoute } from "@/lib/tool-families";
+import { ToolClientContext } from "@/components/tools/client-context";
 
 /**
  * On a tool opened for a project (`?clientId=`): the way back to that
@@ -41,7 +42,7 @@ function Bar() {
   }, [shown, url, pathname]);
 
   if (!shown) return null;
-  return (
+  const back = (
     <div className="mx-auto mb-3 w-full max-w-5xl">
       <Link
         href={`/clients/${id}`}
@@ -52,6 +53,11 @@ function Bar() {
       </Link>
     </div>
   );
+  // On a tool: the client's file, with what the reader can add to it
+  // (components/tools/client-context.tsx). The plain link above stays
+  // the fallback while it loads, and when the client is not theirs.
+  if (pathname.startsWith("/tools/")) return <ToolClientContext fallback={back} />;
+  return back;
 }
 
 export function ProjectReturnBar() {

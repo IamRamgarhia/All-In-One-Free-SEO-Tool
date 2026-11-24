@@ -8,6 +8,7 @@
  * Tool's own checks; the agent only acts on the types it knows how to fix.
  */
 
+import { toolForAnyFinding } from "./finding-tool-map";
 import type {
   AuditResult as SeomatorAuditResult,
   CategoryResult,
@@ -350,7 +351,9 @@ export function seomatorFindingsToTasks(
         : "Technical audit rule. High-severity issues block crawlability, indexability or trust — fix before content work.",
       priority: taskPriorityFromPlan(planPriority),
       planPriority,
-      toolPath: "/audits",
+      // The tool that helps with this rule when there is one
+      // (finding-tool-map.ts); the audits otherwise, as before.
+      toolPath: toolForAnyFinding(type) ?? "/audits",
     });
   }
   return tasks;

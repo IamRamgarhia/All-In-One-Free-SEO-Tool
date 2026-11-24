@@ -29,6 +29,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FreshnessBadge } from "@/components/ui/freshness-badge";
 import { MaintainerCredit } from "@/components/shell/maintainer-credit";
 import Link from "next/link";
+import { TaskToolLink } from "@/components/tools/task-tool-link";
+import { taskPageUrl } from "@/lib/finding-tool-map";
 import { PortfolioTrafficPanel } from "./portfolio-traffic-panel";
 import { PortfolioQuickWinsPanel } from "./portfolio-quick-wins-panel";
 import { MorningBriefing } from "./morning-briefing";
@@ -176,8 +178,12 @@ export default async function DashboardPage({
         id: tasks.id,
         title: tasks.title,
         priority: tasks.priority,
+        toolPath: tasks.toolPath,
+        sourceRef: tasks.sourceRef,
+        pages: tasks.pages,
         clientId: tasks.clientId,
         clientName: clients.name,
+        clientUrl: clients.url,
       })
       .from(tasks)
       .leftJoin(clients, eq(tasks.clientId, clients.id))
@@ -437,19 +443,30 @@ export default async function DashboardPage({
                   >
                     <div className="min-w-0 space-y-0.5">
                       <Link
-                        href={`/tasks?client=${task.clientId}`}
+                        href={`/tasks?client=${task.clientId}#task-${task.id}`}
                         className="block break-words text-[13px] font-medium leading-snug text-foreground hover:underline"
                       >
                         {taskTitle(task.title, locale)}
                       </Link>
-                      {task.clientName && (
-                        <Link
-                          href={`/clients/${task.clientId}`}
-                          className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-                        >
-                          {task.clientName}
-                        </Link>
-                      )}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                        {task.clientName && (
+                          <Link
+                            href={`/clients/${task.clientId}`}
+                            className="text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            {task.clientName}
+                          </Link>
+                        )}
+                        <TaskToolLink
+                          task={{
+                            id: task.id,
+                            toolPath: task.toolPath,
+                            sourceRef: task.sourceRef,
+                            clientId: task.clientId,
+                            pageUrl: taskPageUrl(task.pages) ?? task.clientUrl ?? null,
+                          }}
+                        />
+                      </div>
                     </div>
                     <span className={`shrink-0 ${PRIORITY_TAG[task.priority] ?? "gsk-tag gsk-tag--default"}`}>
                       {t(`briefing.priority.${task.priority as "high" | "medium" | "low"}`)}

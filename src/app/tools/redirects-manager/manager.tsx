@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePresetPath } from "@/components/use-preset-url";
 import { CornerDownRight, Plus, Trash2 } from "lucide-react";
 import {
   addRule,
@@ -18,6 +19,8 @@ export function Manager({
   rules: RedirectRule[];
   notFound: NotFoundLog[];
 }) {
+  // Opened from a client's file: the page to redirect arrives filled in.
+  const presetPath = usePresetPath();
   const t = useTranslations("tools.ui.redirects-manager");
   const locale = useLocale();
   const [, startMut] = useTransition();
@@ -57,6 +60,7 @@ export function Manager({
             <div className="grid gap-3 md:grid-cols-[1fr_1fr_120px]">
               <input
                 name="sourcePath"
+                defaultValue={presetPath === "/" ? "" : presetPath}
                 required
                 placeholder="/old-path"
                 className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

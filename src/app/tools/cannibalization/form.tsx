@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { usePresetSite } from "@/components/use-preset-url";
 import { ChevronDown, ChevronRight, Loader2, Split } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { runCannibalScan, type CannibalState } from "./actions";
@@ -18,6 +19,10 @@ const SEVERITY_LABEL_KEY = {
 } as const;
 
 export function CannibalForm({ properties }: { properties: string[] }) {
+  // Opened from a client's file: that client's Search Console property, when it is listed.
+  const presetSite = usePresetSite();
+  const presetHost = presetSite ? new URL(presetSite).hostname.replace(/^www\./, "") : "";
+  const presetProperty = (presetHost && properties.find((p) => p.includes(presetHost))) || undefined;
   const t = useTranslations("tools.ui.cannibalization");
   const locale = useLocale();
   const [state, formAction, pending] = useActionState<
@@ -35,6 +40,7 @@ export function CannibalForm({ properties }: { properties: string[] }) {
           <span className="text-muted-foreground">{t("gscProperty")}</span>
           <select
             name="site"
+            defaultValue={presetProperty}
             required
             className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
           >

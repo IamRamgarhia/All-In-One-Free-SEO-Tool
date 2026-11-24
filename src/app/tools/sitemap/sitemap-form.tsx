@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { usePresetSite } from "@/components/use-preset-url";
 import { Loader2, Download, Copy, Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { generateSitemap, type SitemapResult } from "./actions";
@@ -8,6 +9,8 @@ import { generateSitemap, type SitemapResult } from "./actions";
 const TABS = ["xml", "txt", "html"] as const;
 
 export function SitemapForm() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetSite = usePresetSite();
   const t = useTranslations("tools.ui.sitemap");
   const tCommon = useTranslations("tools.common");
   const [state, formAction, pending] = useActionState<
@@ -45,6 +48,7 @@ export function SitemapForm() {
             <span className="text-muted-foreground">{t("startUrl")}</span>
             <input
               name="url"
+              defaultValue={presetSite}
               required
               placeholder="https://example.com"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { usePresetUrl } from "@/components/use-preset-url";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { runRefresh, type RefreshState } from "./actions";
@@ -9,6 +10,8 @@ import { AiDisclaimer } from "@/components/ai-disclaimer";
 import { ToolStat } from "@/components/tools/tool-stat";
 
 export function RefreshForm() {
+  // Opened from a client's file: the page (or site) arrives filled in.
+  const presetUrl = usePresetUrl();
   const t = useTranslations("tools.ui.refresh");
   const [state, formAction, pending] = useActionState<RefreshState | null, FormData>(
     runRefresh,
@@ -26,6 +29,7 @@ export function RefreshForm() {
             <span className="text-muted-foreground">{t("pageUrl")}</span>
             <input
               name="url"
+              defaultValue={presetUrl}
               required
               placeholder="https://yoursite.com/blog/post"
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
