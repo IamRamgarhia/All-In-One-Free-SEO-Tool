@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { taskTitle } from "@/lib/issue-display";
 import { audits, clients, tasks } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -439,7 +440,7 @@ export default async function DashboardPage({
                         href={`/tasks?client=${task.clientId}`}
                         className="block break-words text-[13px] font-medium leading-snug text-foreground hover:underline"
                       >
-                        {task.title}
+                        {taskTitle(task.title, locale)}
                       </Link>
                       {task.clientName && (
                         <Link

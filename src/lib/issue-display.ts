@@ -8,7 +8,7 @@
  * and the GEO audit's (`geo:<signal>`).
  */
 
-import { translateCrawlerMessage, translateEngineMessage } from "@/audit/engine/translate-message";
+import { translateCrawlerMessage, translateEngineMessage, translateStoredTitle } from "@/audit/engine/translate-message";
 import { FIX_SUGGESTIONS_FR } from "@/audit/engine/fix-suggestions.fr";
 import { getRuleById } from "@/audit/catalog";
 import { CRAWLER_ISSUE_NAMES_FR } from "./crawler-issue-names.fr";
@@ -57,3 +57,19 @@ export function issueFix(type: string, fix: string, locale: string): string {
   }
   return fix;
 }
+
+/**
+ * A task title in the reader's language. Titles written from a finding
+ * before the audit spoke the workspace language were stored in English;
+ * known ones (engine, crawler, GEO audit) read in French, anything else
+ * (titles people typed, templates already in French) is shown as stored.
+ */
+export function taskTitle(title: string, locale: string): string {
+  if (locale !== "fr") return title;
+  const pages = / \((\d+) pages\)$/.exec(title);
+  const core = pages ? title.slice(0, pages.index) : title;
+  const geo = GEO_TEXT_FR[core];
+  if (geo) return pages ? `${geo}${pages[0]}` : geo;
+  return translateStoredTitle(title);
+}
+

@@ -186,6 +186,19 @@ export function placeOf(urls: readonly string[]): string {
   }
 }
 
+/**
+ * The first sentence of a finding, for a task title. It used to be
+ * `split(".")[0]`, which cut inside file names and versions: "[Next.js]
+ * …" became "[Next", "robots.txt …" became "robots", "llms.txt" became
+ * "llms". A sentence ends at a period followed by a space, or at the end.
+ */
+export function firstSentence(message: string): string {
+  const text = message.trim();
+  const end = /[.!?](?=\s|$)/.exec(text);
+  const sentence = end ? text.slice(0, end.index) : text;
+  return sentence.length > 160 ? `${sentence.slice(0, 157).trimEnd()}…` : sentence;
+}
+
 /** `locale`: the workspace language; French texts live in audit-to-task.fr.ts. */
 export function findingsToTasks(findings: AuditFinding[], locale: "fr" | "en" = "en"): GeneratedTask[] {
   const fr = locale === "fr";
@@ -219,7 +232,7 @@ export function findingsToTasks(findings: AuditFinding[], locale: "fr" | "en" = 
       const note = list.length > 1 ? (fr ? ` (${list.length} pages)` : ` (affects ${list.length} pages)`) : "";
       return {
         type,
-        title: (worst.message.split(".")[0] ?? type) + note,
+        title: (firstSentence(worst.message) || type) + note,
         description,
         whyItMatters: worst.message,
         priority: severityToPriority[worst.severity],

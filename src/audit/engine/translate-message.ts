@@ -126,3 +126,54 @@ export function translateCrawlerMessage(message: string): string {
   }
   return message;
 }
+
+let everyEngine: Compiled[] | null = null;
+
+/** Up to the first period followed by a space (or the end), period dropped. */
+function sentenceOne(text: string): string {
+  const end = /[.!?](?=\s|$)/.exec(text);
+  return end ? text.slice(0, end.index) : text;
+}
+
+/**
+ * Every engine and crawler template, plus its first sentence alone: task titles are
+ * the first sentence of a finding ("Meta description is too short (112
+ * characters)" from "… (112 characters). Aim for 120–160."). A first
+ * sentence is only kept when its French side uses no placeholder that
+ * its English side lost, so a value is never dropped from the French.
+ */
+function engineTitles(): Compiled[] {
+  if (everyEngine) return everyEngine;
+  const out: Compiled[] = [];
+  for (const e of [...ENGINE_MESSAGES_FR, ...CRAWLER_MESSAGES_FR]) {
+    if (!e.fr) continue;
+    out.push(compile(e.en, e.fr));
+    const en1 = sentenceOne(e.en);
+    const fr1 = sentenceOne(e.fr);
+    if (en1 === e.en) continue;
+    const enSlots = new Set(en1.match(/\{\d+\}/g) ?? []);
+    if ((fr1.match(/\{\d+\}/g) ?? []).every((slot) => enSlots.has(slot))) out.push(compile(en1, fr1));
+  }
+  everyEngine = out.sort((a, b) => b.literal - a.literal);
+  return everyEngine;
+}
+
+/**
+ * A task title stored in English, in French, when it is the first
+ * sentence of a known engine or crawler finding. Task titles keep no rule
+ * id, so every template is tried, most specific first. Unknown titles
+ * come back unchanged.
+ */
+export function translateStoredTitle(title: string): string {
+  const suffix = PAGES_SUFFIX.exec(title);
+  if (suffix) return `${translateStoredTitle(title.slice(0, suffix.index))}${suffix[0]}`;
+  for (const candidate of [title, `${title}.`]) {
+    const viaCrawler = translateCrawlerMessage(candidate);
+    if (viaCrawler !== candidate) return sentenceOne(viaCrawler);
+    for (const c of engineTitles()) {
+      const m = c.re.exec(candidate);
+      if (m) return sentenceOne(c.fr.replace(/\{@(\d+)\}/g, (_, i: string) => translateValue(m[Number(i) + 1] ?? "")));
+    }
+  }
+  return title;
+}
