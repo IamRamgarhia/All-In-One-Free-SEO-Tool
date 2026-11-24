@@ -49,6 +49,10 @@ export const ENGINE_EQUIVALENTS: Readonly<Record<string, readonly string[]>> = {
   "content-duplicate-description": ["duplicate_meta_description"],
   "core-canonical-present": ["missing_canonical"],
   "core-canonical-valid": ["invalid_canonical"],
+  // Both say "the canonical points to another URL, fine if intentional".
+  // Not core-canonical-to-homepage: that one is a real error, and more
+  // precise than the crawler's generic note, so it stays.
+  "core-canonical-external": ["non_self_canonical"],
   "crawl-canonical-chain": ["canonical_chain"],
   "core-h1-present": ["missing_h1"],
   "content-heading-hierarchy": ["heading_order"],
