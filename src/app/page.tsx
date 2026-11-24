@@ -26,6 +26,7 @@ import { MorningBriefing } from "./morning-briefing";
 import { AgencyWeekInReview } from "./agency-week";
 import { OnboardingChecklistPanel } from "./onboarding-checklist-panel";
 import { AutonomyPrompt } from "./autonomy-prompt";
+import { InstallHealthBanner } from "./install-health-banner";
 import { PortfolioOverview } from "./portfolio-overview";
 import { startScheduler, tickScheduler } from "@/lib/scheduler";
 import { redirect } from "next/navigation";
@@ -83,6 +84,17 @@ export default async function DashboardPage({
     // panels below it are the agency-wide ones that were already here.
     return (
       <div className="mx-auto max-w-7xl space-y-6">
+        {/* Above everything else, owners and managers only: when a
+            connection is broken or the work stalls, the dashboard says so
+            instead of looking busy. Reads a result stored by the
+            scheduler, never the network. Renders nothing when nothing is
+            wrong. */}
+        {!scoped && (
+          <Suspense fallback={null}>
+            <InstallHealthBanner />
+          </Suspense>
+        )}
+
         <PortfolioOverview view={vue === "cartes" ? "cards" : "list"} />
 
         {/* Asked once, because it decides whether the agent's work

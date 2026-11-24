@@ -242,6 +242,20 @@ function runners(): Runner[] {
       },
     },
     {
+      // Is this install actually working? Pings each client's WordPress
+      // bridge, checks the Search Console properties the account can
+      // really read, and looks for work that goes in and never comes
+      // out. Stored rather than computed on render, because it makes a
+      // network call per client and the dashboard reads it. Every 6h,
+      // like the autonomous agent: there is no point learning that a
+      // site is unwritable long after another round of fixes was queued
+      // for it. See lib/install-health.ts.
+      id: "install_health",
+      label: "Install health",
+      everyMs: 6 * HOUR,
+      run: async () => (await import("./install-health")).refreshStoredHealth(),
+    },
+    {
       id: "retention_cleanup",
       label: "Data retention cleanup",
       everyMs: 24 * HOUR,

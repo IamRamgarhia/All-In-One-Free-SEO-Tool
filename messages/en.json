@@ -218,6 +218,31 @@
           "hint": "Applies everything it proposes, including wording. You review after the fact.",
           "description": "Applies everything it proposes, including rewrites that are a matter of judgement. Still logged, still reversible, but you'll be reviewing after the fact rather than before."
         }
+      },
+      "waiting": {
+        "today": "{count, plural, one {# change is already waiting, found today.} other {# changes are already waiting, found today.}}",
+        "yesterday": "{count, plural, one {# change has been waiting since yesterday.} other {# changes have been waiting since yesterday.}}",
+        "days": "{count, plural, one {# change has} other {# changes have}} been waiting for {n} days.",
+        "weeks": "{count, plural, one {# change has} other {# changes have}} been waiting for {n, plural, one {# week} other {# weeks}}.",
+        "months": "{count, plural, one {# change has} other {# changes have}} been waiting for {n, plural, one {# month} other {# months}}.",
+        "unknown": "{count, plural, one {# change is waiting for an answer.} other {# changes are waiting for an answer.}}"
+      },
+      "bodyAfterWaiting": "The agent finds work every night and changes nothing, because nobody has answered this yet. Every change it makes is logged with the previous value and can be undone in one click. You can change this any time in agent settings.",
+      "trial": {
+        "title": "Not sure yet? Try it on {size}.",
+        "body": "{waiting, plural, one {# safe change is waiting} other {# safe changes are waiting}}. The agent applies {size} of them now — the kind that are wrong by a measurable rule, never a rewrite of your wording — and shows you exactly what changed. No setting changes, and each one can be undone in a click.",
+        "bodyWithAge": "{waiting, plural, one {# safe change is waiting} other {# safe changes are waiting}}, the oldest for {days, plural, one {# day} other {# days}}. The agent applies {size} of them now — the kind that are wrong by a measurable rule, never a rewrite of your wording — and shows you exactly what changed. No setting changes, and each one can be undone in a click.",
+        "apply": "Apply {size} and show me",
+        "applying": "Applying…",
+        "doneTitle": "Done — have a look",
+        "nothingTitle": "Nothing changed",
+        "seeChanges": "See every change, with its previous value",
+        "outcome": {
+          "none": "Nothing is queued that can be applied without a judgement call, so there is nothing to try yet.",
+          "failed": "{attempted, plural, one {The change did not go through} other {None of the # changes went through}} — the site refused. Nothing was altered, and the reason is on each one.",
+          "all": "{applied, plural, one {# change applied and read back from the site.} other {# changes applied and read back from the site.}} Each one is listed with its previous value and can be undone in one click. Nothing else was touched, and no setting has changed.",
+          "partial": "{applied} of {attempted} applied; {failed, plural, one {# was} other {# were}} refused by the site. The ones that worked are listed with their previous values and can be undone individually."
+        }
       }
     },
     "checklist": {
@@ -8003,7 +8028,10 @@
       "thatChangeHasNothingTo": "That change has nothing to apply.",
       "supersededApprovedAndApplied": "Superseded — approved and applied.",
       "rejectedByYou": "Rejected by you.",
-      "noSuchRun": "No such run."
+      "noSuchRun": "No such run.",
+      "trialForbidden": "Only the owner and managers can run this trial.",
+      "trialLogged": "Agent trial: {applied} of {attempted} changes applied, {failed} refused. No setting changed.",
+      "trialNothing": "Agent trial: nothing safe was waiting, no change made."
     },
     "app_ai-visibility_actions": {
       "invalidKeywordId": "Invalid keyword id",
@@ -8640,7 +8668,8 @@
     "tool_sweep_weekly": "Weekly crawl-based checks",
     "backlink_sync": "Backlink discovery",
     "google_updates": "Google ranking updates",
-    "retention_cleanup": "Data retention cleanup"
+    "retention_cleanup": "Data retention cleanup",
+    "install_health": "Install health checks"
   },
   "settingsProfile": {
     "title": "My profile",
@@ -8954,5 +8983,103 @@
     "paypalHint": "International · cards / PayPal balance / bank",
     "donatePaypal": "Donate via PayPal →",
     "starInstead": "Prefer not to send money? A <link>⭐ on GitHub</link> helps too — surfaces the project to other agencies looking for a self-hosted SEO tool."
+  },
+  "installHealth": {
+    "banner": {
+      "titleBroken": "Part of this install is not working",
+      "titleStalled": "Work is being found but not finished",
+      "checkedAt": "Checked {date}. These checks run every 6 hours, not when this page loads.",
+      "more": "{count, plural, one {And # more.} other {And # more.}}",
+      "seeAll": "See all in System health"
+    },
+    "section": {
+      "title": "Is this install working?",
+      "checkedAt": "Checked {date}",
+      "neverTitle": "Install checks have not run yet",
+      "neverBody": "They run every 6 hours and ping each connected project's WordPress site, so they do not run while you load this page. Nothing here means nothing has been checked yet — not that everything is fine.",
+      "allClear": "Every connection answered, and work is being completed.",
+      "idleTitle": "Not set up yet (not faults)"
+    },
+    "detail": "Original message: {detail}",
+    "network": {
+      "dns": "the address does not resolve — the domain may be misspelled, expired, or a staging site that no longer exists",
+      "refused": "the address resolves but nothing answered — the site may be down, or behind a firewall that blocks this machine",
+      "timeout": "the site accepted the connection but never finished answering",
+      "tls": "the site answered but its HTTPS certificate was rejected",
+      "offline": "this machine appears to have no internet connection, so nothing could be checked",
+      "no_response": "the request to the site never completed, and the underlying reason was not recorded"
+    },
+    "issues": {
+      "wp_no_creds": {
+        "title": "{client}: WordPress connection is incomplete",
+        "evidence": "An address is saved but the connection key is missing or unreadable, so nothing can be written to the site.",
+        "fix": "Fix the connection"
+      },
+      "wp_unreachable": {
+        "title": "{client}: the WordPress plugin is not responding",
+        "evidence": "{endpoint} did not answer as expected. If the original message says \"rest_no_route\", the companion plugin is not installed or not activated on the site.",
+        "fix": "Check the connection"
+      },
+      "gsc_other_property": {
+        "title": "{client}: Search Console data is unavailable",
+        "evidence": "The project asks Google for \"{stored}\", which the connected account cannot read. It holds \"{suggestion}\" for the same site — pick it in the project's Google settings.",
+        "fix": "Open project settings"
+      },
+      "gsc_account_empty": {
+        "title": "{client}: Search Console data is unavailable",
+        "evidence": "The project asks Google for \"{stored}\", but the connected Google account has no Search Console properties at all. Either the wrong account is connected, or the site was never verified. Search Console features return 403 until this is fixed.",
+        "fix": "Open project settings"
+      },
+      "gsc_not_in_account": {
+        "title": "{client}: Search Console data is unavailable",
+        "evidence": "The project asks Google for \"{stored}\", which is not in the connected account. Reconnect Google, or pick a property this account can read.",
+        "fix": "Open project settings"
+      },
+      "fix_queue_stale": {
+        "title": "{count, plural, one {# change waiting for a decision} other {# changes waiting for a decision}}",
+        "evidence": "{days, plural, one {The oldest has waited # day.} other {The oldest has waited # days.}} The agent prepared them and is holding them for your approval — nothing happens until someone decides.",
+        "fix": "Review and apply"
+      },
+      "nothing_completed": {
+        "title": "{open, plural, one {# open task} other {# open tasks}}, and nothing finished in {days} days",
+        "evidence": "{runs, plural, =0 {No agent runs} one {# agent run} other {# agent runs}}, {applied, plural, =0 {no change applied and verified} one {# change applied and verified} other {# changes applied and verified}}. Finding work is not the same as doing it.",
+        "fix": "See tasks"
+      },
+      "rank_none": {
+        "title": "{tracked, plural, one {# keyword tracked} other {# keywords tracked}}, no positions recorded in {days} days",
+        "evidence": "The ranking graphs stay empty, with no error message. Positions come from the source set in Settings → Google results: check that it answers from this machine.",
+        "fix": "Set up a source"
+      },
+      "rank_partial": {
+        "title": "{current, plural, one {Only # of {tracked} tracked keywords has a recent position} other {Only # of {tracked} tracked keywords have a recent position}}",
+        "evidence": "{pct}% of your list has a reading from the last {days} days{never, plural, =0 {} one {, and # keyword has never been checked at all} other {, and # keywords have never been checked at all}}. The rest show an empty graph rather than an error. Positions come from the source set in Settings → Google results.",
+        "fix": "Set up a source"
+      },
+      "never_audited": {
+        "title": "{client} has never been audited",
+        "evidence": "Every agent run for this project reports nothing to do, because there are no findings to act on yet.",
+        "fix": "Run the first audit"
+      },
+      "audit_failed": {
+        "title": "{client}: the most recent audit failed",
+        "evidence": "The last attempt ({date}) did not complete. The project page still shows the last audit that worked, so the findings you see are older than they appear.",
+        "fix": "Re-run the audit"
+      },
+      "sweep_unreachable": {
+        "title": "{client}: the site is unreachable, so {count} nightly checks fail on it",
+        "evidence": "Every check that has to load a page failed: {cause}. Affected checks: {tools}.",
+        "fix": "Check the site address"
+      },
+      "sweep_failing": {
+        "title": "{client}: {count, plural, one {# nightly check failing} other {# nightly checks failing}}",
+        "evidence": "Affected checks: {tools}.",
+        "fix": "Open the project"
+      },
+      "check_failed": {
+        "title": "An install check could not run",
+        "evidence": "The {check} check stopped; the others ran normally.",
+        "fix": "Open System health"
+      }
+    }
   }
 }
