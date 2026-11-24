@@ -136,11 +136,17 @@ async function checkImage(url: string): Promise<{
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), 6_000);
   try {
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       method: "HEAD",
       signal: c.signal,
       redirect: "follow",
     });
+    // HEAD refused (405, 501) is not a broken image: ask again with GET.
+    // The headers carry size and type; the body is dropped unread.
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(url, { signal: c.signal, redirect: "follow" });
+      await res.body?.cancel().catch(() => {});
+    }
     const len = res.headers.get("content-length");
     const ctype = res.headers.get("content-type") ?? "";
     const fmt = ctype.includes("webp")

@@ -135,7 +135,7 @@ export const quickWinTitlesFr: Record<string, (where: string) => string> = {
   missing_title: (w) => `Ajouter une balise title à ${w}`,
   missing_meta_description: (w) => `Rédiger une méta-description pour ${w}`,
   long_title: (w) => `Raccourcir le title de ${w} sous 60 caractères`,
-  short_title: (w) => `Allonger le title de ${w} (moins de 30 caractères)`,
+  short_title: (w) => `Allonger le title de ${w} (50 à 60 caractères recommandés)`,
   long_meta_description: (w) => `Raccourcir la méta-description de ${w} à ~155 caractères`,
   missing_h1: (w) => `Ajouter un titre H1 à ${w}`,
   missing_image_alt: (w) => `Ajouter un texte alternatif aux images de ${w}`,

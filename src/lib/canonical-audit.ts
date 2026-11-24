@@ -282,6 +282,16 @@ async function headStatus(url: string): Promise<number | null> {
       signal: ac.signal,
       redirect: "manual",
     });
+    // HEAD refused (405, 501) is not a broken page: ask again with GET.
+    if (res.status === 405 || res.status === 501) {
+      const get = await guardedFetch(url, {
+        headers: { "user-agent": USER_AGENT },
+        signal: ac.signal,
+        redirect: "manual",
+      });
+      await get.body?.cancel().catch(() => {});
+      return get.status;
+    }
     return res.status;
   } catch {
     return null;
