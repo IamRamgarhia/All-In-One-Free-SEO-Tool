@@ -1,11 +1,15 @@
 /**
  * Says where a ranking number came from, and how much to trust it.
  *
- * This is not decoration. The two sources measure different things:
+ * This is not decoration. The sources measure different things:
  *
  *   Search Console — the average position real users saw on a given day,
  *                    from Google, lagging two to three days
- *   Live check     — the position one datacentre IP was shown just now
+ *   SearXNG        — the merged ranking of the engines a metasearch
+ *                    instance queried, just now
+ *   Brave          — Brave's own index, not Google's
+ *   Google (API / browser) — one Google results page, just now
+ *   DuckDuckGo     — DuckDuckGo's first page, about ten results
  *
  * A tracker that showed both as a bare "#7" would invent movement every
  * time a keyword crossed from one to the other, and the user would go
@@ -15,16 +19,26 @@
  * for rankings.
  */
 
-import { Database, Globe } from "lucide-react";
+import { Database, Globe, Layers, Shield } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { isRankSource, type RankSource } from "@/lib/serp/sources";
+
+const PILL =
+  "inline-flex max-w-full items-center gap-1 truncate rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset";
 
 export function RankSourceBadge({
   source,
+  engine,
   dataDate,
   impressions,
   className,
 }: {
-  source: "gsc" | "scrape" | "api" | null | undefined;
+  source: RankSource | string | null | undefined;
+  /**
+   * The engine(s) behind the number, from keyword_rankings.engine. Null on
+   * rows written before it was recorded.
+   */
+  engine?: string | null;
   /** The day a GSC figure describes — not the day it was fetched. */
   dataDate?: string | null;
   impressions?: number | null;
@@ -41,7 +55,7 @@ export function RankSourceBadge({
     const thin = n < 15;
     return (
       <span
-        className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${
+        className={`${PILL} ${
           thin
             ? "bg-amber-500/10 text-amber-300 ring-amber-500/25"
             : "bg-emerald-500/10 text-emerald-300 ring-emerald-500/25"
@@ -54,7 +68,7 @@ export function RankSourceBadge({
           t("gsc.lag")
         }
       >
-        <Database className="size-2.5" />
+        <Database className="size-2.5 shrink-0" />
         {t("gsc.label")}
       </span>
     );
@@ -63,22 +77,51 @@ export function RankSourceBadge({
   if (source === "api") {
     return (
       <span
-        className={`inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-300 ring-1 ring-inset ring-sky-500/25 ${className ?? ""}`}
+        className={`${PILL} bg-sky-500/10 text-sky-300 ring-sky-500/25 ${className ?? ""}`}
         title={t("api.title")}
       >
-        <Globe className="size-2.5" />
+        <Globe className="size-2.5 shrink-0" />
         {t("api.label")}
       </span>
     );
   }
 
+  // Everything else names the engine that answered. This used to be one
+  // fallback branch reading "Live check" — which also covered DuckDuckGo
+  // readings, so a DuckDuckGo page was presented as a Google position.
+  const known = isRankSource(source) ? source : null;
+  const Icon = known === "searxng" ? Layers : known === "brave" ? Shield : Globe;
+  let label: string;
+  let title: string;
+  if (known === "searxng") {
+    label = t("searxng.label");
+    title = t("searxng.title", { engines: engine || t("searxng.enginesUnknown") });
+  } else if (known === "brave") {
+    label = t("brave.label");
+    title = t("brave.title");
+  } else if (known === "duckduckgo") {
+    label = t("duckduckgo.label");
+    title = t("duckduckgo.title");
+  } else if (known === "scrape" && engine === "google") {
+    label = t("google.label");
+    title = t("google.title");
+  } else if (known === "scrape") {
+    // Written before the engine was recorded: Google or DuckDuckGo,
+    // and nothing left to tell which.
+    label = t("legacy.label");
+    title = t("legacy.title");
+  } else {
+    label = String(source);
+    title = t("unknown.title");
+  }
+
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-white/10 ${className ?? ""}`}
-      title={t("live.title")}
+      className={`${PILL} bg-white/5 text-muted-foreground ring-white/10 ${className ?? ""}`}
+      title={title}
     >
-      <Globe className="size-2.5" />
-      {t("live.label")}
+      <Icon className="size-2.5 shrink-0" />
+      {label}
     </span>
   );
 }

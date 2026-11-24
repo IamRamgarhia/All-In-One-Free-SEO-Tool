@@ -28,25 +28,29 @@ export function SerpForm({ initial }: { initial: SerpInitial }) {
 
   return (
     <>
-      <section className="gsk-block">
+      {/* Last on the screen and never the primary button: an option for
+          those who want Google's own results by country and accept to pay
+          per search, not a step anyone needs. */}
+      <section className="gsk-block" id="api">
         <div className="gsk-block-head gsk-block-head--action">
-          <div>
-            <h2 className="gsk-block-title">{t("sourceTitle")}</h2>
+          <div className="min-w-0">
+            <h2 className="gsk-block-title">{t("apiTitle")}</h2>
+            <p className="gsk-block-description">{t("apiDescription")}</p>
           </div>
           <button
             type="button"
-            className={configured ? "gsk-btn" : "gsk-btn gsk-btn--primary"}
+            className="gsk-btn"
             onClick={() => setEditing(true)}
           >
             <Pencil className="size-4" />
             {configured ? t("edit") : t("setUp")}
           </button>
         </div>
-        <ValueRow label={t("source")} hint={configured ? t("sourceApiHint") : t("sourceBrowserHint")}>
-          {configured ? t(`provider_${initial.provider}`) : <span className="gsk-value--muted">{t("browser")}</span>}
+        <ValueRow label={t("apiProvider")} hint={configured ? t("apiConfiguredHint") : t("apiNoneHint")}>
+          {configured ? t(`provider_${initial.provider}`) : <span className="gsk-value--muted">{t("apiNone")}</span>}
         </ValueRow>
         {configured ? (
-          <ValueRow label={t("check")} hint={t("checkHint")}>
+          <ValueRow label={t("check")} hint={t("apiCheckHint")}>
             <button
               type="button"
               className="gsk-btn"
@@ -56,7 +60,7 @@ export function SerpForm({ initial }: { initial: SerpInitial }) {
                 startTest(async () => {
                   const r = await testSerpSettings();
                   if (!r) return;
-                  setMsg(r.ok ? { ok: true, text: t("checkOk", { count: r.results }) } : { ok: false, text: r.error });
+                  setMsg(r.ok ? { ok: true, text: t("apiOk", { count: r.results }) } : { ok: false, text: r.error });
                 });
               }}
             >
@@ -72,13 +76,6 @@ export function SerpForm({ initial }: { initial: SerpInitial }) {
         ) : null}
       </section>
 
-      <section className="gsk-block">
-        <div className="gsk-block-head">
-          <h2 className="gsk-block-title">{t("whyTitle")}</h2>
-        </div>
-        <p className="gsk-help m-0 px-4 pb-4">{t("why")}</p>
-      </section>
-
       {editing ? <SerpSheet initial={initial} onClose={() => setEditing(false)} /> : null}
     </>
   );
@@ -88,7 +85,7 @@ function SerpSheet({ initial, onClose }: { initial: SerpInitial; onClose: () => 
   const t = useTranslations("settings.serp");
   const router = useRouter();
   const [state, formAction, pending] = useActionState<SerpSaveState, FormData>(saveSerpSettings, null);
-  const [provider, setProvider] = useState<"none" | "serper" | "dataforseo">(initial.provider ?? "serper");
+  const [provider, setProvider] = useState<"none" | "serper" | "dataforseo">(initial.provider ?? "none");
   const [clearing, startClear] = useTransition();
 
   useEffect(() => {
@@ -111,7 +108,7 @@ function SerpSheet({ initial, onClose }: { initial: SerpInitial; onClose: () => 
           <div className="gsk-sheet-section">
             <h4 className="gsk-section-title">{t("step1")}</h4>
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("step1")}>
-              {(["serper", "dataforseo", "none"] as const).map((p) => (
+              {(["none", "serper", "dataforseo"] as const).map((p) => (
                 <label key={p} className={provider === p ? "gsk-btn gsk-btn--primary" : "gsk-btn"}>
                   <input
                     type="radio"

@@ -5,7 +5,8 @@ import { History } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { Heatmap } from "./heatmap";
 
-type Cell = { lat: number; lng: number; position: number | null };
+// Type-only, so none of the lib's browser machinery is bundled.
+import type { GridCell as Cell } from "@/lib/local-grid";
 
 type GridSnapshot = {
   id: number;
@@ -47,8 +48,16 @@ export function GridHistory({ grids }: { grids: GridSnapshot[] }) {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-emerald-300 font-semibold">
-                  {t("inPack", { pct: g.inPackPct ?? 0 })}
+                {/* Null means no point answered, not zero visibility. `?? 0`
+                    rendered that as a confident "0 % in the pack". */}
+                <div
+                  className={
+                    g.inPackPct === null
+                      ? "font-semibold text-muted-foreground"
+                      : "font-semibold text-emerald-300"
+                  }
+                >
+                  {g.inPackPct === null ? t("notMeasured") : t("inPack", { pct: g.inPackPct })}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
                   {t("avg", { avg: g.avgPosition ?? "—" })}
