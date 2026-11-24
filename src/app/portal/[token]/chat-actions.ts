@@ -17,6 +17,21 @@ import { totals } from "@/lib/quote";
 import { cartLines, initialCart } from "@/lib/quote-cart";
 import { isOpenTask } from "@/lib/task-status";
 import { cartInputFor, openQuoteFor } from "./quote-data";
+import { absenceOf, describeAbsence, type AbsenceStrings } from "@/lib/serp/absence";
+
+/** The assistant's context is written in English; it answers in the client's language. */
+const PORTAL_ABSENCE: AbsenceStrings = {
+  gsc: "no Search Console impressions in the period",
+  first: (count, engine) => `absent from the first ${count} results (${engine})`,
+  read: (engine) => `absent from the results read (${engine})`,
+  engines: {
+    searxng: "SearXNG",
+    brave: "Brave Search",
+    duckduckgo: "DuckDuckGo",
+    google: "Google",
+    unknown: "engine not recorded",
+  },
+};
 
 export type PortalChatMessage = {
   role: "user" | "assistant";
@@ -245,23 +260,30 @@ async function loadClientContext(clientId: number): Promise<string> {
       .from(keywordRankings)
       .where(gte(keywordRankings.checkedAt, since))
       .orderBy(keywordRankings.checkedAt);
-    const byKeyword = new Map<number, { first: number | null; last: number | null }>();
+    const byKeyword = new Map<
+      number,
+      { first: (typeof ranks)[number]; last: (typeof ranks)[number] }
+    >();
     for (const r of ranks) {
       if (!kw.find((k) => k.id === r.keywordId)) continue;
-      const v = byKeyword.get(r.keywordId) ?? { first: null, last: null };
-      if (v.first === null) v.first = r.position;
-      v.last = r.position;
-      byKeyword.set(r.keywordId, v);
+      const v = byKeyword.get(r.keywordId);
+      if (v) v.last = r;
+      else byKeyword.set(r.keywordId, { first: r, last: r });
     }
+    // An empty position is "absent from the first N results (engine)",
+    // never a bare "not ranked", so the assistant does not tell the client
+    // a page is nowhere when one engine read ten results (lib/serp/absence).
+    const where = (r: (typeof ranks)[number]) => {
+      const a = absenceOf(r);
+      return a ? describeAbsence(a, PORTAL_ABSENCE, "en") : `position ${r.position}`;
+    };
     lines.push(`\n# Tracked keywords (last 30 days)`);
     for (const k of kw) {
       const v = byKeyword.get(k.id);
-      if (!v || v.last === null) continue;
+      if (!v) continue;
       const move =
-        v.first !== null && v.first !== v.last
-          ? ` (was ${v.first})`
-          : "";
-      lines.push(`- "${k.query}": position ${v.last}${move}`);
+        v.first !== v.last && v.first.position !== v.last.position ? ` (was ${where(v.first)})` : "";
+      lines.push(`- "${k.query}": ${where(v.last)}${move}`);
     }
   }
 

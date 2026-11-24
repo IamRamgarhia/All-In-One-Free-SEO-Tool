@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { absenceOf, describeAbsence } from "@/lib/serp/absence";
 import { ruleNamesFr } from "./rule-names.fr";
 import { CRAWLER_ISSUE_NAMES_FR } from "./crawler-issue-names.fr";
 import { eq, desc, and, gte } from "drizzle-orm";
@@ -317,6 +318,23 @@ export async function generateReportPdf(
     L = reportStrings(locale);
     F = reportFormat(locale);
 
+    // One movement, both sides: a position, or where the keyword was not
+    // found and on which engine.
+    const rankRowText = (
+      prior: { position: number | null; source: string | null; engine: string | null; resultsScanned: number | null },
+      current: { position: number | null; source: string | null; engine: string | null; resultsScanned: number | null },
+      delta: number,
+      loc: string,
+    ): string => {
+      const absent = (r: typeof prior) => {
+        const a = absenceOf(r);
+        return a ? describeAbsence(a, L.rankAbsent, loc) : "";
+      };
+      if (prior.position !== null && current.position === null) return L.rankRowOut(prior.position, absent(current));
+      if (prior.position === null && current.position !== null) return L.rankRowIn(absent(prior), current.position);
+      return L.rankRow(prior.position, current.position, F.signed(delta));
+    };
+
   const completedAudits = await db
     .select()
     .from(audits)
@@ -488,16 +506,30 @@ export async function generateReportPdf(
     .from(keywords)
     .where(eq(keywords.clientId, clientId));
 
+  // A keyword that left the results read (or came into them) is the
+  // biggest movement of all, so it is kept: the empty side says how far
+  // which engine was read, never a bare "not ranked" (lib/serp/absence).
+  type Reading = {
+    position: number | null;
+    source: string | null;
+    engine: string | null;
+    resultsScanned: number | null;
+    checkedAt: Date;
+  };
   const rankMovements: {
     query: string;
-    current: number | null;
-    prior: number | null;
+    current: Reading;
+    prior: Reading;
+    /** Positions gained; for an entry or an exit, the depth read stands in for the missing side. */
     delta: number;
   }[] = [];
   for (const kw of trackedKeywords) {
-    const recent = await db
+    const recent: Reading[] = await db
       .select({
         position: keywordRankings.position,
+        source: keywordRankings.source,
+        engine: keywordRankings.engine,
+        resultsScanned: keywordRankings.resultsScanned,
         checkedAt: keywordRankings.checkedAt,
       })
       .from(keywordRankings)
@@ -505,16 +537,24 @@ export async function generateReportPdf(
       .orderBy(desc(keywordRankings.checkedAt))
       .limit(20);
     if (recent.length < 2) continue;
-    const current = recent[0]?.position ?? null;
+    const current = recent[0];
     const prior =
       recent.find(
         (r) =>
           r.checkedAt.getTime() < periodCutoff.getTime() ||
           recent.indexOf(r) === recent.length - 1,
-      )?.position ?? recent[recent.length - 1]?.position ?? null;
-    if (current === null || prior === null) continue;
-    const delta = prior - current; // positive = moved up
-    if (Math.abs(delta) < 3) continue;
+      ) ?? recent[recent.length - 1];
+    if (current.position === null && prior.position === null) continue;
+    // A Search Console "no impressions" is not an exit from a list of
+    // results: nothing to compare it with.
+    if ((current.position === null && current.source === "gsc") || (prior.position === null && prior.source === "gsc")) {
+      continue;
+    }
+    const depth = (r: Reading) => (r.resultsScanned && r.resultsScanned > 0 ? r.resultsScanned + 1 : 101);
+    const priorPos = prior.position ?? depth(prior);
+    const currentPos = current.position ?? depth(current);
+    const delta = priorPos - currentPos; // positive = moved up
+    if (current.position !== null && prior.position !== null && Math.abs(delta) < 3) continue;
     rankMovements.push({ query: kw.query, current, prior, delta });
   }
   rankMovements.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
@@ -1373,9 +1413,7 @@ export async function generateReportPdf(
           .text(m.query, { continued: true })
           .font("Helvetica")
           .fillColor(palette.mute)
-          .text(
-            L.rankRow(m.prior, m.current, F.signed(m.delta)),
-          );
+          .text(rankRowText(m.prior, m.current, m.delta, locale));
         doc.fillColor(palette.ink);
       }
       doc.moveDown(1);

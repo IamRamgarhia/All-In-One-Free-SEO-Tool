@@ -158,6 +158,22 @@ const en = {
   rankMovement: "Rank movement this period",
   rankSummary: (up: number, down: number) => `${up} ${plural(up, "keyword", "keywords")} moved up, ${down} dropped`,
   rankRow: (prior: number | null, current: number | null, delta: string) => `  #${prior ?? "-"} to #${current ?? "-"} (${delta})`,
+  /** A keyword that left (or entered) the results read: the side with no position says how far, on which engine. */
+  rankRowOut: (prior: number, absent: string) => `  #${prior} to ${absent}`,
+  rankRowIn: (absent: string, current: number) => `  ${absent} to #${current}`,
+  rankAbsent: {
+    gsc: "no Search Console impressions",
+    first: (count: number, engine: string) =>
+      count === 1 ? `absent from the first result (${engine})` : `absent from the first ${count} results (${engine})`,
+    read: (engine: string) => `absent from the results read (${engine})`,
+    engines: {
+      searxng: "SearXNG",
+      brave: "Brave Search",
+      duckduckgo: "DuckDuckGo",
+      google: "Google",
+      unknown: "engine not recorded",
+    },
+  },
   pageChanges: "Page changes detected",
   fieldChanged: (field: string, critical: boolean) => `${critical ? "Critical: " : ""}${field} changed`,
   changedOn: (url: string, date: string) => `  on ${url}, ${date}`,
@@ -332,6 +348,21 @@ const fr: ReportStrings = {
   rankMovement: "Évolution des positions",
   rankSummary: (up, down) => `${up} ${plural(up, "mot-clé en hausse", "mots-clés en hausse")}, ${down} en baisse`,
   rankRow: (prior, current, delta) => `  n°${prior ?? "-"} à n°${current ?? "-"} (${delta})`,
+  rankRowOut: (prior, absent) => `  n°${prior} à ${absent}`,
+  rankRowIn: (absent, current) => `  ${absent} à n°${current}`,
+  rankAbsent: {
+    gsc: "aucune impression dans Search Console",
+    first: (count, engine) =>
+      count === 1 ? `absent du premier résultat (${engine})` : `absent des ${count} premiers résultats (${engine})`,
+    read: (engine) => `absent des résultats lus (${engine})`,
+    engines: {
+      searxng: "SearXNG",
+      brave: "Brave Search",
+      duckduckgo: "DuckDuckGo",
+      google: "Google",
+      unknown: "moteur non enregistré",
+    },
+  },
   pageChanges: "Changements détectés sur les pages",
   fieldChanged: (field, critical) => `${critical ? "Critique : " : ""}${field} modifié`,
   changedOn: (url, date) => `  sur ${url}, le ${date}`,

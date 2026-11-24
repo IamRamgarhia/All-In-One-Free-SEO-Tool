@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/rank-source-badge";
 import { NeedsConnection } from "@/components/ui/needs-connection";
 import { describeRankFailures, type RankTx } from "@/lib/serp/describe";
+import { absenceOf, absenceStringsFromMessages, describeAbsence, type RankReadingLike } from "@/lib/serp/absence";
 import { parseStoredFailures } from "@/lib/serp/failure";
 import type { RankSource } from "@/lib/serp/sources";
 import { RankSparkline } from "./rank-sparkline";
@@ -210,25 +211,12 @@ export default async function PerClientKeywordsPage({
 
   // "Absent from the first N results (engine)", never a bare "not
   // ranked": DuckDuckGo reads about ten results, Google up to a hundred.
-  const absentText = (r: {
-    source: string;
-    engine: string | null;
-    resultsScanned: number | null;
-  }): string => {
-    if (r.source === "gsc") return t("absentGsc");
-    const engine =
-      r.source === "searxng"
-        ? `SearXNG${r.engine ? ` : ${r.engine}` : ""}`
-        : r.source === "brave"
-          ? rt("engine.brave")
-          : r.source === "duckduckgo"
-            ? rt("engine.duckduckgo")
-            : r.source === "api" || r.engine === "google"
-              ? rt("engine.google")
-              : t("engineUnknown");
-    return r.resultsScanned && r.resultsScanned > 0
-      ? t("absentFromFirst", { count: r.resultsScanned, engine })
-      : t("absentFromRead", { engine });
+  // Same wording as the reports, the CSV and the API (lib/serp/absence).
+  const absenceStrings = absenceStringsFromMessages(t as unknown as RankTx, rt);
+  const pageLocale = await getLocale();
+  const absentText = (r: RankReadingLike): string => {
+    const a = absenceOf(r);
+    return a ? describeAbsence(a, absenceStrings, pageLocale) : "";
   };
 
   // Quick wins
