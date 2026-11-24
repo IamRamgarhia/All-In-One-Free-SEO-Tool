@@ -201,3 +201,50 @@ export async function sendQueueItemToClient(
     message: item.clientSharedAt ? tx("sentAgainToClient") : tx("sentToClient"),
   };
 }
+
+/**
+ * A blog draft as a .md file: frontmatter (title, description, slug, date,
+ * keywords) and, for the "for AI" variant, a brief telling another AI how
+ * to enrich it. The file's words follow the article's language, not the
+ * interface's.
+ */
+export async function exportBlogMarkdown(
+  itemId: number,
+  clientId: number,
+  forAi: boolean,
+): Promise<{ ok: true; filename: string; content: string } | { ok: false; message: string }> {
+  await requireSignedIn();
+  await requireClientAccess(clientId);
+  const tx = await actionTx("ui.app_clients_id_queue_actions");
+  const item = await ownItem(itemId, clientId);
+  if (!item || item.kind !== "blog_draft") {
+    return { ok: false, message: tx("queueItemNotFound") };
+  }
+  const { articleLocale, buildBlogMarkdown, slugify } = await import("@/lib/blog-export");
+  const input = {
+    title: item.title,
+    body: item.body,
+    payload: item.payloadJson,
+    date: item.generatedAt,
+  };
+  const locale = articleLocale(input);
+  const messages = (
+    locale === "fr"
+      ? await import("../../../../../messages/fr.json")
+      : await import("../../../../../messages/en.json")
+  ).default;
+  const { createTranslator } = await import("next-intl");
+  const t = createTranslator({ locale, messages, namespace: "ui.blog_export" });
+  const content = buildBlogMarkdown(
+    input,
+    {
+      untitled: t("untitled"),
+      defaultBrief: t("defaultBrief"),
+      briefHeading: t("briefHeading"),
+      focusKeywords: t("focusKeywords"),
+    },
+    { forAi },
+  );
+  const filename = `${slugify(item.title ?? "") || "draft"}${forAi ? "-ai" : ""}.md`;
+  return { ok: true, filename, content };
+}

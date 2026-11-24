@@ -84,11 +84,12 @@ function formatTime(timeUtc: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} UTC`;
 }
 
-function formatCadence(days: number): string {
-  if (days === 1) return "daily";
-  if (days === 7) return "weekly";
-  if (days === 30) return "monthly";
-  return `every ${days} days`;
+function formatCadence(days: number, tx: Tx): string {
+  if (days === 1) return tx("daily");
+  if (days === 7) return tx("weekly");
+  if (days === 14) return tx("every2Weeks");
+  if (days === 30) return tx("monthly");
+  return tx("everyNDays", { n: days });
 }
 
 type Destination = "local" | "wordpress" | "gbp";
@@ -309,7 +310,7 @@ export function SchedulesEditor({
             </label>
           </div>
 
-          <label className="space-y-1 text-xs">
+          <label className="block space-y-1 text-xs">
             <span className="text-muted-foreground">{tx("topicSeedFocus")}</span>
             <input
               name="topicSeed"
@@ -322,12 +323,12 @@ export function SchedulesEditor({
               }
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             />
-            <span className="text-[10px] text-muted-foreground">
+            <span className="block text-[10px] text-muted-foreground">
               {tx("theAiUsesThisAs")}
             </span>
           </label>
 
-          <label className="space-y-1 text-xs">
+          <label className="block space-y-1 text-xs">
             <span className="text-muted-foreground">{tx("tone")}</span>
             <input
               name="tone"
@@ -335,6 +336,22 @@ export function SchedulesEditor({
               className="h-9 w-full rounded-md border border-white/10 bg-card/60 px-3 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
             />
           </label>
+
+          {selectedKind === "blog_draft" && (
+            <label className="block space-y-1 text-xs">
+              <span className="text-muted-foreground">{tx("aiBriefLabel")}</span>
+              <textarea
+                name="aiBrief"
+                rows={4}
+                maxLength={2000}
+                placeholder={tx("aiBriefPlaceholder")}
+                className="w-full rounded-md border border-white/10 bg-card/60 px-3 py-2 text-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+              />
+              <span className="block text-[10px] text-muted-foreground">
+                {tx("aiBriefHint")}
+              </span>
+            </label>
+          )}
 
           {selectedKind === "gbp_post" && selectedDestination === "gbp" && (
             <>
@@ -441,6 +458,7 @@ function ScheduleRow({
   const cfg = (schedule.configJson ?? {}) as {
     topic_seed?: string;
     tone?: string;
+    ai_brief?: string;
     gbp_location_name?: string;
     post_type?: string;
   };
@@ -466,8 +484,8 @@ function ScheduleRow({
             )}
           </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {tx("at", { v: formatCadence(schedule.cadenceDays), v2: formatTime(schedule.timeUtc) })}
-            {cfg.topic_seed && ` · "${cfg.topic_seed}"`}
+            {tx("at", { v: formatCadence(schedule.cadenceDays, tx), v2: formatTime(schedule.timeUtc) })}
+            {cfg.topic_seed && ` · ${tx("quotedTopic", { v: cfg.topic_seed })}`}
             {schedule.lastRunAt && (
               <>
                 {tx("lastRun")}
@@ -553,6 +571,11 @@ function ScheduleRow({
           {cfg.tone && (
             <div>
               <span className="text-foreground/80">{tx("tone2")}</span> {cfg.tone}
+            </div>
+          )}
+          {cfg.ai_brief && (
+            <div className="whitespace-pre-line break-words">
+              <span className="text-foreground/80">{tx("aiBrief2")}</span> {cfg.ai_brief}
             </div>
           )}
           {cfg.gbp_location_name && (

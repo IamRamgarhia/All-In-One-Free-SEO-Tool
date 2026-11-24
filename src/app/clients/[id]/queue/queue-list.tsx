@@ -35,10 +35,12 @@ import {
   approveAndPublishNow,
   approveQueueItem,
   deleteQueueItem,
+  exportBlogMarkdown,
   rejectQueueItem,
   sendQueueItemToClient,
 } from "./actions";
 import type { PublishQueueItem } from "@/db/schema";
+import { htmlToMarkdown, slugify } from "@/lib/blog-export";
 
 type Kind = PublishQueueItem["kind"];
 type Status = PublishQueueItem["status"];
@@ -269,30 +271,6 @@ function QueueRow({
     });
   }
 
-  function htmlToMarkdown(html: string): string {
-    // Tiny converter — handles the elements our blog-draft generator emits.
-    // Good enough for paste-into-Medium / paste-into-Notion / paste-into-WP
-    // visual editor. Anything weirder gets pasted as HTML using the Copy
-    // body button.
-    let md = html;
-    md = md.replace(/<\s*br\s*\/?\s*>/gi, "\n");
-    md = md.replace(/<\/?(strong|b)>/gi, "**");
-    md = md.replace(/<\/?(em|i)>/gi, "_");
-    md = md.replace(/<\/?code>/gi, "`");
-    md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n## $1\n");
-    md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n### $1\n");
-    md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, "$1\n\n");
-    md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "- $1\n");
-    md = md.replace(/<\/?(ul|ol|blockquote)[^>]*>/gi, "\n");
-    md = md.replace(
-      /<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
-      "[$2]($1)",
-    );
-    md = md.replace(/<[^>]+>/g, ""); // strip anything else
-    md = md.replace(/\n{3,}/g, "\n\n").trim();
-    return md;
-  }
-
   function copyAsMarkdown() {
     const title = item.title ? `# ${item.title}\n\n` : "";
     navigator.clipboard
@@ -300,33 +278,29 @@ function QueueRow({
       .then(() => toast.success(tx("copiedMarkdown")));
   }
 
-  function downloadAs(format: "md" | "html") {
-    const title = item.title ?? "draft";
-    const filename = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60);
-    let content: string;
-    let mime: string;
-    let ext: string;
-    if (format === "md") {
-      content = (item.title ? `# ${item.title}\n\n` : "") + htmlToMarkdown(item.body ?? "");
-      mime = "text/markdown";
-      ext = "md";
-    } else {
-      content = `<!doctype html><meta charset="utf-8"><title>${item.title ?? ""}</title>\n${item.title ? `<h1>${item.title}</h1>\n` : ""}${item.body ?? ""}`;
-      mime = "text/html";
-      ext = "html";
-    }
+  function saveFile(filename: string, content: string, mime: string) {
     const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${filename || "draft"}.${ext}`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(tx("downloaded", { download: a.download }));
+    toast.success(tx("downloaded", { download: filename }));
+  }
+
+  function downloadMarkdown(forAi: boolean) {
+    startTransition(async () => {
+      const r = await exportBlogMarkdown(item.id, clientId, forAi);
+      if (r.ok) saveFile(r.filename, r.content, "text/markdown");
+      else toast.error(r.message || tx("exportFailed"));
+    });
+  }
+
+  function downloadHtml() {
+    const filename = slugify(item.title ?? "") || "draft";
+    const content = `<!doctype html><meta charset="utf-8"><title>${item.title ?? ""}</title>\n${item.title ? `<h1>${item.title}</h1>\n` : ""}${item.body ?? ""}`;
+    saveFile(`${filename}.html`, content, "text/html");
   }
 
   return (
@@ -513,7 +487,8 @@ function QueueRow({
                 </button>
                 <button
                   type="button"
-                  onClick={() => downloadAs("md")}
+                  disabled={pending}
+                  onClick={() => downloadMarkdown(false)}
                   className="inline-flex h-9 items-center rounded-md bg-white/5 px-3 text-xs ring-1 ring-inset ring-white/10 hover:bg-white/10"
                   title={tx("downloadAsMdFile")}
                 >
@@ -522,7 +497,17 @@ function QueueRow({
                 </button>
                 <button
                   type="button"
-                  onClick={() => downloadAs("html")}
+                  disabled={pending}
+                  onClick={() => downloadMarkdown(true)}
+                  className="inline-flex h-9 items-center rounded-md bg-violet-500/15 px-3 text-xs text-violet-200 ring-1 ring-inset ring-violet-500/30 hover:bg-violet-500/25 disabled:opacity-50"
+                  title={tx("downloadMdForAiTitle")}
+                >
+                  <Download className="mr-1.5 size-3" />
+                  {tx("downloadMdForAi")}
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadHtml}
                   className="inline-flex h-9 items-center rounded-md bg-white/5 px-3 text-xs ring-1 ring-inset ring-white/10 hover:bg-white/10"
                   title={tx("downloadAsHtmlFile")}
                 >

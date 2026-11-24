@@ -6496,7 +6496,13 @@
       "availableEnterTheLocationName": "disponible ; indiquez le nom de l’établissement dans la planification Google",
       "noGbpUrlOnThis": "pas encore d’URL de fiche Google sur ce projet",
       "whenOffPostsLandAs": " (Désactivé : les articles arrivent en brouillon dans WordPress. Activé : ils sont publiés.)",
-      "lastRun": " · dernier passage "
+      "lastRun": " · dernier passage ",
+      "aiBriefLabel": "Consigne pour l’IA dans l’export .md (facultatif)",
+      "aiBriefPlaceholder": "Laissez vide pour la consigne par défaut : développer les sections, ajouter une FAQ, des liens internes et des emplacements d’images, garder les mots-clés.",
+      "aiBriefHint": "Écrite dans le fichier « .md pour IA » pour qu’une autre IA sache comment enrichir le brouillon (Astro, Next.js, tout site statique).",
+      "aiBrief2": "Consigne pour l’IA :",
+      "everyNDays": "Tous les {n} jours",
+      "quotedTopic": "« {v} »"
     },
     "app_clients_id_automations_page": {
       "backTo": "Retour à {name}",
@@ -6586,7 +6592,7 @@
       "copyRawBodyToClipboard": "Copier le texte brut dans le presse-papiers",
       "copyMd": "Copier en MD",
       "copyAsMarkdownPasteInto": "Copier en Markdown (à coller dans Notion, Medium, Ghost)",
-      "downloadAsMdFile": "Télécharger en fichier .md",
+      "downloadAsMdFile": "Télécharger en fichier .md, avec en-tête (titre, description, slug, date, mots-clés)",
       "downloadAsHtmlFile": "Télécharger en fichier .html",
       "delete": "Supprimer",
       "yourEditsAreSavedWhen": "Vos modifications sont enregistrées quand vous cliquez sur un bouton Approuver ci-dessous.",
@@ -6611,7 +6617,10 @@
       "clientApprovedOn": "Approuvé par le client le {date}",
       "clientAskedChangesOn": "Modifications demandées par le client le {date} :",
       "changesHint": "Modifiez le texte, puis renvoyez-le au client ou approuvez-le directement.",
-      "sentToClientOn": "Envoyé au client le {date} · en attente de sa réponse"
+      "sentToClientOn": "Envoyé au client le {date} · en attente de sa réponse",
+      "downloadMdForAi": ".md pour IA",
+      "downloadMdForAiTitle": "Fichier .md avec en-tête (titre, description, slug, mots-clés) et une consigne qui dit à une IA comment enrichir l’article : pour Astro, Next.js et les autres sites statiques",
+      "exportFailed": "Export impossible."
     },
     "app_clients_import-form": {
       "importCsv": "Importer un CSV",
@@ -8742,6 +8751,12 @@
     },
     "components_ui_area-chart": {
       "notEnoughDataYet": "Pas encore assez de données."
+    },
+    "blog_export": {
+      "untitled": "Sans titre",
+      "briefHeading": "CONSIGNE POUR L’IA",
+      "focusKeywords": "Mots-clés principaux : ",
+      "defaultBrief": "Voici le premier jet d’un article de blog (sous l’en-tête du fichier).\nRéécris-le en un article plus riche, prêt à publier :\n- Garde les champs de l’en-tête ; ne modifie le titre ou la description que pour les améliorer.\n- Garde les mots-clés principaux et emploie-les naturellement (titre, premier paragraphe, un intertitre, conclusion), sans bourrage.\n- Développe les sections trop minces avec des exemples concrets et des étapes. Vise environ 1 500 mots si le sujet s’y prête.\n- Ajoute une FAQ de 3 à 5 questions qui répondent à de vraies recherches.\n- Propose des liens internes sous la forme [texte du lien](/page-pertinente).\n- Indique l’emplacement des images avec ![texte alternatif descriptif](/images/exemple.jpg).\n- Garde le ton et les faits ; n’invente ni statistiques ni citations.\n- Ne renvoie que le fichier Markdown final, en-tête compris."
     }
   },
   "integrations": {

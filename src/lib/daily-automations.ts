@@ -236,7 +236,10 @@ async function generateForSchedule(
   const context = await buildClientContext({ client, topicSeed });
 
   if (s.kind === "blog_draft") {
-    return generateBlogDraft({ client, topicSeed, tone, context });
+    return withBlogExportMeta(
+      await generateBlogDraft({ client, topicSeed, tone, context }),
+      cfg,
+    );
   }
   if (s.kind === "gbp_post") {
     return generateGbpPost({
@@ -254,6 +257,17 @@ async function generateForSchedule(
     return generateChecklist({ client, context });
   }
   return null;
+}
+
+/** The schedule's AI brief rides along on the queue item for the "Download .md for AI" export. */
+function withBlogExportMeta(
+  item: GeneratedItem | null,
+  cfg: Record<string, unknown>,
+): GeneratedItem | null {
+  if (!item) return item;
+  const brief = typeof cfg.ai_brief === "string" ? cfg.ai_brief.trim() : "";
+  if (!brief) return item;
+  return { ...item, payload: { ...item.payload, aiBrief: brief } };
 }
 
 async function generateBlogDraft(opts: {
@@ -289,6 +303,8 @@ Output strict JSON only — no markdown fences, no preamble:
   "title": "55-65 char post title that would earn a click in SERP",
   "metaDescription": "140-160 char SEO description that summarizes the answer",
   "excerpt": "1-sentence WP excerpt (≤180 chars) — the social-share teaser",
+  "keywords": ["the 3-6 search queries this post targets, as people would type them"],
+  "language": "ISO 639-1 code of the language the post is written in, e.g. \"en\" or \"fr\"",
   "contentHtml": "the full body as HTML, no <html>/<body>/<h1>"
 }`;
   const raw = await callAI({
@@ -307,15 +323,30 @@ Output strict JSON only — no markdown fences, no preamble:
     title?: string;
     metaDescription?: string;
     excerpt?: string;
+    keywords?: unknown;
+    language?: unknown;
     contentHtml?: string;
   } | null;
   if (!parsed || !parsed.title || !parsed.contentHtml) return null;
+  // Kept on the queue item for the .md export's frontmatter.
+  const keywords = Array.isArray(parsed.keywords)
+    ? parsed.keywords
+        .map((k) => String(k).trim().slice(0, 100))
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+  const language =
+    typeof parsed.language === "string" && /^[a-z]{2}(-[a-z]{2})?$/i.test(parsed.language.trim())
+      ? parsed.language.trim().toLowerCase()
+      : (opts.client.language ?? "en");
   return {
     title: parsed.title.slice(0, 200),
     body: parsed.contentHtml,
     payload: {
       metaDescription: (parsed.metaDescription ?? "").slice(0, 200),
       excerpt: (parsed.excerpt ?? "").slice(0, 300),
+      keywords,
+      language,
     },
   };
 }
