@@ -57,6 +57,20 @@ describe("audit engine", () => {
     expect(dropCovered([engine("security-hsts", "https://ex.com/pricing")], crawl)).toEqual([]);
   });
 
+  it("drops the engine's cross-host canonical note when the crawler already flagged it, not the homepage one", () => {
+    const crawl: AuditFinding[] = [
+      { type: "non_self_canonical", severity: "low", message: "", url: "https://ex.com/a" },
+    ];
+    const kept = dropCovered(
+      [
+        engine("core-canonical-external", "https://ex.com/a"),
+        engine("core-canonical-to-homepage", "https://ex.com/a"),
+      ],
+      crawl,
+    );
+    expect(kept.map((f) => f.type)).toEqual(["seomator:core-canonical-to-homepage"]);
+  });
+
   it("only accepts the two modes", () => {
     expect(isAuditMode("quick")).toBe(true);
     expect(isAuditMode("full")).toBe(true);
