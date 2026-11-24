@@ -8,6 +8,9 @@ import { currentUser, visibleClientIds } from "@/lib/auth";
 import { db } from "@/db/client";
 import { getDisabledTools } from "@/lib/tool-activation";
 import { isToolDisabled } from "@/lib/tool-catalog";
+import { getTranslations } from "next-intl/server";
+import { resolveToolCopy } from "@/lib/i18n/tool-copy";
+import { searchableTools } from "@/lib/tool-registry";
 import {
   audits,
   clients,
@@ -37,95 +40,29 @@ export type SearchHit = {
   subtitle?: string;
 };
 
-// Static tool index — fast to filter, no DB roundtrip. Keep in sync with
-// /src/app/tools/page.tsx.
-const TOOL_INDEX: Array<{
-  href: string;
-  title: string;
-  subtitle: string;
-  keywords: string;
-}> = [
-  { href: "/tools/code-generator", title: "Code generator (plugins/HTML/.htaccess)", subtitle: "WP plugin, Elementor HTML, Shopify Liquid, schema, Next.js…", keywords: "wordpress plugin htaccess shopify liquid schema nextjs code ai" },
-  { href: "/tools/meta-tag-generator", title: "Meta tag generator", subtitle: "3 title + description options with SERP preview + OG tags", keywords: "meta title description og open graph seo" },
-  { href: "/tools/pixel-preview", title: "Pixel preview (SERP simulator)", subtitle: "Title + meta preview at Google's exact pixel widths", keywords: "serp simulator preview title meta pixel" },
-  { href: "/tools/rank-where", title: "Rank where (country-aware)", subtitle: "Find your position on Google for any keyword + country", keywords: "rank tracker position serp google country" },
-  { href: "/tools/wp-hack-scan", title: "WordPress hack scan", subtitle: "Malware / backdoor probes + Cloudflare Under Attack quick fix", keywords: "wordpress malware hack security backdoor cloudflare" },
-  { href: "/tools/local-cwv", title: "Core Web Vitals", subtitle: "LCP / CLS / INP measurement", keywords: "core web vitals lcp cls inp performance speed" },
-  { href: "/tools/serp-features", title: "SERP feature tracker", subtitle: "AI Overview, Featured Snippet, Local Pack, PAA presence", keywords: "serp features ai overview snippet local pack paa" },
-  { href: "/tools/ai-overview", title: "AI Overview readiness", subtitle: "Score for AI Overview citation likelihood", keywords: "ai overview aio google sge generative experience" },
-  { href: "/tools/eeat-audit", title: "E-E-A-T audit", subtitle: "Experience / Expertise / Authority / Trust scoring", keywords: "eeat trust authority experience expertise" },
-  { href: "/tools/geo-score", title: "GEO composite score", subtitle: "Generative Engine Optimization across 6 dimensions", keywords: "geo aeo generative engine optimization ai" },
-  { href: "/tools/health-check", title: "Single-page health check", subtitle: "Full SEO + CWV audit for one URL", keywords: "health check audit single page seo full" },
-  { href: "/tools/sxo", title: "SXO audit", subtitle: "Search experience + UX + intent satisfaction scoring", keywords: "sxo search experience ux intent" },
-  { href: "/tools/schema", title: "Schema generator", subtitle: "AI-generated schema.org JSON-LD", keywords: "schema json-ld structured data" },
-  { href: "/tools/schema-validate", title: "Schema validator", subtitle: "Validate JSON-LD on any URL", keywords: "schema validator json-ld structured" },
-  { href: "/tools/ai-schema", title: "AI schema generator", subtitle: "Schema with AI fill-in", keywords: "ai schema json-ld" },
-  { href: "/tools/person-schema", title: "Person schema builder", subtitle: "E-E-A-T-ready Person JSON-LD", keywords: "person schema author bio" },
-  { href: "/tools/aio-passage", title: "AIO passage writer", subtitle: "134-167 word self-contained passages for AI Overview citation", keywords: "aio passage ai overview citation" },
-  { href: "/tools/ai-citation-tactics", title: "AI citation tactics", subtitle: "Get cited in LLM answers — concrete tactics", keywords: "llm citation chatgpt claude perplexity" },
-  { href: "/tools/reputation-abuse-risk", title: "Reputation abuse policy risk", subtitle: "Google reputation-abuse policy compliance check", keywords: "reputation abuse policy google" },
-  { href: "/tools/intent-classifier", title: "Search intent classifier", subtitle: "informational / commercial / transactional / navigational", keywords: "intent classifier serp commercial transactional informational" },
-  { href: "/tools/keyword-difficulty", title: "Keyword difficulty", subtitle: "Free DA-weighted difficulty estimator", keywords: "keyword difficulty kd da" },
-  { href: "/tools/search-volume", title: "Search volume estimator", subtitle: "Free bulk search volume estimator", keywords: "search volume bulk estimator keyword" },
-  { href: "/tools/cluster", title: "Keyword cluster builder", subtitle: "Group keywords by topic + intent", keywords: "cluster keyword topic group" },
-  { href: "/tools/internal-linking", title: "Internal linking opportunities", subtitle: "Find existing pages that should link to target", keywords: "internal links linking opportunities" },
-  { href: "/tools/link-recommender", title: "AI internal-link recommender", subtitle: "AI suggests internal links for any content", keywords: "internal link ai recommender" },
-  { href: "/tools/link-graph", title: "Internal link graph", subtitle: "Visualize site's link structure", keywords: "link graph visualization internal" },
-  { href: "/tools/pagerank", title: "Internal PageRank", subtitle: "Distribute authority across your pages", keywords: "pagerank internal authority" },
-  { href: "/tools/auto-link", title: "Auto internal-link suggestions", subtitle: "Auto-suggest links for any content", keywords: "auto link internal" },
-  { href: "/tools/backlink-discovery", title: "Backlink discovery", subtitle: "Find new backlinks via free sources", keywords: "backlink discovery find" },
-  { href: "/tools/anchor-distribution", title: "Anchor text distribution", subtitle: "Audit your backlink anchor profile", keywords: "anchor backlink distribution audit" },
-  { href: "/tools/disavow", title: "Disavow file generator", subtitle: "Build Google disavow.txt", keywords: "disavow toxic backlinks" },
-  { href: "/tools/outreach-personalize", title: "Outreach personalizer", subtitle: "AI personalizes link-building emails", keywords: "outreach personalize email link building" },
-  { href: "/tools/reddit-research", title: "Reddit research", subtitle: "Mine Reddit for questions and pain points", keywords: "reddit research questions community" },
-  { href: "/tools/content-grader", title: "Content grader", subtitle: "Score content for SEO + readability", keywords: "content grade score readability" },
-  { href: "/tools/content-score", title: "Content scorer", subtitle: "Real-time SEO score with LSI suggestions", keywords: "content score lsi" },
-  { href: "/tools/refresh", title: "Content refresh detector", subtitle: "Pages losing traffic, ranked by recovery value", keywords: "content refresh decay update" },
-  { href: "/tools/summarizer", title: "Content summarizer", subtitle: "Summarize any URL or text", keywords: "summarize content text url" },
-  { href: "/tools/social-preview", title: "Social preview (OG / Twitter)", subtitle: "Preview how a URL renders on Twitter / Facebook / LinkedIn", keywords: "og open graph twitter facebook social preview" },
-  { href: "/tools/og-image", title: "OG image generator", subtitle: "Auto-generated Open Graph images per template", keywords: "og open graph image generator social" },
-  { href: "/tools/image-gen", title: "AI image generation", subtitle: "DALL-E images for blog heroes (BYO OpenAI key)", keywords: "ai image generation dalle hero" },
-  { href: "/tools/bulk-alt", title: "Bulk alt-text generator", subtitle: "AI alt text for many images", keywords: "alt text image accessibility bulk" },
-  { href: "/tools/programmatic-seo", title: "Programmatic SEO generator", subtitle: "Generate hundreds of templated pages from CSV", keywords: "programmatic seo template csv" },
-  { href: "/tools/hreflang", title: "Hreflang validator", subtitle: "Validate hreflang reciprocity + targeting", keywords: "hreflang international validator" },
-  { href: "/tools/hreflang-gen", title: "Hreflang tag generator", subtitle: "Build hreflang tags from URL list", keywords: "hreflang generator tag international" },
-  { href: "/tools/migration-map", title: "Migration redirect mapper", subtitle: "Old → new URL mapper for migrations", keywords: "migration redirect mapper 301" },
-  { href: "/tools/migration-parity", title: "Migration parity audit", subtitle: "Diff before / after for site migrations", keywords: "migration parity diff before after" },
-  { href: "/tools/redirects-bulk", title: "Bulk redirect tracer", subtitle: "Trace redirect chains across many URLs", keywords: "redirect bulk trace chain" },
-  { href: "/tools/redirects-manager", title: "Redirect manager", subtitle: "CRUD UI for 301/302 rules + 404 log", keywords: "redirect manager 301 302 404" },
-  { href: "/tools/robots", title: "Robots.txt + sitemap audit", subtitle: "Validate robots.txt + sitemap config", keywords: "robots sitemap validator" },
-  { href: "/tools/robots-history", title: "Robots.txt history", subtitle: "Track changes to robots.txt over time", keywords: "robots history changes" },
-  { href: "/tools/sitemap", title: "Sitemap generator", subtitle: "Crawl + generate XML / TXT / HTML sitemap", keywords: "sitemap generator xml" },
-  { href: "/tools/llms-txt", title: "llms.txt manager", subtitle: "Generate + validate llms.txt for AI bots", keywords: "llms.txt ai bots manifest" },
-  { href: "/tools/indexnow", title: "IndexNow submission", subtitle: "Push URLs to Bing / Yandex for instant indexing", keywords: "indexnow bing yandex indexing" },
-  { href: "/tools/gsc-coverage", title: "GSC index coverage (batch)", subtitle: "Bulk check URL coverage in Google Search Console", keywords: "gsc coverage indexing batch google" },
-  { href: "/tools/canonical-audit", title: "Canonical conflict detector", subtitle: "Find conflicting canonical / hreflang / sitemap signals", keywords: "canonical conflict audit" },
-  { href: "/tools/headers", title: "HTTP headers + redirect chain", subtitle: "Inspect response headers + redirect chain", keywords: "http headers redirect chain" },
-  { href: "/tools/security", title: "Security headers + SSL", subtitle: "Mozilla Observatory + SSL Labs in one view", keywords: "security ssl headers https" },
-  { href: "/tools/mobile-friendly", title: "Mobile-friendly check", subtitle: "Google Mobile-Friendly Test", keywords: "mobile friendly test responsive" },
-  { href: "/tools/crux", title: "CrUX field data", subtitle: "Real-world Core Web Vitals from Chrome User Experience report", keywords: "crux field core web vitals" },
-  { href: "/tools/crux-origin", title: "CrUX origin", subtitle: "Origin-level CrUX data", keywords: "crux origin field data" },
-  { href: "/tools/perf-budget", title: "Performance budget", subtitle: "Set + track performance budgets", keywords: "performance budget speed" },
-  { href: "/tools/render", title: "Browser render check", subtitle: "Capture how Googlebot sees the rendered page", keywords: "render browser playwright headless" },
-  { href: "/tools/wayback", title: "Wayback Machine snapshots", subtitle: "View historical snapshots of any URL", keywords: "wayback archive snapshots history" },
-  { href: "/tools/screenshot-import", title: "Screenshot importer (OCR)", subtitle: "OCR + LLM parse data from screenshots", keywords: "screenshot ocr import" },
-  { href: "/tools/youtube", title: "YouTube research", subtitle: "Mine YouTube for keywords + topics", keywords: "youtube research video" },
-  { href: "/tools/youtube-audit", title: "YouTube SEO audit", subtitle: "Audit a YouTube channel's SEO", keywords: "youtube audit channel seo" },
-  { href: "/tools/trending", title: "Trending topics", subtitle: "Multi-source trend detector", keywords: "trending topics trends" },
-  { href: "/tools/branded-split", title: "Branded vs non-branded GSC split", subtitle: "Split GSC traffic between branded + non-branded", keywords: "branded non-branded gsc split" },
-  { href: "/tools/traffic-drop", title: "Traffic drop analyzer", subtitle: "Diagnose sudden organic-traffic drops", keywords: "traffic drop diagnosis loss" },
-  { href: "/tools/utm-attribution", title: "UTM / multi-touch attribution", subtitle: "Attribute conversions across channels", keywords: "utm attribution multi-touch" },
-  { href: "/tools/uptime", title: "Uptime monitor", subtitle: "Track HTTP status + response time", keywords: "uptime monitor status" },
-  { href: "/tools/soft-404", title: "Soft-404 catcher", subtitle: "Find pages returning 200 with no content", keywords: "soft 404 thin content" },
-  { href: "/tools/facet-trap", title: "Faceted-nav trap detector", subtitle: "Find crawl-budget-eating faceted URLs", keywords: "faceted nav facet trap parameters" },
-  { href: "/tools/dns-whois", title: "DNS + WHOIS lookup", subtitle: "DNS records + WHOIS info", keywords: "dns whois lookup" },
-  { href: "/tools/domain-overview", title: "Domain overview", subtitle: "DA, traffic, backlinks at a glance", keywords: "domain overview da traffic" },
-  { href: "/tools/link-checker", title: "Bulk link checker", subtitle: "Batch-check links for 4xx / 5xx", keywords: "link checker bulk broken" },
-  { href: "/tools/bulk-scan", title: "Bulk URL scan", subtitle: "Full audit on many URLs in one go", keywords: "bulk url scan audit batch" },
-  { href: "/tools/bing", title: "Bing webmaster insights", subtitle: "Bing-only queries + crawl issues", keywords: "bing webmaster insights" },
-  { href: "/tools/github-pr", title: "GitHub PR — SEO fixes", subtitle: "Open a PR with auto SEO fixes", keywords: "github pr pull request fixes" },
-  { href: "/tools/content-helpers", title: "Content helpers (categories / image prompts)", subtitle: "AI suggests categories + cover image prompts", keywords: "content helpers categories tags" },
-];
+/**
+ * Tools are searched from the registry (lib/tool-registry.ts), named by
+ * the same translations as Settings → Tools.
+ *
+ * This used to be its own hand-kept copy of 83 tools "kept in sync with"
+ * the tools page: English titles only, eight retired tools still offered
+ * next to the tools that replaced them, and none of the pages the old
+ * grid missed (ask the AI, content gap, AI bot logs…).
+ */
+async function toolIndex(): Promise<
+  Array<{ href: string; title: string; subtitle: string; keywords: string }>
+> {
+  const [settings, catalog, nav] = await Promise.all([
+    getTranslations("settings.tools"),
+    getTranslations("tools.catalog"),
+    getTranslations("nav.items"),
+  ]);
+  return searchableTools().flatMap((t) => {
+    const copy = resolveToolCopy(t.href, { settings, catalog, nav });
+    if (!copy) return [];
+    return [{ href: t.href, title: copy.title, subtitle: copy.description, keywords: t.keywords }];
+  });
+}
 
 export type SearchResults = {
   query: string;
@@ -153,7 +90,7 @@ export async function search(rawQuery: string): Promise<SearchResults> {
   // Tools turned off in Settings → Tools are not offered.
   const disabled = await getDisabledTools();
   let toolIdx = 0;
-  for (const t of TOOL_INDEX) {
+  for (const t of await toolIndex()) {
     if (isToolDisabled(t.href, disabled)) continue;
     const hay = `${t.title} ${t.subtitle} ${t.keywords}`.toLowerCase();
     if (hay.includes(qLc)) {

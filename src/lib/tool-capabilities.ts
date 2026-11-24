@@ -99,10 +99,9 @@ export function capabilityOf(href: string): ToolCapability | null {
 /**
  * The tool's name and one-line description, as shown on its card.
  *
- * Read out of tools-grid.tsx by the generator, so the docs and the grid
- * say the same thing by construction. Null for routes that have no card
- * — /tools/geo-swot is reached from a client page and never appears in
- * the grid, which is legitimate rather than a gap.
+ * Written by the generator from the English messages, for every tool in
+ * the registry, so the docs and Settings → Tools say the same thing by
+ * construction. Null for routes that are not in the registry.
  */
 export function copyOf(
   cap: ToolCapability | null,
