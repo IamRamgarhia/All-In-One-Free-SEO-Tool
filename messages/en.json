@@ -1953,8 +1953,6 @@
       "previewAlt": "Rendered preview of {url}"
     },
     "report": {
-      "advisoryBadge": "Good practice",
-      "advisoryHint": "Good practice, not a Google ranking factor: shown here, but kept out of the SEO score, the client report and the tasks.",
       "verdictPassed": "Audit passed (threshold {threshold})",
       "verdictFailed": "Below threshold ({threshold})",
       "failures": "Failures",
@@ -2053,7 +2051,7 @@
       "categoriesHint": "{count} weighted categories · click to see the details",
       "categoryMeta": "{count, plural, one {# check} other {# checks}} · {verdict}",
       "weight": "Weight {weight}%",
-      "priorityTitle": "Fix these first",
+      "priorityTitle": "Fix these for Google",
       "priorityHint": "The {count} most important findings out of {total}",
       "passedChecks": "{count, plural, one {# passed check} other {# passed checks}}",
       "notMeasuredChecks": "{count, plural, one {# check not measured} other {# checks not measured}}",
@@ -2066,7 +2064,38 @@
       "navIssuesLabel": "{count, plural, one {# check failing or with a warning} other {# checks failing or with a warning}}",
       "navStartPageHint": "First page crawled",
       "keyMetricsHintMulti": "Checks across {count, plural, one {the analyzed page} other {the # analyzed pages}}; words, links, images and text ratio of the start page",
-      "navOpenFindings": "{count, plural, one {# open finding} other {# open findings}}"
+      "navOpenFindings": "{count, plural, one {# open finding} other {# open findings}}",
+      "tiersTitle": "What the audit found, by tier",
+      "tiersHint": "Only the first tier is about Google. The others are useful, but do not move the site up in search results.",
+      "navTiers": "By tier",
+      "tierOpen": "See the detail",
+      "tierIssues": "{count, plural, =0 {Nothing to fix} one {# to fix} other {# to fix}}",
+      "tierPassed": "{count, plural, one {# passed} other {# passed}}",
+      "tierNotMeasured": "{count, plural, one {# not measured} other {# not measured}}",
+      "tierNoIssue": "No problem in this tier.",
+      "tierQuiet": "Passed or not measured ({count})",
+      "tier": {
+        "seo": {
+          "name": "SEO audit",
+          "short": "SEO",
+          "desc": "What Google uses to crawl, index and rank the site: fix first. Counts in the score, goes in the client report and the tasks."
+        },
+        "comp": {
+          "name": "Complementary",
+          "short": "Complementary",
+          "desc": "Helps search indirectly, or for some sites only: fine performance, URL shape, trust signals, AI visibility. Counts in the score, after the first tier."
+        },
+        "info": {
+          "name": "For information",
+          "short": "For information",
+          "desc": "Good practice with no effect on Google: accessibility, social previews, files for AI agents, analytics tags. Outside the score, the client report and the tasks."
+        },
+        "hors": {
+          "name": "Off-topic",
+          "short": "Off-topic",
+          "desc": "Belongs to a security or legal audit, not SEO: security headers, cookies, consent. Outside the score, the client report and the tasks."
+        }
+      }
     }
   },
   "tools": {

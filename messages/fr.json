@@ -1953,8 +1953,6 @@
       "previewAlt": "Aperçu rendu de {url}"
     },
     "report": {
-      "advisoryBadge": "Bonne pratique",
-      "advisoryHint": "Bonne pratique hors classement Google : affichée ici, mais hors du score SEO, du rapport client et des tâches.",
       "verdictPassed": "Audit réussi (seuil {threshold})",
       "verdictFailed": "Sous le seuil ({threshold})",
       "failures": "Échecs",
@@ -2053,7 +2051,7 @@
       "categoriesHint": "{count} rubriques pondérées · cliquez pour voir le détail",
       "categoryMeta": "{count, plural, one {# contrôle} other {# contrôles}} · {verdict}",
       "weight": "Poids {weight} %",
-      "priorityTitle": "À corriger en priorité",
+      "priorityTitle": "À corriger pour Google",
       "priorityHint": "Les {count} constats les plus importants sur {total}",
       "passedChecks": "{count, plural, one {# contrôle réussi} other {# contrôles réussis}}",
       "notMeasuredChecks": "{count, plural, one {# contrôle non mesuré} other {# contrôles non mesurés}}",
@@ -2066,7 +2064,38 @@
       "navIssuesLabel": "{count, plural, one {# contrôle en échec ou en avertissement} other {# contrôles en échec ou en avertissement}}",
       "navStartPageHint": "Première page explorée",
       "keyMetricsHintMulti": "Contrôles sur {count, plural, one {la page analysée} other {les # pages analysées}} ; mots, liens, images et ratio texte de la page de départ",
-      "navOpenFindings": "{count, plural, one {# constat ouvert} other {# constats ouverts}}"
+      "navOpenFindings": "{count, plural, one {# constat ouvert} other {# constats ouverts}}",
+      "tiersTitle": "Ce que l'audit a trouvé, par niveau",
+      "tiersHint": "Seul le premier niveau parle de Google. Les autres sont utiles, mais ne font pas monter le site dans les résultats.",
+      "navTiers": "Par niveau",
+      "tierOpen": "Voir le détail",
+      "tierIssues": "{count, plural, =0 {Rien à corriger} one {# à corriger} other {# à corriger}}",
+      "tierPassed": "{count, plural, one {# réussi} other {# réussis}}",
+      "tierNotMeasured": "{count, plural, one {# non mesuré} other {# non mesurés}}",
+      "tierNoIssue": "Aucun problème dans ce niveau.",
+      "tierQuiet": "Contrôles réussis ou non mesurés ({count})",
+      "tier": {
+        "seo": {
+          "name": "Audit SEO",
+          "short": "SEO",
+          "desc": "Ce que Google utilise pour explorer, indexer et classer le site : à corriger en priorité. Compte dans la note, va dans le rapport client et dans les tâches."
+        },
+        "comp": {
+          "name": "Compléments",
+          "short": "Complément",
+          "desc": "Aide le référencement de façon indirecte, ou seulement pour certains sites : performance fine, forme des adresses, signaux de confiance, visibilité dans les IA. Compte dans la note, à traiter après le premier niveau."
+        },
+        "info": {
+          "name": "Pour information",
+          "short": "Pour information",
+          "desc": "Bonne pratique sans effet sur Google : accessibilité, aperçus sur les réseaux sociaux, fichiers pour les IA, outils de mesure. Hors de la note, du rapport client et des tâches."
+        },
+        "hors": {
+          "name": "Hors sujet",
+          "short": "Hors sujet",
+          "desc": "Relève d'un audit de sécurité ou juridique, pas du SEO : en-têtes de sécurité, cookies, consentement. Hors de la note, du rapport client et des tâches."
+        }
+      }
     }
   },
   "tools": {

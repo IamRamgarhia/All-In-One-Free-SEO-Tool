@@ -33,6 +33,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { useLocale } from "next-intl";
 import type { RuleStatus } from "@/audit/types";
 import type { CategoryRow, EngineReport, RuleRow } from "@/lib/engine-report";
+import { RULE_TIERS, type RuleTier } from "@/lib/rule-tiers";
 import { verdictForScore } from "@/lib/seomator-meta";
 import { ScoreGauge } from "@/components/ui/score-gauge";
 import { setStatusForType } from "@/app/audits/issue-actions";
@@ -233,6 +234,7 @@ export async function EngineReportView({
 
   const overview = (
     <>
+      <TierOverview report={report} t={t} />
       <KeyMetrics report={report} pages={pagesCrawled ?? report.pages.length} geoScore={hero.geoScore} t={t} />
       <CategoryGrid report={report} label={catLabel} verdictOf={verdictOf} t={t} />
       <FixFirst report={report} multiPage={multiPage} issueTotal={issueTotal} label={catLabel} t={t} />
@@ -264,6 +266,16 @@ export async function EngineReportView({
           hint: multiPage ? t("navStartPageHint") : undefined,
         },
       ],
+    },
+    {
+      label: t("navTiers"),
+      items: RULE_TIERS.map((tier) => ({
+        id: `tier-${tier}`,
+        label: t(`tier.${tier}.name`),
+        fail: report.tiers[tier].counts.fail,
+        warn: report.tiers[tier].counts.warn,
+        issuesLabel: t("navIssuesLabel", { count: report.tiers[tier].counts.fail + report.tiers[tier].counts.warn }),
+      })),
     },
     {
       label: t("navCategories", { count: report.categories.length }),
@@ -307,6 +319,20 @@ export async function EngineReportView({
               </>
             ),
           },
+          ...RULE_TIERS.map((tier) => ({
+            id: `tier-${tier}`,
+            content: (
+              <TierPanel
+                tier={tier}
+                report={report}
+                auditId={auditId}
+                activeTypes={activeTypes}
+                multiPage={multiPage}
+                t={t}
+                toolLinkFor={toolLinkFor}
+              />
+            ),
+          })),
           ...report.categories.map((c) => ({
             id: `cat-${c.id}`,
             content: (
@@ -330,6 +356,103 @@ export async function EngineReportView({
 }
 
 type T = Awaited<ReturnType<typeof getTranslations<"audits.report">>>;
+
+/**
+ * The four tiers of lib/rule-tiers.ts, each with its own colour, apart from
+ * the status colours (red, amber, green) so a tier never reads as a verdict.
+ */
+const TIER_STYLE: Record<RuleTier, { pill: string; card: string; dot: string }> = {
+  seo: { pill: "bg-cyan-500/10 text-cyan-200 ring-cyan-400/30", card: "border-t-cyan-400", dot: "bg-cyan-400" },
+  comp: { pill: "bg-violet-500/10 text-violet-200 ring-violet-400/30", card: "border-t-violet-400", dot: "bg-violet-400" },
+  info: { pill: "bg-white/5 text-muted-foreground ring-white/15", card: "border-t-slate-400/70", dot: "bg-slate-400" },
+  hors: { pill: "bg-white/5 text-muted-foreground/80 ring-white/10", card: "border-t-slate-600", dot: "bg-slate-600" },
+};
+
+/** One card per tier: how many problems each holds, and what the tier means. */
+function TierOverview({ report, t }: { report: EngineReport; t: T }) {
+  return (
+    <Card icon={Scale} title={t("tiersTitle")} hint={t("tiersHint")}>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {RULE_TIERS.map((tier) => {
+          const c = report.tiers[tier].counts;
+          const issues = c.fail + c.warn;
+          return (
+            <a
+              key={tier}
+              href={`#tier-${tier}`}
+              className={`flex flex-col gap-2 rounded-xl border border-white/5 border-t-2 bg-white/[0.02] p-4 transition-colors hover:bg-white/[0.05] ${TIER_STYLE[tier].card}`}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <span className={`size-2 rounded-full ${TIER_STYLE[tier].dot}`} />
+                {t(`tier.${tier}.name`)}
+              </span>
+              <span className={`text-2xl font-semibold tabular-nums ${issues ? (c.fail ? "text-rose-300" : "text-amber-300") : "text-emerald-300"}`}>
+                {t("tierIssues", { count: issues })}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {t("tierPassed", { count: c.pass })}
+                {c["not-measured"] ? ` · ${t("tierNotMeasured", { count: c["not-measured"] })}` : ""}
+              </span>
+              <span className="text-xs leading-relaxed text-muted-foreground">{t(`tier.${tier}.desc`)}</span>
+              <span className="mt-auto pt-1 text-xs font-medium text-primary">{t("tierOpen")}</span>
+            </a>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/** Every rule of one tier: problems first, the rest folded. */
+function TierPanel({
+  tier,
+  report,
+  auditId,
+  activeTypes,
+  multiPage,
+  t,
+  toolLinkFor,
+}: {
+  tier: RuleTier;
+  report: EngineReport;
+  auditId: number;
+  activeTypes: Set<string>;
+  multiPage: boolean;
+  t: T;
+  toolLinkFor?: (type: string) => React.ReactNode;
+}) {
+  const data = report.tiers[tier];
+  return (
+    <section className={`rounded-2xl border border-white/5 border-t-2 bg-card/40 p-5 backdrop-blur-md sm:p-6 ${TIER_STYLE[tier].card}`}>
+      <header className="mb-5 space-y-1">
+        <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          <span className={`size-2.5 rounded-full ${TIER_STYLE[tier].dot}`} />
+          {t(`tier.${tier}.name`)}
+        </h2>
+        <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{t(`tier.${tier}.desc`)}</p>
+      </header>
+      {data.issues.length ? (
+        <ul className="space-y-2.5">
+          {data.issues.map((r) => (
+            <RuleItem
+              key={r.ruleId}
+              rule={r}
+              anchor="tier-rule"
+              auditId={auditId}
+              open={activeTypes.has(`seomator:${r.ruleId}`)}
+              multiPage={multiPage}
+              t={t}
+              toolLinkFor={toolLinkFor}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-4 py-3 text-sm text-emerald-300">{t("tierNoIssue")}</p>
+      )}
+      {data.quiet.length ? <QuietList rows={data.quiet} title={t("tierQuiet", { count: data.quiet.length })} tone="pass" open={false} /> : null}
+    </section>
+  );
+}
 
 function ReportHero({
   report,
@@ -808,8 +931,11 @@ function RuleItem({
   multiPage,
   t,
   toolLinkFor,
+  anchor = "rule",
 }: {
   toolLinkFor?: (type: string) => React.ReactNode;
+  /** Prefix of the row's id: the same rule shows in its category and in its tier. */
+  anchor?: string;
   rule: RuleRow;
   auditId: number;
   /** An open issue exists for this rule, so it can be closed from here */
@@ -819,19 +945,16 @@ function RuleItem({
 }) {
   const type = `seomator:${r.ruleId}`;
   return (
-    <li id={`rule-${r.ruleId}`} className={`scroll-mt-24 rounded-xl border px-4 py-3.5 ${STATUS_STYLE[r.status].card}`}>
+    <li id={`${anchor}-${r.ruleId}`} className={`scroll-mt-24 rounded-xl border px-4 py-3.5 ${STATUS_STYLE[r.status].card}`}>
       <div className="flex gap-3">
         <StatusDot status={r.status} />
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="font-semibold">{r.name}</span>
             <span className="font-mono text-[11px] text-muted-foreground">{r.ruleId}</span>
-            {r.advisory ? (
-              <span
-                title={t("advisoryHint")}
-                className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-              >
-                {t("advisoryBadge")}
+            {r.tier !== "seo" ? (
+              <span title={t(`tier.${r.tier}.desc`)} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${TIER_STYLE[r.tier].pill}`}>
+                {t(`tier.${r.tier}.short`)}
               </span>
             ) : null}
           </div>
